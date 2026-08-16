@@ -33,6 +33,19 @@
 
 <style>
   body { font-family: Arial, Helvetica, sans-serif; }
+  @keyframes featured-carousel-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .featured-carousel-track {
+    animation-name: featured-carousel-scroll;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    width: max-content;
+  }
+  .featured-carousel-wrap:hover .featured-carousel-track {
+    animation-play-state: paused;
+  }
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen pb-24">
@@ -170,13 +183,30 @@ function renderHero() {
 
 function renderCategoryBar(categories) {
   if (categories.length === 0) return "";
-  const items = [{ value: "all", label: "Todos" }, ...categories.map((c) => ({ value: c, label: c }))];
+  const items = [{ value: "all", label: "Todos os produtos" }, ...categories.map((c) => ({ value: c, label: c }))];
   return `
     <div class="border-b border-navy-800 bg-navy-900">
       <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 py-2 text-sm">
         ${items.map((it) => `
           <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
         `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderFeaturedCarousel(products) {
+  if (products.length === 0) return "";
+  // Duplica a lista pra dar loop contínuo sem "pulo" no final.
+  const track = [...products, ...products];
+  const duration = Math.max(12, products.length * 6);
+  return `
+    <div class="mb-8">
+      <h2 class="mb-3 text-lg font-semibold text-navy-900">✨ Produtos em destaque</h2>
+      <div class="featured-carousel-wrap overflow-hidden">
+        <div class="featured-carousel-track flex gap-4" style="animation-duration: ${duration}s;">
+          ${track.map((p) => `<div class="w-40 flex-shrink-0 sm:w-48">${renderProductCard(p)}</div>`).join("")}
+        </div>
       </div>
     </div>
   `;
@@ -194,38 +224,30 @@ function renderCatalog() {
   const grouped = groupByCategory(state.products);
   const categories = grouped.map((g) => g.category);
   const featured = state.products.filter((p) => p.featured);
-  const visibleGroups = state.categoryFilter === "all" ? grouped : grouped.filter((g) => g.category === state.categoryFilter);
+  const visibleProducts = state.categoryFilter === "all"
+    ? state.products
+    : state.products.filter((p) => (p.category && p.category.trim() ? p.category.trim() : "Outros") === state.categoryFilter);
 
   app.innerHTML = `
     ${renderHeader()}
     ${renderCategoryBar(categories)}
     ${renderHero()}
     <main class="mx-auto max-w-5xl px-4 py-6">
-      ${featured.length > 0 ? `
-        <div class="mb-8">
-          <h2 class="mb-3 text-lg font-semibold text-navy-900">✨ Produtos em destaque</h2>
-          <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            ${featured.map((p) => renderProductCard(p)).join("")}
-          </div>
-        </div>
-      ` : ""}
+      ${renderFeaturedCarousel(featured)}
 
       <div class="mb-5">
-        <h2 class="text-xl font-semibold text-navy-900">${state.categoryFilter === "all" ? "Nossos produtos" : escapeHtml(state.categoryFilter)}</h2>
+        <h2 class="text-xl font-semibold text-navy-900">${state.categoryFilter === "all" ? "Encontre algo especial para sua fé" : escapeHtml(state.categoryFilter)}</h2>
       </div>
 
       ${state.products.length === 0 ? `
         <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">Nenhum produto disponível no catálogo no momento.</p>
-      ` : visibleGroups.length === 0 ? `
+      ` : visibleProducts.length === 0 ? `
         <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">Nenhum produto nessa categoria.</p>
-      ` : visibleGroups.map((g) => `
-        <div class="mb-8 last:mb-0">
-          ${state.categoryFilter === "all" ? `<h3 class="mb-3 border-b border-navy-100 pb-1 text-base font-semibold text-navy-800">${escapeHtml(g.category)}</h3>` : ""}
-          <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            ${g.products.map((p) => renderProductCard(p)).join("")}
-          </div>
+      ` : `
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          ${visibleProducts.map((p) => renderProductCard(p)).join("")}
         </div>
-      `).join("")}
+      `}
     </main>
     ${renderFooter()}
     ${renderCartBar()}
@@ -244,7 +266,10 @@ function renderProductCard(p) {
           : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-10 w-10 opacity-40" /></div>`}
       </div>
       <div class="flex flex-1 flex-col gap-2 p-3">
-        <p class="text-sm font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
+        <div>
+          <p class="text-sm font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
+          <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn mt-0.5 text-[11px] text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
+        </div>
         <div class="leading-tight">
           <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)}</p>
           <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} no Pix / à vista</p>
@@ -335,6 +360,13 @@ function wireCatalogEvents() {
   if (checkoutBtn) checkoutBtn.addEventListener("click", () => { state.screen = "checkout"; state.cartOpen = false; render(); });
   document.querySelectorAll(".category-bar-btn").forEach((btn) => {
     btn.addEventListener("click", () => { state.categoryFilter = btn.dataset.category; render(); });
+  });
+  document.querySelectorAll(".category-tag-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.categoryFilter = btn.dataset.tagCategory;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
   });
 }
 
