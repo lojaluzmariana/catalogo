@@ -464,6 +464,7 @@ function renderPrecificacao(container) {
                     ${p.photo_url ? `<img src="${p.photo_url}" class="h-5 w-5 rounded object-cover" />` : ""}
                     ${escapeHtml(p.name)}
                     ${p.category ? `<span class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
+                    ${p.material_tag ? `<span class="rounded-full bg-cream-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
                     ${p.description ? `<span title="Tem descrição cadastrada" class="text-[10px]">📝</span>` : ""}
                     ${p.product_variants && p.product_variants.length > 0 ? `<span title="${p.product_variants.length} modelo(s) cadastrado(s)" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
                   </span>
@@ -596,6 +597,16 @@ function renderProductForm() {
           <input id="pf-category-new" class="mt-2 hidden w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Nome da nova categoria" />
           <p class="mt-1 text-xs text-navy-400">Usada pra agrupar os produtos no Catálogo público.</p>
         </div>
+        <div class="w-full sm:w-56">
+          <label class="mb-1 block text-sm font-medium text-navy-800">Tag de material (opcional)</label>
+          <select id="pf-material-tag-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+            <option value="">— sem tag —</option>
+            ${[...new Set(state.products.map((p) => p.material_tag).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")).map((t) => `<option value="${escapeHtml(t)}" ${product?.material_tag === t ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}
+            <option value="__new__">+ Nova tag de material...</option>
+          </select>
+          <input id="pf-material-tag-new" class="mt-2 hidden w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex: 3D, Plástico, Madeira..." />
+          <p class="mt-1 text-xs text-navy-400">Etiqueta extra no Catálogo, ao lado da categoria (ex: "3D", "Plástico").</p>
+        </div>
       </div>
 
       <div>
@@ -672,6 +683,8 @@ function renderProductForm() {
   const photoRemoveBtn = document.getElementById("pf-photo-remove");
   const categorySelect = document.getElementById("pf-category-select");
   const categoryNewField = document.getElementById("pf-category-new");
+  const materialTagSelect = document.getElementById("pf-material-tag-select");
+  const materialTagNewField = document.getElementById("pf-material-tag-new");
   const variantsListEl = document.getElementById("pf-variants-list");
 
   // Estado local da foto: null = não mexeu, "remove" = tirar a foto atual,
@@ -685,6 +698,16 @@ function renderProductForm() {
       categoryNewField.focus();
     } else {
       categoryNewField.value = "";
+    }
+  });
+
+  materialTagNewField.classList.toggle("hidden", materialTagSelect.value !== "__new__");
+  materialTagSelect.addEventListener("change", () => {
+    materialTagNewField.classList.toggle("hidden", materialTagSelect.value !== "__new__");
+    if (materialTagSelect.value === "__new__") {
+      materialTagNewField.focus();
+    } else {
+      materialTagNewField.value = "";
     }
   });
 
@@ -867,6 +890,12 @@ function renderProductForm() {
       return;
     }
     const category = categorySelected === "__new__" ? categoryNewField.value.trim() : categorySelected;
+    const materialTagSelected = materialTagSelect.value;
+    if (materialTagSelected === "__new__" && !materialTagNewField.value.trim()) {
+      errorEl.textContent = "Digite o nome da nova tag de material.";
+      return;
+    }
+    const materialTag = materialTagSelected === "__new__" ? materialTagNewField.value.trim() : materialTagSelected;
     const description = document.getElementById("pf-description").value.trim();
 
     if (formVariants.some((v) => !v.name.trim())) {
@@ -909,7 +938,7 @@ function renderProductForm() {
       credit_markup: pricing.creditMarkup, credit_margin: pricing.creditMargin,
       promo_price: pricing.promoPrice, promo_profit: pricing.promoProfit, promo_margin: pricing.promoMargin,
       photo_url: newPhotoUrl, show_in_catalog: showInCatalog, category: category || null, featured,
-      description: description || null,
+      description: description || null, material_tag: materialTag || null,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
 
