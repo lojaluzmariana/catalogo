@@ -276,19 +276,15 @@ function renderHeader() {
 }
 
 function renderHero() {
+  // A imagem já traz a logo, a mensagem de boas-vindas e as condições de
+  // pagamento desenhadas nela. Em telas estreitas, corta as laterais
+  // (que são só decoração) e mantém o miolo com o texto sempre visível
+  // e legível — só na tela grande é que aparece a arte inteira.
   return `
-    <div class="bg-navy-900">
-      <div class="mx-auto max-w-3xl px-4 py-8 text-center">
-        <h1 class="text-2xl font-semibold text-gold-400">Bem-vindo(a) à Luz Mariana ✨</h1>
-        <p class="mt-1 text-sm font-medium text-cream-100">Fé que inspira. Presentes que têm significado.</p>
-        <p class="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-cream-100/90">
-          Aqui você encontra artigos religiosos e peças de devoção para sua casa, seu cantinho de oração ou para presentear alguém especial.
-          Explore nosso catálogo e encontre uma peça que leve fé, beleza e significado para cada momento. 💙
-        </p>
-        <p class="mt-4 inline-block rounded-full bg-gold-500/10 px-4 py-1.5 text-xs font-semibold text-gold-300 ring-1 ring-gold-400/40">
-          Condições especiais para pagamentos via Pix ou à vista
-        </p>
-      </div>
+    <div class="w-full overflow-hidden bg-navy-900">
+      <img src="hero-banner.jpg"
+        alt="Bem-vindo(a) à Luz Mariana — Fé que inspira. Presentes que têm significado. Artigos religiosos e peças de devoção para sua casa, seu cantinho de oração ou para presentear alguém especial. Condições especiais para pagamentos via Pix ou à vista."
+        class="aspect-[4/3] w-full object-cover object-center sm:aspect-[2/1] lg:aspect-[3/1]" />
     </div>
   `;
 }
