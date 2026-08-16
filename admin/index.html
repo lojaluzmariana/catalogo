@@ -35,6 +35,10 @@
   body { font-family: Arial, Helvetica, sans-serif; }
   .pin-input { font-variant-numeric: tabular-nums; letter-spacing: 0.5em; }
   table { border-collapse: collapse; }
+  /* Campos com pelo menos 16px evitam o zoom automático do iPhone ao tocar
+     num input — dá pra digitar sem a tela "pular". O !important garante
+     que vale mesmo em campos com classes de fonte menor (text-sm etc). */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
@@ -165,7 +169,7 @@ function resizeImageToBlob(file, maxDim = 1000, quality = 0.82) {
    ESTADO
    ===================================================================== */
 const state = {
-  screen: "chooseUser", // chooseUser | password | setPassword | app
+  screen: "login", // login | setPassword | app
   selectedName: null,
   currentUser: null, // { id, name }
   tab: "precificacao", // precificacao | materiais | clientes | pedidos | caixa
@@ -182,71 +186,39 @@ const app = document.getElementById("app");
 
 function render() {
   app.innerHTML = "";
-  if (state.screen === "chooseUser") return renderChooseUser();
-  if (state.screen === "password") return renderPassword();
+  if (state.screen === "login") return renderLogin();
   if (state.screen === "setPassword") return renderSetPassword();
   if (state.screen === "app") return renderApp();
 }
 
 /* ---------------------------------------------------------------------
-   TELA: escolher usuário
+   TELA: login (usuário + senha, iguais aos do Supabase)
    --------------------------------------------------------------------- */
-function renderChooseUser() {
+function renderLogin() {
   app.innerHTML = `
-    <main class="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <div class="mb-8 flex flex-col items-center gap-2">
-        <img src="../logo-symbol.png" alt="Luz Mariana" class="h-20 w-20" />
-        <img src="../logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" class="mt-2 max-w-[280px]" />
+    <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
+      <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
+        <img src="../logo-symbol.png" alt="Luz Mariana" class="h-16 w-16 sm:h-20 sm:w-20" />
+        <img src="../logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" class="mt-2 max-w-[240px] sm:max-w-[280px]" />
       </div>
-      <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-8 shadow-lg">
-        <h1 class="mb-1 text-center text-lg font-semibold text-navy-900">Quem está entrando?</h1>
-        <p class="mb-6 text-center text-sm text-navy-500">Selecione seu usuário para continuar</p>
-        <div class="grid grid-cols-2 gap-3">
-          ${Object.keys(USER_EMAILS).map((name) => `
-            <button data-user="${name}" class="choose-user-btn flex flex-col items-center gap-2 rounded-xl border border-navy-100 bg-cream-50 px-4 py-6 font-medium text-navy-900 transition hover:border-gold-400 hover:bg-gold-50">
-              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-navy-900 text-lg font-semibold text-gold-500">${name[0]}</span>
-              ${name}
-            </button>
-          `).join("")}
-        </div>
-        ${state.error ? `<p class="mt-4 text-sm text-red-600">${escapeHtml(state.error)}</p>` : ""}
-      </div>
-      <p class="mt-8 text-xs text-navy-400">Luz Mariana — Artigos Religiosos e Devoção</p>
-    </main>
-  `;
-  app.querySelectorAll(".choose-user-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.selectedName = btn.dataset.user;
-      state.error = null;
-      state.screen = "password";
-      render();
-    });
-  });
-}
-
-/* ---------------------------------------------------------------------
-   TELA: digitar senha
-   --------------------------------------------------------------------- */
-function renderPassword() {
-  app.innerHTML = `
-    <main class="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <div class="mb-8 flex flex-col items-center gap-2">
-        <img src="../logo-symbol.png" alt="Luz Mariana" class="h-20 w-20" />
-        <img src="../logo-horizontal.png" alt="Luz Mariana" class="mt-2 max-w-[280px]" />
-      </div>
-      <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-8 shadow-lg">
-        <button id="back-btn" class="mb-4 text-sm text-navy-500 hover:text-navy-800">← voltar</button>
-        <h1 class="mb-1 text-lg font-semibold text-navy-900">Olá, ${escapeHtml(state.selectedName)}!</h1>
-        <p class="mb-6 text-sm text-navy-500">Digite sua senha de 6 números.</p>
-        <form id="password-form" class="flex flex-col gap-4">
+      <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
+        <h1 class="mb-1 text-center text-lg font-semibold text-navy-900">Entrar no painel</h1>
+        <p class="mb-6 text-center text-sm text-navy-500">Use seu usuário e senha da Luz Mariana.</p>
+        <form id="login-form" class="flex flex-col gap-4">
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Usuário</span>
+            <input id="login-user" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" autofocus
+              class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+              placeholder="Digite seu usuário" />
+          </label>
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-navy-800">Senha</span>
-            <input id="pin-field" type="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" autofocus
+            <input id="login-pass" type="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" autocomplete="current-password"
               class="pin-input w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-center text-2xl text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
               placeholder="••••••" />
           </label>
           ${state.error ? `<p class="text-sm text-red-600">${escapeHtml(state.error)}</p>` : ""}
-          <button type="submit" id="submit-btn" class="mt-2 rounded-lg bg-navy-900 px-4 py-3 font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">
+          <button type="submit" id="submit-btn" class="mt-2 rounded-lg bg-navy-900 px-4 py-3.5 text-base font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">
             Entrar
           </button>
         </form>
@@ -255,31 +227,34 @@ function renderPassword() {
     </main>
   `;
 
-  const pinField = document.getElementById("pin-field");
-  pinField.addEventListener("input", () => {
-    pinField.value = pinField.value.replace(/\D/g, "").slice(0, 6);
+  const userField = document.getElementById("login-user");
+  const passField = document.getElementById("login-pass");
+  passField.addEventListener("input", () => {
+    passField.value = passField.value.replace(/\D/g, "").slice(0, 6);
   });
-  document.getElementById("back-btn").addEventListener("click", () => {
-    state.screen = "chooseUser";
-    state.error = null;
-    render();
-  });
-  document.getElementById("password-form").addEventListener("submit", async (e) => {
+
+  document.getElementById("login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const pin = pinField.value;
-    if (!/^\d{6}$/.test(pin)) {
-      state.error = "Digite os 6 números da senha.";
-      return render();
-    }
+    const userInput = userField.value.trim();
+    const pin = passField.value;
+    if (!userInput) { state.error = "Informe seu usuário."; return render(); }
+    if (!/^\d{6}$/.test(pin)) { state.error = "Digite os 6 números da senha."; return render(); }
+
+    const matchedName = Object.keys(USER_EMAILS).find((name) => name.toLowerCase() === userInput.toLowerCase());
+    const email = matchedName ? USER_EMAILS[matchedName] : (userInput.includes("@") ? userInput : null);
+    if (!email) { state.error = "Usuário não encontrado."; return render(); }
+
+    state.selectedName = matchedName || userInput;
+    state.error = null;
+
     const submitBtn = document.getElementById("submit-btn");
     submitBtn.disabled = true;
     submitBtn.textContent = "Entrando...";
 
-    const email = USER_EMAILS[state.selectedName];
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pin });
 
     if (error || !data.session) {
-      state.error = "Senha incorreta.";
+      state.error = "Usuário ou senha incorretos.";
       return render();
     }
 
@@ -299,12 +274,12 @@ function renderPassword() {
    --------------------------------------------------------------------- */
 function renderSetPassword() {
   app.innerHTML = `
-    <main class="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <div class="mb-8 flex flex-col items-center gap-2">
-        <img src="../logo-symbol.png" alt="Luz Mariana" class="h-20 w-20" />
-        <img src="../logo-horizontal.png" alt="Luz Mariana" class="mt-2 max-w-[280px]" />
+    <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
+      <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
+        <img src="../logo-symbol.png" alt="Luz Mariana" class="h-16 w-16 sm:h-20 sm:w-20" />
+        <img src="../logo-horizontal.png" alt="Luz Mariana" class="mt-2 max-w-[240px] sm:max-w-[280px]" />
       </div>
-      <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-8 shadow-lg">
+      <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
         <h1 class="mb-1 text-lg font-semibold text-navy-900">Primeiro acesso, ${escapeHtml(state.selectedName)}!</h1>
         <p class="mb-6 text-sm text-navy-500">Crie sua senha numérica definitiva de 6 dígitos.</p>
         <form id="set-password-form" class="flex flex-col gap-4">
@@ -378,7 +353,7 @@ async function enterApp() {
 async function logout() {
   await supabaseClient.auth.signOut();
   Object.assign(state, {
-    screen: "chooseUser", selectedName: null, currentUser: null, tab: "precificacao",
+    screen: "login", selectedName: null, currentUser: null, tab: "precificacao",
     products: [], materials: [], customers: [], orders: [], cashEntries: [], error: null,
   });
   render();
@@ -390,26 +365,28 @@ async function logout() {
 function renderApp() {
   app.innerHTML = `
     <div class="min-h-screen bg-cream-50">
-      <header class="bg-navy-900">
-        <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+      <header class="sticky top-0 z-10 bg-navy-900">
+        <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div class="flex items-center gap-3">
-            <img src="../logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
-            <span class="text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
+            <img src="../logo-symbol.png" alt="Luz Mariana" class="h-8 w-8 sm:h-9 sm:w-9" />
+            <span class="text-base font-semibold tracking-wide text-cream-50 sm:text-lg">Luz Mariana</span>
           </div>
-          <nav class="flex items-center gap-1">
-            <button data-tab="precificacao" class="nav-btn rounded-lg px-3 py-1.5 text-sm font-medium transition ${state.tab === "precificacao" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Precificação</button>
-            <button data-tab="materiais" class="nav-btn rounded-lg px-3 py-1.5 text-sm font-medium transition ${state.tab === "materiais" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Materiais</button>
-            <button data-tab="clientes" class="nav-btn rounded-lg px-3 py-1.5 text-sm font-medium transition ${state.tab === "clientes" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Clientes</button>
-            <button data-tab="pedidos" class="nav-btn rounded-lg px-3 py-1.5 text-sm font-medium transition ${state.tab === "pedidos" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Pedidos${state.orders.filter((o) => o.status === "novo").length > 0 ? ` <span class="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.orders.filter((o) => o.status === "novo").length}</span>` : ""}</button>
-            <button data-tab="caixa" class="nav-btn rounded-lg px-3 py-1.5 text-sm font-medium transition ${state.tab === "caixa" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Caixa</button>
-          </nav>
           <div class="flex items-center gap-3">
-            <span class="text-sm text-cream-100">Olá, ${escapeHtml(state.currentUser?.name ?? "")}</span>
-            <button id="logout-btn" class="rounded-lg border border-navy-700 px-3 py-1.5 text-sm font-medium text-cream-50 transition hover:bg-navy-800">Sair</button>
+            <span class="hidden text-sm text-cream-100 sm:inline">Olá, ${escapeHtml(state.currentUser?.name ?? "")}</span>
+            <button id="logout-btn" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">Sair</button>
           </div>
         </div>
+        <nav class="border-t border-navy-800">
+          <div class="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 text-sm">
+            <button data-tab="precificacao" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "precificacao" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Precificação</button>
+            <button data-tab="materiais" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "materiais" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Materiais</button>
+            <button data-tab="clientes" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "clientes" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Clientes</button>
+            <button data-tab="pedidos" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "pedidos" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Pedidos${state.orders.filter((o) => o.status === "novo").length > 0 ? ` <span class="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.orders.filter((o) => o.status === "novo").length}</span>` : ""}</button>
+            <button data-tab="caixa" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "caixa" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Caixa</button>
+          </div>
+        </nav>
       </header>
-      <main class="mx-auto max-w-6xl px-4 py-8" id="main-content"></main>
+      <main class="mx-auto max-w-6xl px-4 py-6 sm:py-8" id="main-content"></main>
     </div>
   `;
 
@@ -563,21 +540,21 @@ function renderProductForm() {
 
   slot.innerHTML = `
     <form id="product-form" class="flex flex-col gap-4 rounded-xl border border-gold-300 bg-white p-5 shadow">
-      <div class="flex flex-wrap items-end gap-4">
+      <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div class="min-w-[220px] flex-1">
           <label class="mb-1 block text-sm font-medium text-navy-800">Nome do produto</label>
           <input id="pf-name" value="${product ? escapeHtml(product.name) : ""}" required
             class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
             placeholder="Ex: Chaveiro Nossa Senhora" />
         </div>
-        <div class="w-48">
+        <div class="w-full sm:w-48">
           <label class="mb-1 block text-sm font-medium text-navy-800">Custo base (R$)</label>
           <input id="pf-base-cost" value="${product ? product.base_cost : "0"}" required inputmode="decimal"
             class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
             placeholder="0,00" />
           <p class="mt-1 text-xs text-navy-400">O custo do item em si, sem contar os materiais abaixo.</p>
         </div>
-        <div class="w-56">
+        <div class="w-full sm:w-56">
           <label class="mb-1 block text-sm font-medium text-navy-800">Categoria (opcional)</label>
           <input id="pf-category" list="pf-category-list" value="${product?.category ? escapeHtml(product.category) : ""}"
             class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
@@ -611,7 +588,7 @@ function renderProductForm() {
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
         <p class="mb-2 text-sm font-medium text-navy-800">Materiais usados (opcional)</p>
-        <div class="flex flex-wrap items-end gap-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <div class="min-w-[200px] flex-1">
             <label class="mb-1 block text-xs font-medium text-navy-700">Material</label>
             <select id="pf-material-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
@@ -619,11 +596,11 @@ function renderProductForm() {
               ${activeMaterials.map((m) => `<option value="${m.id}">${escapeHtml(m.name)} (${formatBRL(m.unit_cost)}/${escapeHtml(m.unit)})</option>`).join("")}
             </select>
           </div>
-          <div class="w-32">
+          <div class="w-full sm:w-32">
             <label class="mb-1 block text-xs font-medium text-navy-700">Quantidade</label>
             <input id="pf-material-qty" inputmode="decimal" placeholder="1" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
           </div>
-          <button type="button" id="pf-material-add" class="rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar</button>
+          <button type="button" id="pf-material-add" class="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100 sm:w-auto">+ Adicionar</button>
         </div>
         <div id="pf-materials-list" class="mt-3 flex flex-col gap-1"></div>
       </div>
@@ -918,25 +895,25 @@ function renderMaterialForm() {
           class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
           placeholder="Ex: Saco transparente 25x37 c/50" />
       </div>
-      <div class="w-40">
+      <div class="w-full sm:w-40">
         <label class="mb-1 block text-sm font-medium text-navy-800">Preço da embalagem (R$)</label>
         <input id="mf-price" value="${material ? material.package_price : ""}" required inputmode="decimal"
           class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
           placeholder="0,00" />
       </div>
-      <div class="w-32">
+      <div class="w-full sm:w-32">
         <label class="mb-1 block text-sm font-medium text-navy-800">Quantidade</label>
         <input id="mf-qty" value="${material ? material.package_qty : ""}" required inputmode="decimal"
           class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
           placeholder="Ex: 50" />
       </div>
-      <div class="w-28">
+      <div class="w-full sm:w-28">
         <label class="mb-1 block text-sm font-medium text-navy-800">Unidade</label>
         <select id="mf-unit" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
           ${["un", "g", "m", "cm", "kg", "l"].map((u) => `<option value="${u}" ${material?.unit === u ? "selected" : ""}>${u}</option>`).join("")}
         </select>
       </div>
-      <div class="w-32">
+      <div class="w-full sm:w-32">
         <label class="mb-1 block text-sm font-medium text-navy-800">Estoque atual</label>
         <input id="mf-stock" value="${material ? Number(material.stock_qty) : "0"}" required inputmode="decimal"
           class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
@@ -1538,17 +1515,17 @@ function renderEntryForm(products, editingEntry) {
               ${state.materials.filter((m) => m.active).map((m) => `<option value="${m.id}">${escapeHtml(m.name)} (${formatBRL(m.unit_cost)}/${escapeHtml(m.unit)} — estoque: ${Number(m.stock_qty)})</option>`).join("")}
             </select>
           </div>
-          <div class="w-32">
+          <div class="w-full sm:w-32">
             <label class="mb-1 block text-xs font-medium text-navy-700">Quantidade</label>
             <input id="ef-material-qty" inputmode="decimal" placeholder="1" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
           </div>
-          <button type="button" id="ef-material-add" class="rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar</button>
+          <button type="button" id="ef-material-add" class="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100 sm:w-auto">+ Adicionar</button>
         </div>
         <div id="ef-materials-list" class="mt-3 flex flex-col gap-1"></div>
       </div>
 
       <div class="flex flex-wrap gap-4">
-        <div class="w-40">
+        <div class="w-full sm:w-40">
           <label class="mb-1 block text-xs font-medium text-navy-700">Valor (R$)</label>
           <input id="ef-amount" value="${editingEntry ? Number(editingEntry.amount) : ""}" required inputmode="decimal" placeholder="0,00" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
         </div>
