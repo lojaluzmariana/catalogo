@@ -407,7 +407,7 @@ function renderApp() {
 async function loadProducts() {
   const { data, error } = await supabaseClient
     .from("products")
-    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost))")
+    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order)")
     .order("active", { ascending: false })
     .order("name", { ascending: true });
   if (!error) state.products = data;
@@ -464,6 +464,8 @@ function renderPrecificacao(container) {
                     ${p.photo_url ? `<img src="${p.photo_url}" class="h-5 w-5 rounded object-cover" />` : ""}
                     ${escapeHtml(p.name)}
                     ${p.category ? `<span class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
+                    ${p.description ? `<span title="Tem descrição cadastrada" class="text-[10px]">📝</span>` : ""}
+                    ${p.product_variants && p.product_variants.length > 0 ? `<span title="${p.product_variants.length} modelo(s) cadastrado(s)" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
                   </span>
                   ${p.product_materials && p.product_materials.length > 0 ? `<div class="mt-0.5 text-[10px] font-normal text-navy-400">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).join(", ")}</div>` : ""}
                 </td>
@@ -560,6 +562,14 @@ function renderProductForm() {
 
   const activeMaterials = state.materials.filter((m) => m.active);
 
+  // Lista de modelos/variações deste produto (estado local do formulário).
+  const formVariants = product && product.product_variants
+    ? [...product.product_variants]
+        .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name, "pt-BR"))
+        .map((v) => ({ id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null }))
+    : [];
+  const deletedVariantPhotoUrls = [];
+
   slot.innerHTML = `
     <form id="product-form" class="flex flex-col gap-4 rounded-xl border border-gold-300 bg-white p-5 shadow">
       <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
@@ -588,6 +598,14 @@ function renderProductForm() {
         </div>
       </div>
 
+      <div>
+        <label class="mb-1 block text-sm font-medium text-navy-800">Descrição (opcional)</label>
+        <textarea id="pf-description" rows="3"
+          class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+          placeholder="O que acompanha, material, tamanho, etc.">${product?.description ? escapeHtml(product.description) : ""}</textarea>
+        <p class="mt-1 text-xs text-navy-400">Aparece no Catálogo público, embaixo do produto (o cliente pode expandir pra ler).</p>
+      </div>
+
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
         <p class="mb-2 text-sm font-medium text-navy-800">Foto (opcional — usada no Catálogo)</p>
         <div class="flex flex-wrap items-center gap-4">
@@ -606,6 +624,13 @@ function renderProductForm() {
           <input type="checkbox" id="pf-featured" ${product?.featured ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
           Produto em destaque (aparece numa vitrine especial no topo do Catálogo)
         </label>
+      </div>
+
+      <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+        <p class="mb-1 text-sm font-medium text-navy-800">Modelos / Variações (opcional)</p>
+        <p class="mb-3 text-xs text-navy-400">Se este produto vem em mais de um modelo (cor, tamanho etc.), cadastre cada um com o nome e a foto dele. No Catálogo, o cliente escolhe o modelo antes de comprar.</p>
+        <div id="pf-variants-list" class="flex flex-col gap-2"></div>
+        <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar modelo</button>
       </div>
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
@@ -647,6 +672,7 @@ function renderProductForm() {
   const photoRemoveBtn = document.getElementById("pf-photo-remove");
   const categorySelect = document.getElementById("pf-category-select");
   const categoryNewField = document.getElementById("pf-category-new");
+  const variantsListEl = document.getElementById("pf-variants-list");
 
   // Estado local da foto: null = não mexeu, "remove" = tirar a foto atual,
   // ou um Blob já redimensionado/comprimido, pronto pra enviar.
@@ -686,6 +712,74 @@ function renderProductForm() {
     photoPreview.classList.add("hidden");
     photoRemoveBtn.classList.add("hidden");
     photoStatus.textContent = "A foto será removida ao salvar.";
+  });
+
+  function renderVariantsList() {
+    variantsListEl.innerHTML = formVariants.length === 0
+      ? `<p class="text-xs text-navy-400">Nenhum modelo cadastrado — deixe em branco se este produto não tiver variações.</p>`
+      : formVariants.map((v, idx) => `
+          <div class="flex flex-col gap-2 rounded-lg bg-white p-3 shadow-sm sm:flex-row sm:items-center">
+            <img data-variant-preview="${idx}" src="${v.photoUrl ?? ""}" class="h-14 w-14 flex-shrink-0 rounded-lg border border-navy-200 bg-cream-50 object-cover ${v.photoUrl ? "" : "hidden"}" />
+            <div class="flex-1">
+              <input data-variant-name="${idx}" value="${escapeHtml(v.name)}" placeholder="Ex: Azul, Modelo P..."
+                class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <input type="file" data-variant-photo="${idx}" accept="image/*" class="text-xs text-navy-700" />
+              <button type="button" data-variant-remove-photo="${idx}" class="text-xs text-red-600 hover:underline ${v.photoUrl ? "" : "hidden"}">remover foto</button>
+              <button type="button" data-variant-remove="${idx}" class="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Remover modelo</button>
+            </div>
+          </div>
+        `).join("");
+    wireVariantRowEvents();
+  }
+
+  function wireVariantRowEvents() {
+    variantsListEl.querySelectorAll("[data-variant-name]").forEach((input) => {
+      input.addEventListener("input", () => {
+        formVariants[Number(input.dataset.variantName)].name = input.value;
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-photo]").forEach((input) => {
+      input.addEventListener("change", async () => {
+        const idx = Number(input.dataset.variantPhoto);
+        const file = input.files?.[0];
+        if (!file) return;
+        try {
+          const blob = await resizeImageToBlob(file);
+          formVariants[idx].pendingPhoto = blob;
+          formVariants[idx].photoUrl = URL.createObjectURL(blob);
+          const previewImg = variantsListEl.querySelector(`[data-variant-preview="${idx}"]`);
+          previewImg.src = formVariants[idx].photoUrl;
+          previewImg.classList.remove("hidden");
+          variantsListEl.querySelector(`[data-variant-remove-photo="${idx}"]`).classList.remove("hidden");
+        } catch (err) {
+          document.getElementById("pf-error").textContent = "Não foi possível processar a foto desse modelo: " + err.message;
+        }
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-remove-photo]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.dataset.variantRemovePhoto);
+        formVariants[idx].pendingPhoto = "remove";
+        formVariants[idx].photoUrl = null;
+        renderVariantsList();
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-remove]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.dataset.variantRemove);
+        if (formVariants[idx].originalPhotoUrl) deletedVariantPhotoUrls.push(formVariants[idx].originalPhotoUrl);
+        formVariants.splice(idx, 1);
+        renderVariantsList();
+      });
+    });
+  }
+
+  renderVariantsList();
+  document.getElementById("pf-variant-add").addEventListener("click", () => {
+    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null });
+    renderVariantsList();
   });
 
   function materialsTotal() {
@@ -773,6 +867,12 @@ function renderProductForm() {
       return;
     }
     const category = categorySelected === "__new__" ? categoryNewField.value.trim() : categorySelected;
+    const description = document.getElementById("pf-description").value.trim();
+
+    if (formVariants.some((v) => !v.name.trim())) {
+      errorEl.textContent = "Preencha o nome de todos os modelos (ou remova a linha vazia).";
+      return;
+    }
 
     // Envia a foto nova (se houver) antes de salvar o produto.
     const oldPhotoUrl = product?.photo_url ?? null;
@@ -786,12 +886,30 @@ function renderProductForm() {
       newPhotoUrl = supabaseClient.storage.from("product-photos").getPublicUrl(path).data.publicUrl;
     }
 
+    // Envia as fotos novas dos modelos (se houver) antes de salvar o produto.
+    for (const v of formVariants) {
+      if (v.pendingPhoto === "remove") {
+        v.finalPhotoUrl = null;
+      } else if (v.pendingPhoto instanceof Blob) {
+        const path = `variante-${crypto.randomUUID()}.jpg`;
+        const { error: variantUploadError } = await supabaseClient.storage.from("product-photos").upload(path, v.pendingPhoto, { contentType: "image/jpeg", upsert: false });
+        if (variantUploadError) { errorEl.textContent = `Não foi possível enviar a foto do modelo "${v.name}": ` + variantUploadError.message; return; }
+        v.finalPhotoUrl = supabaseClient.storage.from("product-photos").getPublicUrl(path).data.publicUrl;
+      } else {
+        v.finalPhotoUrl = v.originalPhotoUrl;
+      }
+      if (v.originalPhotoUrl && v.originalPhotoUrl !== v.finalPhotoUrl) {
+        deletedVariantPhotoUrls.push(v.originalPhotoUrl);
+      }
+    }
+
     const payload = {
       name, base_cost: baseCost, cost: pricing.cost,
       credit_price: pricing.creditPrice, credit_net: pricing.creditNet, credit_profit: pricing.creditProfit,
       credit_markup: pricing.creditMarkup, credit_margin: pricing.creditMargin,
       promo_price: pricing.promoPrice, promo_profit: pricing.promoProfit, promo_margin: pricing.promoMargin,
       photo_url: newPhotoUrl, show_in_catalog: showInCatalog, category: category || null, featured,
+      description: description || null,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
 
@@ -817,6 +935,20 @@ function renderProductForm() {
       const rows = formMaterials.map((m) => ({ product_id: productId, material_id: m.material_id, quantity: m.quantity }));
       const { error: linkError } = await supabaseClient.from("product_materials").insert(rows);
       if (linkError) { errorEl.textContent = linkError.message; return; }
+    }
+
+    // Sincroniza os modelos/variações: apaga os antigos e grava a lista atual.
+    await supabaseClient.from("product_variants").delete().eq("product_id", productId);
+    if (formVariants.length > 0) {
+      const variantRows = formVariants.map((v, idx) => ({ product_id: productId, name: v.name.trim(), photo_url: v.finalPhotoUrl ?? null, sort_order: idx }));
+      const { error: variantError } = await supabaseClient.from("product_variants").insert(variantRows);
+      if (variantError) { errorEl.textContent = variantError.message; return; }
+    }
+
+    // Apaga do Storage as fotos de modelos que foram trocadas ou removidas.
+    for (const url of deletedVariantPhotoUrls) {
+      const oldPath = url.split("/product-photos/")[1];
+      if (oldPath) await supabaseClient.storage.from("product-photos").remove([oldPath]);
     }
 
     precifState.formOpen = false;
@@ -1308,7 +1440,7 @@ function renderPedidos(container) {
               <div class="mt-3 flex flex-col gap-1 border-t border-navy-50 pt-3">
                 ${o.items.map((it) => `
                   <div class="flex items-center justify-between text-sm text-navy-700">
-                    <span>${it.quantity}× ${escapeHtml(it.product_name)}</span>
+                    <span>${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""}</span>
                     <span>${formatBRL(it.unit_price * it.quantity)}</span>
                   </div>
                 `).join("")}
