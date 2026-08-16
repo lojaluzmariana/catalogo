@@ -343,7 +343,7 @@ function renderProductCard(p, opts = {}) {
           </div>
         ` : ""}
 
-        ${hasDescription ? `<p class="text-[11px] leading-relaxed text-navy-600">${escapeHtml(p.description).replace(/\n/g, "<br>")}</p>` : ""}
+        ${hasDescription ? `<p class="text-justify text-[11px] leading-relaxed text-navy-600">${escapeHtml(p.description).replace(/\n/g, "<br>")}</p>` : ""}
 
         <div class="leading-tight">
           <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)}</p>
@@ -471,7 +471,7 @@ function renderProductDetail() {
             <button data-tag-category="${escapeHtml(categoryLabel)}" class="category-tag-btn mt-1 text-xs text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(categoryLabel)}</button>
           </div>
 
-          ${hasDescription ? `<p class="text-sm leading-relaxed text-navy-600">${escapeHtml(product.description).replace(/\n/g, "<br>")}</p>` : ""}
+          ${hasDescription ? `<p class="text-justify text-sm leading-relaxed text-navy-600">${escapeHtml(product.description).replace(/\n/g, "<br>")}</p>` : ""}
 
           <div class="leading-tight">
             <p class="text-2xl font-semibold text-navy-900">${formatBRL(product.credit_price)}</p>
