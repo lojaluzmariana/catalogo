@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Luz Mariana — Catálogo</title>
+<meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
+<link rel="icon" href="logo-symbol.png" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: {
+            50: "#eef1fa", 100: "#d7ddf2", 200: "#aeb9e4", 300: "#8091d3",
+            400: "#4e64bd", 500: "#2740a3", 600: "#152e8a", 700: "#0d2276",
+            800: "#071a68", 900: "#001868", 950: "#000f42",
+          },
+          gold: {
+            50: "#fdf6e3", 100: "#faeab8", 200: "#f6da85", 300: "#f2c852",
+            400: "#efb92c", 500: "#e8a000", 600: "#c98900", 700: "#a06d00",
+            800: "#7a5300", 900: "#5c3f00",
+          },
+          cream: { 50: "#fdfbf7", 100: "#f8f0e8" },
+        },
+      },
+    },
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; }
+</style>
+</head>
+<body class="bg-cream-50 text-navy-900 min-h-screen pb-24">
+<div id="app"></div>
+
+<script>
+/* =====================================================================
+   CONFIGURAÇÃO — mesmos dados do Supabase usados no index.html, mais o
+   número de WhatsApp da loja (só números, com código do país e DDD,
+   ex.: 55 11 91234-5678 vira "5511912345678").
+   ===================================================================== */
+const SUPABASE_URL = "https://xgcsdpqaqxstcfwgwaxw.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_7AX1nS3J0mtVkzzzLVsKlg_zYxWFxfk";
+const STORE_WHATSAPP_NUMBER = "5511999999999"; // <-- troque pelo número de verdade da Luz Mariana
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function formatBRL(v) {
+  return Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+function escapeHtml(str) {
+  return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+const app = document.getElementById("app");
+
+const state = {
+  loading: true,
+  loadError: null,
+  products: [],
+  cart: {}, // { [product_id]: quantity }
+  payment: "pix", // pix | credito
+  cartOpen: false,
+  screen: "catalog", // catalog | checkout | success
+  submitting: false,
+  submitError: null,
+};
+
+async function loadCatalog() {
+  const { data, error } = await supabaseClient.from("catalog_products").select("*").order("category", { ascending: true, nullsFirst: false }).order("name");
+  if (error) { state.loadError = error.message; state.loading = false; render(); return; }
+  state.products = data;
+  state.loading = false;
+  render();
+}
+
+function groupByCategory(products) {
+  const map = new Map();
+  products.forEach((p) => {
+    const key = p.category && p.category.trim() ? p.category.trim() : "Outros";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(p);
+  });
+  const keys = [...map.keys()].sort((a, b) => {
+    if (a === "Outros") return b === "Outros" ? 0 : 1;
+    if (b === "Outros") return -1;
+    return a.localeCompare(b, "pt-BR");
+  });
+  return keys.map((key) => ({ category: key, products: map.get(key) }));
+}
+
+function priceFor(product) {
+  return state.payment === "credito" ? Number(product.credit_price) : Number(product.promo_price);
+}
+
+function cartItems() {
+  return Object.entries(state.cart)
+    .map(([id, qty]) => ({ product: state.products.find((p) => p.id === id), quantity: qty }))
+    .filter((it) => it.product && it.quantity > 0);
+}
+
+function cartCount() {
+  return Object.values(state.cart).reduce((sum, q) => sum + q, 0);
+}
+
+function cartTotal() {
+  return cartItems().reduce((sum, it) => sum + priceFor(it.product) * it.quantity, 0);
+}
+
+function setQty(productId, qty) {
+  if (qty <= 0) delete state.cart[productId];
+  else state.cart[productId] = qty;
+  render();
+}
+
+/* =====================================================================
+   RENDER
+   ===================================================================== */
+function render() {
+  if (state.loading) {
+    app.innerHTML = `<main class="flex min-h-screen items-center justify-center"><p class="text-navy-400">Carregando catálogo...</p></main>`;
+    return;
+  }
+  if (state.loadError) {
+    app.innerHTML = `<main class="flex min-h-screen items-center justify-center px-4 text-center"><p class="text-red-600">Não foi possível carregar o catálogo agora. Tente novamente em instantes.</p></main>`;
+    return;
+  }
+  if (state.screen === "success") return renderSuccess();
+  if (state.screen === "checkout") return renderCheckout();
+  return renderCatalog();
+}
+
+function renderHeader() {
+  return `
+    <header class="bg-navy-900">
+      <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div class="flex items-center gap-3">
+          <img src="logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
+          <span class="text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
+        </div>
+        <span class="text-sm text-cream-100">Catálogo</span>
+      </div>
+    </header>
+  `;
+}
+
+function renderCatalog() {
+  app.innerHTML = `
+    ${renderHeader()}
+    <main class="mx-auto max-w-5xl px-4 py-6">
+      <div class="mb-5">
+        <h1 class="text-xl font-semibold text-navy-900">Nossos produtos</h1>
+        <p class="text-sm text-navy-500">Preço de cartão de crédito em destaque — o valor no Pix / à vista é o menor, mostrado abaixo.</p>
+      </div>
+
+      ${state.products.length === 0 ? `
+        <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">Nenhum produto disponível no catálogo no momento.</p>
+      ` : groupByCategory(state.products).map((g) => `
+        <div class="mb-8 last:mb-0">
+          <h2 class="mb-3 border-b border-navy-100 pb-1 text-base font-semibold text-navy-800">${escapeHtml(g.category)}</h2>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            ${g.products.map((p) => renderProductCard(p)).join("")}
+          </div>
+        </div>
+      `).join("")}
+    </main>
+    ${renderCartBar()}
+    ${state.cartOpen ? renderCartDrawer() : ""}
+  `;
+  wireCatalogEvents();
+}
+
+function renderProductCard(p) {
+  const qty = state.cart[p.id] ?? 0;
+  return `
+    <div class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
+      <div class="aspect-square w-full bg-cream-100">
+        ${p.photo_url
+          ? `<img src="${p.photo_url}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
+          : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-10 w-10 opacity-40" /></div>`}
+      </div>
+      <div class="flex flex-1 flex-col gap-2 p-3">
+        <p class="text-sm font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
+        <div class="leading-tight">
+          <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)}</p>
+          <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} no Pix / à vista</p>
+        </div>
+        ${qty === 0 ? `
+          <button data-add="${p.id}" class="add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>
+        ` : `
+          <div class="mt-auto flex items-center justify-between rounded-lg border border-navy-200">
+            <button data-qty-minus="${p.id}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
+            <span class="text-sm font-semibold text-navy-900">${qty}</span>
+            <button data-qty-plus="${p.id}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">+</button>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function renderCartBar() {
+  const count = cartCount();
+  if (count === 0) return "";
+  return `
+    <div class="fixed inset-x-0 bottom-0 z-20 border-t border-navy-100 bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+      <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <span class="text-sm text-navy-600">${count} ${count === 1 ? "item" : "itens"} · <b class="text-navy-900">${formatBRL(cartTotal())}</b></span>
+        <button id="open-cart-btn" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">Ver carrinho</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderCartDrawer() {
+  const items = cartItems();
+  return `
+    <div id="cart-overlay" class="fixed inset-0 z-30 bg-navy-950/40">
+      <div class="ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-navy-100 px-4 py-3">
+          <h2 class="text-lg font-semibold text-navy-900">Seu carrinho</h2>
+          <button id="close-cart-btn" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-50">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-4 py-3">
+          ${items.length === 0 ? `<p class="py-8 text-center text-navy-400">Seu carrinho está vazio.</p>` : items.map((it) => `
+            <div class="flex items-center gap-3 border-b border-navy-50 py-3 last:border-0">
+              <div class="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
+                ${it.product.photo_url ? `<img src="${it.product.photo_url}" class="h-full w-full object-cover" />` : ""}
+              </div>
+              <div class="flex-1">
+                <p class="text-sm font-medium text-navy-900">${escapeHtml(it.product.name)}</p>
+                <p class="text-xs text-navy-500">${formatBRL(priceFor(it.product))} cada</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button data-qty-minus="${it.product.id}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
+                <span class="w-5 text-center text-sm font-semibold">${it.quantity}</span>
+                <button data-qty-plus="${it.product.id}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">+</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="border-t border-navy-100 px-4 py-4">
+          <div class="mb-3 flex items-center justify-between text-sm">
+            <span class="text-navy-600">Total (${state.payment === "credito" ? "cartão de crédito" : "pix / à vista"})</span>
+            <span class="text-lg font-semibold text-navy-900">${formatBRL(cartTotal())}</span>
+          </div>
+          <button id="go-checkout-btn" ${items.length === 0 ? "disabled" : ""} class="w-full rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-50">Continuar pedido</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function wireCatalogEvents() {
+  document.querySelectorAll(".add-to-cart-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setQty(btn.dataset.add, 1));
+  });
+  document.querySelectorAll("[data-qty-plus]").forEach((btn) => {
+    btn.addEventListener("click", () => setQty(btn.dataset.qtyPlus, (state.cart[btn.dataset.qtyPlus] ?? 0) + 1));
+  });
+  document.querySelectorAll("[data-qty-minus]").forEach((btn) => {
+    btn.addEventListener("click", () => setQty(btn.dataset.qtyMinus, (state.cart[btn.dataset.qtyMinus] ?? 0) - 1));
+  });
+  const openBtn = document.getElementById("open-cart-btn");
+  if (openBtn) openBtn.addEventListener("click", () => { state.cartOpen = true; render(); });
+  const closeBtn = document.getElementById("close-cart-btn");
+  if (closeBtn) closeBtn.addEventListener("click", () => { state.cartOpen = false; render(); });
+  const overlay = document.getElementById("cart-overlay");
+  if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) { state.cartOpen = false; render(); } });
+  const checkoutBtn = document.getElementById("go-checkout-btn");
+  if (checkoutBtn) checkoutBtn.addEventListener("click", () => { state.screen = "checkout"; state.cartOpen = false; render(); });
+}
+
+/* =====================================================================
+   CHECKOUT
+   ===================================================================== */
+function renderCheckout() {
+  const items = cartItems();
+  app.innerHTML = `
+    ${renderHeader()}
+    <main class="mx-auto max-w-lg px-4 py-6">
+      <button id="back-to-catalog-btn" class="mb-4 text-sm text-navy-600 hover:underline">&larr; Voltar ao catálogo</button>
+      <h1 class="mb-4 text-xl font-semibold text-navy-900">Finalizar pedido</h1>
+
+      <div class="mb-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+        ${items.map((it) => `
+          <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm last:border-0">
+            <span>${it.quantity}× ${escapeHtml(it.product.name)}</span>
+            <span class="font-medium text-navy-900">${formatBRL(priceFor(it.product) * it.quantity)}</span>
+          </div>
+        `).join("")}
+        <div class="mt-2 flex items-center justify-between border-t border-navy-100 pt-2 text-base font-semibold text-navy-900">
+          <span>Total</span>
+          <span>${formatBRL(cartTotal())}</span>
+        </div>
+      </div>
+
+      <form id="checkout-form" class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Forma de pagamento</label>
+          <div class="flex gap-1 rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
+            <button type="button" data-payment="pix" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / à vista</button>
+            <button type="button" data-payment="credito" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
+          </div>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Nome</label>
+          <input id="ck-name" required class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Seu nome" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">WhatsApp</label>
+          <input id="ck-whatsapp" required class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Instagram (opcional)</label>
+          <input id="ck-instagram" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="@usuario" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Observações (opcional)</label>
+          <textarea id="ck-notes" rows="2" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Endereço de entrega, alguma personalização, etc."></textarea>
+        </div>
+        <div id="ck-error" class="text-sm text-red-600"></div>
+        <button type="submit" id="ck-submit" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">Confirmar pedido e abrir WhatsApp</button>
+        <p class="text-center text-xs text-navy-400">Ao confirmar, o WhatsApp abre com seu pedido pronto — é só apertar enviar.</p>
+      </form>
+    </main>
+  `;
+
+  document.getElementById("back-to-catalog-btn").addEventListener("click", () => { state.screen = "catalog"; render(); });
+  document.querySelectorAll(".checkout-payment-btn").forEach((btn) => {
+    btn.addEventListener("click", () => { state.payment = btn.dataset.payment; render(); });
+  });
+  document.getElementById("checkout-form").addEventListener("submit", onSubmitOrder);
+}
+
+async function onSubmitOrder(e) {
+  e.preventDefault();
+  const errorEl = document.getElementById("ck-error");
+  const submitBtn = document.getElementById("ck-submit");
+  const name = document.getElementById("ck-name").value.trim();
+  const whatsapp = document.getElementById("ck-whatsapp").value.trim();
+  const instagram = document.getElementById("ck-instagram").value.trim().replace(/^@/, "");
+  const notes = document.getElementById("ck-notes").value.trim();
+
+  if (!name) { errorEl.textContent = "Informe seu nome."; return; }
+  if (!whatsapp) { errorEl.textContent = "Informe seu WhatsApp."; return; }
+  const items = cartItems();
+  if (items.length === 0) { errorEl.textContent = "Seu carrinho está vazio."; return; }
+
+  errorEl.textContent = "";
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Enviando pedido...";
+
+  // Abre a aba do WhatsApp já agora (síncrono, ligado ao clique) pra não
+  // ser bloqueada como pop-up depois do "await" do envio pro Supabase.
+  const waWindow = window.open("", "_blank");
+
+  const orderId = crypto.randomUUID();
+  const total = cartTotal();
+
+  const { error: orderError } = await supabaseClient.from("orders").insert({
+    id: orderId,
+    customer_name: name,
+    customer_whatsapp: whatsapp,
+    customer_instagram: instagram || null,
+    payment_method: state.payment,
+    notes: notes || null,
+    total,
+  });
+
+  if (orderError) {
+    if (waWindow) waWindow.close();
+    errorEl.textContent = "Não foi possível registrar o pedido: " + orderError.message;
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Confirmar pedido e abrir WhatsApp";
+    return;
+  }
+
+  const itemRows = items.map((it) => ({
+    order_id: orderId,
+    product_id: it.product.id,
+    product_name: it.product.name,
+    unit_price: priceFor(it.product),
+    quantity: it.quantity,
+  }));
+  const { error: itemsError } = await supabaseClient.from("order_items").insert(itemRows);
+  if (itemsError) {
+    console.error("Erro ao salvar itens do pedido:", itemsError.message);
+    // O pedido em si já foi criado — segue o fluxo mesmo assim, a loja
+    // ainda recebe a mensagem completa no WhatsApp.
+  }
+
+  const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment: state.payment });
+  const waUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+  if (waWindow) waWindow.location.href = waUrl;
+  else window.open(waUrl, "_blank");
+
+  state.cart = {};
+  state.screen = "success";
+  render();
+}
+
+function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment }) {
+  const lines = [];
+  lines.push(`Olá! Gostaria de fazer um pedido pelo Catálogo Luz Mariana:`);
+  lines.push("");
+  items.forEach((it) => {
+    lines.push(`• ${it.quantity}x ${it.product.name} — ${formatBRL(priceFor(it.product) * it.quantity)}`);
+  });
+  lines.push("");
+  lines.push(`Total: ${formatBRL(total)}`);
+  lines.push(`Pagamento: ${payment === "credito" ? "Cartão de crédito" : "Pix / à vista"}`);
+  lines.push("");
+  lines.push(`Nome: ${name}`);
+  lines.push(`WhatsApp: ${whatsapp}`);
+  if (instagram) lines.push(`Instagram: @${instagram}`);
+  if (notes) lines.push(`Observações: ${notes}`);
+  return lines.join("\n");
+}
+
+/* =====================================================================
+   SUCESSO
+   ===================================================================== */
+function renderSuccess() {
+  app.innerHTML = `
+    ${renderHeader()}
+    <main class="mx-auto flex max-w-lg flex-col items-center px-4 py-16 text-center">
+      <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✓</div>
+      <h1 class="mb-2 text-xl font-semibold text-navy-900">Pedido enviado!</h1>
+      <p class="mb-6 text-sm text-navy-600">Confira a aba do WhatsApp que abriu — é só apertar "Enviar" pra confirmar o pedido com a Luz Mariana.</p>
+      <button id="new-order-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Fazer novo pedido</button>
+    </main>
+  `;
+  document.getElementById("new-order-btn").addEventListener("click", () => { state.screen = "catalog"; render(); });
+}
+
+loadCatalog();
+</script>
+</body>
+</html>
