@@ -341,7 +341,7 @@ function renderCatalog() {
     ${renderCategoryBar(categories)}
     ${renderHero()}
     <main class="mx-auto max-w-5xl px-4 py-6">
-      ${renderFeaturedCarousel(featured)}
+      ${state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
 
       <div class="mb-5">
         <h2 class="text-xl font-semibold text-navy-900">${state.categoryFilter === "all" ? "Encontre algo especial para sua fé" : escapeHtml(state.categoryFilter)}</h2>
@@ -356,6 +356,8 @@ function renderCatalog() {
           ${visibleProducts.map((p) => renderProductCard(p)).join("")}
         </div>
       `}
+
+      ${state.categoryFilter !== "all" ? renderFeaturedCarousel(featured) : ""}
     </main>
     ${renderFooter()}
     ${renderCartBar()}
