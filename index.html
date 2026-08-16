@@ -90,7 +90,10 @@ const state = {
   loading: true,
   loadError: null,
   products: [],
-  cart: {}, // { [product_id]: quantity }
+  variantsByProduct: {}, // { [product_id]: [{id, name, photo_url, sort_order}, ...] }
+  cart: {}, // { [cartKey]: quantity } — cartKey é o product_id, ou "product_id::variant_id" quando tem modelo escolhido
+  selectedVariant: {}, // { [product_id]: variant_id } — modelo escolhido em cada card, antes de adicionar ao carrinho
+  expandedDescriptions: {}, // { [product_id]: true } — descrições abertas
   payment: "pix", // pix | credito
   categoryFilter: "all",
   cartOpen: false,
@@ -100,11 +103,42 @@ const state = {
 };
 
 async function loadCatalog() {
-  const { data, error } = await supabaseClient.from("catalog_products").select("*").order("category", { ascending: true, nullsFirst: false }).order("name");
-  if (error) { state.loadError = error.message; state.loading = false; render(); return; }
-  state.products = data;
+  const [{ data: products, error: prodError }, { data: variants, error: varError }] = await Promise.all([
+    supabaseClient.from("catalog_products").select("*").order("category", { ascending: true, nullsFirst: false }).order("name"),
+    supabaseClient.from("catalog_product_variants").select("*").order("sort_order", { ascending: true }).order("name"),
+  ]);
+  if (prodError) { state.loadError = prodError.message; state.loading = false; render(); return; }
+  state.products = products;
+  state.variantsByProduct = {};
+  (variants || []).forEach((v) => {
+    if (!state.variantsByProduct[v.product_id]) state.variantsByProduct[v.product_id] = [];
+    state.variantsByProduct[v.product_id].push(v);
+  });
+  if (varError) console.error("Erro ao carregar modelos/variações:", varError.message);
   state.loading = false;
   render();
+}
+
+/* Modelos/variações de um produto (vazio se não tiver). */
+function variantsFor(productId) {
+  return state.variantsByProduct[productId] || [];
+}
+
+/* Modelo atualmente escolhido no card desse produto (o primeiro, por padrão). */
+function currentVariant(product) {
+  const variants = variantsFor(product.id);
+  if (variants.length === 0) return null;
+  const selectedId = state.selectedVariant[product.id];
+  return variants.find((v) => v.id === selectedId) || variants[0];
+}
+
+/* Chave usada no carrinho: junta produto + modelo (quando tiver) num só item. */
+function cartKey(productId, variantId) {
+  return variantId ? `${productId}::${variantId}` : productId;
+}
+function parseCartKey(key) {
+  const [productId, variantId] = key.split("::");
+  return { productId, variantId: variantId || null };
 }
 
 function groupByCategory(products) {
@@ -128,7 +162,12 @@ function priceFor(product) {
 
 function cartItems() {
   return Object.entries(state.cart)
-    .map(([id, qty]) => ({ product: state.products.find((p) => p.id === id), quantity: qty }))
+    .map(([key, qty]) => {
+      const { productId, variantId } = parseCartKey(key);
+      const product = state.products.find((p) => p.id === productId);
+      const variant = variantId ? variantsFor(productId).find((v) => v.id === variantId) ?? null : null;
+      return { key, product, variant, quantity: qty };
+    })
     .filter((it) => it.product && it.quantity > 0);
 }
 
@@ -271,12 +310,19 @@ function renderCatalog() {
 }
 
 function renderProductCard(p) {
-  const qty = state.cart[p.id] ?? 0;
+  const variants = variantsFor(p.id);
+  const variant = currentVariant(p);
+  const key = cartKey(p.id, variant?.id);
+  const qty = state.cart[key] ?? 0;
+  const photoUrl = variant?.photo_url || p.photo_url;
+  const hasDescription = p.description && p.description.trim();
+  const expanded = !!state.expandedDescriptions[p.id];
+
   return `
     <div class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
       <div class="aspect-square w-full bg-cream-100">
-        ${p.photo_url
-          ? `<img src="${p.photo_url}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
+        ${photoUrl
+          ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
           : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-10 w-10 opacity-40" /></div>`}
       </div>
       <div class="flex flex-1 flex-col gap-2 p-3">
@@ -284,17 +330,37 @@ function renderProductCard(p) {
           <p class="text-sm font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
           <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn mt-0.5 text-[11px] text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
         </div>
+
+        ${variants.length > 0 ? `
+          <div class="flex flex-wrap gap-1.5">
+            ${variants.map((v) => `
+              <button data-variant-select="${p.id}" data-variant-id="${v.id}"
+                class="variant-swatch-btn flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition ${variant?.id === v.id ? "border-gold-500 bg-gold-50 text-navy-900" : "border-navy-200 text-navy-500 hover:border-navy-300"}">
+                ${v.photo_url ? `<img src="${v.photo_url}" class="h-4 w-4 rounded-full object-cover" />` : ""}
+                ${escapeHtml(v.name)}
+              </button>
+            `).join("")}
+          </div>
+        ` : ""}
+
+        ${hasDescription ? `
+          <div>
+            <button data-toggle-desc="${p.id}" class="toggle-desc-btn text-[11px] font-medium text-navy-500 hover:text-gold-600 hover:underline">${expanded ? "Ver menos ▲" : "Ver descrição ▼"}</button>
+            ${expanded ? `<p class="mt-1 text-xs leading-relaxed text-navy-600">${escapeHtml(p.description).replace(/\n/g, "<br>")}</p>` : ""}
+          </div>
+        ` : ""}
+
         <div class="leading-tight">
           <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)}</p>
           <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} no Pix / à vista</p>
         </div>
         ${qty === 0 ? `
-          <button data-add="${p.id}" class="add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>
+          <button data-add="${key}" class="add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>
         ` : `
           <div class="mt-auto flex items-center justify-between rounded-lg border border-navy-200">
-            <button data-qty-minus="${p.id}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
+            <button data-qty-minus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
             <span class="text-sm font-semibold text-navy-900">${qty}</span>
-            <button data-qty-plus="${p.id}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">+</button>
+            <button data-qty-plus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">+</button>
           </div>
         `}
       </div>
@@ -328,16 +394,16 @@ function renderCartDrawer() {
           ${items.length === 0 ? `<p class="py-8 text-center text-navy-400">Seu carrinho está vazio.</p>` : items.map((it) => `
             <div class="flex items-center gap-3 border-b border-navy-50 py-3 last:border-0">
               <div class="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
-                ${it.product.photo_url ? `<img src="${it.product.photo_url}" class="h-full w-full object-cover" />` : ""}
+                ${(it.variant?.photo_url || it.product.photo_url) ? `<img src="${it.variant?.photo_url || it.product.photo_url}" class="h-full w-full object-cover" />` : ""}
               </div>
               <div class="flex-1">
-                <p class="text-sm font-medium text-navy-900">${escapeHtml(it.product.name)}</p>
+                <p class="text-sm font-medium text-navy-900">${escapeHtml(it.product.name)}${it.variant ? ` <span class="font-normal text-navy-400">— ${escapeHtml(it.variant.name)}</span>` : ""}</p>
                 <p class="text-xs text-navy-500">${formatBRL(priceFor(it.product))} cada</p>
               </div>
               <div class="flex items-center gap-2">
-                <button data-qty-minus="${it.product.id}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
+                <button data-qty-minus="${it.key}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
                 <span class="w-5 text-center text-sm font-semibold">${it.quantity}</span>
-                <button data-qty-plus="${it.product.id}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">+</button>
+                <button data-qty-plus="${it.key}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">+</button>
               </div>
             </div>
           `).join("")}
@@ -382,6 +448,19 @@ function wireCatalogEvents() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
+  document.querySelectorAll(".variant-swatch-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.selectedVariant[btn.dataset.variantSelect] = btn.dataset.variantId;
+      render();
+    });
+  });
+  document.querySelectorAll(".toggle-desc-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.toggleDesc;
+      state.expandedDescriptions[id] = !state.expandedDescriptions[id];
+      render();
+    });
+  });
 }
 
 /* =====================================================================
@@ -398,7 +477,7 @@ function renderCheckout() {
       <div class="mb-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
         ${items.map((it) => `
           <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm last:border-0">
-            <span>${it.quantity}× ${escapeHtml(it.product.name)}</span>
+            <span>${it.quantity}× ${escapeHtml(it.product.name)}${it.variant ? ` <span class="text-navy-400">(${escapeHtml(it.variant.name)})</span>` : ""}</span>
             <span class="font-medium text-navy-900">${formatBRL(priceFor(it.product) * it.quantity)}</span>
           </div>
         `).join("")}
@@ -493,6 +572,7 @@ async function onSubmitOrder(e) {
     order_id: orderId,
     product_id: it.product.id,
     product_name: it.product.name,
+    variant_name: it.variant ? it.variant.name : null,
     unit_price: priceFor(it.product),
     quantity: it.quantity,
   }));
@@ -518,7 +598,8 @@ function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, 
   lines.push(`Olá! Gostaria de fazer um pedido pelo Catálogo Luz Mariana:`);
   lines.push("");
   items.forEach((it) => {
-    lines.push(`• ${it.quantity}x ${it.product.name} — ${formatBRL(priceFor(it.product) * it.quantity)}`);
+    const variantLabel = it.variant ? ` (${it.variant.name})` : "";
+    lines.push(`• ${it.quantity}x ${it.product.name}${variantLabel} — ${formatBRL(priceFor(it.product) * it.quantity)}`);
   });
   lines.push("");
   lines.push(`Total: ${formatBRL(total)}`);
