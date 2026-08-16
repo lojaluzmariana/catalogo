@@ -168,16 +168,25 @@ function renderHero() {
   `;
 }
 
-function renderCategoryFilter(categories) {
+function renderCategoryBar(categories) {
   if (categories.length === 0) return "";
+  const items = [{ value: "all", label: "Todos" }, ...categories.map((c) => ({ value: c, label: c }))];
   return `
-    <div class="flex items-center gap-2">
-      <label for="category-filter" class="text-sm font-medium text-navy-700">Categoria:</label>
-      <select id="category-filter" class="rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
-        <option value="all" ${state.categoryFilter === "all" ? "selected" : ""}>Todas as categorias</option>
-        ${categories.map((c) => `<option value="${escapeHtml(c)}" ${state.categoryFilter === c ? "selected" : ""}>${escapeHtml(c)}</option>`).join("")}
-      </select>
+    <div class="border-b border-navy-800 bg-navy-900">
+      <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 py-2 text-sm">
+        ${items.map((it) => `
+          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
+        `).join("")}
+      </div>
     </div>
+  `;
+}
+
+function renderFooter() {
+  return `
+    <footer class="mx-auto max-w-5xl px-4 py-6 text-center">
+      <a href="admin/" class="text-xs text-navy-200 hover:text-navy-400 hover:underline">Acesso Administrador</a>
+    </footer>
   `;
 }
 
@@ -189,6 +198,7 @@ function renderCatalog() {
 
   app.innerHTML = `
     ${renderHeader()}
+    ${renderCategoryBar(categories)}
     ${renderHero()}
     <main class="mx-auto max-w-5xl px-4 py-6">
       ${featured.length > 0 ? `
@@ -200,9 +210,8 @@ function renderCatalog() {
         </div>
       ` : ""}
 
-      <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-xl font-semibold text-navy-900">Nossos produtos</h2>
-        ${renderCategoryFilter(categories)}
+      <div class="mb-5">
+        <h2 class="text-xl font-semibold text-navy-900">${state.categoryFilter === "all" ? "Nossos produtos" : escapeHtml(state.categoryFilter)}</h2>
       </div>
 
       ${state.products.length === 0 ? `
@@ -218,6 +227,7 @@ function renderCatalog() {
         </div>
       `).join("")}
     </main>
+    ${renderFooter()}
     ${renderCartBar()}
     ${state.cartOpen ? renderCartDrawer() : ""}
   `;
@@ -323,8 +333,9 @@ function wireCatalogEvents() {
   if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) { state.cartOpen = false; render(); } });
   const checkoutBtn = document.getElementById("go-checkout-btn");
   if (checkoutBtn) checkoutBtn.addEventListener("click", () => { state.screen = "checkout"; state.cartOpen = false; render(); });
-  const categoryFilter = document.getElementById("category-filter");
-  if (categoryFilter) categoryFilter.addEventListener("change", () => { state.categoryFilter = categoryFilter.value; render(); });
+  document.querySelectorAll(".category-bar-btn").forEach((btn) => {
+    btn.addEventListener("click", () => { state.categoryFilter = btn.dataset.category; render(); });
+  });
 }
 
 /* =====================================================================
