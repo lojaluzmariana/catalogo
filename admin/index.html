@@ -488,6 +488,7 @@ function renderPrecificacao(container) {
                     ${escapeHtml(p.name)}
                     ${p.category ? `<span class="rounded-full bg-navy-100 px-1.5 py-0.5 text-[10px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
                     ${p.show_in_catalog ? `<span class="rounded-full bg-gold-100 px-1.5 py-0.5 text-[10px] font-semibold text-gold-800">Catálogo</span>` : ""}
+                    ${p.featured ? `<span class="rounded-full bg-navy-800 px-1.5 py-0.5 text-[10px] font-semibold text-cream-50">✨ Destaque</span>` : ""}
                   </span>
                   ${p.product_materials && p.product_materials.length > 0 ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).join(", ")}</div>` : ""}
                 </td>
@@ -601,6 +602,10 @@ function renderProductForm() {
         <label class="mt-3 flex items-center gap-2 text-sm text-navy-700">
           <input type="checkbox" id="pf-show-catalog" ${product?.show_in_catalog ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
           Mostrar este produto no Catálogo público
+        </label>
+        <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
+          <input type="checkbox" id="pf-featured" ${product?.featured ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+          Produto em destaque (aparece numa vitrine especial no topo do Catálogo)
         </label>
       </div>
 
@@ -750,6 +755,7 @@ function renderProductForm() {
     const totalCost = round2(baseCost + materialsTotal());
     const pricing = calculatePricing(totalCost);
     const showInCatalog = document.getElementById("pf-show-catalog").checked;
+    const featured = document.getElementById("pf-featured").checked;
     const category = document.getElementById("pf-category").value.trim();
 
     // Envia a foto nova (se houver) antes de salvar o produto.
@@ -769,7 +775,7 @@ function renderProductForm() {
       credit_price: pricing.creditPrice, credit_net: pricing.creditNet, credit_profit: pricing.creditProfit,
       credit_markup: pricing.creditMarkup, credit_margin: pricing.creditMargin,
       promo_price: pricing.promoPrice, promo_profit: pricing.promoProfit, promo_margin: pricing.promoMargin,
-      photo_url: newPhotoUrl, show_in_catalog: showInCatalog, category: category || null,
+      photo_url: newPhotoUrl, show_in_catalog: showInCatalog, category: category || null, featured,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
 
