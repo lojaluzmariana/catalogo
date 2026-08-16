@@ -92,7 +92,8 @@ const state = {
   products: [],
   variantsByProduct: {}, // { [product_id]: [{id, name, photo_url, sort_order}, ...] }
   cart: {}, // { [cartKey]: quantity } — cartKey é o product_id, ou "product_id::variant_id" quando tem modelo escolhido
-  selectedVariant: {}, // { [product_id]: variant_id } — modelo escolhido em cada card, antes de adicionar ao carrinho
+  selectedVariant: {}, // { [product_id]: variant_id } — modelo escolhido na página individual do produto
+  cardPhotoIndex: {}, // { [product_id]: index } — foto do modelo exibida agora no carrossel automático do card
   detailProductId: null, // produto aberto na página individual
   payment: "pix", // pix | credito
   categoryFilter: "all",
@@ -139,6 +140,63 @@ function cartKey(productId, variantId) {
 function parseCartKey(key) {
   const [productId, variantId] = key.split("::");
   return { productId, variantId: variantId || null };
+}
+
+/* =====================================================================
+   CARROSSEL AUTOMÁTICO DE FOTOS DOS MODELOS (nos cards)
+   ===================================================================== */
+
+/* Lista de fotos pra girar no card — só existe quando o produto tem mais
+   de um modelo com foto (senão não tem o que "passar automaticamente"). */
+function carouselFrames(product) {
+  const variants = variantsFor(product.id);
+  if (variants.length <= 1) return [];
+  const frames = variants.map((v) => v.photo_url || product.photo_url).filter(Boolean);
+  return frames.length > 1 ? frames : [];
+}
+
+function stepCarousel(productId, direction) {
+  const product = state.products.find((p) => p.id === productId);
+  if (!product) return;
+  const frames = carouselFrames(product);
+  if (frames.length === 0) return;
+  const current = state.cardPhotoIndex[productId] ?? 0;
+  const next = (((current + direction) % frames.length) + frames.length) % frames.length;
+  state.cardPhotoIndex[productId] = next;
+  // Troca a foto direto no elemento (sem re-renderizar a página toda) —
+  // pode ter mais de um card do mesmo produto na tela (grid + destaques).
+  document.querySelectorAll(`[data-carousel-img="${productId}"]`).forEach((img) => { img.src = frames[next]; });
+}
+
+let carouselTimers = {}; // { [product_id]: intervalId }
+
+function startCarouselTimer(productId) {
+  stopCarouselTimer(productId);
+  carouselTimers[productId] = setInterval(() => stepCarousel(productId, 1), 3000);
+}
+function stopCarouselTimer(productId) {
+  if (carouselTimers[productId]) {
+    clearInterval(carouselTimers[productId]);
+    delete carouselTimers[productId];
+  }
+}
+
+/* Liga os carrosséis automáticos depois de cada render — reaproveita um
+   timer só por produto mesmo se ele aparecer em mais de um card na tela
+   (grid + carrossel de destaques), e pausa enquanto o dedo/mouse está
+   em cima (pra não trocar a foto bem na hora que a pessoa for decidir). */
+function setupCarousels() {
+  Object.keys(carouselTimers).forEach(stopCarouselTimer);
+  const started = new Set();
+  document.querySelectorAll("[data-carousel]").forEach((el) => {
+    const productId = el.dataset.carousel;
+    if (!started.has(productId)) {
+      started.add(productId);
+      startCarouselTimer(productId);
+    }
+    el.addEventListener("mouseenter", () => stopCarouselTimer(productId));
+    el.addEventListener("mouseleave", () => startCarouselTimer(productId));
+  });
 }
 
 function groupByCategory(products) {
@@ -312,19 +370,63 @@ function renderCatalog() {
 
 function renderProductCard(p, opts = {}) {
   const variants = variantsFor(p.id);
-  const variant = currentVariant(p);
-  const key = cartKey(p.id, variant?.id);
-  const qty = state.cart[key] ?? 0;
-  const photoUrl = variant?.photo_url || p.photo_url;
+  const frames = carouselFrames(p);
   const hasDescription = !opts.hideDescription && p.description && p.description.trim();
 
-  return `
-    <div class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
+  let photoBlock;
+  if (frames.length > 1) {
+    // Mais de um modelo com fotos diferentes: mostra em carrossel
+    // automático, com setinhas pra passar manualmente.
+    const idx = (state.cardPhotoIndex[p.id] ?? 0) % frames.length;
+    photoBlock = `
+      <div class="relative aspect-square w-full overflow-hidden bg-cream-100" data-carousel="${p.id}">
+        <button type="button" data-view-product="${p.id}" class="product-image-btn block h-full w-full border-0 p-0 transition hover:opacity-90">
+          <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />
+        </button>
+        <button type="button" data-carousel-prev="${p.id}" aria-label="Modelo anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">‹</button>
+        <button type="button" data-carousel-next="${p.id}" aria-label="Próximo modelo" class="carousel-nav-btn absolute right-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">›</button>
+      </div>
+    `;
+  } else {
+    const photoUrl = variants[0]?.photo_url || p.photo_url;
+    photoBlock = `
       <button type="button" data-view-product="${p.id}" class="product-image-btn block aspect-square w-full border-0 bg-cream-100 p-0 transition hover:opacity-90">
         ${photoUrl
           ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
           : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-10 w-10 opacity-40" /></div>`}
       </button>
+    `;
+  }
+
+  let addBlock;
+  if (variants.length > 0) {
+    // Produto com modelos: escolhe o modelo aqui mesmo, na hora de
+    // adicionar (a seleção "fixa" fica na página do produto).
+    addBlock = `
+      <div class="mt-auto flex gap-1.5" data-variant-add-group="${p.id}">
+        <select class="variant-add-select min-w-0 flex-1 rounded-lg border border-navy-200 px-2 py-2 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+          ${variants.map((v) => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join("")}
+        </select>
+        <button type="button" class="add-variant-btn flex-shrink-0 rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>
+      </div>
+    `;
+  } else {
+    const key = cartKey(p.id, null);
+    const qty = state.cart[key] ?? 0;
+    addBlock = qty === 0
+      ? `<button data-add="${key}" class="add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>`
+      : `
+        <div class="mt-auto flex items-center justify-between rounded-lg border border-navy-200">
+          <button data-qty-minus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
+          <span class="text-sm font-semibold text-navy-900">${qty}</span>
+          <button data-qty-plus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">+</button>
+        </div>
+      `;
+  }
+
+  return `
+    <div class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
+      ${photoBlock}
       <div class="flex flex-1 flex-col gap-2 p-3">
         <div>
           <p class="text-sm font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
@@ -334,33 +436,13 @@ function renderProductCard(p, opts = {}) {
           </div>
         </div>
 
-        ${variants.length > 0 ? `
-          <div class="flex flex-wrap gap-1.5">
-            ${variants.map((v) => `
-              <button data-variant-select="${p.id}" data-variant-id="${v.id}"
-                class="variant-swatch-btn flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition ${variant?.id === v.id ? "border-gold-500 bg-gold-50 text-navy-900" : "border-navy-200 text-navy-500 hover:border-navy-300"}">
-                ${v.photo_url ? `<img src="${v.photo_url}" class="h-4 w-4 rounded-full object-cover" />` : ""}
-                ${escapeHtml(v.name)}
-              </button>
-            `).join("")}
-          </div>
-        ` : ""}
-
         ${hasDescription ? `<p class="text-justify text-[11px] leading-relaxed text-navy-600">${escapeHtml(p.description).replace(/\n/g, "<br>")}</p>` : ""}
 
         <div class="leading-tight">
           <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)}</p>
           <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} no Pix / à vista</p>
         </div>
-        ${qty === 0 ? `
-          <button data-add="${key}" class="add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>
-        ` : `
-          <div class="mt-auto flex items-center justify-between rounded-lg border border-navy-200">
-            <button data-qty-minus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
-            <span class="text-sm font-semibold text-navy-900">${qty}</span>
-            <button data-qty-plus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">+</button>
-          </div>
-        `}
+        ${addBlock}
       </div>
     </div>
   `;
@@ -548,6 +630,32 @@ function wireCatalogEvents() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
+  document.querySelectorAll(".add-variant-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const group = btn.closest("[data-variant-add-group]");
+      const productId = group.dataset.variantAddGroup;
+      const variantId = group.querySelector(".variant-add-select").value;
+      const key = cartKey(productId, variantId);
+      setQty(key, (state.cart[key] ?? 0) + 1);
+    });
+  });
+  document.querySelectorAll("[data-carousel-prev]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const productId = btn.dataset.carouselPrev;
+      stepCarousel(productId, -1);
+      startCarouselTimer(productId);
+    });
+  });
+  document.querySelectorAll("[data-carousel-next]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const productId = btn.dataset.carouselNext;
+      stepCarousel(productId, 1);
+      startCarouselTimer(productId);
+    });
+  });
+  setupCarousels();
 }
 
 /* =====================================================================
