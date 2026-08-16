@@ -328,7 +328,10 @@ function renderProductCard(p, opts = {}) {
       <div class="flex flex-1 flex-col gap-2 p-3">
         <div>
           <p class="text-sm font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
-          <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn mt-0.5 text-[11px] text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
+          <div class="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn text-[11px] text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
+            ${p.material_tag ? `<span class="rounded-full bg-navy-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
+          </div>
         </div>
 
         ${variants.length > 0 ? `
@@ -468,7 +471,10 @@ function renderProductDetail() {
         <div class="flex flex-col gap-3">
           <div>
             <h1 class="text-xl font-semibold text-navy-900">${escapeHtml(product.name)}</h1>
-            <button data-tag-category="${escapeHtml(categoryLabel)}" class="category-tag-btn mt-1 text-xs text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(categoryLabel)}</button>
+            <div class="mt-1 flex flex-wrap items-center gap-1.5">
+              <button data-tag-category="${escapeHtml(categoryLabel)}" class="category-tag-btn text-xs text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(categoryLabel)}</button>
+              ${product.material_tag ? `<span class="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(product.material_tag)}</span>` : ""}
+            </div>
           </div>
 
           ${hasDescription ? `<p class="text-justify text-sm leading-relaxed text-navy-600">${escapeHtml(product.description).replace(/\n/g, "<br>")}</p>` : ""}
