@@ -453,19 +453,19 @@ function renderPrecificacao(container) {
               <th class="px-3 py-3 text-right">Preço Promo/Pix</th>
               <th class="px-3 py-3 text-right">Lucro Promo</th>
               <th class="px-3 py-3 text-right">Margem Promo</th>
+              <th class="px-3 py-3 text-center">Visível no Catálogo</th>
+              <th class="px-3 py-3 text-center">Destacar</th>
               <th class="px-3 py-3 text-center">Ações</th>
             </tr>
           </thead>
           <tbody>
-            ${visible.length === 0 ? `<tr><td colspan="11" class="px-4 py-8 text-center text-navy-400">Nenhum produto encontrado.</td></tr>` : visible.map((p) => `
+            ${visible.length === 0 ? `<tr><td colspan="13" class="px-4 py-8 text-center text-navy-400">Nenhum produto encontrado.</td></tr>` : visible.map((p) => `
               <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50 ${!p.active ? "opacity-50" : ""}">
                 <td class="px-3 py-3 font-medium text-navy-900">
                   <span class="inline-flex items-center gap-1.5">
                     ${p.photo_url ? `<img src="${p.photo_url}" class="h-7 w-7 rounded object-cover" />` : ""}
                     ${escapeHtml(p.name)}
                     ${p.category ? `<span class="rounded-full bg-navy-100 px-1.5 py-0.5 text-[10px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
-                    ${p.show_in_catalog ? `<span class="rounded-full bg-gold-100 px-1.5 py-0.5 text-[10px] font-semibold text-gold-800">Catálogo</span>` : ""}
-                    ${p.featured ? `<span class="rounded-full bg-navy-800 px-1.5 py-0.5 text-[10px] font-semibold text-cream-50">✨ Destaque</span>` : ""}
                   </span>
                   ${p.product_materials && p.product_materials.length > 0 ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).join(", ")}</div>` : ""}
                 </td>
@@ -478,6 +478,12 @@ function renderPrecificacao(container) {
                 <td class="px-3 py-3 text-right font-semibold text-navy-900">${formatBRL(p.promo_price)}</td>
                 <td class="px-3 py-3 text-right text-emerald-700">${formatBRL(p.promo_profit)}</td>
                 <td class="px-3 py-3 text-right">${formatPercent(p.promo_margin)}</td>
+                <td class="px-3 py-3 text-center">
+                  <input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+                </td>
+                <td class="px-3 py-3 text-center">
+                  <input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+                </td>
                 <td class="px-3 py-3 text-center">
                   <div class="flex justify-center gap-2">
                     <button data-edit="${p.id}" class="edit-product-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">Editar</button>
@@ -513,6 +519,24 @@ function renderPrecificacao(container) {
       const id = btn.dataset.toggle;
       const active = btn.dataset.active === "true";
       await supabaseClient.from("products").update({ active: !active, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", id);
+      await loadProducts();
+      renderPrecificacao(container);
+    });
+  });
+  container.querySelectorAll(".visible-toggle-cb").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      const id = cb.dataset.visibleToggle;
+      cb.disabled = true;
+      await supabaseClient.from("products").update({ show_in_catalog: cb.checked, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", id);
+      await loadProducts();
+      renderPrecificacao(container);
+    });
+  });
+  container.querySelectorAll(".featured-toggle-cb").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      const id = cb.dataset.featuredToggle;
+      cb.disabled = true;
+      await supabaseClient.from("products").update({ featured: cb.checked, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", id);
       await loadProducts();
       renderPrecificacao(container);
     });
