@@ -178,6 +178,7 @@ const state = {
   customers: [],
   orders: [],
   cashEntries: [],
+  adminUsers: [], // [{ id, name }] — todos os administradores, pra mostrar quem fez cada venda
   loading: false,
   error: null,
 };
@@ -344,8 +345,21 @@ async function enterApp() {
 
   state.screen = "app";
   state.error = null;
-  await Promise.all([loadMaterials(), loadProducts(), loadCustomers(), loadOrders(), loadCashEntries()]);
+  await Promise.all([loadMaterials(), loadProducts(), loadCustomers(), loadOrders(), loadCashEntries(), loadAdminUsers()]);
   render();
+}
+
+async function loadAdminUsers() {
+  const { data, error } = await supabaseClient.from("admin_users").select("id, name");
+  if (!error) state.adminUsers = data;
+  else console.error("loadAdminUsers:", error.message);
+}
+
+/* Nome do administrador dono desse id (ex: pra mostrar "Vendido por: Bob"). */
+function adminName(id) {
+  if (!id) return null;
+  const found = state.adminUsers.find((a) => a.id === id);
+  return found ? found.name : null;
 }
 
 async function logout() {
@@ -1591,6 +1605,7 @@ function renderCaixa(container) {
                   ${escapeHtml(e.description) || "—"}
                   ${e.customer_id ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Cliente: ${escapeHtml(state.customers.find((c) => c.id === e.customer_id)?.name ?? "(removido)")}</div>` : ""}
                   ${e.materials_used && e.materials_used.length > 0 ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Materiais: ${e.materials_used.map((mu) => `${escapeHtml(mu.materials?.name ?? "(material removido)")} (${Number(mu.quantity)} ${escapeHtml(mu.materials?.unit ?? "")})`).join(", ")}</div>` : ""}
+                  ${adminName(e.created_by) ? `<div class="mt-0.5 text-xs font-normal text-navy-400">${e.entry_type === "entrada" ? "Vendido" : "Registrado"} por: <span class="font-medium text-navy-600">${escapeHtml(adminName(e.created_by))}</span></div>` : ""}
                 </td>
                 <td class="px-3 py-2.5 capitalize">${escapeHtml(e.payment_method) || "—"}</td>
                 <td class="px-3 py-2.5 text-right font-medium ${e.entry_type === "entrada" ? "text-emerald-700" : "text-red-700"}">${e.entry_type === "entrada" ? "+" : "-"}${formatBRL(e.amount)}</td>
