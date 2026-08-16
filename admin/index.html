@@ -440,54 +440,54 @@ function renderPrecificacao(container) {
       <div id="product-form-slot"></div>
 
       <div class="overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
-        <table class="w-full min-w-[900px] text-sm">
+        <table class="w-full table-auto text-[11px] sm:text-xs">
           <thead>
-            <tr class="border-b border-navy-100 bg-navy-900 text-left text-xs uppercase tracking-wide text-cream-50">
-              <th class="px-3 py-3">Produto</th>
-              <th class="px-3 py-3 text-right">Custo</th>
-              <th class="px-3 py-3 text-right">Preço Crédito</th>
-              <th class="px-3 py-3 text-right">Líquido</th>
-              <th class="px-3 py-3 text-right">Lucro</th>
-              <th class="px-3 py-3 text-right">Markup</th>
-              <th class="px-3 py-3 text-right">Margem</th>
-              <th class="px-3 py-3 text-right">Preço Promo/Pix</th>
-              <th class="px-3 py-3 text-right">Lucro Promo</th>
-              <th class="px-3 py-3 text-right">Margem Promo</th>
-              <th class="px-3 py-3 text-center">Visível no Catálogo</th>
-              <th class="px-3 py-3 text-center">Destacar</th>
-              <th class="px-3 py-3 text-center">Ações</th>
+            <tr class="border-b border-navy-100 bg-navy-900 text-left text-[10px] uppercase tracking-wide text-cream-50 sm:text-[11px]">
+              <th class="px-1 py-1.5">Produto</th>
+              <th class="px-1 py-1.5 text-right">Custo</th>
+              <th class="px-1 py-1.5 text-right" title="Preço Crédito">Créd.</th>
+              <th class="px-1 py-1.5 text-right" title="Líquido">Líq.</th>
+              <th class="px-1 py-1.5 text-right">Lucro</th>
+              <th class="px-1 py-1.5 text-right">Markup</th>
+              <th class="px-1 py-1.5 text-right" title="Margem">Marg.</th>
+              <th class="px-1 py-1.5 text-right" title="Preço Promo/Pix">Promo/Pix</th>
+              <th class="px-1 py-1.5 text-right" title="Lucro Promo">Lucro P.</th>
+              <th class="px-1 py-1.5 text-right" title="Margem Promo">Marg. P.</th>
+              <th class="px-1 py-1.5 text-center" title="Visível no Catálogo">Visível</th>
+              <th class="px-1 py-1.5 text-center" title="Destacar no Catálogo">Dest.</th>
+              <th class="px-1 py-1.5 text-center">Ações</th>
             </tr>
           </thead>
           <tbody>
             ${visible.length === 0 ? `<tr><td colspan="13" class="px-4 py-8 text-center text-navy-400">Nenhum produto encontrado.</td></tr>` : visible.map((p) => `
               <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50 ${!p.active ? "opacity-50" : ""}">
-                <td class="px-3 py-3 font-medium text-navy-900">
-                  <span class="inline-flex items-center gap-1.5">
-                    ${p.photo_url ? `<img src="${p.photo_url}" class="h-7 w-7 rounded object-cover" />` : ""}
+                <td class="px-1 py-1.5 font-medium text-navy-900">
+                  <span class="inline-flex flex-wrap items-center gap-1">
+                    ${p.photo_url ? `<img src="${p.photo_url}" class="h-5 w-5 rounded object-cover" />` : ""}
                     ${escapeHtml(p.name)}
-                    ${p.category ? `<span class="rounded-full bg-navy-100 px-1.5 py-0.5 text-[10px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
+                    ${p.category ? `<span class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
                   </span>
-                  ${p.product_materials && p.product_materials.length > 0 ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).join(", ")}</div>` : ""}
+                  ${p.product_materials && p.product_materials.length > 0 ? `<div class="mt-0.5 text-[10px] font-normal text-navy-400">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).join(", ")}</div>` : ""}
                 </td>
-                <td class="px-3 py-3 text-right">${formatBRL(p.cost)}</td>
-                <td class="px-3 py-3 text-right font-semibold text-navy-900">${formatBRL(p.credit_price)}</td>
-                <td class="px-3 py-3 text-right">${formatBRL(p.credit_net)}</td>
-                <td class="px-3 py-3 text-right text-emerald-700">${formatBRL(p.credit_profit)}</td>
-                <td class="px-3 py-3 text-right">${Number(p.credit_markup).toFixed(2)}x</td>
-                <td class="px-3 py-3 text-right">${formatPercent(p.credit_margin)}</td>
-                <td class="px-3 py-3 text-right font-semibold text-navy-900">${formatBRL(p.promo_price)}</td>
-                <td class="px-3 py-3 text-right text-emerald-700">${formatBRL(p.promo_profit)}</td>
-                <td class="px-3 py-3 text-right">${formatPercent(p.promo_margin)}</td>
-                <td class="px-3 py-3 text-center">
-                  <input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+                <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatBRL(p.cost)}</td>
+                <td class="px-1 py-1.5 text-right whitespace-nowrap font-semibold text-navy-900">${formatBRL(p.credit_price)}</td>
+                <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatBRL(p.credit_net)}</td>
+                <td class="px-1 py-1.5 text-right whitespace-nowrap text-emerald-700">${formatBRL(p.credit_profit)}</td>
+                <td class="px-1 py-1.5 text-right whitespace-nowrap">${Number(p.credit_markup).toFixed(2)}x</td>
+                <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatPercent(p.credit_margin)}</td>
+                <td class="px-1 py-1.5 text-right whitespace-nowrap font-semibold text-navy-900">${formatBRL(p.promo_price)}</td>
+                <td class="px-1 py-1.5 text-right whitespace-nowrap text-emerald-700">${formatBRL(p.promo_profit)}</td>
+                <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatPercent(p.promo_margin)}</td>
+                <td class="px-1 py-1.5 text-center">
+                  <input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
                 </td>
-                <td class="px-3 py-3 text-center">
-                  <input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+                <td class="px-1 py-1.5 text-center">
+                  <input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
                 </td>
-                <td class="px-3 py-3 text-center">
-                  <div class="flex justify-center gap-2">
-                    <button data-edit="${p.id}" class="edit-product-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">Editar</button>
-                    <button data-toggle="${p.id}" data-active="${p.active}" class="toggle-product-btn rounded px-2 py-1 text-xs font-medium ${p.active ? "text-red-600" : "text-emerald-700"} hover:bg-navy-100">${p.active ? "Desativar" : "Reativar"}</button>
+                <td class="px-1 py-1.5 text-center">
+                  <div class="flex justify-center gap-1">
+                    <button data-edit="${p.id}" title="Editar produto" class="edit-product-btn rounded px-1 py-0.5 text-sm text-navy-700 hover:bg-navy-100">✎</button>
+                    <button data-toggle="${p.id}" data-active="${p.active}" title="${p.active ? "Desativar produto" : "Reativar produto"}" class="toggle-product-btn rounded px-1 py-0.5 text-sm ${p.active ? "text-red-600" : "text-emerald-700"} hover:bg-navy-100">${p.active ? "✕" : "↺"}</button>
                   </div>
                 </td>
               </tr>
