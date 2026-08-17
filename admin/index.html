@@ -30,6 +30,7 @@
   };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
 
 <style>
   body { font-family: Arial, Helvetica, sans-serif; }
@@ -57,6 +58,12 @@ const USER_EMAILS = {
   Bob: "bob@luzmariana.internal",
   Helena: "helena@luzmariana.internal",
 };
+
+/* Dados da loja, usados no comprovante não fiscal dos pedidos. */
+const STORE_NAME = "Luz Mariana";
+const STORE_SUBTITLE = "Artigos Religiosos e Devoção";
+const STORE_CNPJ = "68.615.746/0001-43";
+const STORE_INSTAGRAM = "@luzmariana.art";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -1443,10 +1450,130 @@ async function loadOrders() {
   state.orders = data.map((o) => ({ ...o, items: byOrder[o.id] || [] }));
 }
 
-let pedidosState = { statusFilter: "todos", expandedId: null };
+let pedidosState = { statusFilter: "todos", expandedId: null, selected: new Set() };
+
+/* =====================================================================
+   COMPROVANTE NÃO FISCAL (PDF) — um "reciboszinho" por pedido, no
+   estilo de uma nota de balcão (mas sem valor fiscal — é só uma cópia
+   organizada pra você gerenciar os pedidos fora do painel).
+
+   Cada pedido vira uma página no tamanho de um cupom (80mm de largura,
+   altura ajustada ao conteúdo daquele pedido especificamente).
+   ===================================================================== */
+const RECEIPT_PAGE_WIDTH_MM = 80;
+const RECEIPT_MARGIN_MM = 5;
+
+function buildReceiptLinePlan(order) {
+  const lines = [];
+  const push = (text, opts = {}) => lines.push({ text, size: 8, style: "normal", align: "center", gap: 4, ...opts });
+
+  push(STORE_NAME, { size: 13, style: "bold", gap: 5.4 });
+  push(STORE_SUBTITLE, { size: 8, gap: 3.8 });
+  push(STORE_INSTAGRAM, { size: 8, gap: 3.8 });
+  push(`CNPJ: ${STORE_CNPJ}`, { size: 8, gap: 5 });
+  lines.push({ divider: true, gap: 4 });
+
+  push(`Comprovante de Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")}`, { size: 9.5, style: "bold", gap: 4.6 });
+  const created = new Date(order.created_at);
+  const dataHora = `${String(created.getDate()).padStart(2, "0")}/${String(created.getMonth() + 1).padStart(2, "0")}/${created.getFullYear()} ${String(created.getHours()).padStart(2, "0")}:${String(created.getMinutes()).padStart(2, "0")}`;
+  push(`Data: ${dataHora}`, { align: "left", gap: 4 });
+  push(`Status: ${ORDER_STATUS_LABELS[order.status] ?? order.status}`, { align: "left", gap: 4 });
+  lines.push({ divider: true, gap: 4 });
+
+  push(`Cliente: ${order.customer_name}`, { align: "left", gap: 4, wrap: true });
+  push(`WhatsApp: ${order.customer_whatsapp}`, { align: "left", gap: 4 });
+  if (order.customer_instagram) push(`Instagram: @${order.customer_instagram.replace(/^@/, "")}`, { align: "left", gap: 4 });
+  lines.push({ divider: true, gap: 4 });
+
+  push("ITENS", { align: "left", style: "bold", gap: 4.6 });
+  (order.items ?? []).forEach((it) => {
+    const variantLabel = it.variant_name ? ` (${it.variant_name})` : "";
+    push(`${it.quantity}x ${it.product_name}${variantLabel}`, { align: "left", gap: 3.8, wrap: true });
+    push(formatBRL(it.unit_price * it.quantity), { align: "right", gap: 4.4 });
+  });
+  lines.push({ divider: true, gap: 4 });
+
+  push(`TOTAL: ${formatBRL(order.total)}`, { size: 11, style: "bold", align: "right", gap: 5.6 });
+  push(`Forma de pagamento: ${order.payment_method === "credito" ? "Cartão de crédito" : "Pix / à vista"}`, { align: "left", gap: 4, wrap: true });
+  if (order.notes) {
+    push("Observações:", { align: "left", gap: 3.8 });
+    push(order.notes, { align: "left", gap: 3.8, wrap: true });
+  }
+  lines.push({ divider: true, gap: 4 });
+
+  push("Obrigado pela preferência!", { style: "bold", gap: 4.4 });
+  push("Este comprovante não possui valor fiscal.", { size: 6.5, gap: 3 });
+
+  return lines;
+}
+
+// Resolve as linhas que precisam quebrar em várias (opts.wrap) em
+// entradas simples de texto — assim dá pra medir a altura total ANTES
+// de criar a página com o tamanho certo.
+function expandReceiptLines(doc, plan, usableWidth) {
+  const expanded = [];
+  plan.forEach((line) => {
+    if (line.divider || !line.wrap) { expanded.push(line); return; }
+    doc.setFont("courier", line.style === "bold" ? "bold" : line.style === "italic" ? "italic" : "normal");
+    doc.setFontSize(line.size);
+    const wrapped = doc.splitTextToSize(String(line.text), usableWidth);
+    wrapped.forEach((piece) => expanded.push({ ...line, text: piece, wrap: false }));
+  });
+  return expanded;
+}
+
+function drawReceiptPage(doc, order, pageWidth) {
+  const usableWidth = pageWidth - RECEIPT_MARGIN_MM * 2;
+  const plan = buildReceiptLinePlan(order);
+  const expanded = expandReceiptLines(doc, plan, usableWidth);
+  const topMargin = 6;
+  const bottomMargin = 4;
+  const totalHeight = topMargin + expanded.reduce((sum, l) => sum + l.gap, 0) + bottomMargin;
+
+  doc.internal.pageSize.setWidth(pageWidth);
+  doc.internal.pageSize.setHeight(totalHeight);
+
+  let y = topMargin;
+  expanded.forEach((line) => {
+    if (line.divider) {
+      doc.setLineDashPattern([0.6, 0.6], 0);
+      doc.setDrawColor(150);
+      doc.line(RECEIPT_MARGIN_MM, y - 2.6, pageWidth - RECEIPT_MARGIN_MM, y - 2.6);
+      doc.setLineDashPattern([], 0);
+      y += line.gap;
+      return;
+    }
+    doc.setFont("courier", line.style === "bold" ? "bold" : line.style === "italic" ? "italic" : "normal");
+    doc.setFontSize(line.size);
+    doc.setTextColor(20);
+    const x = line.align === "left" ? RECEIPT_MARGIN_MM : line.align === "right" ? pageWidth - RECEIPT_MARGIN_MM : pageWidth / 2;
+    doc.text(line.text, x, y, { align: line.align });
+    y += line.gap;
+  });
+
+  return totalHeight;
+}
+
+function buildOrdersReceiptPdf(orders) {
+  const { jsPDF } = window.jspdf;
+  // Cria já com o tamanho certo pro primeiro pedido (o construtor exige
+  // um tamanho inicial — ajustamos a altura de cada página na hora de
+  // desenhar, inclusive a primeira).
+  const doc = new jsPDF({ unit: "mm", format: [RECEIPT_PAGE_WIDTH_MM, 200] });
+  orders.forEach((order, idx) => {
+    if (idx > 0) doc.addPage([RECEIPT_PAGE_WIDTH_MM, 200]);
+    drawReceiptPage(doc, order, RECEIPT_PAGE_WIDTH_MM);
+  });
+  return doc;
+}
 
 function renderPedidos(container) {
   const visible = state.orders.filter((o) => pedidosState.statusFilter === "todos" || o.status === pedidosState.statusFilter);
+  // Limpa da seleção qualquer pedido que não existe mais na lista atual.
+  const visibleIds = new Set(visible.map((o) => o.id));
+  [...pedidosState.selected].forEach((id) => { if (!state.orders.some((o) => o.id === id)) pedidosState.selected.delete(id); });
+  const selectedCount = pedidosState.selected.size;
+  const allVisibleSelected = visible.length > 0 && visible.every((o) => pedidosState.selected.has(o.id));
 
   container.innerHTML = `
     <div class="flex flex-col gap-6">
@@ -1461,15 +1588,30 @@ function renderPedidos(container) {
         </select>
       </div>
 
+      <div class="flex flex-wrap items-center gap-3 rounded-xl border border-navy-100 bg-white px-4 py-3 shadow">
+        <label class="flex items-center gap-2 text-sm text-navy-700">
+          <input type="checkbox" id="pedidos-select-all" class="h-4 w-4 rounded border-navy-300" ${visible.length === 0 ? "disabled" : ""} ${allVisibleSelected ? "checked" : ""} />
+          Selecionar todos os visíveis
+        </label>
+        <span class="text-sm text-navy-400">${selectedCount} selecionado${selectedCount === 1 ? "" : "s"}</span>
+        <div class="ml-auto flex gap-2">
+          <button id="pedidos-download-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🧾 Baixar comprovantes (PDF)</button>
+          <button id="pedidos-delete-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">🗑 Excluir selecionados</button>
+        </div>
+      </div>
+
       <div class="flex flex-col gap-3">
         ${visible.length === 0 ? `<p class="rounded-xl border border-navy-100 bg-white px-4 py-8 text-center text-navy-400 shadow">Nenhum pedido ${pedidosState.statusFilter === "todos" ? "ainda" : `com status "${ORDER_STATUS_LABELS[pedidosState.statusFilter]}"`}.</p>` : visible.map((o) => `
-          <div class="rounded-xl border border-navy-100 bg-white p-4 shadow">
+          <div class="rounded-xl border ${pedidosState.selected.has(o.id) ? "border-gold-400 ring-1 ring-gold-200" : "border-navy-100"} bg-white p-4 shadow">
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p class="font-medium text-navy-900">${escapeHtml(o.customer_name)}
-                  ${waLink(o.customer_whatsapp) ? `<a href="${waLink(o.customer_whatsapp)}" target="_blank" rel="noopener" class="ml-1 text-xs font-normal text-emerald-700 hover:underline">WhatsApp ↗</a>` : ""}
-                </p>
-                <p class="text-xs text-navy-500">${formatDate(o.created_at.slice(0, 10))} · ${o.payment_method === "credito" ? "Crédito" : "Pix"} · ${o.items.length} ${o.items.length === 1 ? "item" : "itens"}</p>
+              <div class="flex items-start gap-3">
+                <input type="checkbox" data-select-order="${o.id}" class="order-select-checkbox mt-1 h-4 w-4 rounded border-navy-300" ${pedidosState.selected.has(o.id) ? "checked" : ""} />
+                <div>
+                  <p class="font-medium text-navy-900">${escapeHtml(o.customer_name)}
+                    ${waLink(o.customer_whatsapp) ? `<a href="${waLink(o.customer_whatsapp)}" target="_blank" rel="noopener" class="ml-1 text-xs font-normal text-emerald-700 hover:underline">WhatsApp ↗</a>` : ""}
+                  </p>
+                  <p class="text-xs text-navy-500">${formatDate(o.created_at.slice(0, 10))} · ${o.payment_method === "credito" ? "Crédito" : "Pix"} · ${o.items.length} ${o.items.length === 1 ? "item" : "itens"}</p>
+                </div>
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-lg font-semibold text-navy-900">${formatBRL(o.total)}</span>
@@ -1518,6 +1660,59 @@ function renderPedidos(container) {
       renderApp();
     });
   });
+
+  document.getElementById("pedidos-select-all").addEventListener("change", (e) => {
+    if (e.target.checked) visible.forEach((o) => pedidosState.selected.add(o.id));
+    else visible.forEach((o) => pedidosState.selected.delete(o.id));
+    renderPedidos(container);
+  });
+  container.querySelectorAll(".order-select-checkbox").forEach((cb) => {
+    cb.addEventListener("change", (e) => {
+      const id = cb.dataset.selectOrder;
+      if (e.target.checked) pedidosState.selected.add(id);
+      else pedidosState.selected.delete(id);
+      renderPedidos(container);
+    });
+  });
+
+  const downloadBtn = document.getElementById("pedidos-download-btn");
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", () => {
+      const selectedOrders = state.orders
+        .filter((o) => pedidosState.selected.has(o.id))
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      if (selectedOrders.length === 0) return;
+      const doc = buildOrdersReceiptPdf(selectedOrders);
+      const now = new Date();
+      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      doc.save(`pedidos-luz-mariana-${stamp}.pdf`);
+    });
+  }
+
+  const deleteBtn = document.getElementById("pedidos-delete-btn");
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", async () => {
+      const ids = [...pedidosState.selected];
+      if (ids.length === 0) return;
+      const confirmMsg = ids.length === 1
+        ? "Excluir este pedido definitivamente? Essa ação não pode ser desfeita."
+        : `Excluir estes ${ids.length} pedidos definitivamente? Essa ação não pode ser desfeita.`;
+      if (!confirm(confirmMsg)) return;
+
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = "Excluindo...";
+      const { error } = await supabaseClient.from("orders").delete().in("id", ids);
+      if (error) {
+        alert("Não foi possível excluir: " + error.message);
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = "🗑 Excluir selecionados";
+        return;
+      }
+      pedidosState.selected.clear();
+      await loadOrders();
+      renderApp();
+    });
+  }
 }
 
 /* =====================================================================
