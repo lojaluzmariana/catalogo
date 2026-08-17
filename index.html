@@ -74,6 +74,7 @@
 const SUPABASE_URL = "https://xgcsdpqaqxstcfwgwaxw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_7AX1nS3J0mtVkzzzLVsKlg_zYxWFxfk";
 const STORE_WHATSAPP_NUMBER = "5584991263907";
+const STORE_CNPJ = "68.615.746/0001-43";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -354,8 +355,9 @@ function renderFeaturedCarousel(products) {
 
 function renderFooter() {
   return `
-    <footer class="mx-auto max-w-5xl px-4 py-6 text-center">
-      <a href="admin/" class="text-xs text-navy-200 hover:text-navy-400 hover:underline">Acesso Administrador</a>
+    <footer class="mx-auto max-w-5xl px-4 py-6 text-center text-xs text-navy-300">
+      <p>Luz Mariana - Artigos Religiosos · CNPJ ${STORE_CNPJ}</p>
+      <p class="mt-1">© 2026 Luz Mariana. Todos os direitos reservados.</p>
     </footer>
   `;
 }
