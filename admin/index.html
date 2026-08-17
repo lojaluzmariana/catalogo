@@ -30,7 +30,7 @@
   };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="jspdf.umd.min.js"></script>
 
 <style>
   body { font-family: Arial, Helvetica, sans-serif; }
@@ -1044,6 +1044,7 @@ function renderMateriais(container) {
           <thead>
             <tr class="border-b border-navy-100 bg-navy-900 text-left text-xs uppercase tracking-wide text-cream-50">
               <th class="px-3 py-3">Material</th>
+              <th class="px-3 py-3">Tipo</th>
               <th class="px-3 py-3 text-right">Preço da embalagem</th>
               <th class="px-3 py-3 text-right">Quantidade</th>
               <th class="px-3 py-3">Unidade</th>
@@ -1053,9 +1054,10 @@ function renderMateriais(container) {
             </tr>
           </thead>
           <tbody>
-            ${visible.length === 0 ? `<tr><td colspan="7" class="px-4 py-8 text-center text-navy-400">Nenhum material cadastrado.</td></tr>` : visible.map((m) => `
+            ${visible.length === 0 ? `<tr><td colspan="8" class="px-4 py-8 text-center text-navy-400">Nenhum material cadastrado.</td></tr>` : visible.map((m) => `
               <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50 ${!m.active ? "opacity-50" : ""}">
                 <td class="px-3 py-3 font-medium text-navy-900">${escapeHtml(m.name)}</td>
+                <td class="px-3 py-3 text-navy-600">${m.type ? `<span class="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-navy-600 ring-1 ring-navy-100">${escapeHtml(m.type)}</span>` : ""}</td>
                 <td class="px-3 py-3 text-right">${formatBRL(m.package_price)}</td>
                 <td class="px-3 py-3 text-right">${Number(m.package_qty)}</td>
                 <td class="px-3 py-3">${escapeHtml(m.unit)}</td>
@@ -1141,6 +1143,16 @@ function renderMaterialForm() {
           placeholder="0" />
         <p class="mt-1 text-xs text-navy-400">Some aqui quando comprar mais.</p>
       </div>
+      <div class="w-full sm:w-56">
+        <label class="mb-1 block text-sm font-medium text-navy-800">Tipo (opcional)</label>
+        <select id="mf-type-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+          <option value="">— sem tipo —</option>
+          ${[...new Set(state.materials.map((m) => m.type).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")).map((t) => `<option value="${escapeHtml(t)}" ${material?.type === t ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}
+          <option value="__new__">+ Novo tipo...</option>
+        </select>
+        <input id="mf-type-new" class="mt-2 hidden w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex: Embalagem" />
+        <p class="mt-1 text-xs text-navy-400">Marque como "Embalagem" pra aparecer como opção de embalagem de presente no Catálogo.</p>
+      </div>
       <div id="mf-preview" class="flex flex-1 min-w-[180px] items-center rounded-lg bg-cream-50 px-4 py-2 text-xs text-navy-600"></div>
       <div id="mf-error" class="w-full text-sm text-red-600"></div>
       <div class="flex gap-2">
@@ -1154,6 +1166,18 @@ function renderMaterialForm() {
   const qtyField = document.getElementById("mf-qty");
   const preview = document.getElementById("mf-preview");
   const unitSelect = document.getElementById("mf-unit");
+  const typeSelect = document.getElementById("mf-type-select");
+  const typeNewField = document.getElementById("mf-type-new");
+
+  typeNewField.classList.toggle("hidden", typeSelect.value !== "__new__");
+  typeSelect.addEventListener("change", () => {
+    typeNewField.classList.toggle("hidden", typeSelect.value !== "__new__");
+    if (typeSelect.value === "__new__") {
+      typeNewField.focus();
+    } else {
+      typeNewField.value = "";
+    }
+  });
 
   function updatePreview() {
     const price = Number(priceField.value.replace(",", "."));
@@ -1185,8 +1209,12 @@ function renderMaterialForm() {
     if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Quantidade inválida."; return; }
     if (!Number.isFinite(stock) || stock < 0) { errorEl.textContent = "Estoque inválido."; return; }
 
+    const type = typeSelect.value === "__new__" ? typeNewField.value.trim() : typeSelect.value;
+    if (typeSelect.value === "__new__" && !type) { errorEl.textContent = "Informe o nome do novo tipo, ou volte pra opção \"— sem tipo —\"."; return; }
+
     const payload = {
       name, package_price: price, package_qty: qty, unit, stock_qty: stock,
+      type: type || null,
       unit_cost: Math.round((price / qty) * 10000) / 10000, // 4 casas de precisão
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
@@ -1567,6 +1595,64 @@ function buildOrdersReceiptPdf(orders) {
   return doc;
 }
 
+// Acha o cliente cadastrado cujo WhatsApp bate com o do pedido, comparando
+// só os dígitos (assim funciona mesmo se um tiver "+55" e o outro não).
+function findCustomerByPhone(phone) {
+  const digits = String(phone ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  return state.customers.find((c) => String(c.whatsapp ?? "").replace(/\D/g, "") === digits) ?? null;
+}
+
+// "Iniciar venda": gera o lançamento correspondente no Caixa a partir de
+// um pedido do Catálogo (evita ter que digitar tudo de novo à mão). Se o
+// pedido tinha embalagem de presente escolhida, já vincula o material
+// usado também (o que dá baixa automática no estoque).
+async function iniciarVenda(order) {
+  if (state.cashEntries.some((e) => e.order_id === order.id)) {
+    alert("Esse pedido já tem uma venda registrada no Caixa.");
+    return;
+  }
+
+  const itemsDesc = (order.items ?? [])
+    .map((it) => `${it.quantity}x ${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""}`)
+    .join(", ");
+  const customer = findCustomerByPhone(order.customer_whatsapp);
+
+  const payload = {
+    entry_type: "entrada",
+    entry_date: new Date().toISOString().slice(0, 10),
+    amount: order.total,
+    category: "Venda",
+    description: `Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")} — ${itemsDesc}`,
+    payment_method: order.payment_method,
+    customer_id: customer ? customer.id : null,
+    order_id: order.id,
+    created_by: state.currentUser.id,
+  };
+
+  const { data: inserted, error } = await supabaseClient.from("cash_entries").insert(payload).select("id").single();
+  if (error) { alert("Não foi possível registrar a venda no Caixa: " + error.message); return; }
+
+  if (order.gift_wrap_material_id) {
+    const material = state.materials.find((m) => m.id === order.gift_wrap_material_id);
+    if (material) {
+      const { error: linkError } = await supabaseClient.from("cash_entry_materials").insert({
+        cash_entry_id: inserted.id, material_id: material.id, quantity: 1, unit_cost: material.unit_cost,
+      });
+      if (linkError) console.error("iniciarVenda materiais:", linkError.message);
+    }
+  }
+
+  if (order.status === "novo") {
+    await supabaseClient.from("orders").update({
+      status: "em_andamento", updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+    }).eq("id", order.id);
+  }
+
+  await Promise.all([loadCashEntries(), loadMaterials(), loadOrders()]);
+  renderPedidos(document.getElementById("main-content"));
+}
+
 function renderPedidos(container) {
   const visible = state.orders.filter((o) => pedidosState.statusFilter === "todos" || o.status === pedidosState.statusFilter);
   // Limpa da seleção qualquer pedido que não existe mais na lista atual.
@@ -1595,7 +1681,7 @@ function renderPedidos(container) {
         </label>
         <span class="text-sm text-navy-400">${selectedCount} selecionado${selectedCount === 1 ? "" : "s"}</span>
         <div class="ml-auto flex gap-2">
-          <button id="pedidos-download-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🧾 Baixar comprovantes (PDF)</button>
+          <button id="pedidos-download-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🧾 Gerar comprovante</button>
           <button id="pedidos-delete-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">🗑 Excluir selecionados</button>
         </div>
       </div>
@@ -1619,6 +1705,9 @@ function renderPedidos(container) {
                   ${Object.entries(ORDER_STATUS_LABELS).map(([k, label]) => `<option value="${k}" ${o.status === k ? "selected" : ""}>${label}</option>`).join("")}
                 </select>
                 <button data-toggle-items="${o.id}" class="toggle-order-items-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">${pedidosState.expandedId === o.id ? "Ocultar itens" : "Ver itens"}</button>
+                ${state.cashEntries.some((e) => e.order_id === o.id)
+                  ? `<span class="rounded px-2 py-1 text-xs font-medium text-emerald-700">✓ Venda registrada</span>`
+                  : `<button data-iniciar-venda="${o.id}" class="iniciar-venda-btn rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">Iniciar venda</button>`}
               </div>
             </div>
             ${pedidosState.expandedId === o.id ? `
@@ -1629,6 +1718,7 @@ function renderPedidos(container) {
                     <span>${formatBRL(it.unit_price * it.quantity)}</span>
                   </div>
                 `).join("")}
+                ${o.gift_wrap_material_name ? `<p class="mt-1 text-xs text-navy-500">🎁 Embalagem para presente: ${escapeHtml(o.gift_wrap_material_name)}</p>` : ""}
                 ${o.customer_instagram ? `<p class="mt-1 text-xs text-navy-400">Instagram: @${escapeHtml(o.customer_instagram.replace(/^@/, ""))}</p>` : ""}
                 ${o.notes ? `<p class="mt-1 text-xs text-navy-400">Obs: ${escapeHtml(o.notes)}</p>` : ""}
               </div>
@@ -1647,6 +1737,22 @@ function renderPedidos(container) {
     btn.addEventListener("click", () => {
       pedidosState.expandedId = pedidosState.expandedId === btn.dataset.toggleItems ? null : btn.dataset.toggleItems;
       renderPedidos(container);
+    });
+  });
+  container.querySelectorAll(".iniciar-venda-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const order = state.orders.find((o) => o.id === btn.dataset.iniciarVenda);
+      if (!order) return;
+      btn.disabled = true;
+      btn.textContent = "Registrando...";
+      try {
+        await iniciarVenda(order);
+      } catch (err) {
+        console.error("iniciarVenda:", err);
+        alert("Não foi possível iniciar a venda. Tente novamente.");
+        btn.disabled = false;
+        btn.textContent = "Iniciar venda";
+      }
     });
   });
   container.querySelectorAll(".order-status-select").forEach((sel) => {
@@ -1678,14 +1784,23 @@ function renderPedidos(container) {
   const downloadBtn = document.getElementById("pedidos-download-btn");
   if (downloadBtn) {
     downloadBtn.addEventListener("click", () => {
-      const selectedOrders = state.orders
-        .filter((o) => pedidosState.selected.has(o.id))
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      if (selectedOrders.length === 0) return;
-      const doc = buildOrdersReceiptPdf(selectedOrders);
-      const now = new Date();
-      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-      doc.save(`pedidos-luz-mariana-${stamp}.pdf`);
+      try {
+        const selectedOrders = state.orders
+          .filter((o) => pedidosState.selected.has(o.id))
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        if (selectedOrders.length === 0) return;
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+          alert("Não foi possível gerar o comprovante: a biblioteca de PDF não carregou. Recarregue a página e tente novamente.");
+          return;
+        }
+        const doc = buildOrdersReceiptPdf(selectedOrders);
+        const now = new Date();
+        const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        doc.save(`pedidos-luz-mariana-${stamp}.pdf`);
+      } catch (err) {
+        console.error("Erro ao gerar comprovante:", err);
+        alert("Não foi possível gerar o comprovante. Tente novamente ou avise o suporte.");
+      }
     });
   }
 
