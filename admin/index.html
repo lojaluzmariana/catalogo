@@ -1519,6 +1519,10 @@ function buildReceiptLinePlan(order) {
     push(`${it.quantity}x ${it.product_name}${variantLabel}`, { align: "left", gap: 3.8, wrap: true });
     push(formatBRL(it.unit_price * it.quantity), { align: "right", gap: 4.4 });
   });
+  if (order.gift_wrap_material_name) {
+    push(`Embalagem p/ presente: ${order.gift_wrap_material_name}`, { align: "left", gap: 3.8, wrap: true });
+    if (order.gift_wrap_price != null) push(formatBRL(order.gift_wrap_price), { align: "right", gap: 4.4 });
+  }
   lines.push({ divider: true, gap: 4 });
 
   push(`TOTAL: ${formatBRL(order.total)}`, { size: 11, style: "bold", align: "right", gap: 5.6 });
@@ -1718,7 +1722,7 @@ function renderPedidos(container) {
                     <span>${formatBRL(it.unit_price * it.quantity)}</span>
                   </div>
                 `).join("")}
-                ${o.gift_wrap_material_name ? `<p class="mt-1 text-xs text-navy-500">🎁 Embalagem para presente: ${escapeHtml(o.gift_wrap_material_name)}</p>` : ""}
+                ${o.gift_wrap_material_name ? `<p class="mt-1 text-xs text-navy-500">🎁 Embalagem para presente: ${escapeHtml(o.gift_wrap_material_name)}${o.gift_wrap_price != null ? ` — ${formatBRL(o.gift_wrap_price)}` : ""}</p>` : ""}
                 ${o.customer_instagram ? `<p class="mt-1 text-xs text-navy-400">Instagram: @${escapeHtml(o.customer_instagram.replace(/^@/, ""))}</p>` : ""}
                 ${o.notes ? `<p class="mt-1 text-xs text-navy-400">Obs: ${escapeHtml(o.notes)}</p>` : ""}
               </div>
