@@ -84,6 +84,34 @@ function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* ---------------------------------------------------------------------
+   Telefone/WhatsApp — sempre com o +55 na frente.
+
+   Números locais (DDD + número) têm 10 ou 11 dígitos; com o "55" do
+   Brasil na frente ficam com 12 ou 13. É por isso (tamanho, não só
+   "já começa com 55") que a gente decide se falta adicionar o código
+   do país — assim não erra em DDDs que também começam com 55, tipo
+   Santa Maria/RS (ex: um número local "55 99988-7766" vira
+   "55 55 99988-7766", com o país e o DDD, e não fica faltando o país).
+   --------------------------------------------------------------------- */
+function normalizeBrPhoneDigits(raw) {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length === 10 || digits.length === 11) return "55" + digits;
+  return digits;
+}
+function formatWhatsappBR(raw) {
+  const digits = normalizeBrPhoneDigits(raw);
+  if (!digits) return "";
+  const cc = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  const area = rest.slice(0, 2);
+  const num = rest.slice(2);
+  if (num.length === 9) return `+${cc} (${area}) ${num.slice(0, 5)}-${num.slice(5)}`;
+  if (num.length === 8) return `+${cc} (${area}) ${num.slice(0, 4)}-${num.slice(4)}`;
+  return `+${cc} ${rest}`; // formato inesperado: ainda garante o +55 na frente
+}
+
 const app = document.getElementById("app");
 
 const state = {
@@ -276,15 +304,19 @@ function renderHeader() {
 }
 
 function renderHero() {
-  // A imagem já traz a logo, a mensagem de boas-vindas e as condições de
-  // pagamento desenhadas nela. Em telas estreitas, corta as laterais
-  // (que são só decoração) e mantém o miolo com o texto sempre visível
-  // e legível — só na tela grande é que aparece a arte inteira.
+  // Em telas de celular usamos uma imagem PRÓPRIA, já recortada à mão
+  // pra manter a logo, o texto e o selo de pagamento sempre inteiros e
+  // legíveis (não é um corte automático via CSS). A partir do tablet
+  // (640px) volta a usar a arte completa, cada vez mais larga conforme
+  // a tela cresce.
   return `
     <div class="w-full overflow-hidden bg-navy-900">
-      <img src="hero-banner.jpg"
-        alt="Bem-vindo(a) à Luz Mariana — Fé que inspira. Presentes que têm significado. Artigos religiosos e peças de devoção para sua casa, seu cantinho de oração ou para presentear alguém especial. Condições especiais para pagamentos via Pix ou à vista."
-        class="aspect-[4/3] w-full object-cover object-center sm:aspect-[2/1] lg:aspect-[3/1]" />
+      <picture>
+        <source media="(max-width: 639px)" srcset="hero-banner-mobile.jpg" />
+        <img src="hero-banner.jpg"
+          alt="Bem-vindo(a) à Luz Mariana — Fé que inspira. Presentes que têm significado. Artigos religiosos e peças de devoção para sua casa, seu cantinho de oração ou para presentear alguém especial. Condições especiais para pagamentos via Pix ou à vista."
+          class="aspect-[4/3] w-full object-cover object-center sm:aspect-[2/1] lg:aspect-[3/1]" />
+      </picture>
     </div>
   `;
 }
@@ -689,12 +721,13 @@ function renderCheckout() {
           </div>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">Nome</label>
-          <input id="ck-name" required class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Seu nome" />
+          <label class="mb-1 block text-sm font-medium text-navy-800">WhatsApp</label>
+          <input id="ck-whatsapp" required inputmode="tel" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
+          <p id="ck-whatsapp-msg" class="mt-1 text-xs text-navy-400"></p>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">WhatsApp</label>
-          <input id="ck-whatsapp" required class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
+          <label class="mb-1 block text-sm font-medium text-navy-800">Nome</label>
+          <input id="ck-name" required class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Seu nome" />
         </div>
         <div>
           <label class="mb-1 block text-sm font-medium text-navy-800">Instagram (opcional)</label>
@@ -716,6 +749,49 @@ function renderCheckout() {
     btn.addEventListener("click", () => { state.payment = btn.dataset.payment; render(); });
   });
   document.getElementById("checkout-form").addEventListener("submit", onSubmitOrder);
+  document.getElementById("ck-whatsapp").addEventListener("blur", onWhatsappBlur);
+}
+
+/* ---------------------------------------------------------------------
+   Ao sair do campo de WhatsApp: já formata o número com o +55 e, se
+   reconhecer que essa pessoa já comprou antes (mesmo número, mesmo que
+   cadastrado num formato diferente), preenche sozinho o nome e o
+   instagram informados da primeira vez — só nos campos que ainda
+   estiverem vazios, pra não sobrescrever o que a pessoa já digitou.
+   --------------------------------------------------------------------- */
+async function onWhatsappBlur() {
+  const whatsappField = document.getElementById("ck-whatsapp");
+  const msgEl = document.getElementById("ck-whatsapp-msg");
+  if (!whatsappField || !msgEl) return;
+
+  const raw = whatsappField.value.trim();
+  if (!raw) { msgEl.textContent = ""; return; }
+
+  const formatted = formatWhatsappBR(raw);
+  if (formatted) whatsappField.value = formatted;
+
+  msgEl.textContent = "Verificando...";
+
+  const { data, error } = await supabaseClient.rpc("lookup_customer_by_phone", { p_whatsapp: formatted || raw });
+
+  if (error) {
+    console.error("lookup_customer_by_phone:", error.message);
+    msgEl.textContent = "";
+    return;
+  }
+
+  const found = Array.isArray(data) ? data[0] : data;
+  if (found) {
+    const nameField = document.getElementById("ck-name");
+    const instaField = document.getElementById("ck-instagram");
+    if (nameField && !nameField.value.trim() && found.name) nameField.value = found.name;
+    if (instaField && !instaField.value.trim() && found.instagram) instaField.value = found.instagram;
+    msgEl.textContent = found.name ? `Bem-vindo(a) de volta, ${found.name}! Já preenchemos seus dados.` : "Bem-vindo(a) de volta! Já preenchemos seus dados.";
+    msgEl.classList.add("text-emerald-600");
+  } else {
+    msgEl.textContent = "";
+    msgEl.classList.remove("text-emerald-600");
+  }
 }
 
 async function onSubmitOrder(e) {
@@ -723,7 +799,9 @@ async function onSubmitOrder(e) {
   const errorEl = document.getElementById("ck-error");
   const submitBtn = document.getElementById("ck-submit");
   const name = document.getElementById("ck-name").value.trim();
-  const whatsapp = document.getElementById("ck-whatsapp").value.trim();
+  // Garante o +55 na frente mesmo que a pessoa tenha enviado o formulário
+  // sem sair do campo de WhatsApp (o que dispararia a formatação sozinha).
+  const whatsapp = formatWhatsappBR(document.getElementById("ck-whatsapp").value.trim()) || document.getElementById("ck-whatsapp").value.trim();
   const instagram = document.getElementById("ck-instagram").value.trim().replace(/^@/, "");
   const notes = document.getElementById("ck-notes").value.trim();
 
@@ -774,6 +852,19 @@ async function onSubmitOrder(e) {
     console.error("Erro ao salvar itens do pedido:", itemsError.message);
     // O pedido em si já foi criado — segue o fluxo mesmo assim, a loja
     // ainda recebe a mensagem completa no WhatsApp.
+  }
+
+  // Cadastra (ou atualiza) o cliente no painel automaticamente. Se essa
+  // pessoa já tinha comprado antes (mesmo WhatsApp), não duplica — só
+  // completa o instagram, se informado agora. Isso não deve travar o
+  // fluxo de compra mesmo se der algum problema.
+  const { error: customerError } = await supabaseClient.rpc("upsert_customer_from_order", {
+    p_name: name,
+    p_whatsapp: whatsapp,
+    p_instagram: instagram || null,
+  });
+  if (customerError) {
+    console.error("Erro ao cadastrar cliente automaticamente:", customerError.message);
   }
 
   const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment: state.payment });
