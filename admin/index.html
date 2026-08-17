@@ -1477,6 +1477,43 @@ function waLink(phone) {
 // WhatsApp do fabricante que produz os produtos — usado no botão
 // "Enviar ao fabricante" dos Pedidos aceitos.
 const MANUFACTURER_WHATSAPP_NUMBER = "5584991677070";
+// Mesma margem usada na view catalog_gift_wrap_options (preço cobrado =
+// custo do material + 30%). Usada aqui só pra "desfazer a conta" quando
+// precisamos estimar o custo de uma embalagem cujo material já foi
+// apagado do cadastro (nesse caso não tem outro jeito de saber o custo).
+const GIFT_WRAP_MARKUP = 0.3;
+
+// Custo real (materiais/insumos) de um pedido — não é o preço cobrado do
+// cliente. Soma o custo de cada produto (produtos.cost, que já inclui
+// materiais + custo base) pela quantidade, mais o custo de cada
+// embalagem de presente (o custo do material, não o preço com markup).
+//
+// IMPORTANTE: usa o custo ATUAL cadastrado do produto/material. Se o
+// custo mudou desde que o pedido foi feito, o valor aqui reflete o custo
+// de HOJE, não o de quando a venda aconteceu — não temos um "retrato"
+// histórico do custo salvo no pedido. Quando um produto ou material do
+// pedido não é mais encontrado no cadastro, marca o resultado como
+// aproximado (isApprox) pra deixar isso visível pro admin.
+function orderCost(order) {
+  let isApprox = false;
+
+  const itemsCost = (order.items ?? []).reduce((sum, it) => {
+    const product = state.products.find((p) => p.id === it.product_id);
+    if (!product) { isApprox = true; return sum; }
+    return sum + Number(product.cost) * it.quantity;
+  }, 0);
+
+  const giftWrapCost = (order.giftWraps ?? []).reduce((sum, g) => {
+    const material = g.material_id ? state.materials.find((m) => m.id === g.material_id) : null;
+    if (material) return sum + Number(material.unit_cost) * g.quantity;
+    // Material apagado do cadastro: estima o custo "desfazendo" o markup
+    // de 30% em cima do preço que foi cobrado do cliente na hora da venda.
+    isApprox = true;
+    return sum + (Number(g.unit_price) / (1 + GIFT_WRAP_MARKUP)) * g.quantity;
+  }, 0);
+
+  return { cost: itemsCost + giftWrapCost, isApprox };
+}
 
 function formatDateTime(dateLike) {
   const d = new Date(dateLike);
@@ -1778,6 +1815,13 @@ function renderPedidos(container) {
   const selectedCount = pedidosState.selected.size;
   const allVisibleSelected = visible.length > 0 && visible.every((o) => pedidosState.selected.has(o.id));
 
+  // Custo (não confundir com o valor cobrado do cliente) de cada pedido
+  // visível, calculado uma vez só aqui e reaproveitado tanto no card
+  // individual quanto na soma dos pedidos selecionados.
+  const orderCosts = new Map(visible.map((o) => [o.id, orderCost(o)]));
+  const selectedCostTotal = [...pedidosState.selected].reduce((sum, id) => sum + (orderCosts.get(id)?.cost ?? 0), 0);
+  const selectedHasApprox = [...pedidosState.selected].some((id) => orderCosts.get(id)?.isApprox);
+
   container.innerHTML = `
     <div class="flex flex-col gap-6">
       <div>
@@ -1803,6 +1847,11 @@ function renderPedidos(container) {
           Selecionar todos os visíveis
         </label>
         <span class="text-sm text-navy-400">${selectedCount} selecionado${selectedCount === 1 ? "" : "s"}</span>
+        ${selectedCount > 0 ? `
+          <span class="rounded-lg bg-cream-50 px-2.5 py-1 text-sm font-semibold text-navy-800" title="${selectedHasApprox ? "Inclui custo aproximado — algum produto ou material dos pedidos selecionados não está mais cadastrado" : "Soma do custo dos materiais/insumos dos pedidos selecionados"}">
+            Custo total: ${selectedHasApprox ? "≈ " : ""}${formatBRL(selectedCostTotal)}
+          </span>
+        ` : ""}
         <div class="ml-auto flex gap-2">
           <button id="pedidos-download-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🧾 Gerar comprovante</button>
           <button id="pedidos-delete-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">🗑 Excluir selecionados</button>
@@ -1823,7 +1872,10 @@ function renderPedidos(container) {
                 </div>
               </div>
               <div class="flex items-center gap-3">
-                <span class="text-lg font-semibold text-navy-900">${formatBRL(o.total)}</span>
+                <div class="text-right leading-tight">
+                  <span class="block text-lg font-semibold text-navy-900">${formatBRL(o.total)}</span>
+                  <span class="block text-[11px] font-medium text-navy-400" title="${orderCosts.get(o.id).isApprox ? "Custo aproximado — algum produto ou material desse pedido não está mais cadastrado" : "Custo dos materiais/insumos usados nesse pedido"}">Custo: ${orderCosts.get(o.id).isApprox ? "≈ " : ""}${formatBRL(orderCosts.get(o.id).cost)}</span>
+                </div>
                 <span class="rounded-lg px-2 py-1.5 text-xs font-medium ${ORDER_STATUS_CLASSES[o.status]}">${ORDER_STATUS_LABELS[o.status]}</span>
                 <button data-toggle-items="${o.id}" class="toggle-order-items-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">${pedidosState.expandedId === o.id ? "Ocultar itens" : "Ver itens"}</button>
                 ${state.cashEntries.some((e) => e.order_id === o.id)
