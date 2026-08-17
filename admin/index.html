@@ -1498,11 +1498,27 @@ function orderItemPhoto(item) {
   return product.photo_url || null;
 }
 
+// Link de pré-visualização da foto do item: em vez de mandar o link
+// direto do Supabase Storage (que o WhatsApp não consegue pré-visualizar),
+// passa pela nossa função "product-photo", que gera uma página com as
+// tags corretas pra a miniatura aparecer sozinha no balão da conversa.
+function orderItemPhotoPreviewUrl(item, order) {
+  const photo = orderItemPhoto(item);
+  if (!photo) return null;
+  const nome = item.variant_name ? `${item.product_name} (${item.variant_name})` : item.product_name;
+  const params = new URLSearchParams({
+    src: photo,
+    nome: nome,
+    pedido: String(order.order_number ?? ""),
+  });
+  return `${SUPABASE_URL}/functions/v1/product-photo?${params.toString()}`;
+}
+
 // Mensagem pro fabricante: identificação da loja, nome do produto, a
-// variação (cor/modelo) quando tiver, foto e prazo — nunca preço (o
-// fabricante não precisa saber quanto o cliente pagou), e não inclui as
-// embalagens de presente (isso a loja resolve por conta própria, não é
-// o fabricante que produz).
+// variação (cor/modelo) quando tiver, foto (com miniatura automática no
+// WhatsApp) e prazo — nunca preço (o fabricante não precisa saber quanto
+// o cliente pagou), e não inclui as embalagens de presente (isso a loja
+// resolve por conta própria, não é o fabricante que produz).
 function buildManufacturerMessage(order) {
   const lines = [];
   lines.push(`${STORE_NAME} - ${STORE_SUBTITLE}`);
@@ -1516,8 +1532,8 @@ function buildManufacturerMessage(order) {
   (order.items ?? []).forEach((it) => {
     lines.push(`• ${it.quantity}x ${it.product_name}`);
     if (it.variant_name) lines.push(`  Variação: ${it.variant_name}`);
-    const photo = orderItemPhoto(it);
-    if (photo) lines.push(`  Foto: ${photo}`);
+    const photoPreview = orderItemPhotoPreviewUrl(it, order);
+    if (photoPreview) lines.push(`  Foto: ${photoPreview}`);
   });
   return lines.join("\n");
 }
@@ -1814,6 +1830,7 @@ function renderPedidos(container) {
               ${o.accepted_at ? `
                 <button data-enviar-fabricante="${o.id}" class="enviar-fabricante-btn rounded-lg border border-navy-300 px-3 py-1.5 text-xs font-semibold text-navy-700 transition hover:bg-navy-100">📦 ${o.sent_to_manufacturer_at ? "Reenviar ao fabricante" : "Enviar ao fabricante"}</button>
                 ${o.sent_to_manufacturer_at ? `<span class="text-xs text-navy-400">✓ Enviado em ${formatDate(o.sent_to_manufacturer_at.slice(0, 10))}</span>` : ""}
+                <span class="w-full text-xs text-navy-400">💡 A miniatura da foto aparece automaticamente no WhatsApp assim que o link é enviado (pode levar alguns segundos). Se não aparecer, clique em "Ver itens" abaixo pra abrir as fotos e arrastar direto pra conversa.</span>
               ` : ""}
               ${o.status === "concluido"
                 ? `<span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">✓ Concluído</span>`
@@ -1830,10 +1847,13 @@ function renderPedidos(container) {
               </select>
             </div>
             ${pedidosState.expandedId === o.id ? `
-              <div class="mt-3 flex flex-col gap-1 border-t border-navy-50 pt-3">
+              <div class="mt-3 flex flex-col gap-2 border-t border-navy-50 pt-3">
                 ${o.items.map((it) => `
-                  <div class="flex items-center justify-between text-sm text-navy-700">
-                    <span>${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""}</span>
+                  <div class="flex items-center justify-between gap-3 text-sm text-navy-700">
+                    <div class="flex items-center gap-2">
+                      ${orderItemPhoto(it) ? `<a href="${orderItemPhoto(it)}" target="_blank" rel="noopener" title="Abrir foto em tamanho real — clique com o botão direito pra copiar ou arraste pro WhatsApp"><img src="${orderItemPhoto(it)}" class="h-10 w-10 rounded object-cover ring-1 ring-navy-100" /></a>` : ""}
+                      <span>${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""}</span>
+                    </div>
                     <span>${formatBRL(it.unit_price * it.quantity)}</span>
                   </div>
                 `).join("")}
