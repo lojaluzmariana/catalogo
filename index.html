@@ -272,6 +272,23 @@ function cartTotal() {
   return cartItems().reduce((sum, it) => sum + priceFor(it.product) * it.quantity, 0);
 }
 
+/* Embalagem de presente escolhida no checkout agora (null se não pediu
+   ou ainda não escolheu qual). */
+function selectedGiftWrap() {
+  if (!state.giftWrapWanted || !state.giftWrapMaterialId) return null;
+  return state.giftWrapOptions.find((g) => g.id === state.giftWrapMaterialId) || null;
+}
+
+function giftWrapPrice() {
+  const g = selectedGiftWrap();
+  return g ? Number(g.price) : 0;
+}
+
+/* Total do pedido = itens do carrinho + embalagem de presente (se pedida). */
+function orderTotal() {
+  return cartTotal() + giftWrapPrice();
+}
+
 function setQty(productId, qty) {
   if (qty <= 0) delete state.cart[productId];
   else state.cart[productId] = qty;
@@ -714,9 +731,13 @@ function renderCheckout() {
             <span class="font-medium text-navy-900">${formatBRL(priceFor(it.product) * it.quantity)}</span>
           </div>
         `).join("")}
+        <div id="ck-giftwrap-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm ${selectedGiftWrap() ? "" : "hidden"}">
+          <span>🎁 Embalagem para presente${selectedGiftWrap() ? `: ${escapeHtml(selectedGiftWrap().name)}` : ""}</span>
+          <span id="ck-giftwrap-line-price" class="font-medium text-navy-900">${formatBRL(giftWrapPrice())}</span>
+        </div>
         <div class="mt-2 flex items-center justify-between border-t border-navy-100 pt-2 text-base font-semibold text-navy-900">
           <span>Total</span>
-          <span>${formatBRL(cartTotal())}</span>
+          <span id="ck-total-value">${formatBRL(orderTotal())}</span>
         </div>
       </div>
 
@@ -753,7 +774,7 @@ function renderCheckout() {
           </label>
           <select id="ck-gift-wrap-select" class="mt-2 w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${state.giftWrapWanted ? "" : "hidden"}">
             <option value="">— escolha a embalagem —</option>
-            ${state.giftWrapOptions.map((g) => `<option value="${g.id}" ${state.giftWrapMaterialId === g.id ? "selected" : ""}>${escapeHtml(g.name)}</option>`).join("")}
+            ${state.giftWrapOptions.map((g) => `<option value="${g.id}" ${state.giftWrapMaterialId === g.id ? "selected" : ""}>${escapeHtml(g.name)} (+ ${formatBRL(g.price)})</option>`).join("")}
           </select>
         </div>
         ` : ""}
@@ -781,11 +802,27 @@ function renderCheckout() {
         state.giftWrapMaterialId = "";
         giftWrapSelect.value = "";
       }
+      updateCheckoutTotals();
     });
     giftWrapSelect.addEventListener("change", () => {
       state.giftWrapMaterialId = giftWrapSelect.value;
+      updateCheckoutTotals();
     });
   }
+}
+
+/* Atualiza só os valores de total/embalagem na tela de checkout, sem
+   recriar o formulário inteiro (recriar apagaria o que a pessoa já
+   digitou nos campos de nome/WhatsApp/observações). */
+function updateCheckoutTotals() {
+  const line = document.getElementById("ck-giftwrap-line");
+  const linePrice = document.getElementById("ck-giftwrap-line-price");
+  const totalEl = document.getElementById("ck-total-value");
+  const giftWrap = selectedGiftWrap();
+  if (line) line.classList.toggle("hidden", !giftWrap);
+  if (line) line.querySelector("span").textContent = `🎁 Embalagem para presente${giftWrap ? `: ${giftWrap.name}` : ""}`;
+  if (linePrice) linePrice.textContent = formatBRL(giftWrapPrice());
+  if (totalEl) totalEl.textContent = formatBRL(orderTotal());
 }
 
 /* ---------------------------------------------------------------------
@@ -860,7 +897,7 @@ async function onSubmitOrder(e) {
   const waWindow = window.open("", "_blank");
 
   const orderId = crypto.randomUUID();
-  const total = cartTotal();
+  const total = cartTotal() + (giftWrap ? Number(giftWrap.price) : 0);
 
   const { error: orderError } = await supabaseClient.from("orders").insert({
     id: orderId,
@@ -872,6 +909,7 @@ async function onSubmitOrder(e) {
     total,
     gift_wrap_material_id: giftWrap ? giftWrap.id : null,
     gift_wrap_material_name: giftWrap ? giftWrap.name : null,
+    gift_wrap_price: giftWrap ? Number(giftWrap.price) : null,
   });
 
   if (orderError) {
@@ -930,10 +968,10 @@ function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, 
     const variantLabel = it.variant ? ` (${it.variant.name})` : "";
     lines.push(`• ${it.quantity}x ${it.product.name}${variantLabel} — ${formatBRL(priceFor(it.product) * it.quantity)}`);
   });
+  if (giftWrap) lines.push(`🎁 Embalagem para presente: ${giftWrap.name} — ${formatBRL(giftWrap.price)}`);
   lines.push("");
   lines.push(`Total: ${formatBRL(total)}`);
   lines.push(`Pagamento: ${payment === "credito" ? "Cartão de crédito" : "Pix / à vista"}`);
-  if (giftWrap) lines.push(`Embalagem para presente: ${giftWrap.name}`);
   lines.push("");
   lines.push(`Nome: ${name}`);
   lines.push(`WhatsApp: ${whatsapp}`);
