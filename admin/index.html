@@ -1470,6 +1470,11 @@ function waLink(phone) {
 // "Enviar ao fabricante" dos Pedidos aceitos.
 const MANUFACTURER_WHATSAPP_NUMBER = "5584991677070";
 
+function formatDateTime(dateLike) {
+  const d = new Date(dateLike);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 // Prazo de entrega combinado com o fabricante: 2 dias corridos a partir
 // da data em que o pedido entrou.
 function manufacturerDeadline(order) {
@@ -1493,19 +1498,24 @@ function orderItemPhoto(item) {
   return product.photo_url || null;
 }
 
-// Mensagem pro fabricante: só nome do produto, foto e prazo — nunca
-// preço (o fabricante não precisa saber quanto o cliente pagou), e não
-// inclui as embalagens de presente (isso a loja resolve por conta,
-// não é o fabricante que produz).
+// Mensagem pro fabricante: identificação da loja, nome do produto, a
+// variação (cor/modelo) quando tiver, foto e prazo — nunca preço (o
+// fabricante não precisa saber quanto o cliente pagou), e não inclui as
+// embalagens de presente (isso a loja resolve por conta própria, não é
+// o fabricante que produz).
 function buildManufacturerMessage(order) {
   const lines = [];
+  lines.push(`${STORE_NAME} - ${STORE_SUBTITLE}`);
+  lines.push(`CNPJ: ${STORE_CNPJ}`);
+  lines.push("");
   lines.push(`Novo pedido para produção — Nº ${String(order.order_number ?? "").padStart(6, "0")}`);
-  lines.push(`Prazo de entrega: ${manufacturerDeadline(order)}`);
+  lines.push(`Pedido recebido em: ${formatDateTime(order.created_at)}`);
+  lines.push(`Prazo para entrega: ${manufacturerDeadline(order)}`);
   lines.push("");
   lines.push("Itens:");
   (order.items ?? []).forEach((it) => {
-    const variantLabel = it.variant_name ? ` (${it.variant_name})` : "";
-    lines.push(`• ${it.quantity}x ${it.product_name}${variantLabel}`);
+    lines.push(`• ${it.quantity}x ${it.product_name}`);
+    if (it.variant_name) lines.push(`  Variação: ${it.variant_name}`);
     const photo = orderItemPhoto(it);
     if (photo) lines.push(`  Foto: ${photo}`);
   });
@@ -1547,7 +1557,18 @@ function resolveOrderGiftWraps(order, rows) {
   return [];
 }
 
-let pedidosState = { statusFilter: "todos", expandedId: null, selected: new Set() };
+let pedidosState = { tab: "novo", expandedId: null, selected: new Set() };
+
+// Abas dos Pedidos — cada pedido mora numa aba de acordo com o status
+// atual dele. "novo" é sempre o ponto de entrada (todo pedido sobe assim);
+// "Aceitar" empurra pra "em_andamento"; "Marcar como concluído" empurra
+// pra "concluido". "cancelado" fica numa aba própria pra não sumir.
+const PEDIDOS_TABS = [
+  { key: "novo", label: "Novos" },
+  { key: "em_andamento", label: "Em andamento" },
+  { key: "concluido", label: "Concluídos" },
+  { key: "cancelado", label: "Cancelados" },
+];
 
 /* =====================================================================
    COMPROVANTE NÃO FISCAL (PDF) — um "reciboszinho" por pedido, no
@@ -1571,9 +1592,7 @@ function buildReceiptLinePlan(order) {
   lines.push({ divider: true, gap: 4 });
 
   push(`Comprovante de Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")}`, { size: 9.5, style: "bold", gap: 4.6 });
-  const created = new Date(order.created_at);
-  const dataHora = `${String(created.getDate()).padStart(2, "0")}/${String(created.getMonth() + 1).padStart(2, "0")}/${created.getFullYear()} ${String(created.getHours()).padStart(2, "0")}:${String(created.getMinutes()).padStart(2, "0")}`;
-  push(`Data: ${dataHora}`, { align: "left", gap: 4 });
+  push(`Data: ${formatDateTime(order.created_at)}`, { align: "left", gap: 4 });
   push(`Status: ${ORDER_STATUS_LABELS[order.status] ?? order.status}`, { align: "left", gap: 4 });
   lines.push({ divider: true, gap: 4 });
 
@@ -1729,24 +1748,29 @@ async function iniciarVenda(order) {
 }
 
 function renderPedidos(container) {
-  const visible = state.orders.filter((o) => pedidosState.statusFilter === "todos" || o.status === pedidosState.statusFilter);
+  const visible = state.orders.filter((o) => o.status === pedidosState.tab);
   // Limpa da seleção qualquer pedido que não existe mais na lista atual.
-  const visibleIds = new Set(visible.map((o) => o.id));
   [...pedidosState.selected].forEach((id) => { if (!state.orders.some((o) => o.id === id)) pedidosState.selected.delete(id); });
   const selectedCount = pedidosState.selected.size;
   const allVisibleSelected = visible.length > 0 && visible.every((o) => pedidosState.selected.has(o.id));
 
   container.innerHTML = `
     <div class="flex flex-col gap-6">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 class="text-xl font-semibold text-navy-900">Pedidos</h1>
-          <p class="text-sm text-navy-500">Pedidos feitos pelos clientes no Catálogo público.</p>
-        </div>
-        <select id="pedidos-status-filter" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
-          <option value="todos" ${pedidosState.statusFilter === "todos" ? "selected" : ""}>Todos os status</option>
-          ${Object.entries(ORDER_STATUS_LABELS).map(([k, label]) => `<option value="${k}" ${pedidosState.statusFilter === k ? "selected" : ""}>${label}</option>`).join("")}
-        </select>
+      <div>
+        <h1 class="text-xl font-semibold text-navy-900">Pedidos</h1>
+        <p class="text-sm text-navy-500">Pedidos feitos pelos clientes no Catálogo público.</p>
+      </div>
+
+      <div class="flex flex-wrap gap-2 border-b border-navy-100">
+        ${PEDIDOS_TABS.map((t) => {
+          const count = state.orders.filter((o) => o.status === t.key).length;
+          const active = pedidosState.tab === t.key;
+          return `
+            <button data-pedidos-tab="${t.key}" class="pedidos-tab-btn -mb-px rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition ${active ? "border-gold-500 text-navy-900" : "border-transparent text-navy-400 hover:text-navy-600"}">
+              ${t.label} <span class="ml-1 rounded-full ${active ? "bg-gold-100 text-gold-800" : "bg-navy-100 text-navy-500"} px-1.5 py-0.5 text-xs font-semibold">${count}</span>
+            </button>
+          `;
+        }).join("")}
       </div>
 
       <div class="flex flex-wrap items-center gap-3 rounded-xl border border-navy-100 bg-white px-4 py-3 shadow">
@@ -1762,7 +1786,7 @@ function renderPedidos(container) {
       </div>
 
       <div class="flex flex-col gap-3">
-        ${visible.length === 0 ? `<p class="rounded-xl border border-navy-100 bg-white px-4 py-8 text-center text-navy-400 shadow">Nenhum pedido ${pedidosState.statusFilter === "todos" ? "ainda" : `com status "${ORDER_STATUS_LABELS[pedidosState.statusFilter]}"`}.</p>` : visible.map((o) => `
+        ${visible.length === 0 ? `<p class="rounded-xl border border-navy-100 bg-white px-4 py-8 text-center text-navy-400 shadow">Nenhum pedido em "${PEDIDOS_TABS.find((t) => t.key === pedidosState.tab)?.label}".</p>` : visible.map((o) => `
           <div class="rounded-xl border ${pedidosState.selected.has(o.id) ? "border-gold-400 ring-1 ring-gold-200" : "border-navy-100"} bg-white p-4 shadow">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex items-start gap-3">
@@ -1776,9 +1800,7 @@ function renderPedidos(container) {
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-lg font-semibold text-navy-900">${formatBRL(o.total)}</span>
-                <select data-order="${o.id}" class="order-status-select rounded-lg border border-navy-200 px-2 py-1.5 text-xs font-medium outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${ORDER_STATUS_CLASSES[o.status]}">
-                  ${Object.entries(ORDER_STATUS_LABELS).map(([k, label]) => `<option value="${k}" ${o.status === k ? "selected" : ""}>${label}</option>`).join("")}
-                </select>
+                <span class="rounded-lg px-2 py-1.5 text-xs font-medium ${ORDER_STATUS_CLASSES[o.status]}">${ORDER_STATUS_LABELS[o.status]}</span>
                 <button data-toggle-items="${o.id}" class="toggle-order-items-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">${pedidosState.expandedId === o.id ? "Ocultar itens" : "Ver itens"}</button>
                 ${state.cashEntries.some((e) => e.order_id === o.id)
                   ? `<span class="rounded px-2 py-1 text-xs font-medium text-emerald-700">✓ Venda registrada</span>`
@@ -1793,6 +1815,19 @@ function renderPedidos(container) {
                 <button data-enviar-fabricante="${o.id}" class="enviar-fabricante-btn rounded-lg border border-navy-300 px-3 py-1.5 text-xs font-semibold text-navy-700 transition hover:bg-navy-100">📦 ${o.sent_to_manufacturer_at ? "Reenviar ao fabricante" : "Enviar ao fabricante"}</button>
                 ${o.sent_to_manufacturer_at ? `<span class="text-xs text-navy-400">✓ Enviado em ${formatDate(o.sent_to_manufacturer_at.slice(0, 10))}</span>` : ""}
               ` : ""}
+              ${o.status === "concluido"
+                ? `<span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">✓ Concluído</span>`
+                : o.status === "cancelado"
+                  ? `<span class="rounded-full bg-navy-100 px-2 py-1 text-xs font-medium text-navy-500">Cancelado</span>`
+                  : o.accepted_at
+                    ? `<button data-concluir-pedido="${o.id}" class="concluir-pedido-btn rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-semibold text-navy-900 transition hover:bg-gold-400">Marcar como concluído</button>`
+                    : ""}
+              ${o.status !== "concluido" && o.status !== "cancelado"
+                ? `<button data-cancelar-pedido="${o.id}" class="cancelar-pedido-btn text-xs text-red-600 hover:underline">Cancelar pedido</button>`
+                : ""}
+              <select data-order="${o.id}" class="order-status-select ml-auto rounded-lg border border-navy-200 px-2 py-1.5 text-xs font-medium outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${ORDER_STATUS_CLASSES[o.status]}" title="Trocar status manualmente">
+                ${Object.entries(ORDER_STATUS_LABELS).map(([k, label]) => `<option value="${k}" ${o.status === k ? "selected" : ""}>${label}</option>`).join("")}
+              </select>
             </div>
             ${pedidosState.expandedId === o.id ? `
               <div class="mt-3 flex flex-col gap-1 border-t border-navy-50 pt-3">
@@ -1815,9 +1850,13 @@ function renderPedidos(container) {
     </div>
   `;
 
-  document.getElementById("pedidos-status-filter").addEventListener("change", (e) => {
-    pedidosState.statusFilter = e.target.value;
-    renderPedidos(container);
+  container.querySelectorAll(".pedidos-tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      pedidosState.tab = btn.dataset.pedidosTab;
+      pedidosState.expandedId = null;
+      pedidosState.selected.clear();
+      renderPedidos(container);
+    });
   });
   container.querySelectorAll(".toggle-order-items-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1845,8 +1884,11 @@ function renderPedidos(container) {
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       btn.textContent = "Aceitando...";
+      // Aceitar já empurra o pedido de "Novo" pra "Em andamento" sozinho —
+      // não precisa mais trocar o status na mão pra isso.
       const { error } = await supabaseClient.from("orders").update({
-        accepted_at: new Date().toISOString(), updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+        accepted_at: new Date().toISOString(), status: "em_andamento",
+        updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
       }).eq("id", btn.dataset.aceitarPedido);
       if (error) {
         alert("Não foi possível aceitar o pedido: " + error.message);
@@ -1855,7 +1897,36 @@ function renderPedidos(container) {
         return;
       }
       await loadOrders();
-      renderPedidos(container);
+      // Re-renderiza o app inteiro pra atualizar os contadores das abas no menu também.
+      renderApp();
+    });
+  });
+  container.querySelectorAll(".concluir-pedido-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Concluindo...";
+      const { error } = await supabaseClient.from("orders").update({
+        status: "concluido", updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+      }).eq("id", btn.dataset.concluirPedido);
+      if (error) {
+        alert("Não foi possível concluir o pedido: " + error.message);
+        btn.disabled = false;
+        btn.textContent = "Marcar como concluído";
+        return;
+      }
+      await loadOrders();
+      renderApp();
+    });
+  });
+  container.querySelectorAll(".cancelar-pedido-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Cancelar este pedido? Ele vai pra aba \"Cancelados\".")) return;
+      const { error } = await supabaseClient.from("orders").update({
+        status: "cancelado", updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+      }).eq("id", btn.dataset.cancelarPedido);
+      if (error) { alert("Não foi possível cancelar o pedido: " + error.message); return; }
+      await loadOrders();
+      renderApp();
     });
   });
   container.querySelectorAll(".enviar-fabricante-btn").forEach((btn) => {
