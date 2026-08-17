@@ -76,6 +76,12 @@ const SUPABASE_ANON_KEY = "sb_publishable_7AX1nS3J0mtVkzzzLVsKlg_zYxWFxfk";
 const STORE_WHATSAPP_NUMBER = "5584991263907";
 const STORE_CNPJ = "68.615.746/0001-43";
 
+// Mostrado nos produtos que não estão marcados como "Em estoque" no
+// painel admin (a maioria — são feitos sob encomenda).
+const MADE_TO_ORDER_TEXT = "Prazo de 2 dias para fabricação, a contar da data do pedido.";
+// Sinal exigido pra confirmar o pedido e iniciar a produção.
+const DEPOSIT_RATE = 0.5;
+
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function formatBRL(v) {
@@ -500,6 +506,7 @@ function renderProductCard(p, opts = {}) {
           <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)}</p>
           <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} no Pix / à vista</p>
         </div>
+        ${!p.in_stock ? `<p class="text-[10px] font-medium text-gold-700">🕑 ${MADE_TO_ORDER_TEXT}</p>` : ""}
         ${addBlock}
       </div>
     </div>
@@ -624,6 +631,8 @@ function renderProductDetail() {
             <p class="text-sm text-navy-400">ou ${formatBRL(product.promo_price)} no Pix / à vista</p>
           </div>
 
+          ${!product.in_stock ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-xs font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${MADE_TO_ORDER_TEXT}</p>` : ""}
+
           ${qty === 0 ? `
             <button data-add="${key}" class="add-to-cart-btn mt-2 w-full rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 sm:w-auto">Adicionar</button>
           ` : `
@@ -746,6 +755,10 @@ function renderCheckout() {
           <span>Total</span>
           <span id="ck-total-value">${formatBRL(orderTotal())}</span>
         </div>
+        <div class="mt-1 flex items-center justify-between text-xs font-medium text-gold-700">
+          <span>Sinal p/ confirmar o pedido (${Math.round(DEPOSIT_RATE * 100)}%)</span>
+          <span id="ck-deposit-value">${formatBRL(orderTotal() * DEPOSIT_RATE)}</span>
+        </div>
       </div>
 
       <form id="checkout-form" class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
@@ -754,6 +767,18 @@ function renderCheckout() {
           <div class="flex gap-1 rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
             <button type="button" data-payment="pix" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / à vista</button>
             <button type="button" data-payment="credito" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
+          </div>
+          <div class="mt-2 rounded-lg bg-cream-50 p-3 text-xs text-navy-600">
+            <p class="mb-1">É necessário um sinal de ${Math.round(DEPOSIT_RATE * 100)}% do valor (<span id="ck-deposit-note-value">${formatBRL(orderTotal() * DEPOSIT_RATE)}</span>) para confirmar o pedido e iniciar a produção. O restante é combinado na entrega/retirada.</p>
+            ${state.payment === "pix" ? `
+              <div class="mt-2 flex items-center gap-2">
+                <input id="ck-pix-key" readonly value="${STORE_CNPJ}" class="min-w-0 flex-1 rounded-lg border border-navy-200 bg-white px-2 py-1.5 text-xs text-navy-900" />
+                <button type="button" id="ck-copy-pix" class="flex-shrink-0 rounded-lg border border-navy-300 px-2 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-100">Copiar chave Pix</button>
+              </div>
+              <p class="mt-1 text-[11px] text-navy-400">Chave Pix (CNPJ) da Luz Mariana.</p>
+            ` : `
+              <p class="mt-1 text-[11px] text-navy-400">Pagamento via link de pagamento ou maquineta — combinamos o melhor jeito com você pelo WhatsApp.</p>
+            `}
           </div>
         </div>
         <div>
@@ -811,6 +836,23 @@ function renderCheckout() {
   document.getElementById("checkout-form").addEventListener("submit", onSubmitOrder);
   document.getElementById("ck-whatsapp").addEventListener("blur", onWhatsappBlur);
 
+  const copyPixBtn = document.getElementById("ck-copy-pix");
+  if (copyPixBtn) {
+    copyPixBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(STORE_CNPJ);
+      } catch (_err) {
+        // Sem permissão de clipboard (ex: navegador dentro de outro app):
+        // seleciona o texto pra a pessoa copiar manualmente.
+        const pixField = document.getElementById("ck-pix-key");
+        if (pixField) { pixField.focus(); pixField.select(); }
+      }
+      const originalText = copyPixBtn.textContent;
+      copyPixBtn.textContent = "Copiado!";
+      setTimeout(() => { copyPixBtn.textContent = originalText; }, 1500);
+    });
+  }
+
   const giftWrapCheckbox = document.getElementById("ck-gift-wrap");
   const giftWrapList = document.getElementById("ck-gift-wrap-list");
   if (giftWrapCheckbox && giftWrapList) {
@@ -844,6 +886,7 @@ function renderCheckout() {
    digitou nos campos de nome/WhatsApp/observações). */
 function updateCheckoutTotals() {
   const totalEl = document.getElementById("ck-total-value");
+  const depositEl = document.getElementById("ck-deposit-value");
   const linesEl = document.getElementById("ck-giftwrap-lines");
   if (linesEl) {
     linesEl.innerHTML = selectedGiftWraps().map((g) => `
@@ -854,6 +897,9 @@ function updateCheckoutTotals() {
     `).join("");
   }
   if (totalEl) totalEl.textContent = formatBRL(orderTotal());
+  if (depositEl) depositEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
+  const depositNoteEl = document.getElementById("ck-deposit-note-value");
+  if (depositNoteEl) depositNoteEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
 
   state.giftWrapOptions.forEach((g) => {
     const qtyDisplay = document.querySelector(`[data-giftwrap-qty-display="${g.id}"]`);
@@ -1018,7 +1064,13 @@ function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, 
   });
   lines.push("");
   lines.push(`Total: ${formatBRL(total)}`);
+  lines.push(`Sinal para confirmar o pedido (${Math.round(DEPOSIT_RATE * 100)}%): ${formatBRL(total * DEPOSIT_RATE)}`);
   lines.push(`Pagamento: ${payment === "credito" ? "Cartão de crédito" : "Pix / à vista"}`);
+  if (payment === "pix") {
+    lines.push(`Chave Pix (CNPJ): ${STORE_CNPJ}`);
+  } else {
+    lines.push(`Combinar link de pagamento ou maquineta.`);
+  }
   lines.push("");
   lines.push(`Nome: ${name}`);
   lines.push(`WhatsApp: ${whatsapp}`);
