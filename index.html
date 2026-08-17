@@ -130,12 +130,16 @@ const state = {
   screen: "catalog", // catalog | product | checkout | success
   submitting: false,
   submitError: null,
+  giftWrapOptions: [], // opções de embalagem de presente disponíveis (catalog_gift_wrap_options)
+  giftWrapWanted: false,
+  giftWrapMaterialId: "",
 };
 
 async function loadCatalog() {
-  const [{ data: products, error: prodError }, { data: variants, error: varError }] = await Promise.all([
+  const [{ data: products, error: prodError }, { data: variants, error: varError }, { data: giftWrapOptions, error: giftWrapError }] = await Promise.all([
     supabaseClient.from("catalog_products").select("*").order("category", { ascending: true, nullsFirst: false }).order("name"),
     supabaseClient.from("catalog_product_variants").select("*").order("sort_order", { ascending: true }).order("name"),
+    supabaseClient.from("catalog_gift_wrap_options").select("*").order("name"),
   ]);
   if (prodError) { state.loadError = prodError.message; state.loading = false; render(); return; }
   state.products = products;
@@ -145,6 +149,8 @@ async function loadCatalog() {
     state.variantsByProduct[v.product_id].push(v);
   });
   if (varError) console.error("Erro ao carregar modelos/variações:", varError.message);
+  if (giftWrapError) console.error("Erro ao carregar opções de embalagem:", giftWrapError.message);
+  state.giftWrapOptions = giftWrapOptions || [];
   state.loading = false;
   render();
 }
@@ -739,6 +745,18 @@ function renderCheckout() {
           <label class="mb-1 block text-sm font-medium text-navy-800">Observações (opcional)</label>
           <textarea id="ck-notes" rows="2" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Endereço de entrega, alguma personalização, etc."></textarea>
         </div>
+        ${state.giftWrapOptions.length > 0 ? `
+        <div>
+          <label class="flex items-center gap-2 text-sm font-medium text-navy-800">
+            <input type="checkbox" id="ck-gift-wrap" ${state.giftWrapWanted ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+            Embalar para presente?
+          </label>
+          <select id="ck-gift-wrap-select" class="mt-2 w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${state.giftWrapWanted ? "" : "hidden"}">
+            <option value="">— escolha a embalagem —</option>
+            ${state.giftWrapOptions.map((g) => `<option value="${g.id}" ${state.giftWrapMaterialId === g.id ? "selected" : ""}>${escapeHtml(g.name)}</option>`).join("")}
+          </select>
+        </div>
+        ` : ""}
         <div id="ck-error" class="text-sm text-red-600"></div>
         <button type="submit" id="ck-submit" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">Confirmar pedido e abrir WhatsApp</button>
         <p class="text-center text-xs text-navy-400">Ao confirmar, o WhatsApp abre com seu pedido pronto — é só apertar enviar.</p>
@@ -752,6 +770,22 @@ function renderCheckout() {
   });
   document.getElementById("checkout-form").addEventListener("submit", onSubmitOrder);
   document.getElementById("ck-whatsapp").addEventListener("blur", onWhatsappBlur);
+
+  const giftWrapCheckbox = document.getElementById("ck-gift-wrap");
+  const giftWrapSelect = document.getElementById("ck-gift-wrap-select");
+  if (giftWrapCheckbox && giftWrapSelect) {
+    giftWrapCheckbox.addEventListener("change", () => {
+      state.giftWrapWanted = giftWrapCheckbox.checked;
+      giftWrapSelect.classList.toggle("hidden", !state.giftWrapWanted);
+      if (!state.giftWrapWanted) {
+        state.giftWrapMaterialId = "";
+        giftWrapSelect.value = "";
+      }
+    });
+    giftWrapSelect.addEventListener("change", () => {
+      state.giftWrapMaterialId = giftWrapSelect.value;
+    });
+  }
 }
 
 /* ---------------------------------------------------------------------
@@ -811,6 +845,11 @@ async function onSubmitOrder(e) {
   if (!whatsapp) { errorEl.textContent = "Informe seu WhatsApp."; return; }
   const items = cartItems();
   if (items.length === 0) { errorEl.textContent = "Seu carrinho está vazio."; return; }
+  if (state.giftWrapWanted && !state.giftWrapMaterialId) { errorEl.textContent = "Escolha a embalagem de presente, ou desmarque a opção."; return; }
+
+  const giftWrap = state.giftWrapWanted
+    ? state.giftWrapOptions.find((g) => g.id === state.giftWrapMaterialId) || null
+    : null;
 
   errorEl.textContent = "";
   submitBtn.disabled = true;
@@ -831,6 +870,8 @@ async function onSubmitOrder(e) {
     payment_method: state.payment,
     notes: notes || null,
     total,
+    gift_wrap_material_id: giftWrap ? giftWrap.id : null,
+    gift_wrap_material_name: giftWrap ? giftWrap.name : null,
   });
 
   if (orderError) {
@@ -869,17 +910,19 @@ async function onSubmitOrder(e) {
     console.error("Erro ao cadastrar cliente automaticamente:", customerError.message);
   }
 
-  const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment: state.payment });
+  const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment: state.payment, giftWrap });
   const waUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
   if (waWindow) waWindow.location.href = waUrl;
   else window.open(waUrl, "_blank");
 
   state.cart = {};
+  state.giftWrapWanted = false;
+  state.giftWrapMaterialId = "";
   state.screen = "success";
   render();
 }
 
-function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment }) {
+function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment, giftWrap }) {
   const lines = [];
   lines.push(`Olá! Gostaria de fazer um pedido pelo Catálogo Luz Mariana:`);
   lines.push("");
@@ -890,6 +933,7 @@ function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, 
   lines.push("");
   lines.push(`Total: ${formatBRL(total)}`);
   lines.push(`Pagamento: ${payment === "credito" ? "Cartão de crédito" : "Pix / à vista"}`);
+  if (giftWrap) lines.push(`Embalagem para presente: ${giftWrap.name}`);
   lines.push("");
   lines.push(`Nome: ${name}`);
   lines.push(`WhatsApp: ${whatsapp}`);
