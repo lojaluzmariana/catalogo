@@ -1466,6 +1466,52 @@ function waLink(phone) {
   return digits ? `https://wa.me/${digits}` : null;
 }
 
+// WhatsApp do fabricante que produz os produtos — usado no botão
+// "Enviar ao fabricante" dos Pedidos aceitos.
+const MANUFACTURER_WHATSAPP_NUMBER = "5584991677070";
+
+// Prazo de entrega combinado com o fabricante: 2 dias corridos a partir
+// da data em que o pedido entrou.
+function manufacturerDeadline(order) {
+  const created = new Date(order.created_at);
+  const deadline = new Date(created.getTime() + 2 * 24 * 60 * 60 * 1000);
+  const d = String(deadline.getDate()).padStart(2, "0");
+  const m = String(deadline.getMonth() + 1).padStart(2, "0");
+  const y = deadline.getFullYear();
+  return `${d}/${m}/${y}`;
+}
+
+// Foto do item do pedido: usa a foto do modelo/variação escolhido, se
+// tiver, senão a foto padrão do produto.
+function orderItemPhoto(item) {
+  const product = state.products.find((p) => p.id === item.product_id);
+  if (!product) return null;
+  if (item.variant_name && product.product_variants) {
+    const variant = product.product_variants.find((v) => v.name === item.variant_name);
+    if (variant && variant.photo_url) return variant.photo_url;
+  }
+  return product.photo_url || null;
+}
+
+// Mensagem pro fabricante: só nome do produto, foto e prazo — nunca
+// preço (o fabricante não precisa saber quanto o cliente pagou), e não
+// inclui as embalagens de presente (isso a loja resolve por conta,
+// não é o fabricante que produz).
+function buildManufacturerMessage(order) {
+  const lines = [];
+  lines.push(`Novo pedido para produção — Nº ${String(order.order_number ?? "").padStart(6, "0")}`);
+  lines.push(`Prazo de entrega: ${manufacturerDeadline(order)}`);
+  lines.push("");
+  lines.push("Itens:");
+  (order.items ?? []).forEach((it) => {
+    const variantLabel = it.variant_name ? ` (${it.variant_name})` : "";
+    lines.push(`• ${it.quantity}x ${it.product_name}${variantLabel}`);
+    const photo = orderItemPhoto(it);
+    if (photo) lines.push(`  Foto: ${photo}`);
+  });
+  return lines.join("\n");
+}
+
 async function loadOrders() {
   const { data, error } = await supabaseClient.from("orders").select("*").order("created_at", { ascending: false });
   if (error) { console.error("loadOrders:", error.message); return; }
@@ -1473,9 +1519,32 @@ async function loadOrders() {
   const { data: items, error: err2 } = await supabaseClient.from("order_items").select("*");
   if (err2) console.error("loadOrders itens:", err2.message);
 
+  const { data: giftWraps, error: err3 } = await supabaseClient.from("order_gift_wraps").select("*");
+  if (err3) console.error("loadOrders embalagens:", err3.message);
+
   const byOrder = {};
   (items || []).forEach((row) => { (byOrder[row.order_id] ||= []).push(row); });
-  state.orders = data.map((o) => ({ ...o, items: byOrder[o.id] || [] }));
+  const giftWrapsByOrder = {};
+  (giftWraps || []).forEach((row) => { (giftWrapsByOrder[row.order_id] ||= []).push(row); });
+
+  state.orders = data.map((o) => ({ ...o, items: byOrder[o.id] || [], giftWraps: resolveOrderGiftWraps(o, giftWrapsByOrder[o.id]) }));
+}
+
+// A embalagem de presente de um pedido pode vir em duas formas: a nova
+// (uma linha por embalagem em order_gift_wraps, permite mais de uma) ou,
+// só pra pedidos feitos antes dessa tabela existir, os campos antigos
+// direto em orders (gift_wrap_material_id/_name/_price, sempre um só).
+function resolveOrderGiftWraps(order, rows) {
+  if (rows && rows.length > 0) return rows;
+  if (order.gift_wrap_material_name) {
+    return [{
+      material_id: order.gift_wrap_material_id,
+      material_name: order.gift_wrap_material_name,
+      quantity: 1,
+      unit_price: order.gift_wrap_price ?? 0,
+    }];
+  }
+  return [];
 }
 
 let pedidosState = { statusFilter: "todos", expandedId: null, selected: new Set() };
@@ -1519,10 +1588,10 @@ function buildReceiptLinePlan(order) {
     push(`${it.quantity}x ${it.product_name}${variantLabel}`, { align: "left", gap: 3.8, wrap: true });
     push(formatBRL(it.unit_price * it.quantity), { align: "right", gap: 4.4 });
   });
-  if (order.gift_wrap_material_name) {
-    push(`Embalagem p/ presente: ${order.gift_wrap_material_name}`, { align: "left", gap: 3.8, wrap: true });
-    if (order.gift_wrap_price != null) push(formatBRL(order.gift_wrap_price), { align: "right", gap: 4.4 });
-  }
+  (order.giftWraps ?? []).forEach((g) => {
+    push(`${g.quantity}x ${g.material_name} (embalagem p/ presente)`, { align: "left", gap: 3.8, wrap: true });
+    push(formatBRL(g.unit_price * g.quantity), { align: "right", gap: 4.4 });
+  });
   lines.push({ divider: true, gap: 4 });
 
   push(`TOTAL: ${formatBRL(order.total)}`, { size: 11, style: "bold", align: "right", gap: 5.6 });
@@ -1617,9 +1686,10 @@ async function iniciarVenda(order) {
     return;
   }
 
-  const itemsDesc = (order.items ?? [])
-    .map((it) => `${it.quantity}x ${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""}`)
-    .join(", ");
+  const itemsDesc = [
+    ...(order.items ?? []).map((it) => `${it.quantity}x ${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""}`),
+    ...(order.giftWraps ?? []).map((g) => `${g.quantity}x ${g.material_name} (embalagem)`),
+  ].join(", ");
   const customer = findCustomerByPhone(order.customer_whatsapp);
 
   const payload = {
@@ -1637,14 +1707,15 @@ async function iniciarVenda(order) {
   const { data: inserted, error } = await supabaseClient.from("cash_entries").insert(payload).select("id").single();
   if (error) { alert("Não foi possível registrar a venda no Caixa: " + error.message); return; }
 
-  if (order.gift_wrap_material_id) {
-    const material = state.materials.find((m) => m.id === order.gift_wrap_material_id);
-    if (material) {
-      const { error: linkError } = await supabaseClient.from("cash_entry_materials").insert({
-        cash_entry_id: inserted.id, material_id: material.id, quantity: 1, unit_cost: material.unit_cost,
-      });
-      if (linkError) console.error("iniciarVenda materiais:", linkError.message);
-    }
+  const giftWrapRows = (order.giftWraps ?? [])
+    .filter((g) => g.material_id && state.materials.some((m) => m.id === g.material_id))
+    .map((g) => {
+      const material = state.materials.find((m) => m.id === g.material_id);
+      return { cash_entry_id: inserted.id, material_id: material.id, quantity: g.quantity, unit_cost: material.unit_cost };
+    });
+  if (giftWrapRows.length > 0) {
+    const { error: linkError } = await supabaseClient.from("cash_entry_materials").insert(giftWrapRows);
+    if (linkError) console.error("iniciarVenda materiais:", linkError.message);
   }
 
   if (order.status === "novo") {
@@ -1714,6 +1785,15 @@ function renderPedidos(container) {
                   : `<button data-iniciar-venda="${o.id}" class="iniciar-venda-btn rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">Iniciar venda</button>`}
               </div>
             </div>
+            <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-navy-50 pt-3">
+              ${o.accepted_at
+                ? `<span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">✓ Aceito</span>`
+                : `<button data-aceitar-pedido="${o.id}" class="aceitar-pedido-btn rounded-lg bg-navy-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-navy-800">Aceitar</button>`}
+              ${o.accepted_at ? `
+                <button data-enviar-fabricante="${o.id}" class="enviar-fabricante-btn rounded-lg border border-navy-300 px-3 py-1.5 text-xs font-semibold text-navy-700 transition hover:bg-navy-100">📦 ${o.sent_to_manufacturer_at ? "Reenviar ao fabricante" : "Enviar ao fabricante"}</button>
+                ${o.sent_to_manufacturer_at ? `<span class="text-xs text-navy-400">✓ Enviado em ${formatDate(o.sent_to_manufacturer_at.slice(0, 10))}</span>` : ""}
+              ` : ""}
+            </div>
             ${pedidosState.expandedId === o.id ? `
               <div class="mt-3 flex flex-col gap-1 border-t border-navy-50 pt-3">
                 ${o.items.map((it) => `
@@ -1722,7 +1802,9 @@ function renderPedidos(container) {
                     <span>${formatBRL(it.unit_price * it.quantity)}</span>
                   </div>
                 `).join("")}
-                ${o.gift_wrap_material_name ? `<p class="mt-1 text-xs text-navy-500">🎁 Embalagem para presente: ${escapeHtml(o.gift_wrap_material_name)}${o.gift_wrap_price != null ? ` — ${formatBRL(o.gift_wrap_price)}` : ""}</p>` : ""}
+                ${(o.giftWraps ?? []).map((g) => `
+                  <p class="mt-1 text-xs text-navy-500">🎁 ${g.quantity}× ${escapeHtml(g.material_name)} (embalagem p/ presente) — ${formatBRL(g.unit_price * g.quantity)}</p>
+                `).join("")}
                 ${o.customer_instagram ? `<p class="mt-1 text-xs text-navy-400">Instagram: @${escapeHtml(o.customer_instagram.replace(/^@/, ""))}</p>` : ""}
                 ${o.notes ? `<p class="mt-1 text-xs text-navy-400">Obs: ${escapeHtml(o.notes)}</p>` : ""}
               </div>
@@ -1757,6 +1839,44 @@ function renderPedidos(container) {
         btn.disabled = false;
         btn.textContent = "Iniciar venda";
       }
+    });
+  });
+  container.querySelectorAll(".aceitar-pedido-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Aceitando...";
+      const { error } = await supabaseClient.from("orders").update({
+        accepted_at: new Date().toISOString(), updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+      }).eq("id", btn.dataset.aceitarPedido);
+      if (error) {
+        alert("Não foi possível aceitar o pedido: " + error.message);
+        btn.disabled = false;
+        btn.textContent = "Aceitar";
+        return;
+      }
+      await loadOrders();
+      renderPedidos(container);
+    });
+  });
+  container.querySelectorAll(".enviar-fabricante-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const order = state.orders.find((o) => o.id === btn.dataset.enviarFabricante);
+      if (!order) return;
+      try {
+        const message = buildManufacturerMessage(order);
+        const waUrl = `https://wa.me/${MANUFACTURER_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+        window.open(waUrl, "_blank");
+      } catch (err) {
+        console.error("enviar ao fabricante:", err);
+        alert("Não foi possível montar a mensagem pro fabricante. Tente novamente.");
+        return;
+      }
+      const { error } = await supabaseClient.from("orders").update({
+        sent_to_manufacturer_at: new Date().toISOString(), updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+      }).eq("id", order.id);
+      if (error) console.error("enviar ao fabricante:", error.message);
+      await loadOrders();
+      renderPedidos(container);
     });
   });
   container.querySelectorAll(".order-status-select").forEach((sel) => {
