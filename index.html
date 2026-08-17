@@ -132,7 +132,7 @@ const state = {
   submitError: null,
   giftWrapOptions: [], // opções de embalagem de presente disponíveis (catalog_gift_wrap_options)
   giftWrapWanted: false,
-  giftWrapMaterialId: "",
+  giftWrapQuantities: {}, // { [material_id]: quantidade } — dá pra escolher mais de uma embalagem (ou mais de uma unidade da mesma)
 };
 
 async function loadCatalog() {
@@ -272,21 +272,24 @@ function cartTotal() {
   return cartItems().reduce((sum, it) => sum + priceFor(it.product) * it.quantity, 0);
 }
 
-/* Embalagem de presente escolhida no checkout agora (null se não pediu
-   ou ainda não escolheu qual). */
-function selectedGiftWrap() {
-  if (!state.giftWrapWanted || !state.giftWrapMaterialId) return null;
-  return state.giftWrapOptions.find((g) => g.id === state.giftWrapMaterialId) || null;
+/* Embalagens de presente escolhidas no checkout agora — pode ter mais de
+   uma (tipos diferentes, ou mais de uma unidade da mesma). Cada item vem
+   com a quantidade escolhida e o subtotal já calculado. */
+function selectedGiftWraps() {
+  if (!state.giftWrapWanted) return [];
+  return state.giftWrapOptions
+    .map((g) => ({ ...g, quantity: state.giftWrapQuantities[g.id] || 0 }))
+    .filter((g) => g.quantity > 0)
+    .map((g) => ({ ...g, lineTotal: Number(g.price) * g.quantity }));
 }
 
-function giftWrapPrice() {
-  const g = selectedGiftWrap();
-  return g ? Number(g.price) : 0;
+function giftWrapTotalPrice() {
+  return selectedGiftWraps().reduce((sum, g) => sum + g.lineTotal, 0);
 }
 
-/* Total do pedido = itens do carrinho + embalagem de presente (se pedida). */
+/* Total do pedido = itens do carrinho + embalagens de presente (se pedidas). */
 function orderTotal() {
-  return cartTotal() + giftWrapPrice();
+  return cartTotal() + giftWrapTotalPrice();
 }
 
 function setQty(productId, qty) {
@@ -731,9 +734,13 @@ function renderCheckout() {
             <span class="font-medium text-navy-900">${formatBRL(priceFor(it.product) * it.quantity)}</span>
           </div>
         `).join("")}
-        <div id="ck-giftwrap-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm ${selectedGiftWrap() ? "" : "hidden"}">
-          <span>🎁 Embalagem para presente${selectedGiftWrap() ? `: ${escapeHtml(selectedGiftWrap().name)}` : ""}</span>
-          <span id="ck-giftwrap-line-price" class="font-medium text-navy-900">${formatBRL(giftWrapPrice())}</span>
+        <div id="ck-giftwrap-lines">
+          ${selectedGiftWraps().map((g) => `
+            <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm" data-giftwrap-line="${g.id}">
+              <span>🎁 ${g.quantity}× ${escapeHtml(g.name)}</span>
+              <span class="font-medium text-navy-900">${formatBRL(g.lineTotal)}</span>
+            </div>
+          `).join("")}
         </div>
         <div class="mt-2 flex items-center justify-between border-t border-navy-100 pt-2 text-base font-semibold text-navy-900">
           <span>Total</span>
@@ -772,10 +779,22 @@ function renderCheckout() {
             <input type="checkbox" id="ck-gift-wrap" ${state.giftWrapWanted ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
             Embalar para presente?
           </label>
-          <select id="ck-gift-wrap-select" class="mt-2 w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${state.giftWrapWanted ? "" : "hidden"}">
-            <option value="">— escolha a embalagem —</option>
-            ${state.giftWrapOptions.map((g) => `<option value="${g.id}" ${state.giftWrapMaterialId === g.id ? "selected" : ""}>${escapeHtml(g.name)} (+ ${formatBRL(g.price)})</option>`).join("")}
-          </select>
+          <p class="mt-1 text-xs text-navy-400">Dá pra escolher mais de uma — tipos diferentes, ou mais de uma unidade da mesma.</p>
+          <div id="ck-gift-wrap-list" class="mt-2 flex flex-col gap-2 rounded-lg bg-cream-50 p-3 ${state.giftWrapWanted ? "" : "hidden"}">
+            ${state.giftWrapOptions.map((g) => `
+              <div class="flex items-center justify-between gap-3 text-sm" data-giftwrap-row="${g.id}">
+                <div class="flex-1">
+                  <p class="font-medium text-navy-800">${escapeHtml(g.name)}</p>
+                  <p class="text-xs text-navy-400">${formatBRL(g.price)} cada</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" data-giftwrap-minus="${g.id}" class="giftwrap-qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
+                  <span data-giftwrap-qty-display="${g.id}" class="w-5 text-center font-semibold">${state.giftWrapQuantities[g.id] || 0}</span>
+                  <button type="button" data-giftwrap-plus="${g.id}" class="giftwrap-qty-btn rounded border border-navy-200 px-2 text-navy-700">+</button>
+                </div>
+              </div>
+            `).join("")}
+          </div>
         </div>
         ` : ""}
         <div id="ck-error" class="text-sm text-red-600"></div>
@@ -793,36 +812,53 @@ function renderCheckout() {
   document.getElementById("ck-whatsapp").addEventListener("blur", onWhatsappBlur);
 
   const giftWrapCheckbox = document.getElementById("ck-gift-wrap");
-  const giftWrapSelect = document.getElementById("ck-gift-wrap-select");
-  if (giftWrapCheckbox && giftWrapSelect) {
+  const giftWrapList = document.getElementById("ck-gift-wrap-list");
+  if (giftWrapCheckbox && giftWrapList) {
     giftWrapCheckbox.addEventListener("change", () => {
       state.giftWrapWanted = giftWrapCheckbox.checked;
-      giftWrapSelect.classList.toggle("hidden", !state.giftWrapWanted);
-      if (!state.giftWrapWanted) {
-        state.giftWrapMaterialId = "";
-        giftWrapSelect.value = "";
-      }
+      giftWrapList.classList.toggle("hidden", !state.giftWrapWanted);
+      if (!state.giftWrapWanted) state.giftWrapQuantities = {};
       updateCheckoutTotals();
     });
-    giftWrapSelect.addEventListener("change", () => {
-      state.giftWrapMaterialId = giftWrapSelect.value;
-      updateCheckoutTotals();
+    giftWrapList.querySelectorAll("[data-giftwrap-plus]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.giftwrapPlus;
+        state.giftWrapQuantities[id] = (state.giftWrapQuantities[id] || 0) + 1;
+        updateCheckoutTotals();
+      });
+    });
+    giftWrapList.querySelectorAll("[data-giftwrap-minus]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.giftwrapMinus;
+        const next = (state.giftWrapQuantities[id] || 0) - 1;
+        if (next <= 0) delete state.giftWrapQuantities[id];
+        else state.giftWrapQuantities[id] = next;
+        updateCheckoutTotals();
+      });
     });
   }
 }
 
-/* Atualiza só os valores de total/embalagem na tela de checkout, sem
+/* Atualiza só os valores de total/embalagens na tela de checkout, sem
    recriar o formulário inteiro (recriar apagaria o que a pessoa já
    digitou nos campos de nome/WhatsApp/observações). */
 function updateCheckoutTotals() {
-  const line = document.getElementById("ck-giftwrap-line");
-  const linePrice = document.getElementById("ck-giftwrap-line-price");
   const totalEl = document.getElementById("ck-total-value");
-  const giftWrap = selectedGiftWrap();
-  if (line) line.classList.toggle("hidden", !giftWrap);
-  if (line) line.querySelector("span").textContent = `🎁 Embalagem para presente${giftWrap ? `: ${giftWrap.name}` : ""}`;
-  if (linePrice) linePrice.textContent = formatBRL(giftWrapPrice());
+  const linesEl = document.getElementById("ck-giftwrap-lines");
+  if (linesEl) {
+    linesEl.innerHTML = selectedGiftWraps().map((g) => `
+      <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm" data-giftwrap-line="${g.id}">
+        <span>🎁 ${g.quantity}× ${escapeHtml(g.name)}</span>
+        <span class="font-medium text-navy-900">${formatBRL(g.lineTotal)}</span>
+      </div>
+    `).join("");
+  }
   if (totalEl) totalEl.textContent = formatBRL(orderTotal());
+
+  state.giftWrapOptions.forEach((g) => {
+    const qtyDisplay = document.querySelector(`[data-giftwrap-qty-display="${g.id}"]`);
+    if (qtyDisplay) qtyDisplay.textContent = state.giftWrapQuantities[g.id] || 0;
+  });
 }
 
 /* ---------------------------------------------------------------------
@@ -882,11 +918,8 @@ async function onSubmitOrder(e) {
   if (!whatsapp) { errorEl.textContent = "Informe seu WhatsApp."; return; }
   const items = cartItems();
   if (items.length === 0) { errorEl.textContent = "Seu carrinho está vazio."; return; }
-  if (state.giftWrapWanted && !state.giftWrapMaterialId) { errorEl.textContent = "Escolha a embalagem de presente, ou desmarque a opção."; return; }
-
-  const giftWrap = state.giftWrapWanted
-    ? state.giftWrapOptions.find((g) => g.id === state.giftWrapMaterialId) || null
-    : null;
+  const giftWraps = selectedGiftWraps();
+  if (state.giftWrapWanted && giftWraps.length === 0) { errorEl.textContent = "Escolha ao menos uma embalagem, ou desmarque a opção."; return; }
 
   errorEl.textContent = "";
   submitBtn.disabled = true;
@@ -897,7 +930,7 @@ async function onSubmitOrder(e) {
   const waWindow = window.open("", "_blank");
 
   const orderId = crypto.randomUUID();
-  const total = cartTotal() + (giftWrap ? Number(giftWrap.price) : 0);
+  const total = cartTotal() + giftWraps.reduce((sum, g) => sum + g.lineTotal, 0);
 
   const { error: orderError } = await supabaseClient.from("orders").insert({
     id: orderId,
@@ -907,9 +940,6 @@ async function onSubmitOrder(e) {
     payment_method: state.payment,
     notes: notes || null,
     total,
-    gift_wrap_material_id: giftWrap ? giftWrap.id : null,
-    gift_wrap_material_name: giftWrap ? giftWrap.name : null,
-    gift_wrap_price: giftWrap ? Number(giftWrap.price) : null,
   });
 
   if (orderError) {
@@ -935,6 +965,21 @@ async function onSubmitOrder(e) {
     // ainda recebe a mensagem completa no WhatsApp.
   }
 
+  if (giftWraps.length > 0) {
+    const giftWrapRows = giftWraps.map((g) => ({
+      order_id: orderId,
+      material_id: g.id,
+      material_name: g.name,
+      quantity: g.quantity,
+      unit_price: g.price,
+    }));
+    const { error: giftWrapError } = await supabaseClient.from("order_gift_wraps").insert(giftWrapRows);
+    if (giftWrapError) {
+      console.error("Erro ao salvar embalagens do pedido:", giftWrapError.message);
+      // Mesma lógica: o pedido já foi criado, segue o fluxo mesmo assim.
+    }
+  }
+
   // Cadastra (ou atualiza) o cliente no painel automaticamente. Se essa
   // pessoa já tinha comprado antes (mesmo WhatsApp), não duplica — só
   // completa o instagram, se informado agora. Isso não deve travar o
@@ -948,19 +993,19 @@ async function onSubmitOrder(e) {
     console.error("Erro ao cadastrar cliente automaticamente:", customerError.message);
   }
 
-  const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment: state.payment, giftWrap });
+  const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment: state.payment, giftWraps });
   const waUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
   if (waWindow) waWindow.location.href = waUrl;
   else window.open(waUrl, "_blank");
 
   state.cart = {};
   state.giftWrapWanted = false;
-  state.giftWrapMaterialId = "";
+  state.giftWrapQuantities = {};
   state.screen = "success";
   render();
 }
 
-function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment, giftWrap }) {
+function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment, giftWraps }) {
   const lines = [];
   lines.push(`Olá! Gostaria de fazer um pedido pelo Catálogo Luz Mariana:`);
   lines.push("");
@@ -968,7 +1013,9 @@ function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, 
     const variantLabel = it.variant ? ` (${it.variant.name})` : "";
     lines.push(`• ${it.quantity}x ${it.product.name}${variantLabel} — ${formatBRL(priceFor(it.product) * it.quantity)}`);
   });
-  if (giftWrap) lines.push(`🎁 Embalagem para presente: ${giftWrap.name} — ${formatBRL(giftWrap.price)}`);
+  (giftWraps || []).forEach((g) => {
+    lines.push(`🎁 ${g.quantity}x ${g.name} (embalagem p/ presente) — ${formatBRL(g.lineTotal)}`);
+  });
   lines.push("");
   lines.push(`Total: ${formatBRL(total)}`);
   lines.push(`Pagamento: ${payment === "credito" ? "Cartão de crédito" : "Pix / à vista"}`);
