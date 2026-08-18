@@ -1073,6 +1073,7 @@ function renderMateriais(container) {
                 <td class="px-3 py-3 text-navy-600">
                   ${m.type ? `<span class="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-navy-600 ring-1 ring-navy-100">${escapeHtml(m.type)}</span>` : ""}
                   ${isEssencial(m) && m.qty_per_order ? `<span class="mt-1 block text-[11px] font-medium text-red-500">−${Number(m.qty_per_order)} ${escapeHtml(m.unit)}/venda</span>` : ""}
+                  ${isEmbalagem(m) && m.fixed_price != null ? `<span class="mt-1 block text-[11px] font-medium text-emerald-700" title="Preço fixo cobrado do cliente (não é calculado automaticamente)">Cliente: ${formatBRL(m.fixed_price)} (fixo)</span>` : ""}
                 </td>
                 <td class="px-3 py-3 text-right">${formatBRL(m.package_price)}</td>
                 <td class="px-3 py-3 text-right">${Number(m.package_qty)}</td>
@@ -1176,6 +1177,13 @@ function renderMaterialForm() {
           placeholder="Ex: 0,5" />
         <p class="mt-1 text-xs text-navy-400">Quanto desse material é gasto, em média, em cada venda. Esse custo entra automaticamente em "Custo adicional (materiais)" de todo pedido.</p>
       </div>
+      <div id="mf-fixed-price-field" class="hidden w-full sm:w-56">
+        <label class="mb-1 block text-sm font-medium text-navy-800">Preço fixo pro cliente (opcional)</label>
+        <input id="mf-fixed-price" value="${material && material.fixed_price != null ? Number(material.fixed_price) : ""}" inputmode="decimal"
+          class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+          placeholder="Ex: 2,50" />
+        <p class="mt-1 text-xs text-navy-400">Deixe em branco pra calcular sozinho (custo + 30%). Se preencher, é esse valor certinho que o Catálogo cobra do cliente por essa embalagem.</p>
+      </div>
       <div id="mf-preview" class="flex flex-1 min-w-[180px] items-center rounded-lg bg-cream-50 px-4 py-2 text-xs text-navy-600"></div>
       <div id="mf-error" class="w-full text-sm text-red-600"></div>
       <div class="flex gap-2">
@@ -1192,6 +1200,8 @@ function renderMaterialForm() {
   const typeSelect = document.getElementById("mf-type-select");
   const typeNewField = document.getElementById("mf-type-new");
   const qtyPerOrderField = document.getElementById("mf-qty-per-order-field");
+  const fixedPriceField = document.getElementById("mf-fixed-price-field");
+  const fixedPriceInput = document.getElementById("mf-fixed-price");
 
   function currentTypeValue() {
     return typeSelect.value === "__new__" ? typeNewField.value.trim() : typeSelect.value;
@@ -1199,9 +1209,13 @@ function renderMaterialForm() {
   function updateQtyPerOrderVisibility() {
     qtyPerOrderField.classList.toggle("hidden", !isEssencialTypeText(currentTypeValue()));
   }
+  function updateFixedPriceVisibility() {
+    fixedPriceField.classList.toggle("hidden", !isEmbalagemTypeText(currentTypeValue()));
+  }
 
   typeNewField.classList.toggle("hidden", typeSelect.value !== "__new__");
   updateQtyPerOrderVisibility();
+  updateFixedPriceVisibility();
   typeSelect.addEventListener("change", () => {
     typeNewField.classList.toggle("hidden", typeSelect.value !== "__new__");
     if (typeSelect.value === "__new__") {
@@ -1210,19 +1224,32 @@ function renderMaterialForm() {
       typeNewField.value = "";
     }
     updateQtyPerOrderVisibility();
+    updateFixedPriceVisibility();
+    updatePreview();
   });
-  typeNewField.addEventListener("input", updateQtyPerOrderVisibility);
+  typeNewField.addEventListener("input", () => {
+    updateQtyPerOrderVisibility();
+    updateFixedPriceVisibility();
+    updatePreview();
+  });
 
   function updatePreview() {
     const price = Number(priceField.value.replace(",", "."));
     const qty = Number(qtyField.value.replace(",", "."));
     if (!Number.isFinite(price) || !Number.isFinite(qty) || qty <= 0) { preview.innerHTML = ""; return; }
     const unitCost = price / qty;
-    preview.innerHTML = `Custo unitário: <b class="text-navy-900">${formatBRL(unitCost)}</b> / ${escapeHtml(unitSelect.value)}`;
+    let html = `Custo unitário: <b class="text-navy-900">${formatBRL(unitCost)}</b> / ${escapeHtml(unitSelect.value)}`;
+    if (isEmbalagemTypeText(currentTypeValue())) {
+      const fixedPrice = Number(fixedPriceInput.value.replace(",", "."));
+      const customerPrice = Number.isFinite(fixedPrice) && fixedPriceInput.value.trim() ? fixedPrice : unitCost * (1 + GIFT_WRAP_MARKUP);
+      html += ` &nbsp;·&nbsp; Preço pro cliente: <b class="text-navy-900">${formatBRL(customerPrice)}</b>${fixedPriceInput.value.trim() ? " (fixo)" : " (calculado: custo + 30%)"}`;
+    }
+    preview.innerHTML = html;
   }
   priceField.addEventListener("input", updatePreview);
   qtyField.addEventListener("input", updatePreview);
   unitSelect.addEventListener("change", updatePreview);
+  fixedPriceInput.addEventListener("input", updatePreview);
   updatePreview();
 
   document.getElementById("mf-cancel").addEventListener("click", () => {
@@ -1256,6 +1283,16 @@ function renderMaterialForm() {
       }
     }
 
+    const isEmbalagemType = isEmbalagemTypeText(type);
+    let fixedPrice = null;
+    if (isEmbalagemType) {
+      const fixedPriceRaw = fixedPriceInput.value.trim();
+      if (fixedPriceRaw) {
+        fixedPrice = Number(fixedPriceRaw.replace(",", "."));
+        if (!Number.isFinite(fixedPrice) || fixedPrice < 0) { errorEl.textContent = "Preço fixo pro cliente inválido."; return; }
+      }
+    }
+
     const unitCost = Math.round((price / qty) * 10000) / 10000; // 4 casas de precisão
     // Captura o estoque ANTERIOR antes de disparar o update — depois de
     // salvo, "material" não deve mais ser usado pra isso (o registro
@@ -1265,6 +1302,7 @@ function renderMaterialForm() {
       name, package_price: price, package_qty: qty, unit, stock_qty: stock,
       type: type || null,
       qty_per_order: qtyPerOrder,
+      fixed_price: fixedPrice,
       unit_cost: unitCost,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
@@ -1559,6 +1597,18 @@ function isEssencialTypeText(text) {
 }
 function isEssencial(material) {
   return isEssencialTypeText(material.type);
+}
+
+// Material do tipo "Embalagem" — mesma regra usada na view SQL
+// catalog_gift_wrap_options (comparação sem acento/maiúscula não
+// importa). É o tipo que aparece como opção de embalagem de presente
+// pro cliente escolher no Catálogo — só esses materiais podem ter um
+// preço fixo cobrado do cliente.
+function isEmbalagemTypeText(text) {
+  return (text || "").trim().toLowerCase() === "embalagem";
+}
+function isEmbalagem(material) {
+  return isEmbalagemTypeText(material.type);
 }
 
 // Custo real (materiais/insumos) de um pedido — não é o preço cobrado do
