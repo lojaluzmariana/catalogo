@@ -428,7 +428,7 @@ function renderApp() {
 async function loadProducts() {
   const { data, error } = await supabaseClient
     .from("products")
-    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order, in_stock)")
+    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order, in_stock, esgotado)")
     .order("active", { ascending: false })
     .order("name", { ascending: true });
   if (!error) state.products = data;
@@ -456,6 +456,24 @@ function stockBadge(p) {
     return `<span title="Nenhum modelo em estoque — catálogo avisa prazo de 2 dias" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda (todos)</span>`;
   }
   return `<span title="${inStockCount} de ${variants.length} modelos em estoque — veja qual em Modelos" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">estoque parcial (${inStockCount}/${variants.length})</span>`;
+}
+
+// Badge de "Esgotado" na listagem — só aparece quando faz sentido (não
+// polui a linha de um produto que nunca esgotou nada). Produto com
+// modelo usa o esgotado de cada um; produto sem modelo usa o dele.
+function esgotadoBadge(p) {
+  const variants = p.product_variants ?? [];
+  if (variants.length === 0) {
+    return p.esgotado
+      ? `<span title="Esgotado — não aparece pra compra no Catálogo" class="rounded-full bg-red-100 px-1 py-0.5 text-[9px] font-semibold text-red-700">⛔ esgotado</span>`
+      : "";
+  }
+  const esgotadoCount = variants.filter((v) => v.esgotado).length;
+  if (esgotadoCount === 0) return "";
+  if (esgotadoCount === variants.length) {
+    return `<span title="Todos os modelos esgotados" class="rounded-full bg-red-100 px-1 py-0.5 text-[9px] font-semibold text-red-700">⛔ esgotado (todos)</span>`;
+  }
+  return `<span title="${esgotadoCount} de ${variants.length} modelos esgotados — veja qual em Modelos" class="rounded-full bg-red-100 px-1 py-0.5 text-[9px] font-semibold text-red-700">⛔ esgotado (${esgotadoCount}/${variants.length})</span>`;
 }
 
 let precifState = { showInactive: false, formOpen: false, editingId: null };
@@ -512,6 +530,7 @@ function renderPrecificacao(container) {
                     ${p.description ? `<span title="Tem descrição cadastrada" class="text-[10px]">📝</span>` : ""}
                     ${p.product_variants && p.product_variants.length > 0 ? `<span title="${p.product_variants.length} modelo(s) cadastrado(s)" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
                     ${stockBadge(p)}
+                    ${esgotadoBadge(p)}
                   </span>
                   ${p.product_materials && p.product_materials.length > 0 ? `<div class="mt-0.5 text-[10px] font-normal text-navy-400">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).join(", ")}</div>` : ""}
                 </td>
@@ -617,7 +636,7 @@ function renderProductForm() {
   const formVariants = product && product.product_variants
     ? [...product.product_variants]
         .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name, "pt-BR"))
-        .map((v) => ({ id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null, inStock: v.in_stock ?? false }))
+        .map((v) => ({ id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null, inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false }))
     : [];
   const deletedVariantPhotoUrls = [];
 
@@ -691,8 +710,13 @@ function renderProductForm() {
             Em estoque (pronta entrega)
           </label>
           <p class="mt-1 text-xs text-navy-400">Desmarcado = sob encomenda: o Catálogo avisa o cliente "Prazo de 2 dias para fabricação, a contar da data do pedido".</p>
+          <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
+            <input type="checkbox" id="pf-esgotado" ${product?.esgotado ? "checked" : ""} class="rounded border-navy-300 text-red-600 focus:ring-red-400" />
+            Esgotado
+          </label>
+          <p class="mt-1 text-xs text-navy-400">Marcado = não dá pra comprar agora. O produto continua no Catálogo, mas some o preço/botão de comprar e aparece um aviso de "Esgotado" no lugar.</p>
         </div>
-        <p id="pf-in-stock-variant-note" class="mt-2 hidden text-xs text-navy-400">Este produto tem modelos cadastrados — o estoque agora é marcado em cada modelo, logo abaixo.</p>
+        <p id="pf-in-stock-variant-note" class="mt-2 hidden text-xs text-navy-400">Este produto tem modelos cadastrados — o estoque e o esgotado agora são marcados em cada modelo, logo abaixo.</p>
       </div>
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
@@ -820,6 +844,10 @@ function renderProductForm() {
                 <input type="checkbox" data-variant-in-stock="${idx}" ${v.inStock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
                 Em estoque (pronta entrega)
               </label>
+              <label class="mt-1 flex items-center gap-1.5 text-xs text-navy-700">
+                <input type="checkbox" data-variant-esgotado="${idx}" ${v.esgotado ? "checked" : ""} class="rounded border-navy-300 text-red-600 focus:ring-red-400" />
+                Esgotado
+              </label>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <input type="file" data-variant-photo="${idx}" accept="image/*" class="text-xs text-navy-700" />
@@ -841,6 +869,11 @@ function renderProductForm() {
     variantsListEl.querySelectorAll("[data-variant-in-stock]").forEach((input) => {
       input.addEventListener("change", () => {
         formVariants[Number(input.dataset.variantInStock)].inStock = input.checked;
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-esgotado]").forEach((input) => {
+      input.addEventListener("change", () => {
+        formVariants[Number(input.dataset.variantEsgotado)].esgotado = input.checked;
       });
     });
     variantsListEl.querySelectorAll("[data-variant-photo]").forEach((input) => {
@@ -881,7 +914,7 @@ function renderProductForm() {
 
   renderVariantsList();
   document.getElementById("pf-variant-add").addEventListener("click", () => {
-    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false });
+    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false });
     renderVariantsList();
   });
 
@@ -965,6 +998,7 @@ function renderProductForm() {
     const showInCatalog = document.getElementById("pf-show-catalog").checked;
     const featured = document.getElementById("pf-featured").checked;
     const inStock = document.getElementById("pf-in-stock").checked;
+    const esgotado = document.getElementById("pf-esgotado").checked;
     const categorySelected = categorySelect.value;
     if (categorySelected === "__new__" && !categoryNewField.value.trim()) {
       errorEl.textContent = "Digite o nome da nova categoria.";
@@ -1019,7 +1053,7 @@ function renderProductForm() {
       credit_markup: pricing.creditMarkup, credit_margin: pricing.creditMargin,
       promo_price: pricing.promoPrice, promo_profit: pricing.promoProfit, promo_margin: pricing.promoMargin,
       photo_url: newPhotoUrl, show_in_catalog: showInCatalog, category: category || null, featured,
-      in_stock: inStock,
+      in_stock: inStock, esgotado,
       description: description || null, material_tag: materialTag || null,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
@@ -1051,7 +1085,7 @@ function renderProductForm() {
     // Sincroniza os modelos/variações: apaga os antigos e grava a lista atual.
     await supabaseClient.from("product_variants").delete().eq("product_id", productId);
     if (formVariants.length > 0) {
-      const variantRows = formVariants.map((v, idx) => ({ product_id: productId, name: v.name.trim(), photo_url: v.finalPhotoUrl ?? null, sort_order: idx, in_stock: v.inStock }));
+      const variantRows = formVariants.map((v, idx) => ({ product_id: productId, name: v.name.trim(), photo_url: v.finalPhotoUrl ?? null, sort_order: idx, in_stock: v.inStock, esgotado: v.esgotado }));
       const { error: variantError } = await supabaseClient.from("product_variants").insert(variantRows);
       if (variantError) { errorEl.textContent = variantError.message; return; }
     }
@@ -2128,6 +2162,10 @@ function renderPedidos(container) {
   //     feito/vendido, independente de o cliente já ter pago. NÃO é o
   //     saldo de saídas do Caixa (que mistura outras coisas, tipo compra
   //     de material essencial em lote antes de virar venda).
+  //   - Falta pagar (fornecedor): soma só do custo do PRODUTO (sem
+  //     materiais — embalagem/essencial são gasto interno da loja, não
+  //     do fornecedor) dos pedidos cujo "Fornecedor pago" ainda não foi
+  //     marcado. Independe de o cliente já ter pago ou não.
   const statsOrders = state.orders.filter((o) => o.status !== "cancelado");
   let lucroReal = 0;
   let lucroRealHasApprox = false;
@@ -2135,6 +2173,8 @@ function renderPedidos(container) {
   let valoresAReceber = 0;
   let despesasTotal = 0;
   let despesasHasApprox = false;
+  let faltaPagarFornecedor = 0;
+  let faltaPagarHasApprox = false;
   statsOrders.forEach((o) => {
     const c = orderCost(o);
     despesasTotal += c.cost;
@@ -2145,6 +2185,10 @@ function renderPedidos(container) {
       if (c.isApprox) lucroRealHasApprox = true;
     } else {
       valoresAReceber += Number(o.total);
+    }
+    if (!o.fornecedor_pago_at) {
+      faltaPagarFornecedor += c.productCost;
+      if (c.isProductApprox) faltaPagarHasApprox = true;
     }
   });
 
@@ -2189,6 +2233,10 @@ function renderPedidos(container) {
         <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${despesasHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido não está mais cadastrado. " : ""}Soma do custo (produto + materiais) de TODOS os pedidos, pagos ou não (exceto cancelados) — não é o saldo de saídas do Caixa.">
           <p class="text-xs font-medium text-navy-500">Despesas (custo dos produtos)</p>
           <p class="text-lg font-semibold text-orange-600">${despesasHasApprox ? "≈ " : ""}${formatBRL(despesasTotal)}</p>
+        </div>
+        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${faltaPagarHasApprox ? "Inclui custo aproximado — algum produto de um pedido não está mais cadastrado. " : ""}Soma só do custo do PRODUTO (sem materiais, tipo embalagem — isso é gasto interno da loja) dos pedidos cujo 'Fornecedor pago' ainda não foi marcado.">
+          <p class="text-xs font-medium text-navy-500">Falta pagar (fornecedor)</p>
+          <p class="text-lg font-semibold text-red-700">${faltaPagarHasApprox ? "≈ " : ""}${formatBRL(faltaPagarFornecedor)}</p>
         </div>
       </div>
 
@@ -2282,6 +2330,10 @@ function renderPedidos(container) {
               <label class="flex items-center gap-1.5 text-xs font-medium text-navy-700">
                 <input type="checkbox" data-paid-toggle="${o.id}" ${o.paid_at ? "checked" : ""} class="paid-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
                 Pago${o.paid_at ? ` <span class="text-navy-400">(${formatDate(o.paid_at.slice(0, 10))})</span>` : ""}
+              </label>
+              <label class="flex items-center gap-1.5 text-xs font-medium text-navy-700" title="Se a loja já pagou o fornecedor/fabricante pela fabricação deste pedido (independente de o cliente já ter pago ou não).">
+                <input type="checkbox" data-fornecedor-pago-toggle="${o.id}" ${o.fornecedor_pago_at ? "checked" : ""} class="fornecedor-pago-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
+                Fornecedor pago${o.fornecedor_pago_at ? ` <span class="text-navy-400">(${formatDate(o.fornecedor_pago_at.slice(0, 10))})</span>` : ""}
               </label>
               <select data-order="${o.id}" class="order-status-select ml-auto rounded-lg border border-navy-200 px-2 py-1.5 text-xs font-medium outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${ORDER_STATUS_CLASSES[o.status]}" title="Trocar status manualmente">
                 ${Object.entries(ORDER_STATUS_LABELS).map(([k, label]) => `<option value="${k}" ${o.status === k ? "selected" : ""}>${label}</option>`).join("")}
@@ -2431,6 +2483,19 @@ function renderPedidos(container) {
         updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
       }).eq("id", id);
       if (error) { alert("Não foi possível atualizar o pagamento: " + error.message); }
+      await loadOrders();
+      renderPedidos(container);
+    });
+  });
+  container.querySelectorAll(".fornecedor-pago-toggle-cb").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      const id = cb.dataset.fornecedorPagoToggle;
+      cb.disabled = true;
+      const { error } = await supabaseClient.from("orders").update({
+        fornecedor_pago_at: cb.checked ? new Date().toISOString() : null,
+        updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) { alert("Não foi possível atualizar o pagamento ao fornecedor: " + error.message); }
       await loadOrders();
       renderPedidos(container);
     });
