@@ -428,11 +428,34 @@ function renderApp() {
 async function loadProducts() {
   const { data, error } = await supabaseClient
     .from("products")
-    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order)")
+    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order, in_stock)")
     .order("active", { ascending: false })
     .order("name", { ascending: true });
   if (!error) state.products = data;
   else console.error("loadProducts:", error.message);
+}
+
+// Badge de estoque na listagem de produtos. Produto SEM modelo cadastrado
+// usa o campo de estoque do produto, como sempre. Produto COM modelos
+// usa o estoque de cada modelo — mostra "todos em estoque" só se todos
+// estiverem marcados, "sob encomenda" só se nenhum estiver, e "parcial"
+// quando é uma mistura (aí o cliente vê o prazo certo pra cada modelo
+// que escolher lá no Catálogo).
+function stockBadge(p) {
+  const variants = p.product_variants ?? [];
+  if (variants.length === 0) {
+    return p.in_stock
+      ? `<span title="Em estoque — pronta entrega" class="rounded-full bg-emerald-100 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">✓ estoque</span>`
+      : `<span title="Sob encomenda — catálogo avisa prazo de 2 dias" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda</span>`;
+  }
+  const inStockCount = variants.filter((v) => v.in_stock).length;
+  if (inStockCount === variants.length) {
+    return `<span title="Todos os modelos em estoque" class="rounded-full bg-emerald-100 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">✓ estoque (todos)</span>`;
+  }
+  if (inStockCount === 0) {
+    return `<span title="Nenhum modelo em estoque — catálogo avisa prazo de 2 dias" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda (todos)</span>`;
+  }
+  return `<span title="${inStockCount} de ${variants.length} modelos em estoque — veja qual em Modelos" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">estoque parcial (${inStockCount}/${variants.length})</span>`;
 }
 
 let precifState = { showInactive: false, formOpen: false, editingId: null };
@@ -488,7 +511,7 @@ function renderPrecificacao(container) {
                     ${p.material_tag ? `<span class="rounded-full bg-cream-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
                     ${p.description ? `<span title="Tem descrição cadastrada" class="text-[10px]">📝</span>` : ""}
                     ${p.product_variants && p.product_variants.length > 0 ? `<span title="${p.product_variants.length} modelo(s) cadastrado(s)" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
-                    ${p.in_stock ? `<span title="Em estoque — pronta entrega" class="rounded-full bg-emerald-100 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">✓ estoque</span>` : `<span title="Sob encomenda — catálogo avisa prazo de 2 dias" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda</span>`}
+                    ${stockBadge(p)}
                   </span>
                   ${p.product_materials && p.product_materials.length > 0 ? `<div class="mt-0.5 text-[10px] font-normal text-navy-400">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).join(", ")}</div>` : ""}
                 </td>
@@ -594,7 +617,7 @@ function renderProductForm() {
   const formVariants = product && product.product_variants
     ? [...product.product_variants]
         .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name, "pt-BR"))
-        .map((v) => ({ id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null }))
+        .map((v) => ({ id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null, inStock: v.in_stock ?? false }))
     : [];
   const deletedVariantPhotoUrls = [];
 
@@ -662,16 +685,19 @@ function renderProductForm() {
           <input type="checkbox" id="pf-featured" ${product?.featured ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
           Produto em destaque (aparece numa vitrine especial no topo do Catálogo)
         </label>
-        <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
-          <input type="checkbox" id="pf-in-stock" ${product?.in_stock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-          Em estoque (pronta entrega)
-        </label>
-        <p class="mt-1 text-xs text-navy-400">Desmarcado = sob encomenda: o Catálogo avisa o cliente "Prazo de 2 dias para fabricação, a contar da data do pedido".</p>
+        <div id="pf-in-stock-block">
+          <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
+            <input type="checkbox" id="pf-in-stock" ${product?.in_stock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+            Em estoque (pronta entrega)
+          </label>
+          <p class="mt-1 text-xs text-navy-400">Desmarcado = sob encomenda: o Catálogo avisa o cliente "Prazo de 2 dias para fabricação, a contar da data do pedido".</p>
+        </div>
+        <p id="pf-in-stock-variant-note" class="mt-2 hidden text-xs text-navy-400">Este produto tem modelos cadastrados — o estoque agora é marcado em cada modelo, logo abaixo.</p>
       </div>
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
         <p class="mb-1 text-sm font-medium text-navy-800">Modelos / Variações (opcional)</p>
-        <p class="mb-3 text-xs text-navy-400">Se este produto vem em mais de um modelo (cor, tamanho etc.), cadastre cada um com o nome e a foto dele. No Catálogo, o cliente escolhe o modelo antes de comprar.</p>
+        <p class="mb-3 text-xs text-navy-400">Se este produto vem em mais de um modelo (cor, tamanho etc.), cadastre cada um com o nome, a foto e se está em estoque (pronta entrega) ou sob encomenda.</p>
         <div id="pf-variants-list" class="flex flex-col gap-2"></div>
         <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar modelo</button>
       </div>
@@ -769,6 +795,18 @@ function renderProductForm() {
     photoStatus.textContent = "A foto será removida ao salvar.";
   });
 
+  const inStockBlock = document.getElementById("pf-in-stock-block");
+  const inStockVariantNote = document.getElementById("pf-in-stock-variant-note");
+
+  // Quando o produto tem modelo cadastrado, o estoque é controlado por
+  // modelo (logo abaixo) — o checkbox de estoque do produto some, pra
+  // não dar a entender que ele ainda faz alguma coisa.
+  function updateInStockBlockVisibility() {
+    const hasVariants = formVariants.length > 0;
+    inStockBlock.classList.toggle("hidden", hasVariants);
+    inStockVariantNote.classList.toggle("hidden", !hasVariants);
+  }
+
   function renderVariantsList() {
     variantsListEl.innerHTML = formVariants.length === 0
       ? `<p class="text-xs text-navy-400">Nenhum modelo cadastrado — deixe em branco se este produto não tiver variações.</p>`
@@ -778,6 +816,10 @@ function renderProductForm() {
             <div class="flex-1">
               <input data-variant-name="${idx}" value="${escapeHtml(v.name)}" placeholder="Ex: Azul, Modelo P..."
                 class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+              <label class="mt-1.5 flex items-center gap-1.5 text-xs text-navy-700">
+                <input type="checkbox" data-variant-in-stock="${idx}" ${v.inStock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+                Em estoque (pronta entrega)
+              </label>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <input type="file" data-variant-photo="${idx}" accept="image/*" class="text-xs text-navy-700" />
@@ -787,12 +829,18 @@ function renderProductForm() {
           </div>
         `).join("");
     wireVariantRowEvents();
+    updateInStockBlockVisibility();
   }
 
   function wireVariantRowEvents() {
     variantsListEl.querySelectorAll("[data-variant-name]").forEach((input) => {
       input.addEventListener("input", () => {
         formVariants[Number(input.dataset.variantName)].name = input.value;
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-in-stock]").forEach((input) => {
+      input.addEventListener("change", () => {
+        formVariants[Number(input.dataset.variantInStock)].inStock = input.checked;
       });
     });
     variantsListEl.querySelectorAll("[data-variant-photo]").forEach((input) => {
@@ -833,7 +881,7 @@ function renderProductForm() {
 
   renderVariantsList();
   document.getElementById("pf-variant-add").addEventListener("click", () => {
-    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null });
+    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false });
     renderVariantsList();
   });
 
@@ -1003,7 +1051,7 @@ function renderProductForm() {
     // Sincroniza os modelos/variações: apaga os antigos e grava a lista atual.
     await supabaseClient.from("product_variants").delete().eq("product_id", productId);
     if (formVariants.length > 0) {
-      const variantRows = formVariants.map((v, idx) => ({ product_id: productId, name: v.name.trim(), photo_url: v.finalPhotoUrl ?? null, sort_order: idx }));
+      const variantRows = formVariants.map((v, idx) => ({ product_id: productId, name: v.name.trim(), photo_url: v.finalPhotoUrl ?? null, sort_order: idx, in_stock: v.inStock }));
       const { error: variantError } = await supabaseClient.from("product_variants").insert(variantRows);
       if (variantError) { errorEl.textContent = variantError.message; return; }
     }
@@ -1671,6 +1719,24 @@ function orderCost(order) {
   };
 }
 
+// Produto com modelo cadastrado tem o estoque controlado por modelo (e
+// não pelo produto inteiro) — ver product_variants.in_stock. Essa função
+// resolve o estoque certo pro item de um pedido: se o produto tem
+// modelos, procura o modelo pelo nome salvo no pedido (variant_name é só
+// um "retrato" do nome na hora da compra, não uma referência); se o
+// modelo não existir mais no cadastro (renomeado/apagado), trata como
+// sob encomenda por segurança, do mesmo jeito que produto removido.
+function itemIsInStock(item, product) {
+  if (!product) return false;
+  const variants = product.product_variants ?? [];
+  if (variants.length > 0) {
+    if (!item.variant_name) return false;
+    const variant = variants.find((v) => v.name === item.variant_name);
+    return variant ? !!variant.in_stock : false;
+  }
+  return !!product.in_stock;
+}
+
 // Mesma regra usada no Catálogo público (ver MADE_TO_ORDER_TEXT em
 // index.html): produto sob encomenda leva 2 dias corridos a contar da
 // data do pedido. Aqui calculamos o prazo de entrega do pedido inteiro:
@@ -1685,7 +1751,7 @@ function orderDeliveryDeadline(order) {
   if (items.length === 0) return null;
   const anyMadeToOrder = items.some((it) => {
     const product = state.products.find((p) => p.id === it.product_id);
-    return !product || !product.in_stock;
+    return !itemIsInStock(it, product);
   });
   if (!anyMadeToOrder) return { ready: true, date: null };
   const date = new Date(order.created_at);
