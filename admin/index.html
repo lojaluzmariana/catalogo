@@ -1604,6 +1604,14 @@ function orderCost(order) {
 
   return {
     productCost, materialsCost, cost: productCost + materialsCost,
+    // Custo "sem essenciais" — usado no lançamento de saída do Caixa ao
+    // Iniciar venda. O custo do material Essencial já vira uma saída no
+    // Caixa quando ele é COMPRADO (estoque aumentado, em Materiais); se
+    // lançássemos de novo aqui, a cada venda, estaríamos descontando o
+    // mesmo gasto duas vezes do saldo do Caixa. Embalagem de presente
+    // não tem esse lançamento na compra, então continua entrando aqui.
+    costExcludingEssentials: productCost + giftWrapCost,
+    giftWrapCost, essentialsCost,
     isProductApprox, isMaterialsApprox, isApprox: isProductApprox || isMaterialsApprox,
   };
 }
@@ -1880,18 +1888,21 @@ async function iniciarVenda(order) {
   const { data: inserted, error } = await supabaseClient.from("cash_entries").insert(payload).select("id").single();
   if (error) { alert("Não foi possível registrar a venda no Caixa: " + error.message); return; }
 
-  // Junto com a entrada, lança também a saída do custo total (produto +
-  // materiais, incluindo essenciais) desse pedido — assim o Caixa reflete
-  // o lucro de verdade, não só o valor cobrado do cliente. Sem lançar se
-  // o custo der zero (a tabela não aceita saída de R$ 0,00).
+  // Junto com a entrada, lança também a saída do custo (produto +
+  // embalagem de presente) desse pedido — assim o Caixa reflete o lucro
+  // de verdade, não só o valor cobrado do cliente. NÃO inclui o custo de
+  // materiais "Essenciais": esse já vira saída no Caixa quando o
+  // material é COMPRADO (em Materiais, ao aumentar o estoque) — somar de
+  // novo aqui descontaria o mesmo gasto duas vezes do saldo do Caixa.
+  // Sem lançar se der zero (a tabela não aceita saída de R$ 0,00).
   const cost = orderCost(order);
-  if (cost.cost > 0) {
+  if (cost.costExcludingEssentials > 0) {
     const custoPayload = {
       entry_type: "saida",
       entry_date: new Date().toISOString().slice(0, 10),
-      amount: Math.round(cost.cost * 100) / 100,
+      amount: Math.round(cost.costExcludingEssentials * 100) / 100,
       category: "Custo do pedido",
-      description: `Custo (produto + materiais) do Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")}${cost.isApprox ? " (estimado — produto ou material não está mais cadastrado)" : ""}`,
+      description: `Custo (produto + embalagem) do Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")}${cost.isApprox ? " (estimado — produto ou material não está mais cadastrado)" : ""}`,
       payment_method: null,
       customer_id: customer ? customer.id : null,
       order_id: order.id,
