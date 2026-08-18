@@ -1621,6 +1621,28 @@ function orderCost(order) {
   };
 }
 
+// Mesma regra usada no Catálogo público (ver MADE_TO_ORDER_TEXT em
+// index.html): produto sob encomenda leva 2 dias corridos a contar da
+// data do pedido. Aqui calculamos o prazo de entrega do pedido inteiro:
+// se todo item já está "Em estoque", é pronta entrega; se algum item é
+// sob encomenda, o prazo do pedido é o do item mais demorado (sempre 2
+// dias, já que só existe esse prazo hoje) a contar de quando o pedido
+// foi feito. Produto que sumiu do cadastro é tratado como sob encomenda,
+// por segurança (não dá pra saber se tinha estoque).
+const MADE_TO_ORDER_DAYS = 2;
+function orderDeliveryDeadline(order) {
+  const items = order.items ?? [];
+  if (items.length === 0) return null;
+  const anyMadeToOrder = items.some((it) => {
+    const product = state.products.find((p) => p.id === it.product_id);
+    return !product || !product.in_stock;
+  });
+  if (!anyMadeToOrder) return { ready: true, date: null };
+  const date = new Date(order.created_at);
+  date.setDate(date.getDate() + MADE_TO_ORDER_DAYS);
+  return { ready: false, date };
+}
+
 function formatDateTime(dateLike) {
   const d = new Date(dateLike);
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -1939,13 +1961,20 @@ async function iniciarVenda(order) {
 }
 
 function renderPedidos(container) {
-  // Pedidos NÃO pagos ficam em evidência, no topo da lista (dentro de
-  // cada aba) — o resto mantém a ordem normal (mais recente primeiro,
-  // como já vem de loadOrders). Array.prototype.sort é estável em todo
-  // navegador moderno, então essa ordenação secundária é preservada.
+  // Ordenação da lista, por aba:
+  //   - "Em andamento": ordem CRONOLÓGICA (mais antigo primeiro) — é a
+  //     fila de produção/entrega: mostra qual pedido foi recebido
+  //     primeiro e, portanto, deve ser entregue primeiro.
+  //   - Outras abas: pedidos NÃO pagos ficam em evidência, no topo da
+  //     lista — o resto mantém a ordem normal (mais recente primeiro,
+  //     como já vem de loadOrders). Array.prototype.sort é estável em
+  //     todo navegador moderno, então essa ordenação secundária é
+  //     preservada.
   const visible = state.orders
     .filter((o) => o.status === pedidosState.tab)
-    .sort((a, b) => Number(!!a.paid_at) - Number(!!b.paid_at));
+    .sort((a, b) => pedidosState.tab === "em_andamento"
+      ? new Date(a.created_at) - new Date(b.created_at)
+      : Number(!!a.paid_at) - Number(!!b.paid_at));
   // Limpa da seleção qualquer pedido que não existe mais na lista atual.
   [...pedidosState.selected].forEach((id) => { if (!state.orders.some((o) => o.id === id)) pedidosState.selected.delete(id); });
   const selectedCount = pedidosState.selected.size;
@@ -1955,6 +1984,7 @@ function renderPedidos(container) {
   // visível, calculado uma vez só aqui e reaproveitado tanto no card
   // individual quanto na soma dos pedidos selecionados.
   const orderCosts = new Map(visible.map((o) => [o.id, orderCost(o)]));
+  const deliveryDeadlines = new Map(visible.map((o) => [o.id, orderDeliveryDeadline(o)]));
   const selectedIds = [...pedidosState.selected];
   const selectedProductCostTotal = selectedIds.reduce((sum, id) => sum + (orderCosts.get(id)?.productCost ?? 0), 0);
   const selectedMaterialsCostTotal = selectedIds.reduce((sum, id) => sum + (orderCosts.get(id)?.materialsCost ?? 0), 0);
@@ -2086,10 +2116,17 @@ function renderPedidos(container) {
               <div class="flex items-start gap-3">
                 <input type="checkbox" data-select-order="${o.id}" class="order-select-checkbox mt-1 h-4 w-4 rounded border-navy-300" ${pedidosState.selected.has(o.id) ? "checked" : ""} />
                 <div>
-                  <p class="font-medium text-navy-900">${escapeHtml(o.customer_name)}
+                  <p class="font-medium text-navy-900">Pedido Nº ${String(o.order_number ?? "").padStart(6, "0")} — ${escapeHtml(o.customer_name)}
                     ${waLink(o.customer_whatsapp) ? `<a href="${waLink(o.customer_whatsapp)}" target="_blank" rel="noopener" class="ml-1 text-xs font-normal text-emerald-700 hover:underline">WhatsApp ↗</a>` : ""}
                   </p>
                   <p class="text-xs text-navy-500">${formatDate(o.created_at.slice(0, 10))} · ${o.payment_method === "credito" ? "Crédito" : "Pix"} · ${o.items.length} ${o.items.length === 1 ? "item" : "itens"}</p>
+                  <p class="text-xs font-medium ${deliveryDeadlines.get(o.id)?.ready ? "text-emerald-700" : !deliveryDeadlines.get(o.id) ? "text-navy-400" : deliveryDeadlines.get(o.id).date < new Date() && o.status !== "concluido" && o.status !== "cancelado" ? "text-red-600" : "text-gold-700"}">
+                    ${deliveryDeadlines.get(o.id)?.ready
+                      ? "📦 Pronta entrega"
+                      : deliveryDeadlines.get(o.id)
+                        ? `🕑 Prazo de entrega: ${formatDate(deliveryDeadlines.get(o.id).date.toISOString().slice(0, 10))}${deliveryDeadlines.get(o.id).date < new Date() && o.status !== "concluido" && o.status !== "cancelado" ? " (atrasado)" : ""}`
+                        : ""}
+                  </p>
                 </div>
               </div>
               <div class="flex items-center gap-3">
