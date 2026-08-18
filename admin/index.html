@@ -1952,6 +1952,18 @@ function renderPedidos(container) {
       valoresAReceber += Number(o.total);
     }
   });
+  // Despesas: soma de TODAS as saídas já lançadas no Caixa (compras de
+  // material essencial lançadas automaticamente, e qualquer outra saída
+  // lançada manualmente) — não é só do que aparece nos pedidos.
+  const despesasTotal = state.cashEntries.reduce((sum, e) => sum + (e.entry_type === "saida" ? Number(e.amount) : 0), 0);
+
+  // Quebra de "Valores a receber" por cliente (soma quando o mesmo
+  // cliente tem mais de um pedido não pago), do maior valor pro menor.
+  const receivablesByCustomer = new Map();
+  statsOrders.forEach((o) => {
+    if (!o.paid_at) receivablesByCustomer.set(o.customer_name, (receivablesByCustomer.get(o.customer_name) || 0) + Number(o.total));
+  });
+  const receivablesList = [...receivablesByCustomer.entries()].sort((a, b) => b[1] - a[1]);
 
   container.innerHTML = `
     <div class="flex flex-col gap-6">
@@ -1968,6 +1980,20 @@ function renderPedidos(container) {
         <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma do valor dos pedidos NÃO pagos ainda, de qualquer status (exceto cancelados) — quanto falta receber dos clientes.">
           <p class="text-xs font-medium text-navy-500">Valores a receber (não pagos)</p>
           <p class="text-lg font-semibold text-red-600">${formatBRL(valoresAReceber)}</p>
+          ${receivablesList.length > 0 ? `
+            <div class="mt-1.5 flex flex-col gap-0.5 border-t border-navy-50 pt-1.5">
+              ${receivablesList.map(([name, amount]) => `
+                <span class="flex items-baseline justify-between gap-2 text-[11px] text-navy-400">
+                  <span class="truncate">${escapeHtml(name)}</span>
+                  <span class="whitespace-nowrap font-medium text-navy-500">${formatBRL(amount)}</span>
+                </span>
+              `).join("")}
+            </div>
+          ` : ""}
+        </div>
+        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma de TODAS as saídas já lançadas no Caixa (compras de material essencial lançadas automaticamente, e qualquer outra saída lançada manualmente).">
+          <p class="text-xs font-medium text-navy-500">Despesas</p>
+          <p class="text-lg font-semibold text-orange-600">${formatBRL(despesasTotal)}</p>
         </div>
       </div>
 
