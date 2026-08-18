@@ -1931,31 +1931,36 @@ function renderPedidos(container) {
   const selectedProfitEstimate = selectedEntradaTotal - selectedCostTotal;
 
   // ---- Resumo geral (independe de aba/status e de qualquer seleção) ----
-  // Pedidos cancelados ficam de fora das duas contas: não viraram venda
-  // real, então não entram nem no lucro nem no valor a receber.
+  // Pedidos cancelados ficam de fora das três contas: não viraram venda
+  // real, então não entram em lucro, valor a receber nem despesas.
   //   - Lucro real: soma de (valor cobrado − custo) só dos pedidos JÁ
   //     PAGOS — dinheiro que realmente entrou, diferente do "Lucro
   //     estimado" da seleção (que soma o valor cobrado mesmo sem o
   //     pedido estar pago ainda).
   //   - Valores a receber: soma do valor cobrado dos pedidos NÃO pagos —
   //     quanto ainda falta receber dos clientes.
+  //   - Despesas: soma do custo (produto + materiais) de TODOS os
+  //     pedidos, pagos ou não — o custo já é real assim que o produto é
+  //     feito/vendido, independente de o cliente já ter pago. NÃO é o
+  //     saldo de saídas do Caixa (que mistura outras coisas, tipo compra
+  //     de material essencial em lote antes de virar venda).
   const statsOrders = state.orders.filter((o) => o.status !== "cancelado");
   let lucroReal = 0;
   let lucroRealHasApprox = false;
   let valoresAReceber = 0;
+  let despesasTotal = 0;
+  let despesasHasApprox = false;
   statsOrders.forEach((o) => {
+    const c = orderCost(o);
+    despesasTotal += c.cost;
+    if (c.isApprox) despesasHasApprox = true;
     if (o.paid_at) {
-      const c = orderCost(o);
       lucroReal += Number(o.total) - c.cost;
       if (c.isApprox) lucroRealHasApprox = true;
     } else {
       valoresAReceber += Number(o.total);
     }
   });
-  // Despesas: soma de TODAS as saídas já lançadas no Caixa (compras de
-  // material essencial lançadas automaticamente, e qualquer outra saída
-  // lançada manualmente) — não é só do que aparece nos pedidos.
-  const despesasTotal = state.cashEntries.reduce((sum, e) => sum + (e.entry_type === "saida" ? Number(e.amount) : 0), 0);
 
   // Quebra de "Valores a receber" por cliente (soma quando o mesmo
   // cliente tem mais de um pedido não pago), do maior valor pro menor.
@@ -1991,9 +1996,9 @@ function renderPedidos(container) {
             </div>
           ` : ""}
         </div>
-        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma de TODAS as saídas já lançadas no Caixa (compras de material essencial lançadas automaticamente, e qualquer outra saída lançada manualmente).">
-          <p class="text-xs font-medium text-navy-500">Despesas</p>
-          <p class="text-lg font-semibold text-orange-600">${formatBRL(despesasTotal)}</p>
+        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${despesasHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido não está mais cadastrado. " : ""}Soma do custo (produto + materiais) de TODOS os pedidos, pagos ou não (exceto cancelados) — não é o saldo de saídas do Caixa.">
+          <p class="text-xs font-medium text-navy-500">Despesas (custo dos produtos)</p>
+          <p class="text-lg font-semibold text-orange-600">${despesasHasApprox ? "≈ " : ""}${formatBRL(despesasTotal)}</p>
         </div>
       </div>
 
