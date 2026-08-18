@@ -1931,12 +1931,13 @@ function renderPedidos(container) {
   const selectedProfitEstimate = selectedEntradaTotal - selectedCostTotal;
 
   // ---- Resumo geral (independe de aba/status e de qualquer seleção) ----
-  // Pedidos cancelados ficam de fora das três contas: não viraram venda
-  // real, então não entram em lucro, valor a receber nem despesas.
-  //   - Lucro real: soma de (valor cobrado − custo) só dos pedidos JÁ
-  //     PAGOS — dinheiro que realmente entrou, diferente do "Lucro
-  //     estimado" da seleção (que soma o valor cobrado mesmo sem o
-  //     pedido estar pago ainda).
+  // Pedidos cancelados ficam de fora das quatro contas: não viraram venda
+  // real, então não entram em lucro, valor recebido/a receber nem despesas.
+  //   - Lucro real: soma de (valor cobrado − custo) só dos pedidos já
+  //     PAGOS — dinheiro que já entrou, descontado o custo.
+  //   - Valores recebidos: soma do valor cobrado (o.total) dos pedidos já
+  //     PAGOS — a entrada PURA, sem descontar custo (diferente do Lucro
+  //     real, que já é depois do custo).
   //   - Valores a receber: soma do valor cobrado dos pedidos NÃO pagos —
   //     quanto ainda falta receber dos clientes.
   //   - Despesas: soma do custo (produto + materiais) de TODOS os
@@ -1947,6 +1948,7 @@ function renderPedidos(container) {
   const statsOrders = state.orders.filter((o) => o.status !== "cancelado");
   let lucroReal = 0;
   let lucroRealHasApprox = false;
+  let valoresRecebidos = 0;
   let valoresAReceber = 0;
   let despesasTotal = 0;
   let despesasHasApprox = false;
@@ -1955,6 +1957,7 @@ function renderPedidos(container) {
     despesasTotal += c.cost;
     if (c.isApprox) despesasHasApprox = true;
     if (o.paid_at) {
+      valoresRecebidos += Number(o.total);
       lucroReal += Number(o.total) - c.cost;
       if (c.isApprox) lucroRealHasApprox = true;
     } else {
@@ -1978,6 +1981,10 @@ function renderPedidos(container) {
       </div>
 
       <div class="flex flex-wrap gap-3">
+        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma do valor cobrado (entrada pura, sem descontar custo) dos pedidos já PAGOS, de qualquer status (exceto cancelados).">
+          <p class="text-xs font-medium text-navy-500">Valores recebidos (entradas)</p>
+          <p class="text-lg font-semibold text-blue-700">${formatBRL(valoresRecebidos)}</p>
+        </div>
         <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${lucroRealHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido pago não está mais cadastrado. " : ""}Soma de (valor cobrado − custo) só dos pedidos já PAGOS, de qualquer status (exceto cancelados) — dinheiro que já entrou de verdade.">
           <p class="text-xs font-medium text-navy-500">Lucro real (pedidos pagos)</p>
           <p class="text-lg font-semibold text-emerald-700">${lucroRealHasApprox ? "≈ " : ""}${formatBRL(lucroReal)}</p>
