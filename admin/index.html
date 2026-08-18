@@ -189,6 +189,7 @@ const state = {
   adminUsers: [], // [{ id, name }] — todos os administradores, pra mostrar quem fez cada venda
   loading: false,
   error: null,
+  lastRefreshedAt: null, // Date da última vez que os dados foram recarregados (manual ou automático)
 };
 
 const app = document.getElementById("app");
@@ -353,8 +354,22 @@ async function enterApp() {
 
   state.screen = "app";
   state.error = null;
-  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadOrders(), loadCashEntries(), loadAdminUsers()]);
+  await loadAllData();
   render();
+}
+
+// Recarrega todos os dados do app de uma vez (usado ao entrar, no botão
+// "Atualizar" e na atualização automática em segundo plano).
+async function loadAllData() {
+  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadOrders(), loadCashEntries(), loadAdminUsers()]);
+  state.lastRefreshedAt = new Date();
+}
+
+// Se algum formulário estiver aberto, pula a atualização automática pra
+// não apagar o que a pessoa está digitando (o botão "Atualizar" manual
+// continua funcionando normalmente, já que aí é a própria pessoa que pediu).
+function isAnyFormOpen() {
+  return !!(precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen || clientesState.formOpen || caixaState.formOpen);
 }
 
 async function loadAdminUsers() {
@@ -393,6 +408,8 @@ function renderApp() {
           </div>
           <div class="flex items-center gap-3">
             <span class="hidden text-sm text-cream-100 sm:inline">Olá, ${escapeHtml(state.currentUser?.name ?? "")}</span>
+            <span id="last-refreshed" title="Os dados se atualizam sozinhos a cada minuto" class="hidden text-xs text-navy-300 sm:inline">${state.lastRefreshedAt ? `Atualizado às ${state.lastRefreshedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}</span>
+            <button id="refresh-btn" title="Recarregar os dados sem precisar dar F5 (o F5 pede login de novo)" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">↻ Atualizar</button>
             <button id="logout-btn" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">Sair</button>
           </div>
         </div>
@@ -415,6 +432,13 @@ function renderApp() {
     btn.addEventListener("click", () => { state.tab = btn.dataset.tab; render(); });
   });
   document.getElementById("logout-btn").addEventListener("click", logout);
+  document.getElementById("refresh-btn").addEventListener("click", async () => {
+    const btn = document.getElementById("refresh-btn");
+    btn.disabled = true;
+    btn.textContent = "Atualizando...";
+    await loadAllData();
+    render();
+  });
 
   const main = document.getElementById("main-content");
   if (state.tab === "precificacao") renderPrecificacao(main);
@@ -3237,7 +3261,32 @@ function renderEntryForm(products, editingEntry) {
 /* =====================================================================
    START
    ===================================================================== */
-render();
+// Ao carregar a página (inclusive apertando F5), verifica se já existe uma
+// sessão salva pelo navegador — se tiver, entra direto no painel sem pedir
+// login de novo. Antes, todo F5 voltava pra tela de login mesmo com a
+// sessão ainda válida.
+(async function boot() {
+  try {
+    const { data } = await supabaseClient.auth.getSession();
+    if (data?.session) {
+      await enterApp();
+      return;
+    }
+  } catch (err) {
+    console.error("boot: falha ao checar sessão salva:", err);
+  }
+  render();
+})();
+
+// Atualização automática: recarrega os dados sozinho a cada 60s, sem
+// precisar de F5 (que pediria login de novo). Pula quando algum
+// formulário está aberto, pra não apagar o que a pessoa está digitando —
+// nesse caso ela pode usar o botão "Atualizar" quando terminar.
+setInterval(async () => {
+  if (state.screen !== "app" || isAnyFormOpen()) return;
+  await loadAllData();
+  render();
+}, 60000);
 </script>
 </body>
 </html>
