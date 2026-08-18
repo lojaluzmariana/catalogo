@@ -1930,11 +1930,45 @@ function renderPedidos(container) {
   const selectedEntradaTotal = selectedIds.reduce((sum, id) => sum + Number(state.orders.find((o) => o.id === id)?.total ?? 0), 0);
   const selectedProfitEstimate = selectedEntradaTotal - selectedCostTotal;
 
+  // ---- Resumo geral (independe de aba/status e de qualquer seleção) ----
+  // Pedidos cancelados ficam de fora das duas contas: não viraram venda
+  // real, então não entram nem no lucro nem no valor a receber.
+  //   - Lucro real: soma de (valor cobrado − custo) só dos pedidos JÁ
+  //     PAGOS — dinheiro que realmente entrou, diferente do "Lucro
+  //     estimado" da seleção (que soma o valor cobrado mesmo sem o
+  //     pedido estar pago ainda).
+  //   - Valores a receber: soma do valor cobrado dos pedidos NÃO pagos —
+  //     quanto ainda falta receber dos clientes.
+  const statsOrders = state.orders.filter((o) => o.status !== "cancelado");
+  let lucroReal = 0;
+  let lucroRealHasApprox = false;
+  let valoresAReceber = 0;
+  statsOrders.forEach((o) => {
+    if (o.paid_at) {
+      const c = orderCost(o);
+      lucroReal += Number(o.total) - c.cost;
+      if (c.isApprox) lucroRealHasApprox = true;
+    } else {
+      valoresAReceber += Number(o.total);
+    }
+  });
+
   container.innerHTML = `
     <div class="flex flex-col gap-6">
       <div>
         <h1 class="text-xl font-semibold text-navy-900">Pedidos</h1>
         <p class="text-sm text-navy-500">Pedidos feitos pelos clientes no Catálogo público.</p>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${lucroRealHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido pago não está mais cadastrado. " : ""}Soma de (valor cobrado − custo) só dos pedidos já PAGOS, de qualquer status (exceto cancelados) — dinheiro que já entrou de verdade.">
+          <p class="text-xs font-medium text-navy-500">Lucro real (pedidos pagos)</p>
+          <p class="text-lg font-semibold text-emerald-700">${lucroRealHasApprox ? "≈ " : ""}${formatBRL(lucroReal)}</p>
+        </div>
+        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma do valor dos pedidos NÃO pagos ainda, de qualquer status (exceto cancelados) — quanto falta receber dos clientes.">
+          <p class="text-xs font-medium text-navy-500">Valores a receber (não pagos)</p>
+          <p class="text-lg font-semibold text-red-600">${formatBRL(valoresAReceber)}</p>
+        </div>
       </div>
 
       <div class="flex flex-wrap gap-2 border-b border-navy-100">
