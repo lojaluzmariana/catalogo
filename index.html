@@ -462,6 +462,12 @@ function renderProductCard(p, opts = {}) {
     `;
   }
 
+  // Produto com modelo cadastrado: o "pronta entrega / sob encomenda" é
+  // por modelo agora, não pelo produto inteiro — começa mostrando o do
+  // primeiro modelo da lista (o que já vem selecionado no <select>) e
+  // atualiza ao vivo se o cliente trocar de modelo (ver wireCatalogEvents).
+  const initialInStock = variants.length > 0 ? !!variants[0].in_stock : !!p.in_stock;
+
   let addBlock;
   if (variants.length > 0) {
     // Produto com modelos: escolhe o modelo aqui mesmo, na hora de
@@ -469,7 +475,7 @@ function renderProductCard(p, opts = {}) {
     addBlock = `
       <div class="mt-auto flex gap-1.5" data-variant-add-group="${p.id}">
         <select class="variant-add-select min-w-0 flex-1 rounded-lg border border-navy-200 px-2 py-2 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
-          ${variants.map((v) => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join("")}
+          ${variants.map((v) => `<option value="${v.id}" data-in-stock="${v.in_stock ? "1" : "0"}">${escapeHtml(v.name)}</option>`).join("")}
         </select>
         <button type="button" class="add-variant-btn flex-shrink-0 rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>
       </div>
@@ -506,7 +512,9 @@ function renderProductCard(p, opts = {}) {
           <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)}</p>
           <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} no Pix / à vista</p>
         </div>
-        ${!p.in_stock ? `<p class="text-[10px] font-medium text-gold-700">🕑 ${MADE_TO_ORDER_TEXT}</p>` : ""}
+        ${variants.length > 0
+          ? `<p data-stock-note="${p.id}" class="text-[10px] font-medium text-gold-700 ${initialInStock ? "hidden" : ""}">🕑 ${MADE_TO_ORDER_TEXT}</p>`
+          : !initialInStock ? `<p class="text-[10px] font-medium text-gold-700">🕑 ${MADE_TO_ORDER_TEXT}</p>` : ""}
         ${addBlock}
       </div>
     </div>
@@ -631,7 +639,7 @@ function renderProductDetail() {
             <p class="text-sm text-navy-400">ou ${formatBRL(product.promo_price)} no Pix / à vista</p>
           </div>
 
-          ${!product.in_stock ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-xs font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${MADE_TO_ORDER_TEXT}</p>` : ""}
+          ${!(variant ? variant.in_stock : product.in_stock) ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-xs font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${MADE_TO_ORDER_TEXT}</p>` : ""}
 
           ${qty === 0 ? `
             <button data-add="${key}" class="add-to-cart-btn mt-2 w-full rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 sm:w-auto">Adicionar</button>
@@ -704,6 +712,19 @@ function wireCatalogEvents() {
       const variantId = group.querySelector(".variant-add-select").value;
       const key = cartKey(productId, variantId);
       setQty(key, (state.cart[key] ?? 0) + 1);
+    });
+  });
+  // Cada modelo tem seu próprio "pronta entrega / sob encomenda" agora —
+  // ao trocar o modelo escolhido no cartãozinho do produto, atualiza o
+  // aviso na hora, sem precisar redesenhar o card inteiro.
+  document.querySelectorAll(".variant-add-select").forEach((select) => {
+    select.addEventListener("change", () => {
+      const group = select.closest("[data-variant-add-group]");
+      const productId = group.dataset.variantAddGroup;
+      const note = document.querySelector(`[data-stock-note="${productId}"]`);
+      if (!note) return;
+      const inStock = select.selectedOptions[0]?.dataset.inStock === "1";
+      note.classList.toggle("hidden", inStock);
     });
   });
   document.querySelectorAll("[data-carousel-prev]").forEach((btn) => {
