@@ -1065,7 +1065,10 @@ function renderMateriais(container) {
             ${visible.length === 0 ? `<tr><td colspan="8" class="px-4 py-8 text-center text-navy-400">Nenhum material cadastrado.</td></tr>` : visible.map((m) => `
               <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50 ${!m.active ? "opacity-50" : ""}">
                 <td class="px-3 py-3 font-medium text-navy-900">${escapeHtml(m.name)}</td>
-                <td class="px-3 py-3 text-navy-600">${m.type ? `<span class="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-navy-600 ring-1 ring-navy-100">${escapeHtml(m.type)}</span>` : ""}</td>
+                <td class="px-3 py-3 text-navy-600">
+                  ${m.type ? `<span class="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-navy-600 ring-1 ring-navy-100">${escapeHtml(m.type)}</span>` : ""}
+                  ${isEssencial(m) && m.qty_per_order ? `<span class="mt-1 block text-[11px] font-medium text-red-500">−${Number(m.qty_per_order)} ${escapeHtml(m.unit)}/venda</span>` : ""}
+                </td>
                 <td class="px-3 py-3 text-right">${formatBRL(m.package_price)}</td>
                 <td class="px-3 py-3 text-right">${Number(m.package_qty)}</td>
                 <td class="px-3 py-3">${escapeHtml(m.unit)}</td>
@@ -1159,7 +1162,14 @@ function renderMaterialForm() {
           <option value="__new__">+ Novo tipo...</option>
         </select>
         <input id="mf-type-new" class="mt-2 hidden w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex: Embalagem" />
-        <p class="mt-1 text-xs text-navy-400">Marque como "Embalagem" pra aparecer como opção de embalagem de presente no Catálogo.</p>
+        <p class="mt-1 text-xs text-navy-400">Marque como "Embalagem" pra aparecer como opção de embalagem de presente no Catálogo, ou como "Essencial" pra insumos usados em toda venda (fio, cola, etiqueta...) que não são cobrados à parte do cliente.</p>
+      </div>
+      <div id="mf-qty-per-order-field" class="hidden w-full sm:w-56">
+        <label class="mb-1 block text-sm font-medium text-navy-800">Quantidade usada por venda</label>
+        <input id="mf-qty-per-order" value="${material && material.qty_per_order != null ? Number(material.qty_per_order) : ""}" inputmode="decimal"
+          class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+          placeholder="Ex: 0,5" />
+        <p class="mt-1 text-xs text-navy-400">Quanto desse material é gasto, em média, em cada venda. Esse custo entra automaticamente em "Custo adicional (materiais)" de todo pedido.</p>
       </div>
       <div id="mf-preview" class="flex flex-1 min-w-[180px] items-center rounded-lg bg-cream-50 px-4 py-2 text-xs text-navy-600"></div>
       <div id="mf-error" class="w-full text-sm text-red-600"></div>
@@ -1176,8 +1186,17 @@ function renderMaterialForm() {
   const unitSelect = document.getElementById("mf-unit");
   const typeSelect = document.getElementById("mf-type-select");
   const typeNewField = document.getElementById("mf-type-new");
+  const qtyPerOrderField = document.getElementById("mf-qty-per-order-field");
+
+  function currentTypeValue() {
+    return typeSelect.value === "__new__" ? typeNewField.value.trim() : typeSelect.value;
+  }
+  function updateQtyPerOrderVisibility() {
+    qtyPerOrderField.classList.toggle("hidden", !isEssencialTypeText(currentTypeValue()));
+  }
 
   typeNewField.classList.toggle("hidden", typeSelect.value !== "__new__");
+  updateQtyPerOrderVisibility();
   typeSelect.addEventListener("change", () => {
     typeNewField.classList.toggle("hidden", typeSelect.value !== "__new__");
     if (typeSelect.value === "__new__") {
@@ -1185,7 +1204,9 @@ function renderMaterialForm() {
     } else {
       typeNewField.value = "";
     }
+    updateQtyPerOrderVisibility();
   });
+  typeNewField.addEventListener("input", updateQtyPerOrderVisibility);
 
   function updatePreview() {
     const price = Number(priceField.value.replace(",", "."));
@@ -1220,10 +1241,26 @@ function renderMaterialForm() {
     const type = typeSelect.value === "__new__" ? typeNewField.value.trim() : typeSelect.value;
     if (typeSelect.value === "__new__" && !type) { errorEl.textContent = "Informe o nome do novo tipo, ou volte pra opção \"— sem tipo —\"."; return; }
 
+    const isEssencialType = isEssencialTypeText(type);
+    let qtyPerOrder = null;
+    if (isEssencialType) {
+      const qtyPerOrderRaw = document.getElementById("mf-qty-per-order").value.trim();
+      if (qtyPerOrderRaw) {
+        qtyPerOrder = Number(qtyPerOrderRaw.replace(",", "."));
+        if (!Number.isFinite(qtyPerOrder) || qtyPerOrder < 0) { errorEl.textContent = "Quantidade usada por venda inválida."; return; }
+      }
+    }
+
+    const unitCost = Math.round((price / qty) * 10000) / 10000; // 4 casas de precisão
+    // Captura o estoque ANTERIOR antes de disparar o update — depois de
+    // salvo, "material" não deve mais ser usado pra isso (o registro
+    // local pode não refletir mais o valor de antes da edição).
+    const previousStock = material ? Number(material.stock_qty) : 0;
     const payload = {
       name, package_price: price, package_qty: qty, unit, stock_qty: stock,
       type: type || null,
-      unit_cost: Math.round((price / qty) * 10000) / 10000, // 4 casas de precisão
+      qty_per_order: qtyPerOrder,
+      unit_cost: unitCost,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
 
@@ -1236,8 +1273,29 @@ function renderMaterialForm() {
 
     if (result.error) { errorEl.textContent = result.error.message; return; }
 
+    // Material "Essencial" cujo estoque AUMENTOU: é uma compra nossa (não
+    // uma cobrança ao cliente), então lança automaticamente uma "saída"
+    // no Caixa no valor da compra. Só quando aumenta — reduzir estoque
+    // (uso normal, correção de contagem etc.) não lança nada sozinho.
+    const stockIncrease = stock - previousStock;
+    if (isEssencialType && stockIncrease > 0) {
+      const { error: cashError } = await supabaseClient.from("cash_entries").insert({
+        entry_type: "saida",
+        entry_date: new Date().toISOString().slice(0, 10),
+        amount: Math.round(stockIncrease * unitCost * 100) / 100,
+        category: "Material essencial",
+        description: `Compra de ${name} (+${stockIncrease} ${unit})`,
+        payment_method: null,
+        created_by: state.currentUser.id,
+      });
+      if (cashError) {
+        errorEl.textContent = `Material salvo, mas não foi possível lançar a despesa no Caixa: ${cashError.message}`;
+      }
+    }
+
     materiaisState.formOpen = false;
     await loadMaterials();
+    await loadCashEntries();
     renderMateriais(document.getElementById("main-content"));
   });
 }
@@ -1483,6 +1541,21 @@ const MANUFACTURER_WHATSAPP_NUMBER = "5584991677070";
 // apagado do cadastro (nesse caso não tem outro jeito de saber o custo).
 const GIFT_WRAP_MARKUP = 0.3;
 
+// Material do tipo "Essencial" (aceita singular ou plural — "Essencial"
+// ou "Essenciais", maiúsculo/minúsculo tanto faz — plural em português
+// não é só acrescentar "s", "-al" vira "-ais", então comparamos com as
+// duas formas certas, não com startsWith) é um insumo usado em (quase)
+// toda venda mas que não é cobrado à parte do cliente (ex: fio, cola,
+// etiqueta). O custo dele entra como despesa fixa por pedido, e
+// aumentar o estoque dele lança uma "saída" automática no Caixa.
+function isEssencialTypeText(text) {
+  const normalized = (text || "").trim().toLowerCase();
+  return normalized === "essencial" || normalized === "essenciais";
+}
+function isEssencial(material) {
+  return isEssencialTypeText(material.type);
+}
+
 // Custo real (materiais/insumos) de um pedido — não é o preço cobrado do
 // cliente. Devolve o custo dividido em duas partes:
 //   - productCost: custo dos produtos em si (produtos.cost, que já
@@ -1509,7 +1582,7 @@ function orderCost(order) {
     return sum + Number(product.cost) * it.quantity;
   }, 0);
 
-  const materialsCost = (order.giftWraps ?? []).reduce((sum, g) => {
+  const giftWrapCost = (order.giftWraps ?? []).reduce((sum, g) => {
     const material = g.material_id ? state.materials.find((m) => m.id === g.material_id) : null;
     if (material) return sum + Number(material.unit_cost) * g.quantity;
     // Material apagado do cadastro: estima o custo "desfazendo" o markup
@@ -1517,6 +1590,17 @@ function orderCost(order) {
     isMaterialsApprox = true;
     return sum + (Number(g.unit_price) / (1 + GIFT_WRAP_MARKUP)) * g.quantity;
   }, 0);
+
+  // Materiais "Essenciais" (fio, cola, etiqueta...) não são escolhidos
+  // pedido a pedido como a embalagem de presente — são um custo fixo que
+  // entra em TODA venda, no valor cadastrado em "quantidade usada por
+  // venda". Usa o cadastro ATUAL (mesma ressalva de "custo de hoje, não
+  // de quando a venda aconteceu" do resto da função).
+  const essentialsCost = state.materials
+    .filter((m) => m.active && isEssencial(m) && Number(m.qty_per_order) > 0)
+    .reduce((sum, m) => sum + Number(m.unit_cost) * Number(m.qty_per_order), 0);
+
+  const materialsCost = giftWrapCost + essentialsCost;
 
   return {
     productCost, materialsCost, cost: productCost + materialsCost,
