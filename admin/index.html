@@ -1880,6 +1880,27 @@ async function iniciarVenda(order) {
   const { data: inserted, error } = await supabaseClient.from("cash_entries").insert(payload).select("id").single();
   if (error) { alert("Não foi possível registrar a venda no Caixa: " + error.message); return; }
 
+  // Junto com a entrada, lança também a saída do custo total (produto +
+  // materiais, incluindo essenciais) desse pedido — assim o Caixa reflete
+  // o lucro de verdade, não só o valor cobrado do cliente. Sem lançar se
+  // o custo der zero (a tabela não aceita saída de R$ 0,00).
+  const cost = orderCost(order);
+  if (cost.cost > 0) {
+    const custoPayload = {
+      entry_type: "saida",
+      entry_date: new Date().toISOString().slice(0, 10),
+      amount: Math.round(cost.cost * 100) / 100,
+      category: "Custo do pedido",
+      description: `Custo (produto + materiais) do Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")}${cost.isApprox ? " (estimado — produto ou material não está mais cadastrado)" : ""}`,
+      payment_method: null,
+      customer_id: customer ? customer.id : null,
+      order_id: order.id,
+      created_by: state.currentUser.id,
+    };
+    const { error: custoError } = await supabaseClient.from("cash_entries").insert(custoPayload);
+    if (custoError) console.error("iniciarVenda custo:", custoError.message);
+  }
+
   const giftWrapRows = (order.giftWraps ?? [])
     .filter((g) => g.material_id && state.materials.some((m) => m.id === g.material_id))
     .map((g) => {
