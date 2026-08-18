@@ -505,7 +505,7 @@ function renderProductCard(p, opts = {}) {
   }
 
   return `
-    <div class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
+    <div data-product-card="${p.id}" class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
       ${photoBlock}
       <div class="flex flex-1 flex-col gap-2 p-3">
         <div>
@@ -735,19 +735,25 @@ function wireCatalogEvents() {
   // Cada modelo tem seu próprio "pronta entrega / sob encomenda" e
   // "esgotado" agora — ao trocar o modelo escolhido no cartãozinho do
   // produto, atualiza os avisos na hora, sem precisar redesenhar o card
-  // inteiro.
+  // inteiro. IMPORTANTE: um produto "em destaque" aparece DUAS vezes na
+  // página (na vitrine especial do topo e de novo na grade normal) —
+  // então tem que buscar a nota/tag/botão só DENTRO do card que disparou
+  // o evento (via [data-product-card], que envolve tudo), nunca com
+  // document.querySelector(id), senão a troca de modelo num card acaba
+  // atualizando o card ERRADO (o outro "clone" do mesmo produto).
   document.querySelectorAll(".variant-add-select").forEach((select) => {
     select.addEventListener("change", () => {
+      const card = select.closest("[data-product-card]");
+      if (!card) return;
       const group = select.closest("[data-variant-add-group]");
-      const productId = group.dataset.variantAddGroup;
       const opt = select.selectedOptions[0];
       const inStock = opt?.dataset.inStock === "1";
       const esgotado = opt?.dataset.esgotado === "1";
-      const note = document.querySelector(`[data-stock-note="${productId}"]`);
+      const note = card.querySelector("[data-stock-note]");
       if (note) note.classList.toggle("hidden", inStock || esgotado);
       const addBtn = group.querySelector(".add-variant-btn");
       if (addBtn) addBtn.classList.toggle("hidden", esgotado);
-      const esgotadoTag = document.querySelector(`[data-variant-esgotado-tag="${productId}"]`);
+      const esgotadoTag = card.querySelector("[data-variant-esgotado-tag]");
       if (esgotadoTag) esgotadoTag.classList.toggle("hidden", !esgotado);
     });
   });
