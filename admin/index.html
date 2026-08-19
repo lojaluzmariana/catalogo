@@ -128,10 +128,18 @@ function formatDate(iso) {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 }
-function todayISO() {
-  const d = new Date();
+// Data de um Date em texto "AAAA-MM-DD" no FUSO LOCAL — não usar
+// ".toISOString().slice(0, 10)" sozinho pra isso, porque toISOString()
+// sempre converte pra UTC primeiro: perto da meia-noite (ex: 23h de
+// Brasília = já é madrugada em UTC), isso silenciosamente troca o dia
+// pro seguinte. Foi exatamente esse bug que fez uma venda registrada às
+// 23h de um dia cair no Caixa com a data do dia seguinte.
+function toLocalISODate(d) {
   const tz = d.getTimezoneOffset() * 60000;
   return new Date(d.getTime() - tz).toISOString().slice(0, 10);
+}
+function todayISO() {
+  return toLocalISODate(new Date());
 }
 function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1490,7 +1498,7 @@ function renderMaterialForm() {
     if (isEssencialType && stockIncrease > 0) {
       const { error: cashError } = await supabaseClient.from("cash_entries").insert({
         entry_type: "saida",
-        entry_date: new Date().toISOString().slice(0, 10),
+        entry_date: todayISO(),
         amount: Math.round(stockIncrease * unitCost * 100) / 100,
         category: "Material essencial",
         description: `Compra de ${name} (+${stockIncrease} ${unit})`,
@@ -2167,12 +2175,19 @@ const PEDIDOS_TABS = [
    Cada pedido vira uma página no tamanho de um cupom (80mm de largura,
    altura ajustada ao conteúdo daquele pedido especificamente).
    ===================================================================== */
-const RECEIPT_PAGE_WIDTH_MM = 80;
-const RECEIPT_MARGIN_MM = 5;
+// Formato pensado pra imprimir direto na bobina de 57mm da maquininha
+// (ex: Ton T3 Smart) — bobinas de cartão costumam ser mais estreitas que
+// as impressoras de recibo "de balcão" (que geralmente usam 80mm).
+const RECEIPT_PAGE_WIDTH_MM = 57;
+const RECEIPT_MARGIN_MM = 3;
 
 function buildReceiptLinePlan(order) {
   const lines = [];
-  const push = (text, opts = {}) => lines.push({ text, size: 8, style: "normal", align: "center", gap: 4, ...opts });
+  // "wrap: true" por padrão pra NENHUMA linha correr o risco de ficar
+  // cortada pela borda do papel — numa bobina estreita (57mm) até texto
+  // relativamente curto pode não caber numa linha só, então cada linha
+  // quebra sozinha em mais linhas quando precisar (ver expandReceiptLines).
+  const push = (text, opts = {}) => lines.push({ text, size: 8, style: "normal", align: "center", gap: 4, wrap: true, ...opts });
 
   push(STORE_NAME, { size: 13, style: "bold", gap: 5.4 });
   push(STORE_SUBTITLE, { size: 8, gap: 3.8 });
@@ -2180,7 +2195,7 @@ function buildReceiptLinePlan(order) {
   push(`CNPJ: ${STORE_CNPJ}`, { size: 8, gap: 5 });
   lines.push({ divider: true, gap: 4 });
 
-  push(`Comprovante de Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")}`, { size: 9.5, style: "bold", gap: 4.6 });
+  push(`Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")}`, { size: 9.5, style: "bold", gap: 4.6 });
   push(`Data: ${formatDateTime(order.created_at)}`, { align: "left", gap: 4 });
   push(`Status: ${ORDER_STATUS_LABELS[order.status] ?? order.status}`, { align: "left", gap: 4 });
   lines.push({ divider: true, gap: 4 });
@@ -2302,7 +2317,7 @@ async function iniciarVenda(order) {
 
   const payload = {
     entry_type: "entrada",
-    entry_date: new Date().toISOString().slice(0, 10),
+    entry_date: todayISO(),
     amount: order.total,
     category: "Venda",
     description: `Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")} — ${itemsDesc}`,
@@ -2326,7 +2341,7 @@ async function iniciarVenda(order) {
   if (cost.costExcludingEssentials > 0) {
     const custoPayload = {
       entry_type: "saida",
-      entry_date: new Date().toISOString().slice(0, 10),
+      entry_date: todayISO(),
       amount: Math.round(cost.costExcludingEssentials * 100) / 100,
       category: "Custo do pedido",
       description: `Custo (produto + embalagem) do Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")}${cost.isApprox ? " (estimado — produto ou material não está mais cadastrado)" : ""}`,
@@ -2350,11 +2365,12 @@ async function iniciarVenda(order) {
     if (linkError) console.error("iniciarVenda materiais:", linkError.message);
   }
 
-  if (order.status === "novo") {
-    await supabaseClient.from("orders").update({
-      status: "em_andamento", updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
-    }).eq("id", order.id);
-  }
+  // "Iniciar venda" já registra o recebimento no Caixa — nesse ponto o
+  // pedido está finalizado, então também marca como "Concluído" na hora
+  // (não precisa mais clicar em "Marcar como concluído" à parte depois).
+  await supabaseClient.from("orders").update({
+    status: "concluido", updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+  }).eq("id", order.id);
 
   await Promise.all([loadCashEntries(), loadMaterials(), loadOrders()]);
   renderPedidos(document.getElementById("main-content"));
@@ -2538,7 +2554,7 @@ function renderPedidos(container) {
                     ${deliveryDeadlines.get(o.id)?.ready
                       ? "📦 Pronta entrega"
                       : deliveryDeadlines.get(o.id)
-                        ? `🕑 Prazo de entrega: ${formatDate(deliveryDeadlines.get(o.id).date.toISOString().slice(0, 10))}${deliveryDeadlines.get(o.id).date < new Date() && o.status !== "concluido" && o.status !== "cancelado" ? " (atrasado)" : ""}`
+                        ? `🕑 Prazo de entrega: ${formatDate(toLocalISODate(deliveryDeadlines.get(o.id).date))}${deliveryDeadlines.get(o.id).date < new Date() && o.status !== "concluido" && o.status !== "cancelado" ? " (atrasado)" : ""}`
                         : ""}
                   </p>
                 </div>
