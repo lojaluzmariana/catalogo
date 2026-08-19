@@ -128,15 +128,26 @@ function formatDate(iso) {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 }
-// Data de um Date em texto "AAAA-MM-DD" no FUSO LOCAL — não usar
-// ".toISOString().slice(0, 10)" sozinho pra isso, porque toISOString()
-// sempre converte pra UTC primeiro: perto da meia-noite (ex: 23h de
-// Brasília = já é madrugada em UTC), isso silenciosamente troca o dia
-// pro seguinte. Foi exatamente esse bug que fez uma venda registrada às
-// 23h de um dia cair no Caixa com a data do dia seguinte.
+// Data de um Date em texto "AAAA-MM-DD" no fuso do Brasil (GMT-3, sem
+// horário de verão) — SEMPRE nesse fuso, não importa o fuso configurado
+// no computador/celular que estiver rodando o painel. Duas armadilhas
+// aqui, já vistas na prática:
+//   1) ".toISOString().slice(0, 10)" sozinho converte pra UTC primeiro:
+//      perto da meia-noite (ex: 23h de Brasília = já é madrugada em UTC),
+//      isso silenciosamente troca o dia pro seguinte.
+//   2) Calcular a partir do fuso do APARELHO (Date.getTimezoneOffset())
+//      também não é confiável: se o computador/celular estiver com o
+//      fuso mal configurado (ex: em UTC, ou em outro fuso por engano), o
+//      mesmo problema volta a acontecer mesmo com a correção do item 1.
+// Por isso aqui usa Intl.DateTimeFormat travado em "America/Fortaleza"
+// (GMT-3 o ano todo) — sempre a data certa do Brasil, isolada de
+// qualquer configuração do aparelho.
 function toLocalISODate(d) {
-  const tz = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - tz).toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Fortaleza", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(d);
+  const get = (type) => parts.find((p) => p.type === type).value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
 }
 function todayISO() {
   return toLocalISODate(new Date());
@@ -2368,9 +2379,17 @@ async function iniciarVenda(order) {
   // "Iniciar venda" já registra o recebimento no Caixa — nesse ponto o
   // pedido está finalizado, então também marca como "Concluído" na hora
   // (não precisa mais clicar em "Marcar como concluído" à parte depois).
-  await supabaseClient.from("orders").update({
+  // IMPORTANTE: checa o erro aqui (igual os outros botões de status) —
+  // sem isso, se essa atualização falhar (ex: sessão expirada), o Caixa
+  // recebe o lançamento normalmente mas o pedido fica preso em "Novo"
+  // sem nenhum aviso na tela.
+  const { error: statusError } = await supabaseClient.from("orders").update({
     status: "concluido", updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
   }).eq("id", order.id);
+  if (statusError) {
+    console.error("iniciarVenda status:", statusError.message);
+    alert("A venda foi registrada no Caixa, mas não foi possível marcar o pedido como 'Concluído': " + statusError.message + "\n\nUse o campo de status do pedido pra marcar manualmente.");
+  }
 
   await Promise.all([loadCashEntries(), loadMaterials(), loadOrders()]);
   renderPedidos(document.getElementById("main-content"));
