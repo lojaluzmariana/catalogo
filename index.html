@@ -460,11 +460,8 @@ function renderProductCard(p, opts = {}) {
   // Modelo (ou produto, se não tiver modelo) atualmente exibido no card —
   // começa no primeiro da lista já ordenada (esgotados por último, ver
   // variantsFor), e atualiza ao vivo se o cliente trocar de modelo no
-  // dropdown (ver wireCatalogEvents). A tarja "Esgotado" na foto segue
-  // esse mesmo modelo — é por modelo, não só quando o produto inteiro
-  // esgota.
+  // dropdown (ver wireCatalogEvents).
   const initialEsgotado = variants.length > 0 ? !!variants[0].esgotado : !!p.esgotado;
-  const soldOutRibbon = `<div data-sold-out-ribbon="${p.id}" class="pointer-events-none absolute left-[-40px] top-[16px] z-20 w-[150px] -rotate-45 bg-red-600 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white shadow-md ${initialEsgotado ? "" : "hidden"}">Esgotado</div>`;
 
   let photoBlock;
   if (frames.length > 1) {
@@ -478,7 +475,6 @@ function renderProductCard(p, opts = {}) {
         </button>
         <button type="button" data-carousel-prev="${p.id}" aria-label="Modelo anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">‹</button>
         <button type="button" data-carousel-next="${p.id}" aria-label="Próximo modelo" class="carousel-nav-btn absolute right-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">›</button>
-        ${soldOutRibbon}
       </div>
     `;
   } else {
@@ -490,7 +486,6 @@ function renderProductCard(p, opts = {}) {
             ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
             : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-10 w-10 opacity-40" /></div>`}
         </button>
-        ${soldOutRibbon}
       </div>
     `;
   }
@@ -654,7 +649,6 @@ function renderProductDetail() {
             ${photoUrl
               ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-cover" />`
               : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-16 w-16 opacity-40" /></div>`}
-            ${isEsgotado ? `<div data-sold-out-ribbon="${product.id}" class="pointer-events-none absolute left-[-40px] top-[16px] z-20 w-[150px] -rotate-45 bg-red-600 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white shadow-md">Esgotado</div>` : ""}
           </div>
           ${variants.length > 0 ? `
             <div class="mt-3 flex flex-wrap gap-1.5">
@@ -788,8 +782,6 @@ function wireCatalogEvents() {
       if (addBtn) addBtn.classList.toggle("hidden", esgotado);
       const esgotadoTag = card.querySelector("[data-variant-esgotado-tag]");
       if (esgotadoTag) esgotadoTag.classList.toggle("hidden", !esgotado);
-      const ribbon = card.querySelector("[data-sold-out-ribbon]");
-      if (ribbon) ribbon.classList.toggle("hidden", !esgotado);
     });
   });
   document.querySelectorAll("[data-carousel-prev]").forEach((btn) => {
