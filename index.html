@@ -161,9 +161,15 @@ async function loadCatalog() {
   render();
 }
 
-/* Modelos/variações de um produto (vazio se não tiver). */
+/* Modelos/variações de um produto (vazio se não tiver). Os esgotados vão
+   pro final da lista — assim o modelo escolhido por padrão (o primeiro),
+   tanto no dropdown quanto no carrossel de fotos do card, é sempre um que
+   ainda dá pra comprar, sempre que sobrar algum disponível. Sem isso, se
+   o primeiro modelo cadastrado fosse justamente o que acabou, o card
+   parecia com o produto inteiro esgotado mesmo tendo outros disponíveis. */
 function variantsFor(productId) {
-  return state.variantsByProduct[productId] || [];
+  const list = state.variantsByProduct[productId] || [];
+  return [...list].sort((a, b) => (a.esgotado ? 1 : 0) - (b.esgotado ? 1 : 0));
 }
 
 /* Modelo atualmente escolhido no card desse produto (o primeiro, por padrão). */
