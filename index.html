@@ -457,12 +457,14 @@ function renderProductCard(p, opts = {}) {
   const frames = carouselFrames(p);
   const hasDescription = !opts.hideDescription && p.description && p.description.trim();
 
-  // Produto totalmente esgotado (nenhum modelo disponível pra comprar):
-  // mostra uma tarja "Esgotado" atravessando o canto da foto.
-  const soldOut = isSoldOut(p);
-  const soldOutRibbon = soldOut
-    ? `<div data-sold-out-ribbon="${p.id}" class="pointer-events-none absolute left-[-40px] top-[16px] z-20 w-[150px] -rotate-45 bg-red-600 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white shadow-md">Esgotado</div>`
-    : "";
+  // Modelo (ou produto, se não tiver modelo) atualmente exibido no card —
+  // começa no primeiro da lista já ordenada (esgotados por último, ver
+  // variantsFor), e atualiza ao vivo se o cliente trocar de modelo no
+  // dropdown (ver wireCatalogEvents). A tarja "Esgotado" na foto segue
+  // esse mesmo modelo — é por modelo, não só quando o produto inteiro
+  // esgota.
+  const initialEsgotado = variants.length > 0 ? !!variants[0].esgotado : !!p.esgotado;
+  const soldOutRibbon = `<div data-sold-out-ribbon="${p.id}" class="pointer-events-none absolute left-[-40px] top-[16px] z-20 w-[150px] -rotate-45 bg-red-600 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white shadow-md ${initialEsgotado ? "" : "hidden"}">Esgotado</div>`;
 
   let photoBlock;
   if (frames.length > 1) {
@@ -499,7 +501,6 @@ function renderProductCard(p, opts = {}) {
   // <select>) e atualiza ao vivo se o cliente trocar de modelo (ver
   // wireCatalogEvents).
   const initialInStock = variants.length > 0 ? !!variants[0].in_stock : !!p.in_stock;
-  const initialEsgotado = variants.length > 0 ? !!variants[0].esgotado : !!p.esgotado;
 
   // Produto/modelo esgotado continua aparecendo no Catálogo, só não dá
   // pra comprar agora — some o botão/contador e aparece esse aviso no
@@ -649,10 +650,11 @@ function renderProductDetail() {
       <button id="back-to-catalog-btn" class="mb-4 text-sm text-navy-600 hover:underline">&larr; Voltar ao catálogo</button>
       <div class="grid gap-6 sm:grid-cols-2">
         <div>
-          <div class="aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
+          <div class="relative aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
             ${photoUrl
               ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-cover" />`
               : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-16 w-16 opacity-40" /></div>`}
+            ${isEsgotado ? `<div data-sold-out-ribbon="${product.id}" class="pointer-events-none absolute left-[-40px] top-[16px] z-20 w-[150px] -rotate-45 bg-red-600 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white shadow-md">Esgotado</div>` : ""}
           </div>
           ${variants.length > 0 ? `
             <div class="mt-3 flex flex-wrap gap-1.5">
@@ -786,6 +788,8 @@ function wireCatalogEvents() {
       if (addBtn) addBtn.classList.toggle("hidden", esgotado);
       const esgotadoTag = card.querySelector("[data-variant-esgotado-tag]");
       if (esgotadoTag) esgotadoTag.classList.toggle("hidden", !esgotado);
+      const ribbon = card.querySelector("[data-sold-out-ribbon]");
+      if (ribbon) ribbon.classList.toggle("hidden", !esgotado);
     });
   });
   document.querySelectorAll("[data-carousel-prev]").forEach((btn) => {
