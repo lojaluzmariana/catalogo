@@ -2808,6 +2808,10 @@ function renderPedidos(container) {
                 <input type="checkbox" data-fornecedor-pago-toggle="${o.id}" ${o.fornecedor_pago_at ? "checked" : ""} class="fornecedor-pago-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
                 Fornecedor pago${o.fornecedor_pago_at ? ` <span class="text-navy-400">(${formatDate(o.fornecedor_pago_at.slice(0, 10))})</span>` : ""}
               </label>
+              <label class="flex items-center gap-1.5 text-xs font-medium text-navy-700" title="Se o fornecedor/fabricante já entregou o produto pra loja (independente de já ter sido pago ou não, e de o cliente já ter pago ou não).">
+                <input type="checkbox" data-fornecedor-entregou-toggle="${o.id}" ${o.fornecedor_entregue_at ? "checked" : ""} class="fornecedor-entregou-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
+                Fornecedor entregou${o.fornecedor_entregue_at ? ` <span class="text-navy-400">(${formatDate(o.fornecedor_entregue_at.slice(0, 10))})</span>` : ""}
+              </label>
               <select data-order="${o.id}" class="order-status-select ml-auto rounded-lg border border-navy-200 px-2 py-1.5 text-xs font-medium outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${ORDER_STATUS_CLASSES[o.status]}" title="Trocar status manualmente">
                 ${Object.entries(ORDER_STATUS_LABELS).map(([k, label]) => `<option value="${k}" ${o.status === k ? "selected" : ""}>${label}</option>`).join("")}
               </select>
@@ -2969,6 +2973,19 @@ function renderPedidos(container) {
         updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
       }).eq("id", id);
       if (error) { alert("Não foi possível atualizar o pagamento ao fornecedor: " + error.message); }
+      await loadOrders();
+      renderPedidos(container);
+    });
+  });
+  container.querySelectorAll(".fornecedor-entregou-toggle-cb").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      const id = cb.dataset.fornecedorEntregouToggle;
+      cb.disabled = true;
+      const { error } = await supabaseClient.from("orders").update({
+        fornecedor_entregue_at: cb.checked ? new Date().toISOString() : null,
+        updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) { alert("Não foi possível atualizar a entrega do fornecedor: " + error.message); }
       await loadOrders();
       renderPedidos(container);
     });
