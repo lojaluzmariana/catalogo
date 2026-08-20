@@ -1587,6 +1587,7 @@ function renderFornecedores(container) {
                     <button data-edit="${s.id}" class="edit-supplier-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">Editar</button>
                     <button data-toggle="${s.id}" data-active="${s.active}" class="toggle-supplier-btn rounded px-2 py-1 text-xs font-medium ${s.active ? "text-red-600" : "text-emerald-700"} hover:bg-navy-100">${s.active ? "Desativar" : "Reativar"}</button>
                     <button data-nota="${s.id}" ${pending.total === 0 ? "disabled" : ""} class="nota-fornecedor-btn rounded px-2 py-1 text-xs font-medium ${pending.total === 0 ? "cursor-not-allowed text-navy-300" : "text-navy-700 hover:bg-navy-100"}" title="${pending.total === 0 ? "Nenhum item pendente pra este fornecedor" : "Gerar nota em PDF com os itens pendentes"}">Nota (PDF)</button>
+                    <button data-nota-imagem="${s.id}" ${pending.total === 0 ? "disabled" : ""} class="nota-fornecedor-imagem-btn rounded px-2 py-1 text-xs font-medium ${pending.total === 0 ? "cursor-not-allowed text-navy-300" : "text-navy-700 hover:bg-navy-100"}" title="${pending.total === 0 ? "Nenhum item pendente pra este fornecedor" : "Gerar nota em imagem (JPG) — mais fácil de compartilhar no WhatsApp pelo celular"}">Nota (JPG)</button>
                   </div>
                 </td>
               </tr>
@@ -1634,13 +1635,34 @@ function renderFornecedores(container) {
         }
         const pending = pendingSupplierItems(supplier.id);
         const doc = buildSupplierNotePdf(supplier, pending);
-        const slug = supplier.name.trim().toLowerCase()
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // tira acento
-          .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-        doc.save(`nota-fornecedor-${slug || "fornecedor"}-${todayISO()}.pdf`);
+        doc.save(`nota-fornecedor-${supplierFileSlug(supplier)}-${todayISO()}.pdf`);
       } catch (err) {
         console.error("Erro ao gerar nota de fornecedor:", err);
         alert("Não foi possível gerar a nota. Tente novamente ou avise o suporte.");
+      }
+    });
+  });
+  container.querySelectorAll(".nota-fornecedor-imagem-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const supplier = state.suppliers.find((s) => s.id === btn.dataset.notaImagem);
+      if (!supplier) return;
+      try {
+        const pending = pendingSupplierItems(supplier.id);
+        const canvas = buildSupplierNoteCanvas(supplier, pending);
+        canvas.toBlob((blob) => {
+          if (!blob) { alert("Não foi possível gerar a imagem da nota. Tente novamente."); return; }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `nota-fornecedor-${supplierFileSlug(supplier)}-${todayISO()}.jpg`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        }, "image/jpeg", 0.92);
+      } catch (err) {
+        console.error("Erro ao gerar imagem da nota de fornecedor:", err);
+        alert("Não foi possível gerar a imagem da nota. Tente novamente ou avise o suporte.");
       }
     });
   });
@@ -2505,6 +2527,193 @@ function buildSupplierNotePdf(supplier, pending) {
   }
 
   return doc;
+}
+
+// Nome de arquivo a partir do nome do fornecedor (sem acento, sem
+// espaço) — usado tanto na nota em PDF quanto na nota em imagem.
+function supplierFileSlug(supplier) {
+  return supplier.name.trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // tira acento
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "fornecedor";
+}
+
+// Quebra um texto em várias linhas pra caber numa largura máxima (em
+// px) — mesma ideia do doc.splitTextToSize() do jsPDF, só que pro
+// Canvas 2D (que não tem esse helper pronto).
+function wrapCanvasText(ctx, text, maxWidth) {
+  const words = String(text).split(" ");
+  const lines = [];
+  let current = "";
+  words.forEach((word) => {
+    const test = current ? `${current} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  });
+  lines.push(current);
+  return lines;
+}
+
+// Mesma nota de fornecedor (pendências pra ele), só que desenhada num
+// <canvas> em vez de um PDF — gera uma IMAGEM (JPG), bem mais fácil de
+// mandar pelo WhatsApp direto do celular do que um PDF (abre direto
+// como foto, sem precisar de app de leitor de PDF).
+function buildSupplierNoteCanvas(supplier, pending) {
+  const width = 900;
+  const margin = 40;
+  const usableWidth = width - margin * 2;
+  const cols = {
+    pedido: { x: margin, w: 80 },
+    data: { x: margin + 80, w: 80 },
+    item: { x: margin + 160, w: 330 },
+    qtd: { x: margin + 490, w: 50 },
+    entregue: { x: margin + 540, w: 70 },
+    unit: { x: margin + 610, w: 100 },
+    subtotal: { x: margin + 710, w: 100 },
+  };
+  const tableHeaderHeight = 40;
+  const legendHeight = 22;
+
+  // Usa um canvas provisório só pra medir o texto (fonte precisa bater
+  // com a usada no desenho final) — o Canvas 2D não tem como calcular a
+  // altura total ANTES de existir um canvas com contexto configurado.
+  const measure = document.createElement("canvas").getContext("2d");
+  measure.font = "13px Arial, sans-serif";
+  const rowsLayout = pending.rows.map((r) => {
+    const itemLabel = `${r.productName}${r.variantName ? ` (${r.variantName})` : ""}`;
+    const wrapped = wrapCanvasText(measure, itemLabel, cols.item.w - 12);
+    const rowHeight = Math.max(36, wrapped.length * 18 + 14);
+    return { ...r, wrapped, rowHeight };
+  });
+  measure.font = "italic 12px Arial, sans-serif";
+  const approxLines = pending.isApprox
+    ? wrapCanvasText(measure, "* Pode haver itens de pedidos cujo produto foi removido do cadastro depois da venda — esses não entram nesta nota nem no total acima.", usableWidth)
+    : [];
+
+  const headerBlockHeight = 150 + (supplier.phone ? 24 : 0);
+  const rowsHeight = rowsLayout.length > 0 ? rowsLayout.reduce((sum, r) => sum + r.rowHeight, 0) : 44;
+  const footerHeight = 70 + (rowsLayout.length > 0 ? legendHeight : 0) + (approxLines.length ? approxLines.length * 16 + 10 : 0);
+  const height = Math.round(margin + headerBlockHeight + tableHeaderHeight + rowsHeight + footerHeight);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  let y = margin;
+  ctx.fillStyle = "#0f1a3c";
+  ctx.font = "bold 28px Arial, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(STORE_NAME, margin, y + 22);
+  y += 38;
+  ctx.fillStyle = "#444444";
+  ctx.font = "15px Arial, sans-serif";
+  ctx.fillText(`${STORE_SUBTITLE} · CNPJ ${STORE_CNPJ}`, margin, y + 12);
+  y += 34;
+
+  ctx.fillStyle = "#0f1a3c";
+  ctx.font = "bold 21px Arial, sans-serif";
+  ctx.fillText(`Nota de itens pendentes — ${supplier.name}`, margin, y + 16);
+  y += 32;
+  ctx.fillStyle = "#444444";
+  ctx.font = "14px Arial, sans-serif";
+  ctx.fillText(`Gerado em ${formatDateTime(new Date().toISOString())}`, margin, y + 12);
+  y += 22;
+  if (supplier.phone) {
+    ctx.fillText(`Telefone: ${supplier.phone}`, margin, y + 12);
+    y += 24;
+  }
+  y += 14;
+
+  function drawTableHeader() {
+    ctx.fillStyle = "#141e46";
+    ctx.fillRect(margin, y, usableWidth, tableHeaderHeight);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 13px Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("Pedido", cols.pedido.x + 8, y + 25);
+    ctx.fillText("Data", cols.data.x + 8, y + 25);
+    ctx.fillText("Item", cols.item.x + 8, y + 25);
+    ctx.textAlign = "right";
+    ctx.fillText("Qtd", cols.qtd.x + cols.qtd.w - 8, y + 25);
+    ctx.textAlign = "center";
+    ctx.fillText("Entreg.", cols.entregue.x + cols.entregue.w / 2, y + 25);
+    ctx.textAlign = "right";
+    ctx.fillText("Custo unit.", cols.unit.x + cols.unit.w - 8, y + 25);
+    ctx.fillText("Subtotal", cols.subtotal.x + cols.subtotal.w - 8, y + 25);
+    y += tableHeaderHeight;
+  }
+
+  drawTableHeader();
+
+  if (rowsLayout.length === 0) {
+    ctx.fillStyle = "#555555";
+    ctx.font = "italic 14px Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("Nenhum item pendente pra este fornecedor no momento.", margin, y + 26);
+    y += 44;
+  }
+
+  rowsLayout.forEach((r, idx) => {
+    if (idx % 2 === 1) {
+      ctx.fillStyle = "#f4f5f9";
+      ctx.fillRect(margin, y, usableWidth, r.rowHeight);
+    }
+    const textY = y + 24;
+    ctx.fillStyle = "#141414";
+    ctx.font = "13px Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(`Nº ${String(r.orderNumber ?? "").padStart(6, "0")}`, cols.pedido.x + 8, textY);
+    ctx.fillText(formatDate(toLocalISODate(new Date(r.date))), cols.data.x + 8, textY);
+    r.wrapped.forEach((line, i) => ctx.fillText(line, cols.item.x + 8, textY + i * 18));
+    ctx.textAlign = "right";
+    ctx.fillText(String(r.quantity), cols.qtd.x + cols.qtd.w - 8, textY);
+    ctx.textAlign = "center";
+    ctx.font = "bold 13px Arial, sans-serif";
+    ctx.fillStyle = r.fornecedorEntregou ? "#107a4a" : "#b42828";
+    ctx.fillText(r.fornecedorEntregou ? "S" : "N", cols.entregue.x + cols.entregue.w / 2, textY);
+    ctx.fillStyle = "#141414";
+    ctx.font = "13px Arial, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(formatBRL(r.unitCost), cols.unit.x + cols.unit.w - 8, textY);
+    ctx.fillText(formatBRL(r.subtotal), cols.subtotal.x + cols.subtotal.w - 8, textY);
+    y += r.rowHeight;
+  });
+
+  y += 16;
+  ctx.strokeStyle = "#999999";
+  ctx.beginPath();
+  ctx.moveTo(margin, y);
+  ctx.lineTo(margin + usableWidth, y);
+  ctx.stroke();
+  y += 30;
+  ctx.fillStyle = "#141414";
+  ctx.font = "bold 19px Arial, sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(`TOTAL: ${formatBRL(pending.total)}`, margin + usableWidth, y);
+  ctx.textAlign = "left";
+
+  if (rowsLayout.length > 0) {
+    y += 24;
+    ctx.fillStyle = "#777777";
+    ctx.font = "12px Arial, sans-serif";
+    ctx.fillText('"Entreg." = fornecedor já entregou o item pra loja: S = sim, N = ainda não.', margin, y);
+  }
+
+  if (approxLines.length > 0) {
+    y += 22;
+    ctx.fillStyle = "#777777";
+    ctx.font = "italic 12px Arial, sans-serif";
+    approxLines.forEach((line, i) => ctx.fillText(line, margin, y + i * 16));
+  }
+
+  return canvas;
 }
 
 // Acha o cliente cadastrado cujo WhatsApp bate com o do pedido, comparando
