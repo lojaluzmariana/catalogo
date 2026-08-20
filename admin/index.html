@@ -1561,31 +1561,37 @@ function renderFornecedores(container) {
       <div id="supplier-form-slot"></div>
 
       <div class="overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
-        <table class="w-full min-w-[700px] text-sm">
+        <table class="w-full min-w-[820px] text-sm">
           <thead>
             <tr class="border-b border-navy-100 bg-navy-900 text-left text-xs uppercase tracking-wide text-cream-50">
               <th class="px-3 py-3">Nome</th>
               <th class="px-3 py-3">Telefone</th>
               <th class="px-3 py-3">Instagram</th>
               <th class="px-3 py-3">Endereço</th>
+              <th class="px-3 py-3 text-right">Falta pagar</th>
               <th class="px-3 py-3 text-center">Ações</th>
             </tr>
           </thead>
           <tbody>
-            ${visible.length === 0 ? `<tr><td colspan="5" class="px-4 py-8 text-center text-navy-400">Nenhum fornecedor cadastrado.</td></tr>` : visible.map((s) => `
+            ${visible.length === 0 ? `<tr><td colspan="6" class="px-4 py-8 text-center text-navy-400">Nenhum fornecedor cadastrado.</td></tr>` : visible.map((s) => {
+              const pending = pendingSupplierItems(s.id);
+              return `
               <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50 ${!s.active ? "opacity-50" : ""}">
                 <td class="px-3 py-3 font-medium text-navy-900">${escapeHtml(s.name)}</td>
                 <td class="px-3 py-3 text-navy-600">${escapeHtml(s.phone)}</td>
                 <td class="px-3 py-3 text-navy-600">${s.instagram ? escapeHtml(s.instagram) : "—"}</td>
                 <td class="px-3 py-3 text-navy-600">${s.address ? escapeHtml(s.address) : "—"}</td>
+                <td class="px-3 py-3 text-right font-semibold ${pending.total > 0 ? "text-red-700" : "text-navy-400"}" title="Soma do custo dos itens de pedidos ainda não marcados 'Fornecedor pago' que usam produto deste fornecedor.">${formatBRL(pending.total)}</td>
                 <td class="px-3 py-3 text-center">
-                  <div class="flex justify-center gap-2">
+                  <div class="flex flex-wrap justify-center gap-2">
                     <button data-edit="${s.id}" class="edit-supplier-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">Editar</button>
                     <button data-toggle="${s.id}" data-active="${s.active}" class="toggle-supplier-btn rounded px-2 py-1 text-xs font-medium ${s.active ? "text-red-600" : "text-emerald-700"} hover:bg-navy-100">${s.active ? "Desativar" : "Reativar"}</button>
+                    <button data-nota="${s.id}" ${pending.total === 0 ? "disabled" : ""} class="nota-fornecedor-btn rounded px-2 py-1 text-xs font-medium ${pending.total === 0 ? "cursor-not-allowed text-navy-300" : "text-navy-700 hover:bg-navy-100"}" title="${pending.total === 0 ? "Nenhum item pendente pra este fornecedor" : "Gerar nota em PDF com os itens pendentes"}">Nota (PDF)</button>
                   </div>
                 </td>
               </tr>
-            `).join("")}
+            `;
+            }).join("")}
           </tbody>
         </table>
       </div>
@@ -1615,6 +1621,27 @@ function renderFornecedores(container) {
       await supabaseClient.from("suppliers").update({ active: !active, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", id);
       await loadSuppliers();
       renderFornecedores(container);
+    });
+  });
+  container.querySelectorAll(".nota-fornecedor-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const supplier = state.suppliers.find((s) => s.id === btn.dataset.nota);
+      if (!supplier) return;
+      try {
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+          alert("Não foi possível gerar a nota: a biblioteca de PDF não carregou. Recarregue a página e tente novamente.");
+          return;
+        }
+        const pending = pendingSupplierItems(supplier.id);
+        const doc = buildSupplierNotePdf(supplier, pending);
+        const slug = supplier.name.trim().toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // tira acento
+          .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        doc.save(`nota-fornecedor-${slug || "fornecedor"}-${todayISO()}.pdf`);
+      } catch (err) {
+        console.error("Erro ao gerar nota de fornecedor:", err);
+        alert("Não foi possível gerar a nota. Tente novamente ou avise o suporte.");
+      }
     });
   });
 
@@ -2299,6 +2326,167 @@ function buildOrdersReceiptPdf(orders) {
     if (idx > 0) doc.addPage([RECEIPT_PAGE_WIDTH_MM, 200]);
     drawReceiptPage(doc, order, RECEIPT_PAGE_WIDTH_MM);
   });
+  return doc;
+}
+
+/* =====================================================================
+   NOTA DE FORNECEDOR (PDF) — pra um fornecedor específico, lista os
+   itens de todos os pedidos ainda não marcados como "Fornecedor pago"
+   que usam produto(s) dele, com custo unitário e total — documento
+   pronto pra mandar pro fornecedor (WhatsApp/e-mail) cobrando ou
+   conferindo o que está pendente.
+   ===================================================================== */
+// Junta, pra um fornecedor, os itens de todos os pedidos não cancelados
+// e ainda não marcados "Fornecedor pago" cujo produto está vinculado a
+// esse fornecedor — com o custo (produtos.cost, o valor que a loja paga
+// pro fornecedor, não o preço cobrado do cliente).
+// OBS: se um produto foi apagado do cadastro depois da venda, não dá
+// pra saber mais a qual fornecedor ele pertencia (o pedido só guarda o
+// NOME do produto na hora da venda, não o fornecedor) — esse item fica
+// de fora da nota e do total (isApprox avisa quando isso acontece, pra
+// não fingir que a nota é 100% completa).
+function pendingSupplierItems(supplierId) {
+  const rows = [];
+  let isApprox = false;
+  state.orders
+    .filter((o) => o.status !== "cancelado" && !o.fornecedor_pago_at)
+    .forEach((o) => {
+      (o.items ?? []).forEach((it) => {
+        const product = state.products.find((p) => p.id === it.product_id);
+        if (!product) { isApprox = true; return; }
+        if (product.supplier_id !== supplierId) return;
+        rows.push({
+          orderNumber: o.order_number,
+          date: o.created_at,
+          productName: it.product_name,
+          variantName: it.variant_name,
+          quantity: it.quantity,
+          unitCost: Number(product.cost),
+          subtotal: Number(product.cost) * it.quantity,
+        });
+      });
+    });
+  rows.sort((a, b) => new Date(a.date) - new Date(b.date));
+  const total = rows.reduce((sum, r) => sum + r.subtotal, 0);
+  return { rows, total, isApprox };
+}
+
+function buildSupplierNotePdf(supplier, pending) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 15;
+  const usableWidth = pageWidth - margin * 2;
+  const cols = {
+    pedido: { x: margin, w: 20 },
+    data: { x: margin + 20, w: 20 },
+    item: { x: margin + 40, w: 70 },
+    qtd: { x: margin + 110, w: 14 },
+    unit: { x: margin + 124, w: 26 },
+    subtotal: { x: margin + 150, w: 30 },
+  };
+  let y = margin;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(STORE_NAME, margin, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`${STORE_SUBTITLE} · CNPJ ${STORE_CNPJ}`, margin, y);
+  y += 10;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text(`Nota de itens pendentes — ${supplier.name}`, margin, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`Gerado em ${formatDateTime(new Date().toISOString())}`, margin, y);
+  if (supplier.phone) {
+    y += 4.5;
+    doc.text(`Telefone: ${supplier.phone}`, margin, y);
+  }
+  y += 8;
+
+  function drawTableHeader() {
+    doc.setFillColor(20, 30, 70);
+    doc.rect(margin, y - 4.5, usableWidth, 7, "F");
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("Pedido", cols.pedido.x + 1, y);
+    doc.text("Data", cols.data.x + 1, y);
+    doc.text("Item", cols.item.x + 1, y);
+    doc.text("Qtd", cols.qtd.x + cols.qtd.w - 1, y, { align: "right" });
+    doc.text("Custo unit.", cols.unit.x + cols.unit.w - 1, y, { align: "right" });
+    doc.text("Subtotal", cols.subtotal.x + cols.subtotal.w - 1, y, { align: "right" });
+    y += 5;
+    doc.setTextColor(20);
+    doc.setFont("helvetica", "normal");
+  }
+
+  drawTableHeader();
+
+  if (pending.rows.length === 0) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(9);
+    doc.text("Nenhum item pendente pra este fornecedor no momento.", margin, y + 2);
+    y += 8;
+  }
+
+  pending.rows.forEach((r, idx) => {
+    const itemLabel = `${r.productName}${r.variantName ? ` (${r.variantName})` : ""}`;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    const wrapped = doc.splitTextToSize(itemLabel, cols.item.w - 2);
+    const rowHeight = Math.max(6, wrapped.length * 3.8 + 2.2);
+
+    // Quebra de página: deixa espaço extra pro rodapé/total na última página.
+    if (y + rowHeight > pageHeight - margin - 16) {
+      doc.addPage();
+      y = margin;
+      drawTableHeader();
+    }
+
+    if (idx % 2 === 1) {
+      doc.setFillColor(244, 245, 249);
+      doc.rect(margin, y - 4, usableWidth, rowHeight, "F");
+    }
+    doc.setTextColor(20);
+    doc.text(`Nº ${String(r.orderNumber ?? "").padStart(6, "0")}`, cols.pedido.x + 1, y);
+    doc.text(formatDate(toLocalISODate(new Date(r.date))), cols.data.x + 1, y);
+    wrapped.forEach((line, i) => doc.text(line, cols.item.x + 1, y + i * 3.8));
+    doc.text(String(r.quantity), cols.qtd.x + cols.qtd.w - 1, y, { align: "right" });
+    doc.text(formatBRL(r.unitCost), cols.unit.x + cols.unit.w - 1, y, { align: "right" });
+    doc.text(formatBRL(r.subtotal), cols.subtotal.x + cols.subtotal.w - 1, y, { align: "right" });
+    y += rowHeight;
+  });
+
+  if (y + 20 > pageHeight - margin) {
+    doc.addPage();
+    y = margin;
+  }
+  y += 3;
+  doc.setDrawColor(150);
+  doc.line(margin, y, margin + usableWidth, y);
+  y += 7;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text(`TOTAL: ${formatBRL(pending.total)}`, margin + usableWidth, y, { align: "right" });
+
+  if (pending.isApprox) {
+    y += 8;
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.5);
+    doc.setTextColor(120);
+    doc.text(
+      doc.splitTextToSize("* Pode haver itens de pedidos cujo produto foi removido do cadastro depois da venda — esses não entram nesta nota nem no total acima.", usableWidth),
+      margin, y
+    );
+  }
+
   return doc;
 }
 
