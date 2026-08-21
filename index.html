@@ -1059,6 +1059,62 @@ function resetCouponClientSide(message) {
   updateCheckoutTotals();
 }
 
+// Aplica um cupom já validado (por validate_coupon OU por
+// find_auto_coupon_for_phone) na UI do checkout — extraído de
+// onApplyCoupon() pra ser reaproveitado também pela aplicação automática
+// (tryAutoApplyCoupon, abaixo), sem duplicar a lógica de "acender" o
+// desconto na tela.
+function applyCouponFromResult(result, code, whatsappDigits) {
+  state.appliedCoupon = {
+    id: result.coupon_id,
+    code: code.toUpperCase(),
+    discount_type: result.discount_type,
+    discount_value: Number(result.discount_value),
+    max_discount_amount: result.max_discount_amount != null ? Number(result.max_discount_amount) : null,
+    validatedWhatsappDigits: whatsappDigits,
+  };
+  state.couponCode = code.toUpperCase();
+
+  const input = document.getElementById("ck-coupon-input");
+  const applyBtn = document.getElementById("ck-coupon-apply");
+  const removeBtn = document.getElementById("ck-coupon-remove");
+  const msgEl = document.getElementById("ck-coupon-msg");
+  if (input) { input.value = state.couponCode; input.disabled = true; }
+  if (applyBtn) { applyBtn.classList.add("hidden"); applyBtn.disabled = false; applyBtn.textContent = "Aplicar"; }
+  if (removeBtn) removeBtn.classList.remove("hidden");
+  if (msgEl) {
+    msgEl.textContent = result.message || `Cupom "${state.appliedCoupon.code}" aplicado!`;
+    msgEl.classList.remove("text-red-600");
+    msgEl.classList.add("text-emerald-600");
+  }
+
+  updateCheckoutTotals();
+}
+
+// Confere se o WhatsApp que acabou de ser digitado tem direito a algum
+// cupom especial cadastrado (ver "Números autorizados" no painel — ex:
+// compensação por atraso na entrega) e, se tiver, aplica sozinho — sem
+// precisar que o cliente digite nenhum código. Só entra em ação quando
+// NENHUM cupom já está aplicado (manual ou automático), pra nunca
+// sobrescrever silenciosamente uma escolha que a pessoa já fez.
+async function tryAutoApplyCoupon(whatsapp) {
+  if (state.appliedCoupon || !whatsapp) return;
+
+  const { data, error } = await supabaseClient.rpc("find_auto_coupon_for_phone", { p_whatsapp: whatsapp });
+  if (error) { console.error("find_auto_coupon_for_phone:", error.message); return; }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) return;
+
+  // Confere de novo bem na hora de aplicar — o whatsapp pode ter mudado
+  // de novo enquanto essa consulta estava no ar (RPC assíncrona).
+  const whatsappField = document.getElementById("ck-whatsapp");
+  const stillSamePhone = whatsappField && normalizeBrPhoneDigits(whatsappField.value.trim()) === normalizeBrPhoneDigits(whatsapp);
+  if (!stillSamePhone || state.appliedCoupon) return;
+
+  applyCouponFromResult(result, result.code, normalizeBrPhoneDigits(whatsapp));
+}
+
 async function onApplyCoupon() {
   const input = document.getElementById("ck-coupon-input");
   const applyBtn = document.getElementById("ck-coupon-apply");
@@ -1102,24 +1158,7 @@ async function onApplyCoupon() {
     return;
   }
 
-  state.appliedCoupon = {
-    id: result.coupon_id,
-    code: code.toUpperCase(),
-    discount_type: result.discount_type,
-    discount_value: Number(result.discount_value),
-    max_discount_amount: result.max_discount_amount != null ? Number(result.max_discount_amount) : null,
-    validatedWhatsappDigits: normalizeBrPhoneDigits(whatsapp),
-  };
-  state.couponCode = code.toUpperCase();
-
-  input.disabled = true;
-  if (applyBtn) { applyBtn.classList.add("hidden"); applyBtn.disabled = false; applyBtn.textContent = "Aplicar"; }
-  if (removeBtn) removeBtn.classList.remove("hidden");
-  msgEl.textContent = result.message || `Cupom "${state.appliedCoupon.code}" aplicado!`;
-  msgEl.classList.remove("text-red-600");
-  msgEl.classList.add("text-emerald-600");
-
-  updateCheckoutTotals();
+  applyCouponFromResult(result, code, normalizeBrPhoneDigits(whatsapp));
 }
 
 /* ---------------------------------------------------------------------
@@ -1149,6 +1188,14 @@ async function onWhatsappBlur() {
     if (currentDigits !== state.appliedCoupon.validatedWhatsappDigits) {
       resetCouponClientSide("Cupom removido: o WhatsApp foi alterado. Aplique o cupom novamente se ainda for válido.");
     }
+  }
+
+  // Cupom automático: se não sobrou nenhum cupom aplicado agora (nem o
+  // que acabou de ser removido acima, nem nenhum outro), confere se esse
+  // WhatsApp tem direito a um cupom especial e aplica sozinho — sem
+  // precisar digitar código nenhum.
+  if (!state.appliedCoupon) {
+    await tryAutoApplyCoupon(formatted || raw);
   }
 
   msgEl.textContent = "Verificando...";
@@ -1269,6 +1316,19 @@ async function onSubmitOrder(e) {
   });
   if (customerError) {
     console.error("Erro ao cadastrar cliente automaticamente:", customerError.message);
+  }
+
+  // Se um cupom foi usado (manual ou automático), marca esse WhatsApp
+  // como "já usou" — só tem efeito de verdade em cupons restritos por
+  // telefone (ver coupon_allowed_phones); pra cupons normais, é um
+  // no-op seguro (não encontra nenhuma linha pra atualizar).
+  if (coupon) {
+    const { error: markUsedError } = await supabaseClient.rpc("mark_coupon_phone_used", {
+      p_coupon_id: coupon.id, p_whatsapp: whatsapp, p_order_id: orderId,
+    });
+    if (markUsedError) {
+      console.error("mark_coupon_phone_used:", markUsedError.message);
+    }
   }
 
   const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, subtotal, discount, couponCode: coupon ? coupon.code : null, total, payment: state.payment, giftWraps });
