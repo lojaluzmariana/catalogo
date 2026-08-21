@@ -198,11 +198,12 @@ const state = {
   screen: "login", // login | setPassword | app
   selectedName: null,
   currentUser: null, // { id, name }
-  tab: "precificacao", // precificacao | materiais | fornecedores | clientes | pedidos | caixa
+  tab: "precificacao", // precificacao | materiais | fornecedores | clientes | cupons | pedidos | caixa
   products: [],
   materials: [],
   suppliers: [],
   customers: [],
+  coupons: [],
   orders: [],
   cashEntries: [],
   adminUsers: [], // [{ id, name }] — todos os administradores, pra mostrar quem fez cada venda
@@ -380,7 +381,7 @@ async function enterApp() {
 // Recarrega todos os dados do app de uma vez (usado ao entrar, no botão
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
-  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadOrders(), loadCashEntries(), loadAdminUsers()]);
+  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadOrders(), loadCashEntries(), loadAdminUsers()]);
   state.lastRefreshedAt = new Date();
 }
 
@@ -388,7 +389,7 @@ async function loadAllData() {
 // não apagar o que a pessoa está digitando (o botão "Atualizar" manual
 // continua funcionando normalmente, já que aí é a própria pessoa que pediu).
 function isAnyFormOpen() {
-  return !!(precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen || clientesState.formOpen || caixaState.formOpen);
+  return !!(precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen || clientesState.formOpen || cuponsState.formOpen || caixaState.formOpen);
 }
 
 async function loadAdminUsers() {
@@ -408,7 +409,7 @@ async function logout() {
   await supabaseClient.auth.signOut();
   Object.assign(state, {
     screen: "login", selectedName: null, currentUser: null, tab: "precificacao",
-    products: [], materials: [], customers: [], orders: [], cashEntries: [], error: null,
+    products: [], materials: [], customers: [], coupons: [], orders: [], cashEntries: [], error: null,
   });
   render();
 }
@@ -438,6 +439,7 @@ function renderApp() {
             <button data-tab="materiais" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "materiais" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Materiais</button>
             <button data-tab="fornecedores" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "fornecedores" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Fornecedores</button>
             <button data-tab="clientes" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "clientes" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Clientes</button>
+            <button data-tab="cupons" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "cupons" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Cupons</button>
             <button data-tab="pedidos" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "pedidos" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Pedidos${state.orders.filter((o) => o.status === "novo").length > 0 ? ` <span class="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.orders.filter((o) => o.status === "novo").length}</span>` : ""}</button>
             <button data-tab="caixa" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "caixa" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Caixa</button>
           </div>
@@ -464,6 +466,7 @@ function renderApp() {
   else if (state.tab === "materiais") renderMateriais(main);
   else if (state.tab === "fornecedores") renderFornecedores(main);
   else if (state.tab === "clientes") renderClientes(main);
+  else if (state.tab === "cupons") renderCupons(main);
   else if (state.tab === "pedidos") renderPedidos(main);
   else renderCaixa(main);
 }
@@ -1744,6 +1747,221 @@ function renderSupplierForm() {
 }
 
 /* =====================================================================
+   ABA: CUPONS
+   ===================================================================== */
+async function loadCoupons() {
+  const { data, error } = await supabaseClient.from("coupons").select("*").order("active", { ascending: false }).order("created_at", { ascending: false });
+  if (!error) state.coupons = data;
+  else console.error("loadCoupons:", error.message);
+}
+
+/* Resumo legível do desconto pra mostrar na tabela, ex: "5% (máx. R$ 15,00)" ou "R$ 10,00". */
+function couponDiscountLabel(c) {
+  if (c.discount_type === "percentual") {
+    const pct = `${Number(c.discount_value)}%`;
+    return c.max_discount_amount != null ? `${pct} (máx. ${formatBRL(c.max_discount_amount)})` : pct;
+  }
+  return formatBRL(c.discount_value);
+}
+
+let cuponsState = { showInactive: false, formOpen: false, editingId: null };
+
+function renderCupons(container) {
+  const visible = state.coupons.filter((c) => cuponsState.showInactive || c.active);
+
+  container.innerHTML = `
+    <div class="flex flex-col gap-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-xl font-semibold text-navy-900">Cupons</h1>
+          <p class="text-sm text-navy-500">Cupons de desconto que seus clientes podem usar na tela de compra do catálogo.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-2 text-sm text-navy-600">
+            <input type="checkbox" id="show-inactive-coupons" ${cuponsState.showInactive ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+            Mostrar inativos
+          </label>
+          <button id="new-coupon-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo cupom</button>
+        </div>
+      </div>
+
+      <div id="coupon-form-slot"></div>
+
+      <div class="overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
+        <table class="w-full min-w-[760px] text-sm">
+          <thead>
+            <tr class="border-b border-navy-100 bg-navy-900 text-left text-xs uppercase tracking-wide text-cream-50">
+              <th class="px-3 py-3">Código</th>
+              <th class="px-3 py-3">Descrição</th>
+              <th class="px-3 py-3">Desconto</th>
+              <th class="px-3 py-3 text-center">1ª compra</th>
+              <th class="px-3 py-3 text-center">Status</th>
+              <th class="px-3 py-3 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${visible.length === 0 ? `<tr><td colspan="6" class="px-4 py-8 text-center text-navy-400">Nenhum cupom cadastrado.</td></tr>` : visible.map((c) => `
+              <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50 ${!c.active ? "opacity-50" : ""}">
+                <td class="px-3 py-3 font-mono font-semibold text-navy-900">${escapeHtml(c.code)}</td>
+                <td class="px-3 py-3 text-navy-600">${c.description ? escapeHtml(c.description) : "—"}</td>
+                <td class="px-3 py-3 text-navy-600">${couponDiscountLabel(c)}</td>
+                <td class="px-3 py-3 text-center text-navy-600">${c.first_purchase_only ? "Sim" : "Não"}</td>
+                <td class="px-3 py-3 text-center">
+                  <span class="rounded-full px-2 py-0.5 text-xs font-medium ${c.active ? "bg-emerald-100 text-emerald-700" : "bg-navy-100 text-navy-500"}">${c.active ? "Ativo" : "Inativo"}</span>
+                </td>
+                <td class="px-3 py-3 text-center">
+                  <div class="flex flex-wrap justify-center gap-2">
+                    <button data-edit="${c.id}" class="edit-coupon-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">Editar</button>
+                    <button data-toggle="${c.id}" data-active="${c.active}" class="toggle-coupon-btn rounded px-2 py-1 text-xs font-medium ${c.active ? "text-red-600" : "text-emerald-700"} hover:bg-navy-100">${c.active ? "Desativar" : "Reativar"}</button>
+                  </div>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("show-inactive-coupons").addEventListener("change", (e) => {
+    cuponsState.showInactive = e.target.checked;
+    renderCupons(container);
+  });
+  document.getElementById("new-coupon-btn").addEventListener("click", () => {
+    cuponsState.editingId = null;
+    cuponsState.formOpen = true;
+    renderCouponForm();
+  });
+  container.querySelectorAll(".edit-coupon-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      cuponsState.editingId = btn.dataset.edit;
+      cuponsState.formOpen = true;
+      renderCouponForm();
+    });
+  });
+  container.querySelectorAll(".toggle-coupon-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.toggle;
+      const active = btn.dataset.active === "true";
+      await supabaseClient.from("coupons").update({ active: !active, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", id);
+      await loadCoupons();
+      renderCupons(container);
+    });
+  });
+
+  if (cuponsState.formOpen) renderCouponForm();
+}
+
+function renderCouponForm() {
+  const slot = document.getElementById("coupon-form-slot");
+  const coupon = cuponsState.editingId ? state.coupons.find((c) => c.id === cuponsState.editingId) : null;
+  const type = coupon ? coupon.discount_type : "percentual";
+
+  slot.innerHTML = `
+    <form id="coupon-form" class="flex flex-col gap-4 rounded-xl border border-gold-300 bg-white p-5 shadow sm:flex-row sm:flex-wrap sm:items-end">
+      <div class="w-full sm:w-40">
+        <label class="mb-1 block text-sm font-medium text-navy-800">Código</label>
+        <input id="cf-code" value="${coupon ? escapeHtml(coupon.code) : ""}" required maxlength="30"
+          class="w-full rounded-lg border border-navy-200 px-3 py-2 uppercase outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+          placeholder="Ex: BEMVINDA5" />
+      </div>
+      <div class="min-w-[220px] flex-1">
+        <label class="mb-1 block text-sm font-medium text-navy-800">Descrição (opcional)</label>
+        <input id="cf-description" value="${coupon?.description ? escapeHtml(coupon.description) : ""}"
+          class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+          placeholder="Ex: 5% na primeira compra" />
+      </div>
+      <div class="w-full sm:w-44">
+        <label class="mb-1 block text-sm font-medium text-navy-800">Tipo de desconto</label>
+        <select id="cf-type" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+          <option value="percentual" ${type === "percentual" ? "selected" : ""}>Percentual (%)</option>
+          <option value="valor_fixo" ${type === "valor_fixo" ? "selected" : ""}>Valor fixo (R$)</option>
+        </select>
+      </div>
+      <div class="w-full sm:w-32">
+        <label id="cf-value-label" class="mb-1 block text-sm font-medium text-navy-800">${type === "percentual" ? "Desconto (%)" : "Desconto (R$)"}</label>
+        <input id="cf-value" type="number" step="0.01" min="0.01" value="${coupon ? Number(coupon.discount_value) : ""}" required
+          class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+      </div>
+      <div class="w-full sm:w-44">
+        <label class="mb-1 block text-sm font-medium text-navy-800">Desconto máx. (R$, opcional)</label>
+        <input id="cf-max" type="number" step="0.01" min="0.01" value="${coupon?.max_discount_amount != null ? Number(coupon.max_discount_amount) : ""}"
+          class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+          placeholder="Ex: 15,00" />
+        <p class="mt-1 text-[11px] text-navy-400">Trava o desconto num valor máximo, mesmo em % — útil pra proteger sua margem.</p>
+      </div>
+      <div class="flex items-center gap-2 pb-2">
+        <label class="flex items-center gap-2 text-sm text-navy-700">
+          <input type="checkbox" id="cf-first-purchase" ${coupon?.first_purchase_only ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+          Só na 1ª compra do cliente
+        </label>
+      </div>
+      <div id="cf-error" class="w-full text-sm text-red-600"></div>
+      <div class="flex gap-2">
+        <button type="submit" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">Salvar</button>
+        <button type="button" id="cf-cancel" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50">Cancelar</button>
+      </div>
+    </form>
+  `;
+
+  document.getElementById("cf-type").addEventListener("change", (e) => {
+    document.getElementById("cf-value-label").textContent = e.target.value === "percentual" ? "Desconto (%)" : "Desconto (R$)";
+  });
+
+  document.getElementById("cf-cancel").addEventListener("click", () => {
+    cuponsState.formOpen = false;
+    renderCupons(document.getElementById("main-content"));
+  });
+
+  document.getElementById("coupon-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = document.getElementById("cf-code").value.trim().toUpperCase();
+    const description = document.getElementById("cf-description").value.trim();
+    const discountType = document.getElementById("cf-type").value;
+    const discountValueRaw = document.getElementById("cf-value").value;
+    const maxRaw = document.getElementById("cf-max").value;
+    const firstPurchaseOnly = document.getElementById("cf-first-purchase").checked;
+    const errorEl = document.getElementById("cf-error");
+
+    if (!code) { errorEl.textContent = "Informe o código do cupom."; return; }
+    const discountValue = Number(discountValueRaw);
+    if (!discountValueRaw || !(discountValue > 0)) { errorEl.textContent = "Informe um valor de desconto maior que zero."; return; }
+    if (discountType === "percentual" && discountValue > 100) { errorEl.textContent = "O desconto percentual não pode passar de 100%."; return; }
+    let maxDiscount = null;
+    if (maxRaw.trim() !== "") {
+      maxDiscount = Number(maxRaw);
+      if (!(maxDiscount > 0)) { errorEl.textContent = "O desconto máximo deve ser maior que zero (ou deixe em branco)."; return; }
+    }
+
+    const payload = {
+      code, description: description || null,
+      discount_type: discountType, discount_value: discountValue,
+      max_discount_amount: maxDiscount,
+      first_purchase_only: firstPurchaseOnly,
+      updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+    };
+
+    let result;
+    if (coupon) {
+      result = await supabaseClient.from("coupons").update(payload).eq("id", coupon.id);
+    } else {
+      result = await supabaseClient.from("coupons").insert({ ...payload, created_by: state.currentUser.id, active: true });
+    }
+
+    if (result.error) {
+      errorEl.textContent = (result.error.message || "").toLowerCase().includes("duplicate") || (result.error.message || "").toLowerCase().includes("unique")
+        ? "Já existe um cupom com esse código."
+        : result.error.message;
+      return;
+    }
+
+    cuponsState.formOpen = false;
+    await loadCoupons();
+    renderCupons(document.getElementById("main-content"));
+  });
+}
+
+/* =====================================================================
    ABA: CLIENTES
    ===================================================================== */
 async function loadCustomers() {
@@ -2214,7 +2432,7 @@ function resolveOrderGiftWraps(order, rows) {
   return [];
 }
 
-let pedidosState = { tab: "novo", expandedId: null, selected: new Set() };
+let pedidosState = { tab: "novo", expandedId: null, selected: new Set(), produtosAReceberOpen: false };
 
 // Abas dos Pedidos — cada pedido mora numa aba de acordo com o status
 // atual dele. "novo" é sempre o ponto de entrada (todo pedido sobe assim);
@@ -2899,6 +3117,14 @@ function renderPedidos(container) {
   });
   const receivablesList = [...receivablesByCustomer.entries()].sort((a, b) => b[1] - a[1]);
 
+  // "Produtos a receber (fornecedor)": pedidos cujo fornecedor/fabricante
+  // ainda NÃO entregou o produto pra loja (checkbox "Fornecedor entregou"
+  // desmarcada) — do mais antigo pro mais novo, pra destacar o que está
+  // esperando há mais tempo primeiro.
+  const produtosAReceberOrders = statsOrders
+    .filter((o) => !o.fornecedor_entregue_at)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
   container.innerHTML = `
     <div class="flex flex-col gap-6">
       <div>
@@ -2937,7 +3163,46 @@ function renderPedidos(container) {
           <p class="text-xs font-medium text-navy-500">Falta pagar (fornecedor)</p>
           <p class="text-lg font-semibold text-red-700">${faltaPagarHasApprox ? "≈ " : ""}${formatBRL(faltaPagarFornecedor)}</p>
         </div>
+        <button id="produtos-a-receber-btn" type="button" class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 text-left shadow transition hover:border-gold-300 hover:shadow-md" title="Pedidos cujo fornecedor/fabricante ainda não entregou o produto pra loja (checkbox 'Fornecedor entregou' desmarcada). Clique pra ver a lista.">
+          <p class="text-xs font-medium text-navy-500">Produtos a receber (fornecedor)</p>
+          <p class="text-lg font-semibold ${produtosAReceberOrders.length > 0 ? "text-gold-700" : "text-navy-400"}">${produtosAReceberOrders.length} ${produtosAReceberOrders.length === 1 ? "pedido" : "pedidos"}</p>
+        </button>
       </div>
+
+      ${pedidosState.produtosAReceberOpen ? `
+        <div id="produtos-a-receber-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+          <div class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+            <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+              <div>
+                <h2 class="text-lg font-semibold text-navy-900">Produtos a receber (fornecedor)</h2>
+                <p class="text-xs text-navy-500">Pedidos cujo fornecedor/fabricante ainda não entregou o produto pra loja.</p>
+              </div>
+              <button id="close-produtos-a-receber-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-5 py-4">
+              ${produtosAReceberOrders.length === 0 ? `
+                <p class="py-8 text-center text-sm text-navy-400">Nenhum pedido pendente de entrega do fornecedor no momento.</p>
+              ` : `
+                <div class="flex flex-col gap-3">
+                  ${produtosAReceberOrders.map((o) => `
+                    <div class="rounded-lg border border-navy-100 bg-cream-50 px-3 py-2.5">
+                      <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <span class="text-sm font-semibold text-navy-900">Pedido Nº ${String(o.order_number ?? "").padStart(6, "0")}</span>
+                        <span class="text-xs text-navy-400">${formatDate(toLocalISODate(new Date(o.created_at)))} · ${escapeHtml(o.customer_name)}</span>
+                      </div>
+                      <div class="mt-1.5 flex flex-col gap-0.5">
+                        ${(o.items ?? []).map((it) => `
+                          <span class="text-xs text-navy-600">• ${it.quantity}x ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""}</span>
+                        `).join("")}
+                      </div>
+                    </div>
+                  `).join("")}
+                </div>
+              `}
+            </div>
+          </div>
+        </div>
+      ` : ""}
 
       <div class="flex flex-wrap gap-2 border-b border-navy-100">
         ${PEDIDOS_TABS.map((t) => {
@@ -3074,6 +3339,29 @@ function renderPedidos(container) {
       renderPedidos(container);
     });
   });
+  const produtosAReceberBtn = document.getElementById("produtos-a-receber-btn");
+  if (produtosAReceberBtn) {
+    produtosAReceberBtn.addEventListener("click", () => {
+      pedidosState.produtosAReceberOpen = true;
+      renderPedidos(container);
+    });
+  }
+  const closeProdutosAReceberBtn = document.getElementById("close-produtos-a-receber-btn");
+  if (closeProdutosAReceberBtn) {
+    closeProdutosAReceberBtn.addEventListener("click", () => {
+      pedidosState.produtosAReceberOpen = false;
+      renderPedidos(container);
+    });
+  }
+  const produtosAReceberOverlay = document.getElementById("produtos-a-receber-overlay");
+  if (produtosAReceberOverlay) {
+    produtosAReceberOverlay.addEventListener("click", (e) => {
+      if (e.target === produtosAReceberOverlay) {
+        pedidosState.produtosAReceberOpen = false;
+        renderPedidos(container);
+      }
+    });
+  }
   container.querySelectorAll(".toggle-order-items-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       pedidosState.expandedId = pedidosState.expandedId === btn.dataset.toggleItems ? null : btn.dataset.toggleItems;
