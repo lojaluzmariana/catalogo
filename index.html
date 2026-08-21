@@ -139,6 +139,8 @@ const state = {
   giftWrapOptions: [], // opções de embalagem de presente disponíveis (catalog_gift_wrap_options)
   giftWrapWanted: false,
   giftWrapQuantities: {}, // { [material_id]: quantidade } — dá pra escolher mais de uma embalagem (ou mais de uma unidade da mesma)
+  couponCode: "", // último código de cupom digitado (só pra manter o campo preenchido entre re-renders)
+  appliedCoupon: null, // { id, code, discount_type, discount_value, max_discount_amount, validatedWhatsappDigits } — null se nenhum cupom aplicado
 };
 
 async function loadCatalog() {
@@ -309,9 +311,29 @@ function giftWrapTotalPrice() {
   return selectedGiftWraps().reduce((sum, g) => sum + g.lineTotal, 0);
 }
 
-/* Total do pedido = itens do carrinho + embalagens de presente (se pedidas). */
-function orderTotal() {
+/* Soma antes de aplicar o cupom (itens do carrinho + embalagens de presente). */
+function subtotalBeforeDiscount() {
   return cartTotal() + giftWrapTotalPrice();
+}
+
+/* Quanto o cupom aplicado (se algum) desconta, já respeitando o teto
+   em R$ (max_discount_amount) e nunca deixando o desconto passar do
+   próprio subtotal. */
+function discountAmount() {
+  const coupon = state.appliedCoupon;
+  if (!coupon) return 0;
+  const subtotal = subtotalBeforeDiscount();
+  let raw = 0;
+  if (coupon.discount_type === "percentual") raw = subtotal * (Number(coupon.discount_value) / 100);
+  else if (coupon.discount_type === "valor_fixo") raw = Number(coupon.discount_value);
+  if (coupon.max_discount_amount != null) raw = Math.min(raw, Number(coupon.max_discount_amount));
+  raw = Math.min(raw, subtotal);
+  return Math.max(0, raw);
+}
+
+/* Total do pedido = itens do carrinho + embalagens de presente (se pedidas) − desconto do cupom aplicado. */
+function orderTotal() {
+  return Math.max(0, subtotalBeforeDiscount() - discountAmount());
 }
 
 function setQty(productId, qty) {
@@ -341,12 +363,11 @@ function render() {
 function renderHeader() {
   return `
     <header class="bg-navy-900">
-      <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <div class="flex items-center gap-3">
+      <div class="mx-auto flex max-w-5xl items-center justify-center px-4 py-3">
+        <button type="button" data-go-home class="flex items-center gap-3 border-0 bg-transparent p-0 transition hover:opacity-90">
           <img src="logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
           <span class="text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
-        </div>
-        <span class="text-sm text-cream-100">Catálogo</span>
+        </button>
       </div>
     </header>
   `;
@@ -829,6 +850,10 @@ function renderCheckout() {
             </div>
           `).join("")}
         </div>
+        <div id="ck-discount-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-emerald-700 ${state.appliedCoupon ? "" : "hidden"}">
+          <span>Desconto (<span id="ck-discount-code">${state.appliedCoupon ? escapeHtml(state.appliedCoupon.code) : ""}</span>)</span>
+          <span id="ck-discount-value">−${formatBRL(discountAmount())}</span>
+        </div>
         <div class="mt-2 flex items-center justify-between border-t border-navy-100 pt-2 text-base font-semibold text-navy-900">
           <span>Total</span>
           <span id="ck-total-value">${formatBRL(orderTotal())}</span>
@@ -863,6 +888,17 @@ function renderCheckout() {
           <label class="mb-1 block text-sm font-medium text-navy-800">WhatsApp</label>
           <input id="ck-whatsapp" required inputmode="tel" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
           <p id="ck-whatsapp-msg" class="mt-1 text-xs text-navy-400"></p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Cupom de desconto (opcional)</label>
+          <div class="flex gap-2">
+            <input id="ck-coupon-input" value="${escapeHtml(state.couponCode || "")}" ${state.appliedCoupon ? "disabled" : ""}
+              class="min-w-0 flex-1 rounded-lg border border-navy-200 px-3 py-2 uppercase outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-cream-50 disabled:text-navy-400"
+              placeholder="Ex: BEMVINDA5" />
+            <button type="button" id="ck-coupon-apply" class="flex-shrink-0 rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100 ${state.appliedCoupon ? "hidden" : ""}">Aplicar</button>
+            <button type="button" id="ck-coupon-remove" class="flex-shrink-0 rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100 ${state.appliedCoupon ? "" : "hidden"}">Remover</button>
+          </div>
+          <p id="ck-coupon-msg" class="mt-1 text-xs"></p>
         </div>
         <div>
           <label class="mb-1 block text-sm font-medium text-navy-800">Nome</label>
@@ -913,6 +949,8 @@ function renderCheckout() {
   });
   document.getElementById("checkout-form").addEventListener("submit", onSubmitOrder);
   document.getElementById("ck-whatsapp").addEventListener("blur", onWhatsappBlur);
+  document.getElementById("ck-coupon-apply").addEventListener("click", onApplyCoupon);
+  document.getElementById("ck-coupon-remove").addEventListener("click", () => resetCouponClientSide(""));
 
   const copyPixBtn = document.getElementById("ck-copy-pix");
   if (copyPixBtn) {
@@ -974,6 +1012,13 @@ function updateCheckoutTotals() {
       </div>
     `).join("");
   }
+  const discountLineEl = document.getElementById("ck-discount-line");
+  const discountValueEl = document.getElementById("ck-discount-value");
+  const discountCodeEl = document.getElementById("ck-discount-code");
+  if (discountLineEl) discountLineEl.classList.toggle("hidden", !state.appliedCoupon);
+  if (discountValueEl) discountValueEl.textContent = "−" + formatBRL(discountAmount());
+  if (discountCodeEl) discountCodeEl.textContent = state.appliedCoupon ? state.appliedCoupon.code : "";
+
   if (totalEl) totalEl.textContent = formatBRL(orderTotal());
   if (depositEl) depositEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
   const depositNoteEl = document.getElementById("ck-deposit-note-value");
@@ -983,6 +1028,95 @@ function updateCheckoutTotals() {
     const qtyDisplay = document.querySelector(`[data-giftwrap-qty-display="${g.id}"]`);
     if (qtyDisplay) qtyDisplay.textContent = state.giftWrapQuantities[g.id] || 0;
   });
+}
+
+/* ---------------------------------------------------------------------
+   Cupom de desconto — aplicar/remover na tela de checkout.
+
+   Feito com manipulação direta do DOM (sem chamar render()), pelo
+   mesmo motivo do resto do checkout: o formulário é "não controlado"
+   (nome/whatsapp/instagram/observações só existem no DOM, não em
+   `state`), então um render() completo apagaria o que a pessoa já
+   tinha digitado.
+   --------------------------------------------------------------------- */
+function resetCouponClientSide(message) {
+  state.appliedCoupon = null;
+  const input = document.getElementById("ck-coupon-input");
+  const applyBtn = document.getElementById("ck-coupon-apply");
+  const removeBtn = document.getElementById("ck-coupon-remove");
+  const msgEl = document.getElementById("ck-coupon-msg");
+  if (input) input.disabled = false;
+  if (applyBtn) { applyBtn.classList.remove("hidden"); applyBtn.disabled = false; applyBtn.textContent = "Aplicar"; }
+  if (removeBtn) removeBtn.classList.add("hidden");
+  if (msgEl) {
+    msgEl.textContent = message || "";
+    msgEl.classList.remove("text-emerald-600");
+    msgEl.classList.add("text-red-600");
+  }
+  updateCheckoutTotals();
+}
+
+async function onApplyCoupon() {
+  const input = document.getElementById("ck-coupon-input");
+  const applyBtn = document.getElementById("ck-coupon-apply");
+  const removeBtn = document.getElementById("ck-coupon-remove");
+  const msgEl = document.getElementById("ck-coupon-msg");
+  if (!input || !msgEl) return;
+
+  const code = input.value.trim();
+  state.couponCode = code;
+
+  if (!code) {
+    msgEl.textContent = "Informe o código do cupom.";
+    msgEl.classList.remove("text-emerald-600");
+    msgEl.classList.add("text-red-600");
+    return;
+  }
+
+  const whatsappField = document.getElementById("ck-whatsapp");
+  const whatsappRaw = whatsappField ? whatsappField.value.trim() : "";
+  const whatsapp = formatWhatsappBR(whatsappRaw) || whatsappRaw;
+  if (!whatsapp) {
+    msgEl.textContent = "Informe seu WhatsApp acima antes de aplicar o cupom.";
+    msgEl.classList.remove("text-emerald-600");
+    msgEl.classList.add("text-red-600");
+    return;
+  }
+
+  if (applyBtn) { applyBtn.disabled = true; applyBtn.textContent = "Verificando..."; }
+  msgEl.textContent = "Verificando cupom...";
+  msgEl.classList.remove("text-emerald-600", "text-red-600");
+
+  const { data, error } = await supabaseClient.rpc("validate_coupon", { p_code: code, p_whatsapp: whatsapp });
+  const result = Array.isArray(data) ? data[0] : data;
+
+  if (error || !result || !result.valid) {
+    state.appliedCoupon = null;
+    if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = "Aplicar"; }
+    msgEl.textContent = error ? "Não foi possível validar o cupom agora. Tente de novo." : (result && result.message) || "Cupom inválido.";
+    msgEl.classList.remove("text-emerald-600");
+    msgEl.classList.add("text-red-600");
+    return;
+  }
+
+  state.appliedCoupon = {
+    id: result.coupon_id,
+    code: code.toUpperCase(),
+    discount_type: result.discount_type,
+    discount_value: Number(result.discount_value),
+    max_discount_amount: result.max_discount_amount != null ? Number(result.max_discount_amount) : null,
+    validatedWhatsappDigits: normalizeBrPhoneDigits(whatsapp),
+  };
+  state.couponCode = code.toUpperCase();
+
+  input.disabled = true;
+  if (applyBtn) { applyBtn.classList.add("hidden"); applyBtn.disabled = false; applyBtn.textContent = "Aplicar"; }
+  if (removeBtn) removeBtn.classList.remove("hidden");
+  msgEl.textContent = result.message || `Cupom "${state.appliedCoupon.code}" aplicado!`;
+  msgEl.classList.remove("text-red-600");
+  msgEl.classList.add("text-emerald-600");
+
+  updateCheckoutTotals();
 }
 
 /* ---------------------------------------------------------------------
@@ -1002,6 +1136,17 @@ async function onWhatsappBlur() {
 
   const formatted = formatWhatsappBR(raw);
   if (formatted) whatsappField.value = formatted;
+
+  // Se já tinha um cupom aplicado pra um WhatsApp diferente do que está
+  // no campo agora, remove o cupom — a validação (principalmente a
+  // regra de "só na primeira compra") foi feita pro número anterior e
+  // pode não valer mais pra esse.
+  if (state.appliedCoupon) {
+    const currentDigits = normalizeBrPhoneDigits(formatted || raw);
+    if (currentDigits !== state.appliedCoupon.validatedWhatsappDigits) {
+      resetCouponClientSide("Cupom removido: o WhatsApp foi alterado. Aplique o cupom novamente se ainda for válido.");
+    }
+  }
 
   msgEl.textContent = "Verificando...";
 
@@ -1054,7 +1199,10 @@ async function onSubmitOrder(e) {
   const waWindow = window.open("", "_blank");
 
   const orderId = crypto.randomUUID();
-  const total = cartTotal() + giftWraps.reduce((sum, g) => sum + g.lineTotal, 0);
+  const subtotal = cartTotal() + giftWraps.reduce((sum, g) => sum + g.lineTotal, 0);
+  const discount = discountAmount();
+  const total = Math.max(0, subtotal - discount);
+  const coupon = state.appliedCoupon;
 
   const { error: orderError } = await supabaseClient.from("orders").insert({
     id: orderId,
@@ -1064,6 +1212,9 @@ async function onSubmitOrder(e) {
     payment_method: state.payment,
     notes: notes || null,
     total,
+    coupon_id: coupon ? coupon.id : null,
+    coupon_code: coupon ? coupon.code : null,
+    discount_amount: discount > 0 ? discount : null,
   });
 
   if (orderError) {
@@ -1117,7 +1268,7 @@ async function onSubmitOrder(e) {
     console.error("Erro ao cadastrar cliente automaticamente:", customerError.message);
   }
 
-  const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment: state.payment, giftWraps });
+  const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, subtotal, discount, couponCode: coupon ? coupon.code : null, total, payment: state.payment, giftWraps });
   const waUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
   if (waWindow) waWindow.location.href = waUrl;
   else window.open(waUrl, "_blank");
@@ -1125,11 +1276,13 @@ async function onSubmitOrder(e) {
   state.cart = {};
   state.giftWrapWanted = false;
   state.giftWrapQuantities = {};
+  state.couponCode = "";
+  state.appliedCoupon = null;
   state.screen = "success";
   render();
 }
 
-function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, payment, giftWraps }) {
+function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, subtotal, discount, couponCode, total, payment, giftWraps }) {
   const lines = [];
   lines.push(`Olá! Gostaria de fazer um pedido pelo Catálogo Luz Mariana:`);
   lines.push("");
@@ -1141,6 +1294,10 @@ function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, total, 
     lines.push(`🎁 ${g.quantity}x ${g.name} (embalagem p/ presente) — ${formatBRL(g.lineTotal)}`);
   });
   lines.push("");
+  if (discount > 0) {
+    lines.push(`Subtotal: ${formatBRL(subtotal)}`);
+    lines.push(`Cupom ${couponCode}: −${formatBRL(discount)}`);
+  }
   lines.push(`Total: ${formatBRL(total)}`);
   lines.push(`Sinal para confirmar o pedido (${Math.round(DEPOSIT_RATE * 100)}%): ${formatBRL(total * DEPOSIT_RATE)}`);
   lines.push(`Pagamento: ${payment === "credito" ? "Cartão de crédito" : "Pix / à vista"}`);
@@ -1172,6 +1329,21 @@ function renderSuccess() {
   `;
   document.getElementById("new-order-btn").addEventListener("click", () => { state.screen = "catalog"; render(); });
 }
+
+// Clique na logo/"Luz Mariana" do cabeçalho leva pra homepage (catálogo
+// completo, sem filtro de categoria nem produto aberto) — event
+// delegation num listener só, ligado uma vez (o cabeçalho é
+// re-desenhado em toda tela: catálogo, produto, checkout, sucesso...).
+app.addEventListener("click", (e) => {
+  if (e.target.closest("[data-go-home]")) {
+    state.screen = "catalog";
+    state.detailProductId = null;
+    state.categoryFilter = "all";
+    state.cartOpen = false;
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+});
 
 loadCatalog();
 </script>
