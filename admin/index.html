@@ -2022,16 +2022,25 @@ function renderCouponPhonesModal() {
           <button id="coupon-phones-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
         </div>
         <div class="flex-1 overflow-y-auto px-5 py-4">
-          <form id="coupon-phone-add-form" class="flex flex-wrap items-end gap-2 rounded-lg border border-navy-100 bg-cream-50 p-3">
-            <div class="min-w-[160px] flex-1">
-              <label class="mb-1 block text-xs font-medium text-navy-700">WhatsApp</label>
-              <input id="cp-phone" value="${escapeHtml(couponPhonesState.phone)}" required class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
+          <form id="coupon-phone-add-form" class="flex flex-col gap-2 rounded-lg border border-navy-100 bg-cream-50 p-3">
+            <div class="w-full">
+              <label class="mb-1 block text-xs font-medium text-navy-700">Puxar de um cliente já cadastrado (opcional)</label>
+              <select id="cp-customer-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                <option value="">— digitar o WhatsApp manualmente —</option>
+                ${[...state.customers].filter((c) => c.active).sort((a, b) => a.name.localeCompare(b.name)).map((c) => `<option value="${c.id}">${escapeHtml(c.name)} — ${escapeHtml(c.whatsapp ?? "")}</option>`).join("")}
+              </select>
             </div>
-            <div class="min-w-[180px] flex-1">
-              <label class="mb-1 block text-xs font-medium text-navy-700">Motivo (opcional)</label>
-              <input id="cp-note" value="${escapeHtml(couponPhonesState.note)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex: pedido Nº000123 atrasado" />
+            <div class="flex flex-wrap items-end gap-2">
+              <div class="min-w-[160px] flex-1">
+                <label class="mb-1 block text-xs font-medium text-navy-700">WhatsApp</label>
+                <input id="cp-phone" value="${escapeHtml(couponPhonesState.phone)}" required class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
+              </div>
+              <div class="min-w-[180px] flex-1">
+                <label class="mb-1 block text-xs font-medium text-navy-700">Motivo (opcional)</label>
+                <input id="cp-note" value="${escapeHtml(couponPhonesState.note)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex: pedido Nº000123 atrasado" />
+              </div>
+              <button type="submit" class="rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">+ Adicionar</button>
             </div>
-            <button type="submit" class="rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">+ Adicionar</button>
           </form>
           <div id="cp-error" class="mt-2 text-sm text-red-600"></div>
 
@@ -2064,6 +2073,12 @@ function renderCouponPhonesModal() {
   });
   document.getElementById("cp-phone").addEventListener("input", (e) => { couponPhonesState.phone = e.target.value; });
   document.getElementById("cp-note").addEventListener("input", (e) => { couponPhonesState.note = e.target.value; });
+  document.getElementById("cp-customer-select").addEventListener("change", (e) => {
+    const customer = state.customers.find((c) => c.id === e.target.value);
+    if (!customer) return;
+    couponPhonesState.phone = customer.whatsapp || "";
+    document.getElementById("cp-phone").value = couponPhonesState.phone;
+  });
 
   document.getElementById("coupon-phone-add-form").addEventListener("submit", async (e) => {
     e.preventDefault();
