@@ -3240,6 +3240,15 @@ function renderPedidos(container) {
   let lucroRealHasApprox = false;
   let valoresRecebidos = 0;
   let valoresAReceber = 0;
+  // "Despesas" é seccionada em 3 números: só produto, só materiais
+  // (embalagem de presente + essenciais como fio/cola/etiqueta), e o
+  // total (soma dos dois) — cada seção com sua própria flag de "≈"
+  // (custo aproximado), já que um pedido pode ter só o produto
+  // descadastrado, só o material, os dois, ou nenhum.
+  let despesasProductTotal = 0;
+  let despesasProductHasApprox = false;
+  let despesasMaterialsTotal = 0;
+  let despesasMaterialsHasApprox = false;
   let despesasTotal = 0;
   let despesasHasApprox = false;
   let faltaPagarFornecedor = 0;
@@ -3249,6 +3258,10 @@ function renderPedidos(container) {
     // Custo (despesas/falta-pagar-fornecedor) continua contando mesmo
     // pra pedidos-brinde — o gasto é real independente de o produto ter
     // sido cobrado do cliente ou dado de presente.
+    despesasProductTotal += c.productCost;
+    if (c.isProductApprox) despesasProductHasApprox = true;
+    despesasMaterialsTotal += c.materialsCost;
+    if (c.isMaterialsApprox) despesasMaterialsHasApprox = true;
     despesasTotal += c.cost;
     if (c.isApprox) despesasHasApprox = true;
     if (!o.fornecedor_pago_at) {
@@ -3314,9 +3327,19 @@ function renderPedidos(container) {
             </div>
           ` : ""}
         </div>
-        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${despesasHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido não está mais cadastrado. " : ""}Soma do custo (produto + materiais) de TODOS os pedidos, pagos ou não (exceto cancelados) — não é o saldo de saídas do Caixa.">
-          <p class="text-xs font-medium text-navy-500">Despesas (custo dos produtos)</p>
+        <div class="flex-1 min-w-[220px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${despesasHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido não está mais cadastrado. " : ""}Soma do custo de TODOS os pedidos, pagos ou não (exceto cancelados) — não é o saldo de saídas do Caixa.">
+          <p class="text-xs font-medium text-navy-500">Despesas (custo total)</p>
           <p class="text-lg font-semibold text-orange-600">${despesasHasApprox ? "≈ " : ""}${formatBRL(despesasTotal)}</p>
+          <div class="mt-1.5 flex flex-col gap-0.5 border-t border-navy-50 pt-1.5 text-[11px] text-navy-400">
+            <span class="flex items-baseline justify-between gap-2" title="${despesasProductHasApprox ? "Inclui custo aproximado — algum produto de um pedido não está mais cadastrado." : "Soma do custo dos produtos em si (produtos.cost)."}">
+              <span>Produtos</span>
+              <span class="whitespace-nowrap font-medium text-navy-500">${despesasProductHasApprox ? "≈ " : ""}${formatBRL(despesasProductTotal)}</span>
+            </span>
+            <span class="flex items-baseline justify-between gap-2" title="${despesasMaterialsHasApprox ? "Inclui custo aproximado — algum material de um pedido não está mais cadastrado." : "Soma do custo de embalagem de presente + materiais essenciais (fio, cola, etiqueta...) usados em cada venda."}">
+              <span>Materiais e embalagens</span>
+              <span class="whitespace-nowrap font-medium text-navy-500">${despesasMaterialsHasApprox ? "≈ " : ""}${formatBRL(despesasMaterialsTotal)}</span>
+            </span>
+          </div>
         </div>
         <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${faltaPagarHasApprox ? "Inclui custo aproximado — algum produto de um pedido não está mais cadastrado. " : ""}Soma só do custo do PRODUTO (sem materiais, tipo embalagem — isso é gasto interno da loja) dos pedidos cujo 'Fornecedor pago' ainda não foi marcado.">
           <p class="text-xs font-medium text-navy-500">Falta pagar (fornecedor)</p>
