@@ -415,7 +415,7 @@ async function loadAllData() {
 // não apagar o que a pessoa está digitando (o botão "Atualizar" manual
 // continua funcionando normalmente, já que aí é a própria pessoa que pediu).
 function isAnyFormOpen() {
-  return !!(precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen || clientesState.formOpen || cuponsState.formOpen || caixaState.formOpen || estoqueState.stockDebtOpen || couponPhonesState.open || brindeState.open || stockPurchaseState.open);
+  return !!(precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen || clientesState.formOpen || cuponsState.formOpen || caixaState.formOpen || estoqueState.stockDebtOpen || couponPhonesState.open || brindeState.open || stockPurchaseState.open || stockEntryEditState.open);
 }
 
 async function loadAdminUsers() {
@@ -3920,6 +3920,11 @@ async function loadCashEntries() {
 
 let caixaState = { formOpen: false, editingId: null };
 let estoqueState = { stockDebtOpen: false };
+// Edição de UM lançamento já existente de "Compra de estoque" — pra
+// completar produto/modelo/quantidade/custo unitário em lançamentos
+// antigos (de antes desses campos existirem) sem precisar excluir e
+// relançar do zero.
+let stockEntryEditState = { open: false, entryId: null, productId: null, variantId: null, qty: "", unitCost: "", supplierId: "", date: "", payment: "pix" };
 
 function renderCaixa(container) {
   const entries = state.cashEntries;
@@ -4111,6 +4116,7 @@ function renderEstoque(container) {
       </div>
 
       <div id="stock-purchase-slot"></div>
+      <div id="stock-entry-edit-slot"></div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div class="rounded-xl border border-navy-100 bg-white px-5 py-4 shadow">
@@ -4193,7 +4199,10 @@ function renderEstoque(container) {
                   </label>
                 </td>
                 <td class="px-3 py-2.5 text-center">
-                  <button data-delete="${e.id}" class="delete-entry-btn rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Excluir</button>
+                  <div class="flex flex-wrap items-center justify-center gap-1">
+                    <button data-edit-stock="${e.id}" class="edit-stock-entry-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100" title="${e.quantity == null ? "Este lançamento é antigo e não tem quantidade/modelo/custo unitário salvos — clique pra completar." : "Editar produto, modelo, quantidade e custo unitário"}">${e.quantity == null ? "⚠ Completar" : "Editar"}</button>
+                    <button data-delete="${e.id}" class="delete-entry-btn rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Excluir</button>
+                  </div>
                 </td>
               </tr>
             `).join("")}
@@ -4265,8 +4274,189 @@ function renderEstoque(container) {
       renderEstoque(container);
     });
   });
+  container.querySelectorAll(".edit-stock-entry-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const entry = state.cashEntries.find((e) => e.id === btn.dataset.editStock);
+      if (entry) openStockEntryEdit(entry);
+    });
+  });
 
   if (stockPurchaseState.open) renderStockPurchaseOverlay();
+  if (stockEntryEditState.open) renderStockEntryEditOverlay();
+}
+
+// Abre o formulário de edição de UM lançamento de "Compra de estoque" já
+// existente — pra completar produto/modelo/quantidade/custo unitário em
+// lançamentos antigos (ou corrigir algo digitado errado), sem precisar
+// excluir e relançar do zero.
+function openStockEntryEdit(entry) {
+  const product = state.products.find((p) => p.id === entry.product_id);
+  let variantId = null;
+  if (product && entry.variant_name) {
+    const variant = (product.product_variants ?? []).find((v) => v.name === entry.variant_name);
+    if (variant) variantId = variant.id;
+  }
+  stockEntryEditState = {
+    open: true,
+    entryId: entry.id,
+    productId: entry.product_id || null,
+    variantId,
+    qty: entry.quantity != null ? String(Number(entry.quantity)) : "",
+    unitCost: entry.unit_cost != null ? String(Number(entry.unit_cost)) : "",
+    supplierId: entry.supplier_id || "",
+    date: entry.entry_date,
+    payment: entry.payment_method || "pix",
+  };
+  renderStockEntryEditOverlay();
+}
+
+function closeStockEntryEdit() {
+  stockEntryEditState = { open: false, entryId: null, productId: null, variantId: null, qty: "", unitCost: "", supplierId: "", date: "", payment: "pix" };
+  renderStockEntryEditOverlay();
+}
+
+function renderStockEntryEditOverlay() {
+  const slot = document.getElementById("stock-entry-edit-slot");
+  if (!slot) return;
+  if (!stockEntryEditState.open) { slot.innerHTML = ""; return; }
+
+  const activeProducts = state.products.filter((p) => p.active || p.id === stockEntryEditState.productId);
+  const selectedProduct = activeProducts.find((p) => p.id === stockEntryEditState.productId);
+  const selectedVariants = selectedProduct?.product_variants ?? [];
+
+  slot.innerHTML = `
+    <div id="stock-entry-edit-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+      <div class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+          <div>
+            <h2 class="text-lg font-semibold text-navy-900">Completar/editar item de compra</h2>
+            <p class="text-xs text-navy-500">Ajusta produto, modelo, quantidade e custo unitário deste lançamento — útil pra completar compras antigas que não tinham esses dados.</p>
+          </div>
+          <button id="se-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <form id="stock-entry-edit-form" class="flex flex-col gap-4">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-navy-700">Produto</label>
+              <select id="se-product-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                <option value="">— selecione —</option>
+                ${activeProducts.map((p) => `<option value="${p.id}" ${p.id === stockEntryEditState.productId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")}
+              </select>
+            </div>
+            ${selectedVariants.length > 0 ? `
+              <div>
+                <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
+                <select id="se-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                  <option value="">— selecione —</option>
+                  ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}" ${v.id === stockEntryEditState.variantId ? "selected" : ""}>${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
+                </select>
+              </div>
+            ` : ""}
+            <div class="flex flex-wrap gap-4">
+              <div class="w-28">
+                <label class="mb-1 block text-xs font-medium text-navy-700">Qtd.</label>
+                <input id="se-qty" value="${escapeHtml(stockEntryEditState.qty)}" inputmode="numeric" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+              </div>
+              <div class="w-36">
+                <label class="mb-1 block text-xs font-medium text-navy-700">Custo unit. (R$)</label>
+                <input id="se-unit-cost" value="${escapeHtml(stockEntryEditState.unitCost)}" inputmode="decimal" placeholder="0,00" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-navy-700">Data</label>
+                <input type="date" id="se-date" value="${stockEntryEditState.date}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-navy-700">Pagamento</label>
+                <select id="se-payment" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                  <option value="pix" ${stockEntryEditState.payment === "pix" ? "selected" : ""}>Pix</option>
+                  <option value="dinheiro" ${stockEntryEditState.payment === "dinheiro" ? "selected" : ""}>Dinheiro</option>
+                  <option value="credito" ${stockEntryEditState.payment === "credito" ? "selected" : ""}>Crédito</option>
+                  <option value="outro" ${stockEntryEditState.payment === "outro" ? "selected" : ""}>Outro</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-navy-700">Fornecedor (opcional)</label>
+              <select id="se-supplier-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                <option value="">— nenhum —</option>
+                ${state.suppliers.filter((s) => s.active || s.id === stockEntryEditState.supplierId).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((s) => `<option value="${s.id}" ${stockEntryEditState.supplierId === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}
+              </select>
+            </div>
+            <div id="se-error" class="text-sm text-red-600"></div>
+            <div class="flex gap-2">
+              <button type="submit" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Salvar</button>
+              <button type="button" id="se-cancel" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("se-close-btn").addEventListener("click", closeStockEntryEdit);
+  document.getElementById("se-cancel").addEventListener("click", closeStockEntryEdit);
+  document.getElementById("stock-entry-edit-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "stock-entry-edit-overlay") closeStockEntryEdit();
+  });
+
+  document.getElementById("se-product-select").addEventListener("change", (e) => {
+    // Trocar de produto pode fazer o seletor de Modelo aparecer/sumir —
+    // guarda o que já foi digitado antes de re-renderizar, pra não apagar.
+    stockEntryEditState.qty = document.getElementById("se-qty").value;
+    stockEntryEditState.unitCost = document.getElementById("se-unit-cost").value;
+    stockEntryEditState.productId = e.target.value || null;
+    stockEntryEditState.variantId = null;
+    renderStockEntryEditOverlay();
+  });
+  const variantSelect = document.getElementById("se-variant-select");
+  if (variantSelect) variantSelect.addEventListener("change", (e) => { stockEntryEditState.variantId = e.target.value || null; });
+  document.getElementById("se-qty").addEventListener("input", (e) => { stockEntryEditState.qty = e.target.value; });
+  document.getElementById("se-unit-cost").addEventListener("input", (e) => { stockEntryEditState.unitCost = e.target.value; });
+  document.getElementById("se-date").addEventListener("input", (e) => { stockEntryEditState.date = e.target.value; });
+  document.getElementById("se-payment").addEventListener("change", (e) => { stockEntryEditState.payment = e.target.value; });
+  document.getElementById("se-supplier-select").addEventListener("change", (e) => { stockEntryEditState.supplierId = e.target.value; });
+
+  document.getElementById("stock-entry-edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById("se-error");
+    const productId = document.getElementById("se-product-select").value;
+    if (!productId) { errorEl.textContent = "Escolha um produto."; return; }
+    const product = state.products.find((p) => p.id === productId);
+    const variants = product?.product_variants ?? [];
+    const variantSel = document.getElementById("se-variant-select");
+    if (variants.length > 0 && (!variantSel || !variantSel.value)) { errorEl.textContent = "Escolha o modelo do produto."; return; }
+    const qty = Math.trunc(Number(document.getElementById("se-qty").value.replace(",", ".")));
+    if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Informe uma quantidade válida."; return; }
+    const unitCost = Number(document.getElementById("se-unit-cost").value.replace(",", "."));
+    if (!Number.isFinite(unitCost) || unitCost <= 0) { errorEl.textContent = "Informe o custo unitário pago nesta compra."; return; }
+    const date = document.getElementById("se-date").value;
+    if (!date) { errorEl.textContent = "Informe a data da compra."; return; }
+    errorEl.textContent = "";
+
+    const variant = variants.length > 0 ? variants.find((v) => v.id === variantSel.value) : null;
+    const supplierId = document.getElementById("se-supplier-select").value || null;
+    const payment = document.getElementById("se-payment").value;
+
+    const payload = {
+      product_id: productId,
+      variant_name: variant ? variant.name : null,
+      quantity: qty,
+      unit_cost: round2(unitCost),
+      amount: round2(unitCost * qty),
+      supplier_id: supplierId,
+      entry_date: date,
+      payment_method: payment,
+      description: `Compra de estoque — ${qty}x ${product.name}${variant ? ` (${variant.name})` : ""} × ${formatBRL(unitCost)}`,
+      updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabaseClient.from("cash_entries").update(payload).eq("id", stockEntryEditState.entryId);
+    if (error) { errorEl.textContent = "Não foi possível salvar: " + error.message; return; }
+
+    closeStockEntryEdit();
+    await loadCashEntries();
+    renderEstoque(document.getElementById("main-content"));
+  });
 }
 
 function renderEntryForm(products, editingEntry) {
