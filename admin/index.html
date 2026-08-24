@@ -3955,18 +3955,23 @@ async function loadCashEntries() {
 }
 
 let caixaState = { formOpen: false, editingId: null };
-let estoqueState = { stockDebtOpen: false };
+// pedidoSelection: ids dos lançamentos marcados na coluna "📤" da tabela,
+// pra reunir num pedido pro fornecedor (ver pedidoState mais abaixo).
+let estoqueState = { stockDebtOpen: false, pedidoSelection: [] };
 // Edição de UM lançamento já existente de "Compra de estoque" — pra
 // completar produto/modelo/quantidade/custo unitário em lançamentos
 // antigos (de antes desses campos existirem) sem precisar excluir e
 // relançar do zero.
 let stockEntryEditState = { open: false, entryId: null, productId: null, variantId: null, qty: "", unitCost: "", supplierId: "", date: "", payment: "pix" };
-// "Fazer pedido" — pedir um novo lote de produtos pro fornecedor, com o
-// detalhamento completo (produto, modelo, quantidade e, se já souber, o
-// custo unitário), direto pelo WhatsApp. Diferente da compra de estoque:
-// isso NÃO grava nada em cash_entries (não é uma compra confirmada nem um
-// pagamento, é só o pedido em si) e não tem "pago/não pago" nem "dívida".
-let pedidoState = { open: false, items: [], supplierId: "", notes: "", _selectedProductId: null, _selectedVariantId: null, _qty: "1", _unitCost: "" };
+// "Fazer pedido" — pega itens JÁ LANÇADOS na tabela de Estoque (marcados
+// com a caixinha "📤" na tabela) e monta o pedido detalhado pra reenviar
+// pro fornecedor pelo WhatsApp, sem precisar redigitar produto/modelo/
+// quantidade de novo. Diferente da compra de estoque: isso NÃO grava nada
+// em cash_entries (não é uma compra confirmada nem um pagamento, é só o
+// pedido em si) e não tem "pago/não pago" nem "dívida". `items` já vem
+// resolvido (nome do produto, modelo, quantidade, custo) no momento em
+// que o botão "Fazer pedido" é clicado — este overlay só revisa e envia.
+let pedidoState = { open: false, supplierId: null, items: [], notes: "" };
 
 function renderCaixa(container) {
   const entries = state.cashEntries;
@@ -4155,7 +4160,7 @@ function renderEstoque(container) {
           <p class="text-sm text-navy-500">Compras de estoque — separado do Caixa, com controle de pago/não pago (consignação).</p>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button id="new-pedido-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-800 shadow-sm transition hover:bg-navy-50" title="Selecionar produtos e mandar o pedido detalhado pro fornecedor no WhatsApp — não lança nada no Caixa, é só o pedido.">📤 Fazer pedido</button>
+          <button id="new-pedido-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-800 shadow-sm transition hover:bg-navy-50" title="Marque os itens na coluna 📤 da tabela abaixo e clique aqui pra montar o pedido detalhado (com os dados que já estão lançados) e enviar pro fornecedor no WhatsApp — não lança nada no Caixa.">📤 Fazer pedido${estoqueState.pedidoSelection.length > 0 ? ` (${estoqueState.pedidoSelection.length})` : ""}</button>
           <button id="new-stock-purchase-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">📦 Nova compra de estoque</button>
         </div>
       </div>
@@ -4222,6 +4227,7 @@ function renderEstoque(container) {
         <table class="w-full min-w-[860px] text-sm">
           <thead>
             <tr class="border-b border-navy-100 bg-navy-900 text-left text-xs uppercase tracking-wide text-cream-50">
+              <th class="px-3 py-3 text-center" title="Marcar pra incluir num 'Fazer pedido'">📤</th>
               <th class="px-3 py-3">Data</th>
               <th class="px-3 py-3">Fornecedor</th>
               <th class="px-3 py-3">Produto</th>
@@ -4235,8 +4241,11 @@ function renderEstoque(container) {
             </tr>
           </thead>
           <tbody>
-            ${stockEntries.length === 0 ? `<tr><td colspan="10" class="px-4 py-8 text-center text-navy-400">Nenhuma compra de estoque lançada ainda.</td></tr>` : stockEntries.map((e) => `
+            ${stockEntries.length === 0 ? `<tr><td colspan="11" class="px-4 py-8 text-center text-navy-400">Nenhuma compra de estoque lançada ainda.</td></tr>` : stockEntries.map((e) => `
               <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50">
+                <td class="px-3 py-2.5 text-center">
+                  <input type="checkbox" data-pedido-select="${e.id}" ${estoqueState.pedidoSelection.includes(e.id) ? "checked" : ""} ${e.quantity == null ? "disabled" : ""} title="${e.quantity == null ? "Complete quantidade/modelo/custo (⚠ Completar) antes de incluir este item num pedido." : "Marcar pra incluir este item no próximo 'Fazer pedido'."}" class="pedido-select-cb h-3.5 w-3.5 rounded border-navy-300 text-gold-600 focus:ring-gold-400" />
+                </td>
                 <td class="px-3 py-2.5">${formatDate(e.entry_date)}</td>
                 <td class="px-3 py-2.5 text-navy-600">${e.supplier_id ? escapeHtml(state.suppliers.find((s) => s.id === e.supplier_id)?.name ?? "(removido)") : "—"}</td>
                 <td class="px-3 py-2.5 text-navy-600">${escapeHtml(stockRowProductName(e))}</td>
@@ -4270,7 +4279,42 @@ function renderEstoque(container) {
     renderStockPurchaseOverlay();
   });
   document.getElementById("new-pedido-btn").addEventListener("click", () => {
-    pedidoState = { open: true, items: [], supplierId: "", notes: "", _selectedProductId: null, _selectedVariantId: null, _qty: "1", _unitCost: "" };
+    // "Fazer pedido" não abre um formulário em branco — ele pega os itens
+    // JÁ MARCADOS na coluna "📤" da tabela (dados já lançados: produto,
+    // modelo, quantidade, custo) e monta o pedido a partir deles, pra não
+    // precisar redigitar nada.
+    if (estoqueState.pedidoSelection.length === 0) {
+      alert("Marque ao menos um item na coluna \"📤\" da tabela abaixo pra incluir no pedido.");
+      return;
+    }
+    const selectedEntries = stockEntries.filter((e) => estoqueState.pedidoSelection.includes(e.id));
+    const supplierIds = [...new Set(selectedEntries.map((e) => e.supplier_id).filter(Boolean))];
+    if (supplierIds.length === 0) {
+      alert("Nenhum dos itens marcados tem um fornecedor vinculado. Edite o lançamento (botão \"Editar\") e associe um fornecedor antes de fazer o pedido.");
+      return;
+    }
+    if (supplierIds.length > 1) {
+      alert("Os itens marcados são de fornecedores diferentes. Marque itens de um só fornecedor por vez pra fazer o pedido.");
+      return;
+    }
+    const supplier = state.suppliers.find((s) => s.id === supplierIds[0]);
+    if (!supplier) { alert("Fornecedor não encontrado."); return; }
+    if (!waLink(supplier.phone)) {
+      alert("Este fornecedor não tem um telefone válido cadastrado — cadastre um telefone antes de fazer o pedido.");
+      return;
+    }
+    pedidoState = {
+      open: true,
+      supplierId: supplier.id,
+      notes: "",
+      items: selectedEntries.map((e) => ({
+        entryId: e.id,
+        productName: stockRowProductName(e),
+        variantName: e.variant_name || null,
+        quantity: e.quantity != null ? Number(e.quantity) : null,
+        unitCost: e.unit_cost != null ? Number(e.unit_cost) : null,
+      })),
+    };
     renderPedidoOverlay();
   });
   const stockDebtBtn = document.getElementById("stock-debt-btn");
@@ -4330,6 +4374,17 @@ function renderEstoque(container) {
       }
     });
   });
+  container.querySelectorAll(".pedido-select-cb").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const id = cb.dataset.pedidoSelect;
+      if (cb.checked) {
+        if (!estoqueState.pedidoSelection.includes(id)) estoqueState.pedidoSelection.push(id);
+      } else {
+        estoqueState.pedidoSelection = estoqueState.pedidoSelection.filter((x) => x !== id);
+      }
+      renderEstoque(container);
+    });
+  });
   container.querySelectorAll(".cash-paid-toggle-cb").forEach((cb) => {
     cb.addEventListener("change", async () => {
       const id = cb.dataset.cashPaidToggle;
@@ -4347,6 +4402,7 @@ function renderEstoque(container) {
     btn.addEventListener("click", async () => {
       if (!confirm("Excluir esta compra de estoque?")) return;
       await supabaseClient.from("cash_entries").delete().eq("id", btn.dataset.delete);
+      estoqueState.pedidoSelection = estoqueState.pedidoSelection.filter((id) => id !== btn.dataset.delete);
       await loadCashEntries();
       renderEstoque(container);
     });
@@ -5483,78 +5539,43 @@ async function submeterCompraEstoque(e) {
 }
 
 function closePedidoOverlay() {
-  pedidoState = { open: false, items: [], supplierId: "", notes: "", _selectedProductId: null, _selectedVariantId: null, _qty: "1", _unitCost: "" };
+  pedidoState = { open: false, supplierId: null, items: [], notes: "" };
   renderPedidoOverlay();
 }
 
+// Overlay de REVISÃO do pedido — não tem campos de produto/quantidade pra
+// digitar, porque os itens já vêm prontos (resolvidos a partir dos
+// lançamentos marcados na tabela de Estoque, no clique do botão "Fazer
+// pedido" em renderEstoque). Aqui só dá pra ver os itens, escrever uma
+// observação opcional e enviar.
 function renderPedidoOverlay() {
   const slot = document.getElementById("pedido-slot");
   if (!slot) return;
   if (!pedidoState.open) { slot.innerHTML = ""; return; }
 
-  const activeProducts = state.products.filter((p) => p.active);
-  const selectedProduct = activeProducts.find((p) => p.id === pedidoState._selectedProductId);
-  const selectedVariants = selectedProduct?.product_variants ?? [];
+  const supplier = state.suppliers.find((s) => s.id === pedidoState.supplierId);
   const allHaveCost = pedidoState.items.length > 0 && pedidoState.items.every((it) => it.unitCost != null);
   const total = allHaveCost ? pedidoState.items.reduce((sum, it) => sum + it.unitCost * it.quantity, 0) : null;
 
   slot.innerHTML = `
     <div id="pedido-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
-      <div class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+      <div class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
           <div>
             <h2 class="text-lg font-semibold text-navy-900">📤 Fazer pedido</h2>
-            <p class="text-xs text-navy-500">Selecione os itens e mande o pedido detalhado pro fornecedor no WhatsApp — não lança nada no Caixa nem no estoque, é só o pedido em si.</p>
+            <p class="text-xs text-navy-500">${supplier ? escapeHtml(supplier.name) : "(fornecedor removido)"} — os itens abaixo já vêm dos lançamentos marcados na tabela. Confira e envie pro fornecedor pelo WhatsApp; não lança nada no Caixa nem no estoque.</p>
           </div>
           <button id="pd-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
         </div>
         <div class="flex-1 overflow-y-auto px-5 py-4">
           <form id="pedido-form" class="flex flex-col gap-4">
-            <div>
-              <label class="mb-1 block text-xs font-medium text-navy-700">Fornecedor</label>
-              <select id="pd-supplier-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
-                <option value="">— selecione —</option>
-                ${state.suppliers.filter((s) => s.active || s.id === pedidoState.supplierId).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((s) => `<option value="${s.id}" ${pedidoState.supplierId === s.id ? "selected" : ""}>${escapeHtml(s.name)}${!waLink(s.phone) ? " (sem telefone)" : ""}</option>`).join("")}
-              </select>
-            </div>
-
-            <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
-              <p class="mb-2 text-sm font-medium text-navy-800">Itens do pedido</p>
-              <div class="flex flex-wrap items-end gap-3">
-                <div class="min-w-[200px] flex-1">
-                  <label class="mb-1 block text-xs font-medium text-navy-700">Produto</label>
-                  <select id="pd-product-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
-                    <option value="">— selecione —</option>
-                    ${activeProducts.map((p) => `<option value="${p.id}" ${p.id === pedidoState._selectedProductId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")}
-                  </select>
-                </div>
-                ${selectedVariants.length > 0 ? `
-                  <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
-                    <select id="pd-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
-                      <option value="">— selecione —</option>
-                      ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}" ${v.id === pedidoState._selectedVariantId ? "selected" : ""}>${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
-                    </select>
-                  </div>
-                ` : ""}
-                <div class="w-24">
-                  <label class="mb-1 block text-xs font-medium text-navy-700">Qtd.</label>
-                  <input id="pd-item-qty" value="${escapeHtml(pedidoState._qty ?? "1")}" inputmode="numeric" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                </div>
-                <div class="w-32">
-                  <label class="mb-1 block text-xs font-medium text-navy-700" title="Opcional — se você já sabe o custo unitário desta compra, preencha pra ir no pedido também.">Custo unit. (R$) <span class="text-navy-400">(opcional)</span></label>
-                  <input id="pd-item-cost" value="${escapeHtml(pedidoState._unitCost ?? "")}" inputmode="decimal" placeholder="0,00" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                </div>
-                <button type="button" id="pd-item-add" class="rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar</button>
-              </div>
-              <div class="mt-3 flex flex-col gap-1">
-                ${pedidoState.items.length === 0 ? `<p class="text-xs text-navy-400">Nenhum item adicionado ainda.</p>` : pedidoState.items.map((it, idx) => `
+            <div class="rounded-lg border border-navy-100 bg-cream-50 p-3">
+              <p class="mb-2 text-xs font-medium uppercase tracking-wide text-navy-500">Itens do pedido (${pedidoState.items.length})</p>
+              <div class="flex flex-col gap-1">
+                ${pedidoState.items.map((it) => `
                   <div class="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-sm shadow-sm">
-                    <span>${it.quantity}× ${escapeHtml(it.productName)}${it.variantName ? ` <span class="text-navy-400">(${escapeHtml(it.variantName)})</span>` : ""}${it.unitCost != null ? ` <span class="text-navy-400">(${formatBRL(it.unitCost)}/un.)</span>` : ""}</span>
-                    <span class="flex items-center gap-3">
-                      ${it.unitCost != null ? `<b class="text-navy-900">${formatBRL(it.unitCost * it.quantity)}</b>` : ""}
-                      <button type="button" data-remove-pd-item-idx="${idx}" class="pd-remove-item text-red-600 hover:underline">remover</button>
-                    </span>
+                    <span>${it.quantity}× ${escapeHtml(it.productName)}${it.variantName ? ` <span class="text-navy-400">(${escapeHtml(it.variantName)})</span>` : ""}</span>
+                    ${it.unitCost != null ? `<b class="text-navy-900">${formatBRL(it.unitCost * it.quantity)}</b>` : `<span class="text-xs text-navy-400">custo não informado</span>`}
                   </div>
                 `).join("")}
               </div>
@@ -5591,78 +5612,18 @@ function renderPedidoOverlay() {
   document.getElementById("pedido-overlay").addEventListener("click", (e) => {
     if (e.target.id === "pedido-overlay") closePedidoOverlay();
   });
-
-  document.getElementById("pd-supplier-select").addEventListener("change", (e) => { pedidoState.supplierId = e.target.value; });
   document.getElementById("pd-notes").addEventListener("input", (e) => { pedidoState.notes = e.target.value; });
-
-  const productSelect = document.getElementById("pd-product-select");
-  productSelect.addEventListener("change", () => {
-    // Mesmo cuidado de "campos controlados" da compra de estoque: precisa
-    // de re-render completo pra mostrar/esconder o seletor de Modelo, e
-    // sem isso o re-render apagaria o que já tivesse sido digitado.
-    pedidoState._selectedProductId = productSelect.value || null;
-    pedidoState._selectedVariantId = null;
-    pedidoState._qty = document.getElementById("pd-item-qty").value;
-    pedidoState._unitCost = document.getElementById("pd-item-cost").value;
-    renderPedidoOverlay();
-  });
-
-  const qtyField = document.getElementById("pd-item-qty");
-  if (qtyField) qtyField.addEventListener("input", (e) => { pedidoState._qty = e.target.value; });
-  const costField = document.getElementById("pd-item-cost");
-  if (costField) costField.addEventListener("input", (e) => { pedidoState._unitCost = e.target.value; });
-  const variantSelect = document.getElementById("pd-variant-select");
-  if (variantSelect) variantSelect.addEventListener("change", () => { pedidoState._selectedVariantId = variantSelect.value || null; });
-
-  document.getElementById("pd-item-add").addEventListener("click", () => {
-    const errorEl = document.getElementById("pd-error");
-    const product = activeProducts.find((p) => p.id === productSelect.value);
-    if (!product) { errorEl.textContent = "Escolha um produto."; return; }
-    const variants = product.product_variants ?? [];
-    const variantSel = document.getElementById("pd-variant-select");
-    if (variants.length > 0 && (!variantSel || !variantSel.value)) { errorEl.textContent = "Escolha o modelo do produto."; return; }
-    const qty = Math.trunc(Number(document.getElementById("pd-item-qty").value.replace(",", ".")));
-    if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Informe uma quantidade válida."; return; }
-    const costRaw = document.getElementById("pd-item-cost").value.trim();
-    let unitCost = null;
-    if (costRaw) {
-      unitCost = Number(costRaw.replace(",", "."));
-      if (!Number.isFinite(unitCost) || unitCost <= 0) { errorEl.textContent = "Se informar o custo unitário, ele precisa ser um valor válido."; return; }
-    }
-    errorEl.textContent = "";
-
-    const variant = variants.length > 0 ? variants.find((v) => v.id === variantSel.value) : null;
-    pedidoState.items.push({
-      productId: product.id,
-      productName: product.name,
-      variantName: variant ? variant.name : null,
-      unitCost: unitCost != null ? round2(unitCost) : null,
-      quantity: qty,
-    });
-    pedidoState._selectedProductId = null;
-    pedidoState._selectedVariantId = null;
-    pedidoState._qty = "1";
-    pedidoState._unitCost = "";
-    renderPedidoOverlay();
-  });
-
-  document.querySelectorAll(".pd-remove-item").forEach((btn) => {
-    btn.addEventListener("click", () => { pedidoState.items.splice(Number(btn.dataset.removePdItemIdx), 1); renderPedidoOverlay(); });
-  });
-
   document.getElementById("pedido-form").addEventListener("submit", enviarPedido);
 }
 
 function enviarPedido(e) {
   e.preventDefault();
   const errorEl = document.getElementById("pd-error");
-  const supplierId = document.getElementById("pd-supplier-select").value;
-  if (!supplierId) { errorEl.textContent = "Escolha o fornecedor pra quem enviar o pedido."; return; }
-  const supplier = state.suppliers.find((s) => s.id === supplierId);
+  const supplier = state.suppliers.find((s) => s.id === pedidoState.supplierId);
   if (!supplier) { errorEl.textContent = "Fornecedor não encontrado."; return; }
   const link = waLink(supplier.phone);
-  if (!link) { errorEl.textContent = "Este fornecedor não tem um telefone válido cadastrado — cadastre um telefone antes de enviar."; return; }
-  if (pedidoState.items.length === 0) { errorEl.textContent = "Adicione ao menos um item ao pedido."; return; }
+  if (!link) { errorEl.textContent = "Este fornecedor não tem um telefone válido cadastrado."; return; }
+  if (pedidoState.items.length === 0) { errorEl.textContent = "Nenhum item selecionado."; return; }
   errorEl.textContent = "";
 
   try {
@@ -5674,7 +5635,11 @@ function enviarPedido(e) {
     return;
   }
 
-  closePedidoOverlay();
+  // Envio deu certo: limpa tanto o overlay quanto a seleção da tabela
+  // (as caixinhas "📤" marcadas), já que o pedido foi enviado.
+  estoqueState.pedidoSelection = [];
+  pedidoState = { open: false, supplierId: null, items: [], notes: "" };
+  renderEstoque(document.getElementById("main-content"));
 }
 
 /* =====================================================================
