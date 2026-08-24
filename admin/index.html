@@ -391,7 +391,7 @@ async function loadAllData() {
 // não apagar o que a pessoa está digitando (o botão "Atualizar" manual
 // continua funcionando normalmente, já que aí é a própria pessoa que pediu).
 function isAnyFormOpen() {
-  return !!(precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen || clientesState.formOpen || cuponsState.formOpen || caixaState.formOpen || couponPhonesState.open || brindeState.open);
+  return !!(precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen || clientesState.formOpen || cuponsState.formOpen || caixaState.formOpen || couponPhonesState.open || brindeState.open || stockPurchaseState.open);
 }
 
 async function loadAdminUsers() {
@@ -3794,12 +3794,14 @@ function renderCaixa(container) {
           <p class="text-sm text-navy-500">Entradas e saídas, com saldo acumulado.</p>
         </div>
         <div class="flex gap-2">
+          <button id="new-stock-purchase-btn" class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow transition hover:bg-navy-50">📦 Compra de estoque</button>
           <button id="new-brinde-btn" class="rounded-lg border border-gold-400 bg-white px-4 py-2 text-sm font-semibold text-gold-700 shadow transition hover:bg-gold-50">🎁 Lançar brinde</button>
           <button id="new-entry-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">${caixaState.formOpen ? "Fechar" : "+ Novo lançamento"}</button>
         </div>
       </div>
 
       <div id="brinde-overlay-slot"></div>
+      <div id="stock-purchase-slot"></div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="rounded-xl bg-navy-900 px-5 py-4 text-cream-50 shadow">
@@ -3870,6 +3872,10 @@ function renderCaixa(container) {
     brindeState = { open: true, items: [], giftWraps: [], name: "", whatsapp: "", instagram: "", notes: "" };
     renderBrindeOverlay();
   });
+  document.getElementById("new-stock-purchase-btn").addEventListener("click", () => {
+    stockPurchaseState = { open: true, items: [], date: todayISO(), payment: "pix", note: "" };
+    renderStockPurchaseOverlay();
+  });
   container.querySelectorAll(".edit-entry-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       caixaState.editingId = btn.dataset.edit;
@@ -3892,11 +3898,12 @@ function renderCaixa(container) {
     renderEntryForm(activeProducts, editingEntry);
   }
   if (brindeState.open) renderBrindeOverlay();
+  if (stockPurchaseState.open) renderStockPurchaseOverlay();
 }
 
 function renderEntryForm(products, editingEntry) {
   const slot = document.getElementById("entry-form-slot");
-  const CATEGORY_SUGGESTIONS = ["Venda", "Material/Insumos", "Frete", "Embalagem", "Marketing", "Outros"];
+  const CATEGORY_SUGGESTIONS = ["Venda", "Material/Insumos", "Compra de estoque", "Frete", "Embalagem", "Marketing", "Outros"];
   let entryType = editingEntry?.entry_type ?? "entrada";
   const hideEntrada = entryType !== "entrada" ? "hidden" : "";
 
@@ -4541,6 +4548,230 @@ async function submeterBrinde(e) {
 
   brindeState = { open: false, items: [], giftWraps: [], name: "", whatsapp: "", instagram: "", notes: "" };
   await Promise.all([loadCashEntries(), loadMaterials(), loadOrders(), loadCustomers()]);
+  renderCaixa(document.getElementById("main-content"));
+}
+
+/* =====================================================================
+   CAIXA — COMPRA DE ESTOQUE
+
+   Registra a compra de produtos PRONTOS pra ter em estoque na loja (ex:
+   comprar de um fornecedor por atacado) — bem diferente de "Iniciar
+   venda" ou "Lançar brinde": aqui NÃO existe pedido/cliente nenhum
+   envolvido, só a saída de dinheiro pra abastecer o estoque. Por isso:
+     - Soma SÓ o valor do produto (sem embalagem, sem material — isso é
+       custo de venda, não de compra de estoque).
+     - O custo de cada item é DIGITADO na hora, individualizado por
+       compra — não usa o "cost" cadastrado do produto (que é uma média
+       usada só pra precificação/relatório de pedidos). O preço pago
+       numa compra real varia (promoção, reajuste do fornecedor, etc.),
+       então cada compra registra o valor de verdade que saiu do caixa.
+     - Cada item vira um lançamento de SAÍDA próprio no Caixa (mesma
+       tabela "cash_entries" de sempre, com product_id preenchido) — não
+       cria pedido, não mexe em "Despesas" dos Pedidos (que é calculado
+       só a partir de orders, não de cash_entries).
+   ===================================================================== */
+let stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", note: "" };
+
+function closeStockPurchaseOverlay() {
+  stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", note: "" };
+  renderStockPurchaseOverlay();
+}
+
+function stockPurchaseTotal() {
+  return stockPurchaseState.items.reduce((sum, it) => sum + it.unitCost * it.quantity, 0);
+}
+
+function renderStockPurchaseOverlay() {
+  const slot = document.getElementById("stock-purchase-slot");
+  if (!slot) return;
+  if (!stockPurchaseState.open) { slot.innerHTML = ""; return; }
+
+  const activeProducts = state.products.filter((p) => p.active);
+  const total = stockPurchaseTotal();
+  const selectedProduct = activeProducts.find((p) => p.id === stockPurchaseState._selectedProductId);
+
+  slot.innerHTML = `
+    <div id="stock-purchase-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+      <div class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+          <div>
+            <h2 class="text-lg font-semibold text-navy-900">📦 Compra de estoque</h2>
+            <p class="text-xs text-navy-500">Comprar produtos prontos pra ter em estoque na loja — soma só o valor do produto, com o custo de cada item digitado na hora (não usa o custo cadastrado).</p>
+          </div>
+          <button id="sp-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <form id="stock-purchase-form" class="flex flex-col gap-4">
+            <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+              <p class="mb-2 text-sm font-medium text-navy-800">Produtos comprados</p>
+              <div class="flex flex-wrap items-end gap-3">
+                <div class="min-w-[200px] flex-1">
+                  <label class="mb-1 block text-xs font-medium text-navy-700">Produto</label>
+                  <select id="sp-product-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                    <option value="">— selecione —</option>
+                    ${activeProducts.map((p) => `<option value="${p.id}" ${p.id === stockPurchaseState._selectedProductId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")}
+                  </select>
+                </div>
+                <div class="w-24">
+                  <label class="mb-1 block text-xs font-medium text-navy-700">Qtd.</label>
+                  <input id="sp-item-qty" value="1" inputmode="numeric" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                </div>
+                <div class="w-32">
+                  <label class="mb-1 block text-xs font-medium text-navy-700" title="Preço que você realmente pagou por unidade nesta compra — não é o custo cadastrado do produto.">Custo unit. (R$)</label>
+                  <input id="sp-item-cost" inputmode="decimal" placeholder="0,00" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                </div>
+                <button type="button" id="sp-item-add" class="rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar</button>
+              </div>
+              <p id="sp-cost-hint" class="mt-1.5 text-[11px] text-navy-400">${selectedProduct ? `Custo cadastrado deste produto: ${formatBRL(selectedProduct.cost)} — já preenchemos como sugestão, ajuste pro valor real desta compra se for diferente.` : ""}</p>
+              <div class="mt-3 flex flex-col gap-1">
+                ${stockPurchaseState.items.length === 0 ? `<p class="text-xs text-navy-400">Nenhum produto adicionado ainda.</p>` : stockPurchaseState.items.map((it, idx) => `
+                  <div class="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-sm shadow-sm">
+                    <span>${it.quantity}× ${escapeHtml(it.productName)} <span class="text-navy-400">(${formatBRL(it.unitCost)}/un.)</span></span>
+                    <span class="flex items-center gap-3">
+                      <b class="text-navy-900">${formatBRL(it.unitCost * it.quantity)}</b>
+                      <button type="button" data-remove-item-idx="${idx}" class="sp-remove-item text-red-600 hover:underline">remover</button>
+                    </span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-4">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-navy-700">Data</label>
+                <input type="date" id="sp-date" value="${stockPurchaseState.date}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-navy-700">Pagamento</label>
+                <select id="sp-payment" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                  <option value="pix" ${stockPurchaseState.payment === "pix" ? "selected" : ""}>Pix</option>
+                  <option value="dinheiro" ${stockPurchaseState.payment === "dinheiro" ? "selected" : ""}>Dinheiro</option>
+                  <option value="credito" ${stockPurchaseState.payment === "credito" ? "selected" : ""}>Crédito</option>
+                  <option value="outro" ${stockPurchaseState.payment === "outro" ? "selected" : ""}>Outro</option>
+                </select>
+              </div>
+              <div class="min-w-[220px] flex-1">
+                <label class="mb-1 block text-xs font-medium text-navy-700">Observação (opcional)</label>
+                <input id="sp-note" value="${escapeHtml(stockPurchaseState.note)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex: comprado na Marcenaria São José" />
+              </div>
+            </div>
+
+            <div class="rounded-lg bg-navy-900 px-4 py-3 text-cream-50">
+              <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>Total desta compra (só produtos):</span>
+                <b class="text-gold-300 text-base">${formatBRL(total)}</b>
+              </div>
+            </div>
+
+            <div id="sp-error" class="text-sm text-red-600"></div>
+
+            <div class="flex gap-2">
+              <button type="submit" id="sp-submit" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Registrar compra</button>
+              <button type="button" id="sp-cancel" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("sp-close-btn").addEventListener("click", closeStockPurchaseOverlay);
+  document.getElementById("sp-cancel").addEventListener("click", closeStockPurchaseOverlay);
+  document.getElementById("stock-purchase-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "stock-purchase-overlay") closeStockPurchaseOverlay();
+  });
+
+  document.getElementById("sp-date").addEventListener("input", (e) => { stockPurchaseState.date = e.target.value; });
+  document.getElementById("sp-payment").addEventListener("change", (e) => { stockPurchaseState.payment = e.target.value; });
+  document.getElementById("sp-note").addEventListener("input", (e) => { stockPurchaseState.note = e.target.value; });
+
+  const productSelect = document.getElementById("sp-product-select");
+  const costField = document.getElementById("sp-item-cost");
+  const costHint = document.getElementById("sp-cost-hint");
+  productSelect.addEventListener("change", () => {
+    stockPurchaseState._selectedProductId = productSelect.value || null;
+    // Pré-preenche o custo com o cadastrado do produto, só como ponto de
+    // partida — o admin ajusta pro valor real pago nesta compra. Atualiza
+    // só o campo de custo e a dica (sem re-render completo do formulário
+    // inteiro), pra não apagar nada que a pessoa já tenha digitado nos
+    // outros campos (qtd., observação, etc.) — mesmo raciocínio das
+    // "uncontrolled forms" usado no resto do painel.
+    const product = activeProducts.find((p) => p.id === productSelect.value);
+    if (product) {
+      costField.value = String(Number(product.cost));
+      costHint.textContent = `Custo cadastrado deste produto: ${formatBRL(product.cost)} — já preenchemos como sugestão, ajuste pro valor real desta compra se for diferente.`;
+    } else {
+      costHint.textContent = "";
+    }
+  });
+
+  document.getElementById("sp-item-add").addEventListener("click", () => {
+    const errorEl = document.getElementById("sp-error");
+    const product = activeProducts.find((p) => p.id === productSelect.value);
+    if (!product) { errorEl.textContent = "Escolha um produto."; return; }
+    const qty = Math.trunc(Number(document.getElementById("sp-item-qty").value.replace(",", ".")));
+    if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Informe uma quantidade válida."; return; }
+    const unitCost = Number(document.getElementById("sp-item-cost").value.replace(",", "."));
+    if (!Number.isFinite(unitCost) || unitCost <= 0) { errorEl.textContent = "Informe o custo unitário pago nesta compra."; return; }
+    errorEl.textContent = "";
+
+    stockPurchaseState.items.push({
+      productId: product.id,
+      productName: product.name,
+      unitCost: round2(unitCost),
+      quantity: qty,
+    });
+    stockPurchaseState._selectedProductId = null;
+    renderStockPurchaseOverlay();
+  });
+
+  document.querySelectorAll(".sp-remove-item").forEach((btn) => {
+    btn.addEventListener("click", () => { stockPurchaseState.items.splice(Number(btn.dataset.removeItemIdx), 1); renderStockPurchaseOverlay(); });
+  });
+
+  document.getElementById("stock-purchase-form").addEventListener("submit", submeterCompraEstoque);
+}
+
+async function submeterCompraEstoque(e) {
+  e.preventDefault();
+  const errorEl = document.getElementById("sp-error");
+  const date = document.getElementById("sp-date").value;
+  const payment = document.getElementById("sp-payment").value;
+  const note = document.getElementById("sp-note").value.trim();
+
+  if (stockPurchaseState.items.length === 0) { errorEl.textContent = "Adicione ao menos um produto."; return; }
+  if (!date) { errorEl.textContent = "Informe a data da compra."; return; }
+  errorEl.textContent = "";
+
+  const submitBtn = document.getElementById("sp-submit");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Registrando...";
+
+  // Cada item vira sua PRÓPRIA saída no Caixa (não uma soma única) —
+  // é isso que deixa o custo "individualizado por item": cada produto
+  // fica com seu valor real, rastreável, editável/excluível sozinho
+  // depois, igual qualquer outro lançamento do Caixa.
+  const rows = stockPurchaseState.items.map((it) => ({
+    entry_type: "saida",
+    entry_date: date,
+    amount: round2(it.unitCost * it.quantity),
+    category: "Compra de estoque",
+    description: `Compra de estoque — ${it.quantity}x ${it.productName} × ${formatBRL(it.unitCost)}${note ? " — " + note : ""}`,
+    payment_method: payment,
+    product_id: it.productId,
+    created_by: state.currentUser.id,
+  }));
+
+  const { error } = await supabaseClient.from("cash_entries").insert(rows);
+  if (error) {
+    errorEl.textContent = "Não foi possível registrar a compra: " + error.message;
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Registrar compra";
+    return;
+  }
+
+  stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", note: "" };
+  await loadCashEntries();
   renderCaixa(document.getElementById("main-content"));
 }
 
