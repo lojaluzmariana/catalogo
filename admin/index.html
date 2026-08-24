@@ -2749,8 +2749,12 @@ function pendingSupplierItems(supplierId) {
         if (!product) { isApprox = true; return; }
         if (product.supplier_id !== supplierId) return;
         rows.push({
+          kind: "pedido",
           orderNumber: o.order_number,
-          date: o.created_at,
+          // Normaliza pra "AAAA-MM-DD" (fuso do Brasil) já aqui — o
+          // resto do código (Nota em PDF/imagem) só formata, sem
+          // precisar reconverter fuso na hora de desenhar.
+          date: toLocalISODate(new Date(o.created_at)),
           productName: it.product_name,
           variantName: it.variant_name,
           quantity: it.quantity,
@@ -2760,6 +2764,29 @@ function pendingSupplierItems(supplierId) {
         });
       });
     });
+
+  // Compras de estoque (consignação) lançadas pra esse fornecedor e
+  // ainda não marcadas como pagas — juntam na MESMA nota: pro
+  // fornecedor tanto faz se a dívida veio de um pedido de cliente ou de
+  // uma compra de estoque, é tudo que a loja deve pra ele.
+  state.cashEntries
+    .filter((e) => e.category === "Compra de estoque" && !e.paid_at && e.supplier_id === supplierId)
+    .forEach((e) => {
+      const product = state.products.find((p) => p.id === e.product_id);
+      if (!product) { isApprox = true; return; }
+      rows.push({
+        kind: "estoque",
+        orderNumber: null,
+        date: e.entry_date, // já é "AAAA-MM-DD" (coluna date do Postgres, sem fuso envolvido)
+        productName: product.name,
+        variantName: e.variant_name,
+        quantity: e.quantity != null ? Number(e.quantity) : null,
+        unitCost: e.unit_cost != null ? Number(e.unit_cost) : null,
+        subtotal: Number(e.amount),
+        fornecedorEntregou: null, // não se aplica — já está na loja, só falta pagar
+      });
+    });
+
   rows.sort((a, b) => new Date(a.date) - new Date(b.date));
   const total = rows.reduce((sum, r) => sum + r.subtotal, 0);
   return { rows, total, isApprox };
@@ -2811,7 +2838,7 @@ function buildSupplierNotePdf(supplier, pending) {
     doc.setTextColor(255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.text("Pedido", cols.pedido.x + 1, y);
+    doc.text("Origem", cols.pedido.x + 1, y);
     doc.text("Data", cols.data.x + 1, y);
     doc.text("Item", cols.item.x + 1, y);
     doc.text("Qtd", cols.qtd.x + cols.qtd.w - 1, y, { align: "right" });
@@ -2851,17 +2878,18 @@ function buildSupplierNotePdf(supplier, pending) {
       doc.rect(margin, y - 4, usableWidth, rowHeight, "F");
     }
     doc.setTextColor(20);
-    doc.text(`Nº ${String(r.orderNumber ?? "").padStart(6, "0")}`, cols.pedido.x + 1, y);
-    doc.text(formatDate(toLocalISODate(new Date(r.date))), cols.data.x + 1, y);
+    doc.text(r.kind === "estoque" ? "Estoque" : `Nº ${String(r.orderNumber ?? "").padStart(6, "0")}`, cols.pedido.x + 1, y);
+    doc.text(formatDate(r.date), cols.data.x + 1, y);
     wrapped.forEach((line, i) => doc.text(line, cols.item.x + 1, y + i * 3.8));
-    doc.text(String(r.quantity), cols.qtd.x + cols.qtd.w - 1, y, { align: "right" });
+    doc.text(r.quantity != null ? String(r.quantity) : "—", cols.qtd.x + cols.qtd.w - 1, y, { align: "right" });
     doc.setFont("helvetica", "bold");
-    if (r.fornecedorEntregou) doc.setTextColor(16, 122, 74);
+    if (r.fornecedorEntregou === null) doc.setTextColor(140);
+    else if (r.fornecedorEntregou) doc.setTextColor(16, 122, 74);
     else doc.setTextColor(180, 40, 40);
-    doc.text(r.fornecedorEntregou ? "S" : "N", cols.entregue.x + cols.entregue.w / 2, y, { align: "center" });
+    doc.text(r.fornecedorEntregou === null ? "—" : (r.fornecedorEntregou ? "S" : "N"), cols.entregue.x + cols.entregue.w / 2, y, { align: "center" });
     doc.setTextColor(20);
     doc.setFont("helvetica", "normal");
-    doc.text(formatBRL(r.unitCost), cols.unit.x + cols.unit.w - 1, y, { align: "right" });
+    doc.text(r.unitCost != null ? formatBRL(r.unitCost) : "—", cols.unit.x + cols.unit.w - 1, y, { align: "right" });
     doc.text(formatBRL(r.subtotal), cols.subtotal.x + cols.subtotal.w - 1, y, { align: "right" });
     y += rowHeight;
   });
@@ -2884,6 +2912,10 @@ function buildSupplierNotePdf(supplier, pending) {
     doc.setFontSize(7.5);
     doc.setTextColor(120);
     doc.text('"Entreg." = fornecedor já entregou o item pra loja: S = sim, N = ainda não.', margin, y);
+    if (pending.rows.some((r) => r.fornecedorEntregou === null)) {
+      y += 4;
+      doc.text('"—" = item de compra de estoque (já está na loja, só falta pagar).', margin, y);
+    }
   }
 
   if (pending.isApprox) {
@@ -2892,7 +2924,7 @@ function buildSupplierNotePdf(supplier, pending) {
     doc.setFontSize(7.5);
     doc.setTextColor(120);
     doc.text(
-      doc.splitTextToSize("* Pode haver itens de pedidos cujo produto foi removido do cadastro depois da venda — esses não entram nesta nota nem no total acima.", usableWidth),
+      doc.splitTextToSize("* Pode haver itens (de pedidos ou de compras de estoque) cujo produto foi removido do cadastro depois — esses não entram nesta nota nem no total acima.", usableWidth),
       margin, y
     );
   }
@@ -2946,7 +2978,13 @@ function buildSupplierNoteCanvas(supplier, pending) {
     subtotal: { x: margin + 710, w: 100 },
   };
   const tableHeaderHeight = 40;
-  const legendHeight = 22;
+  // A legenda do "Entreg." ganha uma segunda linha só quando existe pelo
+  // menos um item de compra de estoque (fornecedorEntregou === null) —
+  // por isso a altura reservada pra ela varia (1 ou 2 linhas), e isso
+  // PRECISA entrar certinho no cálculo da altura total do canvas abaixo
+  // (senão o texto fica cortado, já que o canvas não "cresce sozinho").
+  const hasEstoqueRows = pending.rows.some((r) => r.fornecedorEntregou === null);
+  const legendHeight = pending.rows.length > 0 ? (hasEstoqueRows ? 42 : 22) : 0;
 
   // Usa um canvas provisório só pra medir o texto (fonte precisa bater
   // com a usada no desenho final) — o Canvas 2D não tem como calcular a
@@ -2961,12 +2999,12 @@ function buildSupplierNoteCanvas(supplier, pending) {
   });
   measure.font = "italic 12px Arial, sans-serif";
   const approxLines = pending.isApprox
-    ? wrapCanvasText(measure, "* Pode haver itens de pedidos cujo produto foi removido do cadastro depois da venda — esses não entram nesta nota nem no total acima.", usableWidth)
+    ? wrapCanvasText(measure, "* Pode haver itens (de pedidos ou de compras de estoque) cujo produto foi removido do cadastro depois — esses não entram nesta nota nem no total acima.", usableWidth)
     : [];
 
   const headerBlockHeight = 150 + (supplier.phone ? 24 : 0);
   const rowsHeight = rowsLayout.length > 0 ? rowsLayout.reduce((sum, r) => sum + r.rowHeight, 0) : 44;
-  const footerHeight = 70 + (rowsLayout.length > 0 ? legendHeight : 0) + (approxLines.length ? approxLines.length * 16 + 10 : 0);
+  const footerHeight = 70 + legendHeight + (approxLines.length ? approxLines.length * 16 + 10 : 0);
   const height = Math.round(margin + headerBlockHeight + tableHeaderHeight + rowsHeight + footerHeight);
 
   const canvas = document.createElement("canvas");
@@ -3008,7 +3046,7 @@ function buildSupplierNoteCanvas(supplier, pending) {
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 13px Arial, sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText("Pedido", cols.pedido.x + 8, y + 25);
+    ctx.fillText("Origem", cols.pedido.x + 8, y + 25);
     ctx.fillText("Data", cols.data.x + 8, y + 25);
     ctx.fillText("Item", cols.item.x + 8, y + 25);
     ctx.textAlign = "right";
@@ -3040,19 +3078,19 @@ function buildSupplierNoteCanvas(supplier, pending) {
     ctx.fillStyle = "#141414";
     ctx.font = "13px Arial, sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(`Nº ${String(r.orderNumber ?? "").padStart(6, "0")}`, cols.pedido.x + 8, textY);
-    ctx.fillText(formatDate(toLocalISODate(new Date(r.date))), cols.data.x + 8, textY);
+    ctx.fillText(r.kind === "estoque" ? "Estoque" : `Nº ${String(r.orderNumber ?? "").padStart(6, "0")}`, cols.pedido.x + 8, textY);
+    ctx.fillText(formatDate(r.date), cols.data.x + 8, textY);
     r.wrapped.forEach((line, i) => ctx.fillText(line, cols.item.x + 8, textY + i * 18));
     ctx.textAlign = "right";
-    ctx.fillText(String(r.quantity), cols.qtd.x + cols.qtd.w - 8, textY);
+    ctx.fillText(r.quantity != null ? String(r.quantity) : "—", cols.qtd.x + cols.qtd.w - 8, textY);
     ctx.textAlign = "center";
     ctx.font = "bold 13px Arial, sans-serif";
-    ctx.fillStyle = r.fornecedorEntregou ? "#107a4a" : "#b42828";
-    ctx.fillText(r.fornecedorEntregou ? "S" : "N", cols.entregue.x + cols.entregue.w / 2, textY);
+    ctx.fillStyle = r.fornecedorEntregou === null ? "#8a8a8a" : (r.fornecedorEntregou ? "#107a4a" : "#b42828");
+    ctx.fillText(r.fornecedorEntregou === null ? "—" : (r.fornecedorEntregou ? "S" : "N"), cols.entregue.x + cols.entregue.w / 2, textY);
     ctx.fillStyle = "#141414";
     ctx.font = "13px Arial, sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText(formatBRL(r.unitCost), cols.unit.x + cols.unit.w - 8, textY);
+    ctx.fillText(r.unitCost != null ? formatBRL(r.unitCost) : "—", cols.unit.x + cols.unit.w - 8, textY);
     ctx.fillText(formatBRL(r.subtotal), cols.subtotal.x + cols.subtotal.w - 8, textY);
     y += r.rowHeight;
   });
@@ -3075,6 +3113,10 @@ function buildSupplierNoteCanvas(supplier, pending) {
     ctx.fillStyle = "#777777";
     ctx.font = "12px Arial, sans-serif";
     ctx.fillText('"Entreg." = fornecedor já entregou o item pra loja: S = sim, N = ainda não.', margin, y);
+    if (hasEstoqueRows) {
+      y += 20;
+      ctx.fillText('"—" = item de compra de estoque (já está na loja, só falta pagar).', margin, y);
+    }
   }
 
   if (approxLines.length > 0) {
@@ -4941,6 +4983,13 @@ async function submeterCompraEstoque(e) {
     description: `Compra de estoque — ${it.quantity}x ${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${formatBRL(it.unitCost)}`,
     payment_method: payment,
     product_id: it.productId,
+    // Quantidade/custo unitário/modelo também como colunas de verdade
+    // (além de já estarem no texto da descrição acima) — é o que deixa
+    // a Nota do fornecedor montar a linha do item sem precisar
+    // "adivinhar" isso lendo um texto livre.
+    quantity: it.quantity,
+    unit_cost: it.unitCost,
+    variant_name: it.variantName,
     supplier_id: supplierId,
     paid_at: paid ? new Date().toISOString() : null,
     purchase_batch_id: purchaseBatchId,
