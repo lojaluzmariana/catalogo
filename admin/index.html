@@ -1519,6 +1519,7 @@ function renderMaterialForm() {
         category: "Material essencial",
         description: `Compra de ${name} (+${stockIncrease} ${unit})`,
         payment_method: null,
+        paid_at: new Date().toISOString(),
         created_by: state.currentUser.id,
       });
       if (cashError) {
@@ -3119,6 +3120,7 @@ async function iniciarVenda(order) {
     payment_method: order.payment_method,
     customer_id: customer ? customer.id : null,
     order_id: order.id,
+    paid_at: new Date().toISOString(),
     created_by: state.currentUser.id,
   };
 
@@ -3143,6 +3145,7 @@ async function iniciarVenda(order) {
       payment_method: null,
       customer_id: customer ? customer.id : null,
       order_id: order.id,
+      paid_at: new Date().toISOString(),
       created_by: state.currentUser.id,
     };
     const { error: custoError } = await supabaseClient.from("cash_entries").insert(custoPayload);
@@ -3829,13 +3832,14 @@ function renderCaixa(container) {
               <th class="px-3 py-3">Categoria</th>
               <th class="px-3 py-3">Descrição</th>
               <th class="px-3 py-3">Pagamento</th>
+              <th class="px-3 py-3 text-center">Pago</th>
               <th class="px-3 py-3 text-right">Valor</th>
               <th class="px-3 py-3 text-right">Saldo</th>
               <th class="px-3 py-3 text-center">Ações</th>
             </tr>
           </thead>
           <tbody>
-            ${entries.length === 0 ? `<tr><td colspan="8" class="px-4 py-8 text-center text-navy-400">Nenhum lançamento ainda.</td></tr>` : entries.map((e) => `
+            ${entries.length === 0 ? `<tr><td colspan="9" class="px-4 py-8 text-center text-navy-400">Nenhum lançamento ainda.</td></tr>` : entries.map((e) => `
               <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50">
                 <td class="px-3 py-2.5">${formatDate(e.entry_date)}</td>
                 <td class="px-3 py-2.5"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${e.entry_type === "entrada" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}">${e.entry_type === "entrada" ? "Entrada" : "Saída"}</span></td>
@@ -3843,10 +3847,17 @@ function renderCaixa(container) {
                 <td class="px-3 py-2.5 text-navy-600">
                   ${escapeHtml(e.description) || "—"}
                   ${e.customer_id ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Cliente: ${escapeHtml(state.customers.find((c) => c.id === e.customer_id)?.name ?? "(removido)")}</div>` : ""}
+                  ${e.supplier_id ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Fornecedor: ${escapeHtml(state.suppliers.find((s) => s.id === e.supplier_id)?.name ?? "(removido)")}</div>` : ""}
                   ${e.materials_used && e.materials_used.length > 0 ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Materiais: ${e.materials_used.map((mu) => `${escapeHtml(mu.materials?.name ?? "(material removido)")} (${Number(mu.quantity)} ${escapeHtml(mu.materials?.unit ?? "")})`).join(", ")}</div>` : ""}
                   ${adminName(e.created_by) ? `<div class="mt-0.5 text-xs font-normal text-navy-400">${e.entry_type === "entrada" ? "Vendido" : "Registrado"} por: <span class="font-medium text-navy-600">${escapeHtml(adminName(e.created_by))}</span></div>` : ""}
                 </td>
                 <td class="px-3 py-2.5 capitalize">${escapeHtml(e.payment_method) || "—"}</td>
+                <td class="px-3 py-2.5 text-center">
+                  <label class="inline-flex items-center gap-1.5" title="${e.paid_at ? `Pago em ${formatDate(e.paid_at.slice(0, 10))}` : "Ainda não foi pago (ex: compra por consignação) — não entra no Saldo atual até ser marcado como pago."}">
+                    <input type="checkbox" data-cash-paid-toggle="${e.id}" ${e.paid_at ? "checked" : ""} class="cash-paid-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
+                    ${!e.paid_at ? `<span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Não pago</span>` : ""}
+                  </label>
+                </td>
                 <td class="px-3 py-2.5 text-right font-medium ${e.entry_type === "entrada" ? "text-emerald-700" : "text-red-700"}">${e.entry_type === "entrada" ? "+" : "-"}${formatBRL(e.amount)}</td>
                 <td class="px-3 py-2.5 text-right font-semibold text-navy-900">${formatBRL(e.running_balance)}</td>
                 <td class="px-3 py-2.5 text-center">
@@ -3873,7 +3884,7 @@ function renderCaixa(container) {
     renderBrindeOverlay();
   });
   document.getElementById("new-stock-purchase-btn").addEventListener("click", () => {
-    stockPurchaseState = { open: true, items: [], date: todayISO(), payment: "pix", note: "" };
+    stockPurchaseState = { open: true, items: [], date: todayISO(), payment: "pix", paid: true, supplierId: "" };
     renderStockPurchaseOverlay();
   });
   container.querySelectorAll(".edit-entry-btn").forEach((btn) => {
@@ -3889,6 +3900,19 @@ function renderCaixa(container) {
       await supabaseClient.from("cash_entries").delete().eq("id", btn.dataset.delete);
       if (caixaState.editingId === btn.dataset.delete) { caixaState.editingId = null; caixaState.formOpen = false; }
       await Promise.all([loadCashEntries(), loadMaterials()]);
+      renderCaixa(container);
+    });
+  });
+  container.querySelectorAll(".cash-paid-toggle-cb").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      const id = cb.dataset.cashPaidToggle;
+      cb.disabled = true;
+      const { error } = await supabaseClient.from("cash_entries").update({
+        paid_at: cb.checked ? new Date().toISOString() : null,
+        updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) { alert("Não foi possível atualizar o pagamento: " + error.message); }
+      await loadCashEntries();
       renderCaixa(container);
     });
   });
@@ -4188,7 +4212,10 @@ function renderEntryForm(products, editingEntry) {
       if (error) { errorEl.textContent = error.message; return; }
       entryId = editingEntry.id;
     } else {
-      const payload = { ...basePayload, created_by: state.currentUser.id };
+      // Lançamento manual sempre entra como já pago (mesmo comportamento
+      // de sempre) — só a tela de "Compra de estoque" tem a opção de
+      // deixar como "não pago" (consignação).
+      const payload = { ...basePayload, paid_at: new Date().toISOString(), created_by: state.currentUser.id };
       const { data: inserted, error } = await supabaseClient.from("cash_entries").insert(payload).select("id").single();
       if (error) { errorEl.textContent = error.message; return; }
       entryId = inserted.id;
@@ -4527,6 +4554,7 @@ async function submeterBrinde(e) {
       payment_method: null,
       customer_id: customer ? customer.id : null,
       order_id: orderId,
+      paid_at: new Date().toISOString(),
       created_by: state.currentUser.id,
     };
     const { data: inserted, error: custoError } = await supabaseClient.from("cash_entries").insert(custoPayload).select("id").single();
@@ -4569,11 +4597,19 @@ async function submeterBrinde(e) {
        tabela "cash_entries" de sempre, com product_id preenchido) — não
        cria pedido, não mexe em "Despesas" dos Pedidos (que é calculado
        só a partir de orders, não de cash_entries).
+     - Compras por consignação: o checkbox "Já paguei" pode ficar
+       desmarcado, aí o lançamento sai com paid_at em branco — a despesa
+       aparece normalmente na tabela do Caixa (com um selo "Não pago"),
+       mas NÃO entra no "Saldo atual" até ser marcada como paga (a
+       view cash_entries_with_balance ignora lançamentos não pagos no
+       saldo acumulado). Dá pra marcar como paga depois direto na tabela.
+     - Fornecedor (opcional) puxa a lista já cadastrada em "Fornecedores"
+       (supplier_id) em vez de um campo de texto livre.
    ===================================================================== */
-let stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", note: "" };
+let stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", paid: true, supplierId: "" };
 
 function closeStockPurchaseOverlay() {
-  stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", note: "" };
+  stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", paid: true, supplierId: "" };
   renderStockPurchaseOverlay();
 }
 
@@ -4636,7 +4672,7 @@ function renderStockPurchaseOverlay() {
               </div>
             </div>
 
-            <div class="flex flex-wrap gap-4">
+            <div class="flex flex-wrap items-end gap-4">
               <div>
                 <label class="mb-1 block text-xs font-medium text-navy-700">Data</label>
                 <input type="date" id="sp-date" value="${stockPurchaseState.date}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
@@ -4650,11 +4686,21 @@ function renderStockPurchaseOverlay() {
                   <option value="outro" ${stockPurchaseState.payment === "outro" ? "selected" : ""}>Outro</option>
                 </select>
               </div>
+              <div>
+                <label class="flex items-center gap-2 rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm font-medium text-navy-700" title="Desmarque pra compras por consignação, onde você recebe o produto mas só paga o fornecedor depois. A despesa é lançada mesmo assim, mas só entra no Saldo atual quando você marcar como paga.">
+                  <input type="checkbox" id="sp-paid" ${stockPurchaseState.paid ? "checked" : ""} class="h-4 w-4 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
+                  Já paguei
+                </label>
+              </div>
               <div class="min-w-[220px] flex-1">
-                <label class="mb-1 block text-xs font-medium text-navy-700">Observação (opcional)</label>
-                <input id="sp-note" value="${escapeHtml(stockPurchaseState.note)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex: comprado na Marcenaria São José" />
+                <label class="mb-1 block text-xs font-medium text-navy-700">Fornecedor (opcional)</label>
+                <select id="sp-supplier-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                  <option value="">— nenhum —</option>
+                  ${state.suppliers.filter((s) => s.active || s.id === stockPurchaseState.supplierId).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((s) => `<option value="${s.id}" ${stockPurchaseState.supplierId === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}
+                </select>
               </div>
             </div>
+            <p id="sp-paid-hint" class="-mt-2 text-[11px] text-navy-400">${stockPurchaseState.paid ? "" : "⚠ Marcada como \"não pago\" — a despesa é lançada, mas só entra no Saldo atual quando você marcar como paga (compra por consignação)."}</p>
 
             <div class="rounded-lg bg-navy-900 px-4 py-3 text-cream-50">
               <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -4683,7 +4729,15 @@ function renderStockPurchaseOverlay() {
 
   document.getElementById("sp-date").addEventListener("input", (e) => { stockPurchaseState.date = e.target.value; });
   document.getElementById("sp-payment").addEventListener("change", (e) => { stockPurchaseState.payment = e.target.value; });
-  document.getElementById("sp-note").addEventListener("input", (e) => { stockPurchaseState.note = e.target.value; });
+  document.getElementById("sp-supplier-select").addEventListener("change", (e) => { stockPurchaseState.supplierId = e.target.value; });
+  document.getElementById("sp-paid").addEventListener("change", (e) => {
+    // Só atualiza o estado e o textinho de aviso — sem re-render completo,
+    // pra não apagar o que já foi digitado nos outros campos (mesmo
+    // cuidado do resto do formulário).
+    stockPurchaseState.paid = e.target.checked;
+    const hint = document.getElementById("sp-paid-hint");
+    if (hint) hint.textContent = stockPurchaseState.paid ? "" : "⚠ Marcada como \"não pago\" — a despesa é lançada, mas só entra no Saldo atual quando você marcar como paga (compra por consignação).";
+  });
 
   const productSelect = document.getElementById("sp-product-select");
   const costField = document.getElementById("sp-item-cost");
@@ -4737,7 +4791,8 @@ async function submeterCompraEstoque(e) {
   const errorEl = document.getElementById("sp-error");
   const date = document.getElementById("sp-date").value;
   const payment = document.getElementById("sp-payment").value;
-  const note = document.getElementById("sp-note").value.trim();
+  const paid = document.getElementById("sp-paid").checked;
+  const supplierId = document.getElementById("sp-supplier-select").value || null;
 
   if (stockPurchaseState.items.length === 0) { errorEl.textContent = "Adicione ao menos um produto."; return; }
   if (!date) { errorEl.textContent = "Informe a data da compra."; return; }
@@ -4751,14 +4806,20 @@ async function submeterCompraEstoque(e) {
   // é isso que deixa o custo "individualizado por item": cada produto
   // fica com seu valor real, rastreável, editável/excluível sozinho
   // depois, igual qualquer outro lançamento do Caixa.
+  // "paid_at" fica em branco quando a compra é por consignação (ainda
+  // não paga) — nesse caso a despesa é lançada mesmo assim, mas só entra
+  // no Saldo atual quando for marcada como paga depois (na tabela do
+  // Caixa).
   const rows = stockPurchaseState.items.map((it) => ({
     entry_type: "saida",
     entry_date: date,
     amount: round2(it.unitCost * it.quantity),
     category: "Compra de estoque",
-    description: `Compra de estoque — ${it.quantity}x ${it.productName} × ${formatBRL(it.unitCost)}${note ? " — " + note : ""}`,
+    description: `Compra de estoque — ${it.quantity}x ${it.productName} × ${formatBRL(it.unitCost)}`,
     payment_method: payment,
     product_id: it.productId,
+    supplier_id: supplierId,
+    paid_at: paid ? new Date().toISOString() : null,
     created_by: state.currentUser.id,
   }));
 
@@ -4770,7 +4831,7 @@ async function submeterCompraEstoque(e) {
     return;
   }
 
-  stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", note: "" };
+  stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", paid: true, supplierId: "" };
   await loadCashEntries();
   renderCaixa(document.getElementById("main-content"));
 }
