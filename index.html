@@ -80,8 +80,15 @@ const STORE_WHATSAPP_NUMBER = "5584991263907";
 const STORE_CNPJ = "68.615.746/0001-43";
 
 // Mostrado nos produtos que não estão marcados como "Em estoque" no
-// painel admin (a maioria — são feitos sob encomenda).
-const MADE_TO_ORDER_TEXT = "Prazo de 2 dias para fabricação, a contar da data do pedido.";
+// painel admin (a maioria — são feitos sob encomenda). Cada produto pode
+// ter seu próprio prazo (dias), configurado no Painel Admin — quando não
+// tem nada configurado (produto antigo, de antes dessa opção existir),
+// usa o padrão de 2 dias (mesmo valor fixo de sempre).
+const DEFAULT_LEAD_TIME_DAYS = 2;
+function madeToOrderText(product) {
+  const days = product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
+  return `Prazo de ${days} dia${days === 1 ? "" : "s"} para fabricação, a contar da data do pedido.`;
+}
 // Sinal exigido pra confirmar o pedido e iniciar a produção.
 const DEPOSIT_RATE = 0.5;
 
@@ -574,8 +581,8 @@ function renderProductCard(p, opts = {}) {
           <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} no Pix / à vista</p>
         </div>
         ${variants.length > 0
-          ? `<p data-stock-note="${p.id}" class="text-[10px] font-medium text-gold-700 ${initialInStock || initialEsgotado ? "hidden" : ""}">🕑 ${MADE_TO_ORDER_TEXT}</p>`
-          : !initialInStock && !p.esgotado ? `<p class="text-[10px] font-medium text-gold-700">🕑 ${MADE_TO_ORDER_TEXT}</p>` : ""}
+          ? `<p data-stock-note="${p.id}" class="text-[10px] font-medium text-gold-700 ${initialInStock || initialEsgotado ? "hidden" : ""}">🕑 ${madeToOrderText(p)}</p>`
+          : !initialInStock && !p.esgotado ? `<p class="text-[10px] font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
         ${addBlock}
       </div>
     </div>
@@ -702,7 +709,7 @@ function renderProductDetail() {
             <p class="text-sm text-navy-400">ou ${formatBRL(product.promo_price)} no Pix / à vista</p>
           </div>
 
-          ${!isInStock && !isEsgotado ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-xs font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${MADE_TO_ORDER_TEXT}</p>` : ""}
+          ${!isInStock && !isEsgotado ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-xs font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : ""}
 
           ${isEsgotado ? `
             <span class="mt-2 inline-block w-fit rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">Esgotado</span>
