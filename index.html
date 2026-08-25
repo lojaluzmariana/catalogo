@@ -1685,7 +1685,7 @@ async function onSubmitOrder(e) {
   const total = Math.max(0, subtotal - discount);
   const coupon = state.appliedCoupon;
 
-  const { data: insertedOrder, error: orderError } = await supabaseClient.from("orders").insert({
+  const { error: orderError } = await supabaseClient.from("orders").insert({
     id: orderId,
     customer_name: name,
     customer_whatsapp: whatsapp,
@@ -1696,7 +1696,12 @@ async function onSubmitOrder(e) {
     coupon_id: coupon ? coupon.id : null,
     coupon_code: coupon ? coupon.code : null,
     discount_amount: discount > 0 ? discount : null,
-  }).select("order_number").single();
+  });
+  // De propósito SEM .select() encadeado aqui: pedir a linha de volta
+  // (RETURNING) exigiria uma política de leitura pública em "orders",
+  // que abriria todos os pedidos de todo mundo pra leitura. O número do
+  // pedido é buscado à parte logo abaixo, por uma função que só devolve
+  // esse único número (ver get_order_number no supabase-schema.sql).
 
   if (orderError) {
     if (waWindow) waWindow.close();
@@ -1704,6 +1709,16 @@ async function onSubmitOrder(e) {
     submitBtn.disabled = false;
     submitBtn.textContent = "Confirmar pedido e abrir WhatsApp";
     return;
+  }
+
+  let orderNumber = null;
+  const { data: orderNumberData, error: orderNumberError } = await supabaseClient.rpc("get_order_number", { p_order_id: orderId });
+  if (orderNumberError) {
+    console.error("Erro ao buscar número do pedido:", orderNumberError.message);
+    // Não trava o fluxo por isso — o pedido já foi criado de verdade, só
+    // o número pra mostrar/rastrear na hora que pode faltar.
+  } else {
+    orderNumber = orderNumberData;
   }
 
   const itemRows = items.map((it) => ({
@@ -1773,7 +1788,7 @@ async function onSubmitOrder(e) {
   state.giftWrapQuantities = {};
   state.couponCode = "";
   state.appliedCoupon = null;
-  state.lastOrderNumber = insertedOrder ? insertedOrder.order_number : null;
+  state.lastOrderNumber = orderNumber;
   state.lastOrderWhatsapp = whatsapp;
   state.screen = "success";
   render();
