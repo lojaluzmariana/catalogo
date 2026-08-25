@@ -131,19 +131,133 @@ function formatWhatsappBR(raw) {
 
 const app = document.getElementById("app");
 
+/* =====================================================================
+   CARRINHO PERSISTENTE (localStorage)
+   ===================================================================== */
+// Sem isso, o carrinho vivia só na memória (state) e sumia se a pessoa
+// atualizasse a página, saísse e voltasse, ou o navegador do celular
+// recarregasse a aba em segundo plano (comum no iOS) — carrinho abandonado
+// por acidente, não por desistência de verdade. Guardado só o objeto
+// {chave: quantidade}; os dados do produto em si (nome, foto, preço)
+// sempre vêm frescos do banco a cada carregamento, nunca do localStorage.
+const CART_STORAGE_KEY = "luzmariana_cart_v1";
+
+function loadCartFromStorage() {
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    // Só aceita entradas com quantidade numérica positiva — protege contra
+    // um localStorage corrompido/editado à mão quebrar o carrinho inteiro.
+    const cleaned = {};
+    Object.entries(parsed).forEach(([key, qty]) => {
+      const n = Number(qty);
+      if (typeof key === "string" && Number.isFinite(n) && n > 0) cleaned[key] = n;
+    });
+    return cleaned;
+  } catch (err) {
+    console.error("Não foi possível ler o carrinho salvo:", err);
+    return {};
+  }
+}
+
+function saveCartToStorage() {
+  try {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(state.cart));
+  } catch (err) {
+    // Modo privado, storage cheio/bloqueado, etc. — o carrinho continua
+    // funcionando normalmente na sessão atual, só não persiste entre visitas.
+    console.error("Não foi possível salvar o carrinho:", err);
+  }
+}
+
+/* Remove do carrinho qualquer item cujo produto (ou modelo) não existe
+   mais no catálogo atual — evita que o contador do carrinho fique
+   "errado" (contando algo que nunca vai aparecer na gaveta porque o
+   produto foi excluído/despublicado desde a última visita). */
+function pruneStaleCartItems() {
+  let changed = false;
+  Object.keys(state.cart).forEach((key) => {
+    const { productId, variantId } = parseCartKey(key);
+    const product = state.products.find((p) => p.id === productId);
+    const variantOk = !variantId || variantsFor(productId).some((v) => v.id === variantId);
+    if (!product || !variantOk) { delete state.cart[key]; changed = true; }
+  });
+  if (changed) saveCartToStorage();
+}
+
+/* =====================================================================
+   FAVORITOS/LISTA DE DESEJOS (localStorage) — mesma lógica do carrinho:
+   guarda só os IDs marcados (nada de dados de produto), pra sempre valer
+   o que está no banco na hora de mostrar. É por navegador/aparelho, não
+   por conta — não existe login de cliente neste catálogo.
+   ===================================================================== */
+const FAVORITES_STORAGE_KEY = "luzmariana_favorites_v1";
+
+function loadFavoritesFromStorage() {
+  try {
+    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const cleaned = {};
+    Object.keys(parsed).forEach((key) => { if (parsed[key] === true) cleaned[key] = true; });
+    return cleaned;
+  } catch (err) {
+    console.error("Não foi possível ler os favoritos salvos:", err);
+    return {};
+  }
+}
+
+function saveFavoritesToStorage() {
+  try {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(state.favorites));
+  } catch (err) {
+    console.error("Não foi possível salvar os favoritos:", err);
+  }
+}
+
+function pruneStaleFavorites() {
+  let changed = false;
+  Object.keys(state.favorites).forEach((productId) => {
+    if (!state.products.some((p) => p.id === productId)) { delete state.favorites[productId]; changed = true; }
+  });
+  if (changed) saveFavoritesToStorage();
+}
+
+function toggleFavorite(productId) {
+  if (state.favorites[productId]) delete state.favorites[productId];
+  else state.favorites[productId] = true;
+  saveFavoritesToStorage();
+  render();
+}
+
 const state = {
   loading: true,
   loadError: null,
   products: [],
   variantsByProduct: {}, // { [product_id]: [{id, name, photo_url, sort_order}, ...] }
-  cart: {}, // { [cartKey]: quantity } — cartKey é o product_id, ou "product_id::variant_id" quando tem modelo escolhido
+  cart: loadCartFromStorage(), // { [cartKey]: quantity } — cartKey é o product_id, ou "product_id::variant_id" quando tem modelo escolhido
+  favorites: loadFavoritesFromStorage(), // { [product_id]: true } — lista de desejos, salva só no aparelho
+  favoritesOnly: false, // filtro "❤ Favoritos" ativado na barra de categorias
   selectedVariant: {}, // { [product_id]: variant_id } — modelo escolhido na página individual do produto
   cardPhotoIndex: {}, // { [product_id]: index } — foto do modelo exibida agora no carrossel automático do card
   detailProductId: null, // produto aberto na página individual
   payment: "pix", // pix | credito
   categoryFilter: "all",
+  searchQuery: "", // texto digitado na busca do catálogo (filtra por nome/descrição/categoria/material)
   cartOpen: false,
-  screen: "catalog", // catalog | product | checkout | success
+  screen: "catalog", // catalog | product | checkout | success | policy | track
+  policyTab: "privacidade", // privacidade | termos — qual aba mostrar na tela de política/termos
+  lastOrderNumber: null, // Nº do pedido que acabou de ser feito nesta sessão (pra oferecer "Acompanhar meu pedido" na tela de sucesso)
+  lastOrderWhatsapp: "", // WhatsApp usado nesse último pedido — pré-preenche o rastreio
+  trackOrderNumber: "", // Nº do pedido digitado na tela de Rastrear pedido
+  trackWhatsapp: "", // WhatsApp digitado na tela de Rastrear pedido
+  trackLoading: false,
+  trackError: null, // mensagem de erro/"não encontrado" da última busca
+  trackResult: null, // pedido encontrado pela última busca (ou null)
+  reviewForm: { rating: 0, name: "", comment: "", submitting: false, submitted: false, error: null }, // formulário de "deixar avaliação" na página do produto
   submitting: false,
   submitError: null,
   giftWrapOptions: [], // opções de embalagem de presente disponíveis (catalog_gift_wrap_options)
@@ -154,10 +268,11 @@ const state = {
 };
 
 async function loadCatalog() {
-  const [{ data: products, error: prodError }, { data: variants, error: varError }, { data: giftWrapOptions, error: giftWrapError }] = await Promise.all([
+  const [{ data: products, error: prodError }, { data: variants, error: varError }, { data: giftWrapOptions, error: giftWrapError }, { data: reviews, error: reviewsError }] = await Promise.all([
     supabaseClient.from("catalog_products").select("*").order("category", { ascending: true, nullsFirst: false }).order("name"),
     supabaseClient.from("catalog_product_variants").select("*").order("sort_order", { ascending: true }).order("name"),
     supabaseClient.from("catalog_gift_wrap_options").select("*").order("name"),
+    supabaseClient.from("catalog_product_reviews").select("*").order("created_at", { ascending: false }),
   ]);
   if (prodError) { state.loadError = prodError.message; state.loading = false; render(); return; }
   state.products = products;
@@ -168,9 +283,28 @@ async function loadCatalog() {
   });
   if (varError) console.error("Erro ao carregar modelos/variações:", varError.message);
   if (giftWrapError) console.error("Erro ao carregar opções de embalagem:", giftWrapError.message);
+  if (reviewsError) console.error("Erro ao carregar avaliações:", reviewsError.message);
   state.giftWrapOptions = giftWrapOptions || [];
+  state.reviews = reviews || [];
+  pruneStaleCartItems();
+  pruneStaleFavorites();
   state.loading = false;
   render();
+}
+
+/* Avaliações aprovadas de um produto, mais recentes primeiro (já vêm
+   ordenadas assim de loadCatalog). Média arredondada pra 1 casa. */
+function reviewsFor(productId) {
+  return state.reviews.filter((r) => r.product_id === productId);
+}
+function averageRating(reviews) {
+  if (reviews.length === 0) return 0;
+  return reviews.reduce((sum, r) => sum + Number(r.rating), 0) / reviews.length;
+}
+// ★ preenchidas até a nota (arredondada), ☆ vazias no resto.
+function starDisplayCatalog(rating) {
+  const n = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+  return "★".repeat(n) + "☆".repeat(5 - n);
 }
 
 /* Modelos/variações de um produto (vazio se não tiver). Os esgotados vão
@@ -268,6 +402,49 @@ function setupCarousels() {
   });
 }
 
+/* Normaliza texto pra comparação de busca: minúsculo + sem acento, pra
+   "terço" bater com "terco" e vice-versa (comum digitar sem acento no
+   celular). */
+function normalizeSearch(str) {
+  return (str || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/* Produto bate com a busca se o texto aparecer no nome, descrição,
+   categoria ou material — assim "prata" acha tanto o produto chamado
+   "Terço de Prata" quanto um com material_tag "Prata 925". */
+function productMatchesSearch(product, query) {
+  const q = normalizeSearch(query);
+  if (!q) return true;
+  const haystack = normalizeSearch(
+    [product.name, product.description, product.category, product.material_tag].filter(Boolean).join(" ")
+  );
+  return haystack.includes(q);
+}
+
+function renderSearchBar() {
+  return `
+    <div class="mb-5">
+      <div class="relative">
+        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m0 0a7.5 7.5 0 10-10.6 0 7.5 7.5 0 0010.6 0z" /></svg>
+        <input id="catalog-search-input" type="text" inputmode="search" autocomplete="off"
+          value="${escapeHtml(state.searchQuery)}"
+          placeholder="Buscar produto..."
+          aria-label="Buscar produto no catálogo"
+          class="w-full rounded-full border border-navy-200 bg-white py-2.5 pl-9 pr-9 text-sm text-navy-900 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+        ${state.searchQuery ? `
+          <button type="button" id="catalog-search-clear" aria-label="Limpar busca" class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-navy-300 hover:text-navy-600">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        ` : ""}
+      </div>
+    </div>
+  `;
+}
+
 function groupByCategory(products) {
   const map = new Map();
   products.forEach((p) => {
@@ -349,6 +526,7 @@ function orderTotal() {
 function setQty(productId, qty) {
   if (qty <= 0) delete state.cart[productId];
   else state.cart[productId] = qty;
+  saveCartToStorage();
   render();
 }
 
@@ -367,6 +545,8 @@ function render() {
   if (state.screen === "success") return renderSuccess();
   if (state.screen === "checkout") return renderCheckout();
   if (state.screen === "product") return renderProductDetail();
+  if (state.screen === "policy") return renderPolicy();
+  if (state.screen === "track") return renderTrack();
   return renderCatalog();
 }
 
@@ -404,12 +584,16 @@ function renderHero() {
 function renderCategoryBar(categories) {
   if (categories.length === 0) return "";
   const items = [{ value: "all", label: "Todos os produtos" }, ...categories.map((c) => ({ value: c, label: c }))];
+  const favoriteCount = Object.keys(state.favorites).length;
   return `
     <div class="border-b border-navy-800 bg-navy-900">
       <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 py-2 text-sm">
         ${items.map((it) => `
           <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
         `).join("")}
+        ${favoriteCount > 0 ? `
+          <button id="favorites-filter-btn" class="whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition ${state.favoritesOnly ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">❤ Favoritos (${favoriteCount})</button>
+        ` : ""}
       </div>
     </div>
   `;
@@ -441,7 +625,67 @@ function renderFooter() {
     <footer class="mx-auto max-w-5xl px-4 py-6 text-center text-xs text-navy-300">
       <p>Luz Mariana - Artigos Religiosos · CNPJ ${STORE_CNPJ}</p>
       <p class="mt-1">© 2026 Luz Mariana. Todos os direitos reservados.</p>
+      <p class="mt-2 space-x-3">
+        <button data-open-track class="underline hover:text-navy-500">Rastrear pedido</button>
+        <span>·</span>
+        <button data-open-policy="privacidade" class="underline hover:text-navy-500">Política de Privacidade</button>
+        <span>·</span>
+        <button data-open-policy="termos" class="underline hover:text-navy-500">Termos de Uso</button>
+      </p>
     </footer>
+  `;
+}
+
+/* Política de Privacidade + Termos de Uso — uma única tela com duas
+   abas (mesmo padrão de "tela informativa simples" das outras telas
+   auxiliares do catálogo). Loja pequena, sem conta de cliente nem
+   coleta de dados além do necessário pra fechar o pedido pelo
+   WhatsApp — o texto reflete exatamente isso, nada genérico/copiado. */
+function renderPolicy() {
+  const tab = state.policyTab === "termos" ? "termos" : "privacidade";
+  const tabBtn = (key, label) => `
+    <button data-policy-tab="${key}" class="rounded-full px-4 py-1.5 text-sm font-medium transition ${tab === key ? "bg-navy-900 text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"}">${label}</button>
+  `;
+  const privacidade = `
+    <div class="space-y-4 text-sm leading-relaxed text-navy-700">
+      <p>Esta política explica quais dados a Luz Mariana coleta quando você usa este catálogo e faz um pedido, e o que fazemos com eles. Última atualização: 25/08/2026.</p>
+      <h3 class="text-base font-semibold text-navy-900">Quais dados coletamos</h3>
+      <p>Para fechar um pedido pedimos seu nome, número de WhatsApp e, opcionalmente, seu Instagram — apenas o necessário para confirmar o pedido e combinar entrega/pagamento com você pelo WhatsApp. Não pedimos CPF, endereço completo, dados de cartão ou qualquer informação financeira: o pagamento é combinado diretamente com você pelo WhatsApp, fora deste site.</p>
+      <p>O catálogo também guarda os itens do seu carrinho no seu próprio navegador (não em nossos servidores), só para o carrinho não se perder se você fechar a página sem finalizar — isso fica salvo apenas no seu aparelho e some se você limpar os dados do navegador.</p>
+      <h3 class="text-base font-semibold text-navy-900">Para que usamos esses dados</h3>
+      <p>Usamos seu nome e WhatsApp exclusivamente para confirmar o pedido, tirar dúvidas e combinar entrega e pagamento com você. Não vendemos, alugamos nem compartilhamos seus dados com terceiros, e não os usamos para envio de propaganda sem sua autorização.</p>
+      <h3 class="text-base font-semibold text-navy-900">Onde seus dados ficam guardados</h3>
+      <p>As informações do pedido ficam guardadas em nosso banco de dados (Supabase), usado apenas pela equipe da Luz Mariana para atender pedidos. Mantemos esses dados pelo tempo necessário para o histórico de vendas e atendimento.</p>
+      <h3 class="text-base font-semibold text-navy-900">Seus direitos (LGPD)</h3>
+      <p>Você pode pedir a qualquer momento para saber quais dados temos sobre você, corrigi-los ou pedir que sejam apagados, entrando em contato pelo WhatsApp <a href="https://wa.me/${STORE_WHATSAPP_NUMBER}" target="_blank" rel="noopener" class="underline">${formatWhatsappBR(STORE_WHATSAPP_NUMBER)}</a>. Atendemos esse pedido assim que possível, respeitando eventuais obrigações legais de manter registros de venda.</p>
+    </div>
+  `;
+  const termos = `
+    <div class="space-y-4 text-sm leading-relaxed text-navy-700">
+      <p>Ao usar este catálogo e fazer um pedido pela Luz Mariana, você concorda com estes termos. Última atualização: 25/08/2026.</p>
+      <h3 class="text-base font-semibold text-navy-900">Como funciona o pedido</h3>
+      <p>Este catálogo é uma vitrine para você montar seu pedido e enviá-lo pelo WhatsApp — a compra só é confirmada de fato na conversa com a Luz Mariana pelo WhatsApp, onde combinamos pagamento, prazo e entrega. Os preços e a disponibilidade mostrados aqui podem mudar sem aviso prévio até a confirmação do pedido.</p>
+      <h3 class="text-base font-semibold text-navy-900">Pagamento</h3>
+      <p>O pagamento é combinado diretamente pelo WhatsApp (Pix ou outro meio informado na conversa) e não é processado neste site.</p>
+      <h3 class="text-base font-semibold text-navy-900">Prazos e produtos sob encomenda</h3>
+      <p>Produtos marcados como "pronta entrega" saem do estoque disponível; os demais são feitos sob encomenda, com o prazo informado no próprio produto ou combinado na conversa. Esse prazo é uma estimativa e pode variar conforme a demanda.</p>
+      <h3 class="text-base font-semibold text-navy-900">Trocas e devoluções</h3>
+      <p>Havendo algum problema com o produto recebido (defeito, erro no pedido), entre em contato pelo WhatsApp para combinarmos a solução — troca, reparo ou reembolso, conforme o caso.</p>
+      <h3 class="text-base font-semibold text-navy-900">Dúvidas</h3>
+      <p>Qualquer dúvida sobre estes termos ou sobre um pedido, fale com a gente pelo WhatsApp <a href="https://wa.me/${STORE_WHATSAPP_NUMBER}" target="_blank" rel="noopener" class="underline">${formatWhatsappBR(STORE_WHATSAPP_NUMBER)}</a>.</p>
+    </div>
+  `;
+  app.innerHTML = `
+    <main class="mx-auto max-w-3xl px-4 py-8" id="main-content">
+      <button data-go-home class="mb-6 inline-flex items-center gap-1 text-sm font-medium text-navy-500 hover:text-navy-700">← Voltar ao catálogo</button>
+      <h1 class="mb-4 text-xl font-semibold text-navy-900">Política de Privacidade e Termos de Uso</h1>
+      <div class="mb-6 flex gap-2">
+        ${tabBtn("privacidade", "Política de Privacidade")}
+        ${tabBtn("termos", "Termos de Uso")}
+      </div>
+      ${tab === "termos" ? termos : privacidade}
+    </main>
+    ${renderFooter()}
   `;
 }
 
@@ -449,32 +693,41 @@ function renderCatalog() {
   const grouped = groupByCategory(state.products);
   const categories = grouped.map((g) => g.category);
   const featured = state.products.filter((p) => p.featured);
-  const visibleProducts = state.categoryFilter === "all"
+  const searchActive = state.searchQuery.trim().length > 0;
+  const categoryFiltered = state.categoryFilter === "all"
     ? state.products
     : state.products.filter((p) => (p.category && p.category.trim() ? p.category.trim() : "Outros") === state.categoryFilter);
+  const searchFiltered = searchActive
+    ? categoryFiltered.filter((p) => productMatchesSearch(p, state.searchQuery))
+    : categoryFiltered;
+  const visibleProducts = state.favoritesOnly
+    ? searchFiltered.filter((p) => state.favorites[p.id])
+    : searchFiltered;
 
   app.innerHTML = `
     ${renderHeader()}
     ${renderCategoryBar(categories)}
     ${renderHero()}
     <main class="mx-auto max-w-5xl px-4 py-6">
-      ${state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
+      ${renderSearchBar()}
+
+      ${!searchActive && state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
 
       <div class="mb-5">
-        <h2 class="text-xl font-semibold text-navy-900">${state.categoryFilter === "all" ? "Encontre algo especial para sua fé" : escapeHtml(state.categoryFilter)}</h2>
+        <h2 class="text-xl font-semibold text-navy-900">${searchActive ? `Resultados para "${escapeHtml(state.searchQuery.trim())}"` : state.favoritesOnly ? "❤ Seus favoritos" : state.categoryFilter === "all" ? "Encontre algo especial para sua fé" : escapeHtml(state.categoryFilter)}</h2>
       </div>
 
       ${state.products.length === 0 ? `
         <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">Nenhum produto disponível no catálogo no momento.</p>
       ` : visibleProducts.length === 0 ? `
-        <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">Nenhum produto nessa categoria.</p>
+        <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">${searchActive ? `Nenhum produto encontrado para "${escapeHtml(state.searchQuery.trim())}".` : state.favoritesOnly ? `Nenhum favorito${state.categoryFilter !== "all" ? ` em "${escapeHtml(state.categoryFilter)}"` : ""} ainda — toque no ❤ de um produto pra guardar aqui.` : "Nenhum produto nessa categoria."}</p>
       ` : `
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           ${visibleProducts.map((p) => renderProductCard(p)).join("")}
         </div>
       `}
 
-      ${state.categoryFilter !== "all" ? renderFeaturedCarousel(featured) : ""}
+      ${!searchActive && state.categoryFilter !== "all" ? renderFeaturedCarousel(featured) : ""}
     </main>
     ${renderFooter()}
     ${renderCartBar()}
@@ -487,6 +740,10 @@ function renderProductCard(p, opts = {}) {
   const variants = variantsFor(p.id);
   const frames = carouselFrames(p);
   const hasDescription = !opts.hideDescription && p.description && p.description.trim();
+  const isFav = !!state.favorites[p.id];
+  const favoriteBtn = `
+    <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/85 text-base shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
+  `;
 
   // Modelo (ou produto, se não tiver modelo) atualmente exibido no card —
   // começa no primeiro da lista já ordenada (esgotados por último, ver
@@ -506,6 +763,7 @@ function renderProductCard(p, opts = {}) {
         </button>
         <button type="button" data-carousel-prev="${p.id}" aria-label="Modelo anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">‹</button>
         <button type="button" data-carousel-next="${p.id}" aria-label="Próximo modelo" class="carousel-nav-btn absolute right-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">›</button>
+        ${favoriteBtn}
       </div>
     `;
   } else {
@@ -517,6 +775,7 @@ function renderProductCard(p, opts = {}) {
             ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
             : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-10 w-10 opacity-40" /></div>`}
         </button>
+        ${favoriteBtn}
       </div>
     `;
   }
@@ -641,6 +900,19 @@ function renderCartDrawer() {
   `;
 }
 
+// Produtos relacionados: prioriza a mesma categoria do produto aberto
+// (excluindo ele mesmo); se a categoria tiver poucos produtos, completa
+// com outros produtos quaisquer até o limite, pra a seção nunca ficar
+// vazia ou esquisitamente curta numa categoria pequena. Só considera
+// produtos visíveis no catálogo (mesma base já filtrada em state.products).
+function relatedProducts(product, limit = 4) {
+  const categoryLabel = product.category && product.category.trim() ? product.category.trim() : "Outros";
+  const others = state.products.filter((p) => p.id !== product.id);
+  const sameCategory = others.filter((p) => (p.category && p.category.trim() ? p.category.trim() : "Outros") === categoryLabel);
+  const rest = others.filter((p) => !sameCategory.includes(p));
+  return [...sameCategory, ...rest].slice(0, limit);
+}
+
 /* =====================================================================
    PÁGINA INDIVIDUAL DO PRODUTO
    ===================================================================== */
@@ -669,17 +941,22 @@ function renderProductDetail() {
   const photoUrl = variant?.photo_url || product.photo_url;
   const categoryLabel = product.category && product.category.trim() ? product.category.trim() : "Outros";
   const hasDescription = product.description && product.description.trim();
+  const related = relatedProducts(product);
+  const isFav = !!state.favorites[product.id];
+  const productReviews = reviewsFor(product.id);
+  const avgRating = averageRating(productReviews);
 
   app.innerHTML = `
     ${renderHeader()}
     <main class="mx-auto max-w-3xl px-4 py-6">
       <button id="back-to-catalog-btn" class="mb-4 text-sm text-navy-600 hover:underline">&larr; Voltar ao catálogo</button>
-      <div class="grid gap-6 sm:grid-cols-2">
+      <div id="product-detail-panel" class="grid gap-6 sm:grid-cols-2">
         <div>
           <div class="relative aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
             ${photoUrl
               ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-cover" />`
               : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-16 w-16 opacity-40" /></div>`}
+            <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
           </div>
           ${variants.length > 0 ? `
             <div class="mt-3 flex flex-wrap gap-1.5">
@@ -700,6 +977,12 @@ function renderProductDetail() {
               <button data-tag-category="${escapeHtml(categoryLabel)}" class="category-tag-btn text-xs text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(categoryLabel)}</button>
               ${product.material_tag ? `<span class="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(product.material_tag)}</span>` : ""}
             </div>
+            ${productReviews.length > 0 ? `
+              <button data-scroll-to-reviews class="mt-1.5 flex items-center gap-1 text-sm text-navy-500 hover:text-navy-700">
+                <span class="text-amber-500">${starDisplayCatalog(avgRating)}</span>
+                <span>${avgRating.toFixed(1)} (${productReviews.length} ${productReviews.length === 1 ? "avaliação" : "avaliações"})</span>
+              </button>
+            ` : ""}
           </div>
 
           ${hasDescription ? `<p class="text-justify text-sm leading-relaxed text-navy-600">${escapeHtml(product.description).replace(/\n/g, "<br>")}</p>` : ""}
@@ -724,6 +1007,52 @@ function renderProductDetail() {
           `}
         </div>
       </div>
+
+      <div id="reviews-section" class="mt-10 border-t border-navy-100 pt-8">
+        <h2 class="mb-4 text-lg font-semibold text-navy-900">Avaliações${productReviews.length > 0 ? ` (${productReviews.length})` : ""}</h2>
+
+        ${productReviews.length === 0 ? `
+          <p class="mb-6 text-sm text-navy-400">Ainda não tem avaliação pra esse produto — seja a primeira pessoa a avaliar!</p>
+        ` : `
+          <div class="mb-6 flex flex-col gap-3">
+            ${productReviews.map((r) => `
+              <div class="rounded-xl border border-navy-100 bg-white p-4 shadow-sm">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium text-navy-900">${escapeHtml(r.customer_name)}</p>
+                  <span class="text-amber-500 text-sm">${starDisplayCatalog(r.rating)}</span>
+                </div>
+                ${r.comment ? `<p class="mt-1.5 text-sm text-navy-600">${escapeHtml(r.comment)}</p>` : ""}
+              </div>
+            `).join("")}
+          </div>
+        `}
+
+        ${state.reviewForm.submitted ? `
+          <p class="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">✓ Obrigado! Sua avaliação foi enviada e vai aparecer aqui assim que for aprovada.</p>
+        ` : `
+          <form id="review-form" class="flex max-w-md flex-col gap-3 rounded-xl border border-navy-100 bg-white p-4 shadow-sm">
+            <p class="text-sm font-medium text-navy-800">Deixe sua avaliação</p>
+            <div class="flex items-center gap-1" id="review-star-picker">
+              ${[1, 2, 3, 4, 5].map((n) => `
+                <button type="button" data-review-star="${n}" aria-label="${n} estrela${n === 1 ? "" : "s"}" class="review-star-btn text-2xl leading-none ${n <= state.reviewForm.rating ? "text-amber-500" : "text-navy-200"}">★</button>
+              `).join("")}
+            </div>
+            <input id="review-name" placeholder="Seu nome" value="${escapeHtml(state.reviewForm.name)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+            <textarea id="review-comment" rows="3" placeholder="Comentário (opcional)" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">${escapeHtml(state.reviewForm.comment)}</textarea>
+            ${state.reviewForm.error ? `<p class="text-sm text-red-600">${escapeHtml(state.reviewForm.error)}</p>` : ""}
+            <button type="submit" ${state.reviewForm.submitting ? "disabled" : ""} class="self-start rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">${state.reviewForm.submitting ? "Enviando..." : "Enviar avaliação"}</button>
+          </form>
+        `}
+      </div>
+
+      ${related.length > 0 ? `
+        <div class="mt-10">
+          <h2 class="mb-3 text-lg font-semibold text-navy-900">Você também pode gostar</h2>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            ${related.map((p) => renderProductCard(p, { hideDescription: true })).join("")}
+          </div>
+        </div>
+      ` : ""}
     </main>
     ${renderFooter()}
     ${renderCartBar()}
@@ -734,6 +1063,27 @@ function renderProductDetail() {
 }
 
 function wireCatalogEvents() {
+  const searchInput = document.getElementById("catalog-search-input");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      state.searchQuery = searchInput.value;
+      const cursorPos = searchInput.selectionStart;
+      render();
+      // Re-renderizar troca o elemento do input inteiro — sem isso, cada
+      // letra digitada tirava o foco/cursor do campo de busca.
+      const freshInput = document.getElementById("catalog-search-input");
+      if (freshInput) { freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+    });
+  }
+  const searchClearBtn = document.getElementById("catalog-search-clear");
+  if (searchClearBtn) {
+    searchClearBtn.addEventListener("click", () => {
+      state.searchQuery = "";
+      render();
+      const freshInput = document.getElementById("catalog-search-input");
+      if (freshInput) freshInput.focus();
+    });
+  }
   document.querySelectorAll(".add-to-cart-btn").forEach((btn) => {
     btn.addEventListener("click", () => setQty(btn.dataset.add, 1));
   });
@@ -754,9 +1104,81 @@ function wireCatalogEvents() {
   document.querySelectorAll(".category-bar-btn").forEach((btn) => {
     btn.addEventListener("click", () => { state.categoryFilter = btn.dataset.category; render(); });
   });
+  const favoritesFilterBtn = document.getElementById("favorites-filter-btn");
+  if (favoritesFilterBtn) {
+    favoritesFilterBtn.addEventListener("click", () => { state.favoritesOnly = !state.favoritesOnly; render(); });
+  }
+  document.querySelectorAll("[data-toggle-favorite]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleFavorite(btn.dataset.toggleFavorite);
+    });
+  });
+  const scrollToReviewsBtn = document.querySelector("[data-scroll-to-reviews]");
+  if (scrollToReviewsBtn) {
+    scrollToReviewsBtn.addEventListener("click", () => {
+      document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+  const starPicker = document.getElementById("review-star-picker");
+  if (starPicker) {
+    starPicker.querySelectorAll("[data-review-star]").forEach((starBtn) => {
+      starBtn.addEventListener("click", () => {
+        const n = Number(starBtn.dataset.reviewStar);
+        state.reviewForm.rating = n;
+        // Atualiza só a cor das estrelas na hora, sem re-renderizar a
+        // página inteira — um render() aqui perderia o que a pessoa já
+        // tinha digitado no nome/comentário (o valor só é lido do DOM na
+        // hora de enviar, não fica sincronizado com o state a cada tecla).
+        starPicker.querySelectorAll("[data-review-star]").forEach((b) => {
+          const active = Number(b.dataset.reviewStar) <= n;
+          b.classList.toggle("text-amber-500", active);
+          b.classList.toggle("text-navy-200", !active);
+        });
+      });
+    });
+  }
+  const reviewForm = document.getElementById("review-form");
+  if (reviewForm) {
+    reviewForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("review-name").value.trim();
+      const comment = document.getElementById("review-comment").value.trim();
+      const rating = state.reviewForm.rating;
+      // Guarda o que já foi digitado ANTES de validar — se faltar nome ou
+      // nota, o re-render (pra mostrar o erro) não pode apagar o que a
+      // pessoa já preencheu.
+      state.reviewForm.name = name;
+      state.reviewForm.comment = comment;
+      if (!name) { state.reviewForm.error = "Digite seu nome."; render(); return; }
+      if (!rating) { state.reviewForm.error = "Escolha uma nota de 1 a 5 estrelas."; render(); return; }
+
+      state.reviewForm.submitting = true;
+      state.reviewForm.error = null;
+      render();
+
+      const { error } = await supabaseClient.from("product_reviews").insert({
+        product_id: state.detailProductId,
+        customer_name: name,
+        rating,
+        comment: comment || null,
+      });
+
+      state.reviewForm.submitting = false;
+      if (error) {
+        state.reviewForm.error = "Não foi possível enviar sua avaliação agora. Tente novamente em instantes.";
+        render();
+        return;
+      }
+      state.reviewForm.submitted = true;
+      render();
+      document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
   document.querySelectorAll(".category-tag-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.categoryFilter = btn.dataset.tagCategory;
+      state.searchQuery = "";
       state.screen = "catalog";
       state.detailProductId = null;
       render();
@@ -773,6 +1195,7 @@ function wireCatalogEvents() {
     btn.addEventListener("click", () => {
       state.screen = "product";
       state.detailProductId = btn.dataset.viewProduct;
+      state.reviewForm = { rating: 0, name: "", comment: "", submitting: false, submitted: false, error: null };
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -949,6 +1372,7 @@ function renderCheckout() {
         <div id="ck-error" class="text-sm text-red-600"></div>
         <button type="submit" id="ck-submit" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">Confirmar pedido e abrir WhatsApp</button>
         <p class="text-center text-xs text-navy-400">Ao confirmar, o WhatsApp abre com seu pedido pronto — é só apertar enviar.</p>
+        <p class="text-center text-xs text-navy-400">Ao confirmar, você concorda com a <button type="button" data-open-policy="privacidade" class="underline hover:text-navy-600">Política de Privacidade</button> e os <button type="button" data-open-policy="termos" class="underline hover:text-navy-600">Termos de Uso</button>.</p>
       </form>
     </main>
   `;
@@ -1261,7 +1685,7 @@ async function onSubmitOrder(e) {
   const total = Math.max(0, subtotal - discount);
   const coupon = state.appliedCoupon;
 
-  const { error: orderError } = await supabaseClient.from("orders").insert({
+  const { data: insertedOrder, error: orderError } = await supabaseClient.from("orders").insert({
     id: orderId,
     customer_name: name,
     customer_whatsapp: whatsapp,
@@ -1272,7 +1696,7 @@ async function onSubmitOrder(e) {
     coupon_id: coupon ? coupon.id : null,
     coupon_code: coupon ? coupon.code : null,
     discount_amount: discount > 0 ? discount : null,
-  });
+  }).select("order_number").single();
 
   if (orderError) {
     if (waWindow) waWindow.close();
@@ -1344,10 +1768,13 @@ async function onSubmitOrder(e) {
   else window.open(waUrl, "_blank");
 
   state.cart = {};
+  saveCartToStorage();
   state.giftWrapWanted = false;
   state.giftWrapQuantities = {};
   state.couponCode = "";
   state.appliedCoupon = null;
+  state.lastOrderNumber = insertedOrder ? insertedOrder.order_number : null;
+  state.lastOrderWhatsapp = whatsapp;
   state.screen = "success";
   render();
 }
@@ -1393,11 +1820,169 @@ function renderSuccess() {
     <main class="mx-auto flex max-w-lg flex-col items-center px-4 py-16 text-center">
       <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✓</div>
       <h1 class="mb-2 text-xl font-semibold text-navy-900">Pedido enviado!</h1>
+      ${state.lastOrderNumber ? `<p class="mb-1 text-sm font-medium text-navy-800">Pedido Nº ${String(state.lastOrderNumber).padStart(6, "0")}</p>` : ""}
       <p class="mb-6 text-sm text-navy-600">Confira a aba do WhatsApp que abriu — é só apertar "Enviar" pra confirmar o pedido com a Luz Mariana.</p>
-      <button id="new-order-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Fazer novo pedido</button>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <button id="new-order-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Fazer novo pedido</button>
+        ${state.lastOrderNumber ? `<button id="track-this-order-btn" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-semibold text-navy-700 transition hover:bg-navy-50">Acompanhar meu pedido</button>` : ""}
+      </div>
     </main>
   `;
   document.getElementById("new-order-btn").addEventListener("click", () => { state.screen = "catalog"; render(); });
+  const trackBtn = document.getElementById("track-this-order-btn");
+  if (trackBtn) {
+    trackBtn.addEventListener("click", () => {
+      state.trackOrderNumber = String(state.lastOrderNumber);
+      state.trackWhatsapp = state.lastOrderWhatsapp;
+      state.trackResult = null;
+      state.trackError = null;
+      state.screen = "track";
+      render();
+      searchTrackedOrder();
+    });
+  }
+}
+
+/* =====================================================================
+   RASTREAR PEDIDO
+   ===================================================================== */
+// Busca o pedido pelo número + WhatsApp usados na compra, via função
+// pública do banco (track_order) — só acha o pedido se os dois baterem
+// juntos, então não dá pra "adivinhar" o pedido de outra pessoa só pelo
+// número sequencial.
+async function searchTrackedOrder() {
+  const numberDigits = String(state.trackOrderNumber ?? "").replace(/\D/g, "");
+  if (!numberDigits || !state.trackWhatsapp.trim()) {
+    state.trackError = "Preencha o número do pedido e o WhatsApp usado na compra.";
+    state.trackResult = null;
+    render();
+    return;
+  }
+  state.trackLoading = true;
+  state.trackError = null;
+  state.trackResult = null;
+  render();
+
+  const whatsappFormatted = formatWhatsappBR(state.trackWhatsapp.trim()) || state.trackWhatsapp.trim();
+  const { data, error } = await supabaseClient.rpc("track_order", {
+    p_order_number: Number(numberDigits),
+    p_whatsapp: whatsappFormatted,
+  });
+
+  state.trackLoading = false;
+  if (error) {
+    state.trackError = "Não foi possível buscar o pedido agora. Tente novamente em instantes.";
+    render();
+    return;
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    state.trackError = "Pedido não encontrado. Confira o número do pedido e o WhatsApp usados na compra.";
+    render();
+    return;
+  }
+  state.trackResult = result;
+  render();
+}
+
+const ORDER_STATUS_LABEL = { novo: "Recebido", em_andamento: "Em andamento", concluido: "Concluído", cancelado: "Cancelado" };
+// Passos do "andamento" do pedido, na ordem — usado só pra desenhar a
+// linha do tempo visual. Pedido cancelado não segue essa linha (mostra
+// um aviso à parte, não uma etapa "concluída antes da hora").
+const ORDER_TRACK_STEPS = [
+  { key: "criado", label: "Pedido recebido" },
+  { key: "aceito", label: "Aceito pela loja" },
+  { key: "fabricacao", label: "Em preparação" },
+  { key: "concluido", label: "Concluído" },
+];
+function trackStepsReached(order) {
+  if (order.status === "cancelado") return [];
+  const reached = ["criado"];
+  if (order.accepted_at) reached.push("aceito");
+  if (order.sent_to_manufacturer_at) reached.push("fabricacao");
+  if (order.status === "concluido") reached.push("concluido");
+  return reached;
+}
+
+function renderTrackForm() {
+  return `
+    <form id="track-form" class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-navy-700">Número do pedido</label>
+        <input id="track-order-number" inputmode="numeric" placeholder="Ex: 12" value="${escapeHtml(state.trackOrderNumber)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+      </div>
+      <div>
+        <label class="mb-1 block text-sm font-medium text-navy-700">WhatsApp usado na compra</label>
+        <input id="track-whatsapp" inputmode="tel" placeholder="(11) 91234-5678" value="${escapeHtml(state.trackWhatsapp)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+      </div>
+      ${state.trackError ? `<p class="text-sm text-red-600">${escapeHtml(state.trackError)}</p>` : ""}
+      <button type="submit" id="track-submit" ${state.trackLoading ? "disabled" : ""} class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">${state.trackLoading ? "Buscando..." : "Buscar pedido"}</button>
+    </form>
+  `;
+}
+
+function renderTrackResult() {
+  const order = state.trackResult;
+  if (!order) return "";
+  const reached = trackStepsReached(order);
+  return `
+    <div class="mt-6 flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-base font-semibold text-navy-900">Pedido Nº ${String(order.order_number).padStart(6, "0")}</h2>
+        <span class="rounded-full px-2.5 py-1 text-xs font-medium ${order.status === "cancelado" ? "bg-red-100 text-red-700" : order.status === "concluido" ? "bg-emerald-100 text-emerald-800" : "bg-gold-100 text-gold-800"}">${ORDER_STATUS_LABEL[order.status] || order.status}</span>
+      </div>
+
+      ${order.status === "cancelado" ? `
+        <p class="text-sm text-red-600">Este pedido foi cancelado. Qualquer dúvida, fale com a gente pelo WhatsApp.</p>
+      ` : `
+        <ol class="flex flex-col gap-2">
+          ${ORDER_TRACK_STEPS.map((step) => {
+            const done = reached.includes(step.key);
+            return `
+              <li class="flex items-center gap-2 text-sm ${done ? "text-navy-900" : "text-navy-300"}">
+                <span class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${done ? "bg-emerald-500 text-white" : "bg-navy-100"}">${done ? "✓" : ""}</span>
+                ${escapeHtml(step.label)}
+              </li>
+            `;
+          }).join("")}
+        </ol>
+      `}
+
+      <div class="border-t border-navy-50 pt-3 text-sm text-navy-600">
+        <p>Pagamento: <span class="font-medium text-navy-800">${order.paid ? "Confirmado" : "Ainda não confirmado"}</span></p>
+        <p class="mt-1">Total: <span class="font-medium text-navy-800">${formatBRL(order.total)}</span>${order.discount_amount ? ` <span class="text-xs text-navy-400">(com desconto${order.coupon_code ? ` do cupom ${escapeHtml(order.coupon_code)}` : ""})</span>` : ""}</p>
+      </div>
+
+      ${(order.items || []).length > 0 ? `
+        <div class="border-t border-navy-50 pt-3">
+          <p class="mb-2 text-sm font-medium text-navy-700">Itens:</p>
+          <ul class="flex flex-col gap-1 text-sm text-navy-600">
+            ${order.items.map((it) => `<li>${it.quantity}x ${escapeHtml(it.product_name)}${it.variant_name ? ` (${escapeHtml(it.variant_name)})` : ""}</li>`).join("")}
+          </ul>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderTrack() {
+  app.innerHTML = `
+    ${renderHeader()}
+    <main class="mx-auto max-w-lg px-4 py-8" id="main-content">
+      <button data-go-home class="mb-6 inline-flex items-center gap-1 text-sm font-medium text-navy-500 hover:text-navy-700">← Voltar ao catálogo</button>
+      <h1 class="mb-1 text-xl font-semibold text-navy-900">Rastrear pedido</h1>
+      <p class="mb-6 text-sm text-navy-500">Digite o número do pedido e o WhatsApp usados na compra pra ver o andamento.</p>
+      ${renderTrackForm()}
+      ${renderTrackResult()}
+    </main>
+    ${renderFooter()}
+  `;
+  document.getElementById("track-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    state.trackOrderNumber = document.getElementById("track-order-number").value.trim();
+    state.trackWhatsapp = document.getElementById("track-whatsapp").value.trim();
+    searchTrackedOrder();
+  });
 }
 
 // Clique na logo/"Luz Mariana" do cabeçalho leva pra homepage (catálogo
@@ -1409,7 +1994,29 @@ app.addEventListener("click", (e) => {
     state.screen = "catalog";
     state.detailProductId = null;
     state.categoryFilter = "all";
+    state.searchQuery = "";
     state.cartOpen = false;
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  const policyBtn = e.target.closest("[data-open-policy]");
+  if (policyBtn) {
+    state.screen = "policy";
+    state.policyTab = policyBtn.getAttribute("data-open-policy");
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  const policyTabBtn = e.target.closest("[data-policy-tab]");
+  if (policyTabBtn) {
+    state.policyTab = policyTabBtn.getAttribute("data-policy-tab");
+    render();
+    return;
+  }
+  const trackBtn = e.target.closest("[data-open-track]");
+  if (trackBtn) {
+    state.screen = "track";
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
