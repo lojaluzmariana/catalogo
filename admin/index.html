@@ -512,6 +512,20 @@ async function loadProducts() {
   else console.error("loadProducts:", error.message);
 }
 
+// Prazo de fabricação (dias) de um produto — cada produto pode ter o
+// seu, editável no cadastro (campo "Prazo de fabricação") ou aplicado de
+// uma vez a todos os produtos (botão "Aplicar a todos"). Quando o
+// produto não tem lead_time_days definido (registro antigo, de antes
+// dessa coluna existir, ou produto que sumiu do cadastro), cai no padrão
+// de 2 dias — o mesmo valor fixo que sempre foi usado antes.
+const DEFAULT_LEAD_TIME_DAYS = 2;
+function productLeadTimeDays(product) {
+  return product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
+}
+function leadTimeDaysLabel(days) {
+  return `${days} dia${days === 1 ? "" : "s"}`;
+}
+
 // Badge de estoque na listagem de produtos. Produto SEM modelo cadastrado
 // usa o campo de estoque do produto, como sempre. Produto COM modelos
 // usa o estoque de cada modelo — mostra "todos em estoque" só se todos
@@ -520,17 +534,18 @@ async function loadProducts() {
 // que escolher lá no Catálogo).
 function stockBadge(p) {
   const variants = p.product_variants ?? [];
+  const prazo = leadTimeDaysLabel(productLeadTimeDays(p));
   if (variants.length === 0) {
     return p.in_stock
       ? `<span title="Em estoque — pronta entrega" class="rounded-full bg-emerald-100 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">✓ estoque</span>`
-      : `<span title="Sob encomenda — catálogo avisa prazo de 2 dias" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda</span>`;
+      : `<span title="Sob encomenda — catálogo avisa prazo de ${prazo}" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda</span>`;
   }
   const inStockCount = variants.filter((v) => v.in_stock).length;
   if (inStockCount === variants.length) {
     return `<span title="Todos os modelos em estoque" class="rounded-full bg-emerald-100 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">✓ estoque (todos)</span>`;
   }
   if (inStockCount === 0) {
-    return `<span title="Nenhum modelo em estoque — catálogo avisa prazo de 2 dias" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda (todos)</span>`;
+    return `<span title="Nenhum modelo em estoque — catálogo avisa prazo de ${prazo}" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda (todos)</span>`;
   }
   return `<span title="${inStockCount} de ${variants.length} modelos em estoque — veja qual em Modelos" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">estoque parcial (${inStockCount}/${variants.length})</span>`;
 }
@@ -803,7 +818,7 @@ function renderProductForm() {
             <input type="checkbox" id="pf-in-stock" ${product?.in_stock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
             Em estoque (pronta entrega)
           </label>
-          <p class="mt-1 text-xs text-navy-400">Desmarcado = sob encomenda: o Catálogo avisa o cliente "Prazo de 2 dias para fabricação, a contar da data do pedido".</p>
+          <p class="mt-1 text-xs text-navy-400">Desmarcado = sob encomenda: o Catálogo avisa o cliente o prazo de fabricação configurado abaixo, a contar da data do pedido.</p>
           <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
             <input type="checkbox" id="pf-esgotado" ${product?.esgotado ? "checked" : ""} class="rounded border-navy-300 text-red-600 focus:ring-red-400" />
             Esgotado
@@ -811,6 +826,15 @@ function renderProductForm() {
           <p class="mt-1 text-xs text-navy-400">Marcado = não dá pra comprar agora. O produto continua no Catálogo, mas some o preço/botão de comprar e aparece um aviso de "Esgotado" no lugar.</p>
         </div>
         <p id="pf-in-stock-variant-note" class="mt-2 hidden text-xs text-navy-400">Este produto tem modelos cadastrados — o estoque e o esgotado agora são marcados em cada modelo, logo abaixo.</p>
+
+        <div class="mt-3 flex flex-wrap items-end gap-3">
+          <div class="w-32">
+            <label class="mb-1 block text-xs font-medium text-navy-700" title="Quantos dias o Catálogo avisa pro cliente quando este produto está sob encomenda (não vale pra produto em estoque).">Prazo (dias)</label>
+            <input id="pf-lead-time" type="number" min="0" step="1" value="${productLeadTimeDays(product)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+          </div>
+          <button type="button" id="pf-lead-time-apply-all" class="rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100">Aplicar esse prazo a TODOS os produtos</button>
+        </div>
+        <p id="pf-lead-time-msg" class="mt-1 text-xs"></p>
       </div>
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
@@ -1114,6 +1138,46 @@ function renderProductForm() {
     renderPrecificacao(document.getElementById("main-content"));
   });
 
+  // "Aplicar a todos": bulk-escreve o prazo digitado (dias) em TODO
+  // produto cadastrado — não só o que está sendo editado agora — pra não
+  // precisar abrir um por um quando o prazo muda pra loja inteira (ex:
+  // fornecedor passou a demorar mais/menos pra fabricar).
+  document.getElementById("pf-lead-time-apply-all").addEventListener("click", async () => {
+    const msgEl = document.getElementById("pf-lead-time-msg");
+    const leadTimeField = document.getElementById("pf-lead-time");
+    const raw = leadTimeField.value.trim();
+    const days = Math.trunc(Number(raw.replace(",", ".")));
+    if (!Number.isFinite(days) || days < 0) {
+      msgEl.className = "mt-1 text-xs text-red-600";
+      msgEl.textContent = "Informe um número de dias válido (0 ou mais) antes de aplicar a todos.";
+      return;
+    }
+    if (!confirm(`Aplicar ${leadTimeDaysLabel(days)} de prazo a TODOS os produtos? Isso substitui o prazo individual que já estiver configurado em cada um.`)) return;
+
+    const applyBtn = document.getElementById("pf-lead-time-apply-all");
+    applyBtn.disabled = true;
+    const originalLabel = applyBtn.textContent;
+    applyBtn.textContent = "Aplicando...";
+
+    const { data, error } = await supabaseClient.from("products")
+      .update({ lead_time_days: days, updated_by: state.currentUser.id, updated_at: new Date().toISOString() })
+      .not("id", "is", null)
+      .select("id");
+
+    applyBtn.disabled = false;
+    applyBtn.textContent = originalLabel;
+
+    if (error) {
+      msgEl.className = "mt-1 text-xs text-red-600";
+      msgEl.textContent = "Não foi possível aplicar o prazo a todos os produtos: " + error.message;
+      return;
+    }
+
+    await loadProducts();
+    msgEl.className = "mt-1 text-xs text-emerald-700";
+    msgEl.textContent = `Prazo de ${leadTimeDaysLabel(days)} aplicado a ${data?.length ?? 0} produto${(data?.length ?? 0) === 1 ? "" : "s"}.`;
+  });
+
   document.getElementById("product-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = document.getElementById("pf-name").value.trim();
@@ -1128,6 +1192,9 @@ function renderProductForm() {
       promoManual = Number(promoManualRaw.replace(",", "."));
       if (!Number.isFinite(promoManual) || promoManual < 0) { errorEl.textContent = "Promo/Pix manual inválido."; return; }
     }
+
+    const leadTimeDays = Math.trunc(Number(document.getElementById("pf-lead-time").value.replace(",", ".")));
+    if (!Number.isFinite(leadTimeDays) || leadTimeDays < 0) { errorEl.textContent = "Prazo (dias) inválido."; return; }
 
     const totalCost = round2(baseCost + materialsTotal());
     const pricing = promoManual != null ? calculatePricingFromManualPromo(totalCost, promoManual) : calculatePricing(totalCost);
@@ -1211,7 +1278,7 @@ function renderProductForm() {
       promo_price: pricing.promoPrice, promo_profit: pricing.promoProfit, promo_margin: pricing.promoMargin,
       promo_manual_price: promoManual,
       photo_url: newPhotoUrl, show_in_catalog: showInCatalog, category: category || null, featured,
-      in_stock: inStock, esgotado,
+      in_stock: inStock, esgotado, lead_time_days: leadTimeDays,
       description: description || null, material_tag: materialTag || null, supplier_id: supplierId,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
@@ -2528,25 +2595,37 @@ function itemIsInStock(item, product) {
   return !!product.in_stock;
 }
 
-// Mesma regra usada no Catálogo público (ver MADE_TO_ORDER_TEXT em
-// index.html): produto sob encomenda leva 2 dias corridos a contar da
-// data do pedido. Aqui calculamos o prazo de entrega do pedido inteiro:
-// se todo item já está "Em estoque", é pronta entrega; se algum item é
-// sob encomenda, o prazo do pedido é o do item mais demorado (sempre 2
-// dias, já que só existe esse prazo hoje) a contar de quando o pedido
-// foi feito. Produto que sumiu do cadastro é tratado como sob encomenda,
-// por segurança (não dá pra saber se tinha estoque).
-const MADE_TO_ORDER_DAYS = 2;
+// Mesma regra usada no Catálogo público (ver madeToOrderText em
+// index.html): produto sob encomenda leva o prazo (dias) configurado
+// nele a contar da data do pedido — cada produto pode ter o seu (ver
+// productLeadTimeDays mais acima). Maior prazo (dias) entre os itens do
+// pedido que estão "sob encomenda" (fora de estoque); null quando nenhum
+// item está sob encomenda (pedido inteiro é pronta entrega). Produto que
+// sumiu do cadastro é tratado como sob encomenda, por segurança (não dá
+// pra saber se tinha estoque), com o prazo padrão.
+function orderMadeToOrderDays(order) {
+  const items = order.items ?? [];
+  let maxDays = null;
+  items.forEach((it) => {
+    const product = state.products.find((p) => p.id === it.product_id);
+    if (!itemIsInStock(it, product)) {
+      const days = productLeadTimeDays(product);
+      maxDays = maxDays == null ? days : Math.max(maxDays, days);
+    }
+  });
+  return maxDays;
+}
+
+// Prazo de entrega do pedido inteiro: se todo item já está "Em estoque",
+// é pronta entrega; se algum item é sob encomenda, o prazo do pedido é o
+// do item mais demorado, a contar de quando o pedido foi feito.
 function orderDeliveryDeadline(order) {
   const items = order.items ?? [];
   if (items.length === 0) return null;
-  const anyMadeToOrder = items.some((it) => {
-    const product = state.products.find((p) => p.id === it.product_id);
-    return !itemIsInStock(it, product);
-  });
-  if (!anyMadeToOrder) return { ready: true, date: null };
+  const days = orderMadeToOrderDays(order);
+  if (days == null) return { ready: true, date: null };
   const date = new Date(order.created_at);
-  date.setDate(date.getDate() + MADE_TO_ORDER_DAYS);
+  date.setDate(date.getDate() + days);
   return { ready: false, date };
 }
 
@@ -2555,11 +2634,14 @@ function formatDateTime(dateLike) {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-// Prazo de entrega combinado com o fabricante: 2 dias corridos a partir
-// da data em que o pedido entrou.
+// Prazo de entrega combinado com o fabricante: mesma regra de
+// orderDeliveryDeadline (maior prazo entre os itens sob encomenda do
+// pedido), a partir da data em que o pedido entrou. Sem nenhum item sob
+// encomenda, cai no prazo padrão (mesmo comportamento de sempre).
 function manufacturerDeadline(order) {
+  const days = orderMadeToOrderDays(order) ?? DEFAULT_LEAD_TIME_DAYS;
   const created = new Date(order.created_at);
-  const deadline = new Date(created.getTime() + 2 * 24 * 60 * 60 * 1000);
+  const deadline = new Date(created.getTime() + days * 24 * 60 * 60 * 1000);
   const d = String(deadline.getDate()).padStart(2, "0");
   const m = String(deadline.getMonth() + 1).padStart(2, "0");
   const y = deadline.getFullYear();
