@@ -56,8 +56,8 @@ const SUPABASE_URL = "https://xgcsdpqaqxstcfwgwaxw.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_7AX1nS3J0mtVkzzzLVsKlg_zYxWFxfk";
 
 const USER_EMAILS = {
-  Bob: "bob@luzmariana.internal",
-  Helena: "helena@luzmariana.internal",
+  Bob: "bjeanmv@gmail.com",
+  Helena: "helenascosta16@gmail.com",
 };
 
 /* Dados da loja, usados no comprovante não fiscal dos pedidos. */
@@ -72,6 +72,26 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
     persistSession: false,
     autoRefreshToken: false,
   },
+});
+
+/* Link de "Redefinir senha" que veio do e-mail: o Supabase pode devolver o
+   token tanto num fragmento (#...&type=recovery) quanto numa query
+   (?...&type=recovery), dependendo do fluxo. A gente confere os dois de
+   propósito, de forma síncrona, ANTES de decidir a tela inicial — não dá
+   pra confiar 100% só no evento PASSWORD_RECOVERY do onAuthStateChange
+   (é um bug conhecido da biblioteca ele às vezes não disparar, só o
+   SIGNED_IN). O supabase-js processa o token da URL sozinho (fica ligado
+   por padrão) e deixa uma sessão temporária pronta pro updateUser() lá
+   na tela de redefinir senha. */
+const isPasswordRecoveryLink = window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery");
+
+supabaseClient.auth.onAuthStateChange((event) => {
+  if (event === "PASSWORD_RECOVERY") {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    state.screen = "resetPassword";
+    state.error = null;
+    render();
+  }
 });
 
 /* =====================================================================
@@ -180,6 +200,30 @@ function todayISO() {
 function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// Envolve em aspas (dobrando aspas internas) só quando o valor tem
+// vírgula, ponto-e-vírgula, aspas ou quebra de linha — senão o CSV vira
+// bagunça quando aberto no Excel/Planilhas Google.
+function csvEscape(v) {
+  const s = String(v ?? "");
+  if (/[",;\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+// Gera e baixa um CSV a partir de uma matriz de linhas (a primeira linha
+// é o cabeçalho). O "﻿" (BOM) no início é pro Excel reconhecer que o
+// arquivo é UTF-8 e não bagunçar os acentos — sem ele, "Descrição" vira
+// caractere estranho quando aberto direto no Excel do Windows.
+function downloadCSV(filename, rows) {
+  const csv = rows.map((row) => row.map(csvEscape).join(";")).join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 function formatKB(bytes) {
   return `${Math.round(bytes / 1024)} KB`;
 }
@@ -220,9 +264,10 @@ function resizeImageToBlob(file, maxDim = 1000, quality = 0.82) {
    ESTADO
    ===================================================================== */
 const state = {
-  screen: "login", // login | setPassword | app
+  screen: "login", // login | setPassword | forgotPassword | resetPassword | app
   selectedName: null,
   currentUser: null, // { id, name }
+  forgotPassword: { username: "", submitting: false, submitted: false, error: null },
   tab: "precificacao", // precificacao | materiais | fornecedores | clientes | cupons | pedidos | estoque | caixa
   products: [],
   materials: [],
@@ -232,10 +277,12 @@ const state = {
   couponAllowedPhones: [], // números de telefone com direito a um cupom restrito (ver aba Cupons)
   orders: [],
   cashEntries: [],
+  reviews: [], // avaliações de produtos enviadas pelos clientes (aprovadas e pendentes)
   adminUsers: [], // [{ id, name }] — todos os administradores, pra mostrar quem fez cada venda
   loading: false,
   error: null,
   lastRefreshedAt: null, // Date da última vez que os dados foram recarregados (manual ou automático)
+  dataLoadWarnings: [], // nomes (em português, pra mostrar na tela) do que falhou ao carregar em segundo plano — ver noteLoadResult()
 };
 
 const app = document.getElementById("app");
@@ -244,6 +291,8 @@ function render() {
   app.innerHTML = "";
   if (state.screen === "login") return renderLogin();
   if (state.screen === "setPassword") return renderSetPassword();
+  if (state.screen === "forgotPassword") return renderForgotPassword();
+  if (state.screen === "resetPassword") return renderResetPassword();
   if (state.screen === "app") return renderApp();
 }
 
@@ -276,6 +325,9 @@ function renderLogin() {
           <button type="submit" id="submit-btn" class="mt-2 rounded-lg bg-navy-900 px-4 py-3.5 text-base font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">
             Entrar
           </button>
+          <button type="button" id="forgot-password-link" class="mt-1 text-center text-sm text-navy-500 underline decoration-navy-200 underline-offset-2 transition hover:text-navy-700">
+            Esqueci minha senha
+          </button>
         </form>
       </div>
       <p class="mt-8 text-xs text-navy-400">Luz Mariana — Artigos Religiosos e Devoção</p>
@@ -286,6 +338,13 @@ function renderLogin() {
   const passField = document.getElementById("login-pass");
   passField.addEventListener("input", () => {
     passField.value = passField.value.replace(/\D/g, "").slice(0, 6);
+  });
+
+  document.getElementById("forgot-password-link").addEventListener("click", () => {
+    state.forgotPassword = { username: userField.value.trim(), submitting: false, submitted: false, error: null };
+    state.screen = "forgotPassword";
+    state.error = null;
+    render();
   });
 
   document.getElementById("login-form").addEventListener("submit", async (e) => {
@@ -389,6 +448,177 @@ function renderSetPassword() {
 }
 
 /* ---------------------------------------------------------------------
+   TELA: esqueci minha senha (pede o usuário, manda e-mail de redefinição)
+   --------------------------------------------------------------------- */
+function renderForgotPassword() {
+  const fp = state.forgotPassword;
+
+  if (fp.submitted) {
+    app.innerHTML = `
+      <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
+        <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
+          <img src="../logo-horizontal.png" alt="Luz Mariana" class="max-w-[260px] sm:max-w-[300px]" />
+        </div>
+        <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 text-center shadow-lg sm:p-8">
+          <h1 class="mb-2 text-lg font-semibold text-navy-900">Verifique seu e-mail</h1>
+          <p class="text-sm text-navy-500">Se esse usuário existir, enviamos um link pra redefinir a senha pro e-mail cadastrado. Pode levar alguns minutos — olhe também a caixa de spam.</p>
+          <button type="button" id="back-to-login-btn" class="mt-6 rounded-lg bg-navy-900 px-4 py-3 text-base font-medium text-white transition hover:bg-navy-800">
+            Voltar para o login
+          </button>
+        </div>
+      </main>
+    `;
+    document.getElementById("back-to-login-btn").addEventListener("click", () => {
+      state.screen = "login";
+      state.error = null;
+      render();
+    });
+    return;
+  }
+
+  app.innerHTML = `
+    <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
+      <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
+        <img src="../logo-horizontal.png" alt="Luz Mariana" class="max-w-[260px] sm:max-w-[300px]" />
+      </div>
+      <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
+        <h1 class="mb-1 text-lg font-semibold text-navy-900">Esqueci minha senha</h1>
+        <p class="mb-6 text-sm text-navy-500">Digite seu usuário. Vamos mandar um link de redefinição pro e-mail cadastrado.</p>
+        <form id="forgot-password-form" class="flex flex-col gap-4">
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Usuário</span>
+            <input id="forgot-username" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" autofocus value="${escapeHtml(fp.username)}"
+              class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+              placeholder="Digite seu usuário" />
+          </label>
+          ${fp.error ? `<p class="text-sm text-red-600">${escapeHtml(fp.error)}</p>` : ""}
+          <button type="submit" id="submit-btn" class="mt-2 rounded-lg bg-navy-900 px-4 py-3.5 text-base font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">
+            ${fp.submitting ? "Enviando..." : "Enviar link de redefinição"}
+          </button>
+          <button type="button" id="back-to-login-btn" class="mt-1 text-center text-sm text-navy-500 underline decoration-navy-200 underline-offset-2 transition hover:text-navy-700">
+            Voltar para o login
+          </button>
+        </form>
+      </div>
+    </main>
+  `;
+
+  document.getElementById("back-to-login-btn").addEventListener("click", () => {
+    state.screen = "login";
+    state.error = null;
+    render();
+  });
+
+  document.getElementById("forgot-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const userInput = document.getElementById("forgot-username").value.trim();
+    fp.username = userInput;
+    if (!userInput) { fp.error = "Informe seu usuário."; return render(); }
+
+    const matchedName = Object.keys(USER_EMAILS).find((name) => name.toLowerCase() === userInput.toLowerCase());
+    const email = matchedName ? USER_EMAILS[matchedName] : (userInput.includes("@") ? userInput : null);
+    if (!email) { fp.error = "Usuário não encontrado."; return render(); }
+    fp.error = null;
+
+    const submitBtn = document.getElementById("submit-btn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Enviando...";
+
+    // redirectTo precisa estar cadastrado nas "Redirect URLs" do projeto
+    // Supabase (Authentication > URL Configuration), senão o link do
+    // e-mail volta pra Site URL padrão em vez de cair aqui de novo.
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname,
+    });
+
+    // O Supabase, de propósito, não avisa se o e-mail existe ou não (evita
+    // vazar quais usuários existem) — só mostra erro em casos como limite
+    // de envios ou falha de rede. Em qualquer um desses dois casos, a
+    // gente mostra a mesma mensagem genérica de sucesso.
+    if (error) console.error("resetPasswordForEmail:", error.message);
+    fp.submitted = true;
+    render();
+  });
+}
+
+/* ---------------------------------------------------------------------
+   TELA: redefinir senha (depois de clicar no link do e-mail)
+   --------------------------------------------------------------------- */
+function renderResetPassword() {
+  app.innerHTML = `
+    <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
+      <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
+        <img src="../logo-horizontal.png" alt="Luz Mariana" class="max-w-[260px] sm:max-w-[300px]" />
+      </div>
+      <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
+        <h1 class="mb-1 text-lg font-semibold text-navy-900">Redefinir senha</h1>
+        <p class="mb-6 text-sm text-navy-500">Crie sua nova senha numérica de 6 dígitos.</p>
+        <form id="reset-password-form" class="flex flex-col gap-4">
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Nova senha (6 números)</span>
+            <input id="new-pin" type="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" autofocus
+              class="pin-input w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-center text-2xl text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+              placeholder="••••••" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Confirme a senha</span>
+            <input id="confirm-pin" type="password" inputmode="numeric" pattern="\\d{6}" maxlength="6"
+              class="pin-input w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-center text-2xl text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+              placeholder="••••••" />
+          </label>
+          ${state.error ? `<p class="text-sm text-red-600">${escapeHtml(state.error)}</p>` : ""}
+          <button type="submit" id="submit-btn" class="mt-2 rounded-lg bg-navy-900 px-4 py-3 font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">
+            Salvar nova senha e entrar
+          </button>
+        </form>
+      </div>
+    </main>
+  `;
+
+  ["new-pin", "confirm-pin"].forEach((id) => {
+    const field = document.getElementById(id);
+    field.addEventListener("input", () => { field.value = field.value.replace(/\D/g, "").slice(0, 6); });
+  });
+
+  document.getElementById("reset-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const pin = document.getElementById("new-pin").value;
+    const confirm = document.getElementById("confirm-pin").value;
+    if (!/^\d{6}$/.test(pin)) { state.error = "A senha deve ter 6 números."; return render(); }
+    if (pin !== confirm) { state.error = "As senhas não conferem."; return render(); }
+
+    const submitBtn = document.getElementById("submit-btn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Salvando...";
+
+    // A sessão temporária de recuperação já foi estabelecida sozinha pelo
+    // supabase-js a partir do link do e-mail (ver isPasswordRecoveryLink
+    // lá em cima) — não precisa logar de novo, só trocar a senha mesmo.
+    const { data: sessionCheck } = await supabaseClient.auth.getSession();
+    if (!sessionCheck?.session) {
+      state.error = "Esse link de redefinição expirou ou já foi usado. Peça um novo em \"Esqueci minha senha\".";
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Salvar nova senha e entrar";
+      return render();
+    }
+
+    const { error } = await supabaseClient.auth.updateUser({
+      password: pin,
+      data: { must_change_password: false },
+    });
+
+    if (error) {
+      state.error = "Não foi possível salvar a senha: " + error.message;
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Salvar nova senha e entrar";
+      return render();
+    }
+
+    await enterApp();
+  });
+}
+
+/* ---------------------------------------------------------------------
    Depois de logar: busca o nome do admin e os dados, entra no app.
    --------------------------------------------------------------------- */
 async function enterApp() {
@@ -407,8 +637,25 @@ async function enterApp() {
 // Recarrega todos os dados do app de uma vez (usado ao entrar, no botão
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
-  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCouponAllowedPhones(), loadOrders(), loadCashEntries(), loadAdminUsers()]);
+  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCouponAllowedPhones(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews()]);
   state.lastRefreshedAt = new Date();
+}
+
+// Antes, quando um carregamento em segundo plano falhava (sessão caiu,
+// sem internet, etc.), o único sinal era um console.error que ninguém
+// via — o painel ficava mostrando dado desatualizado/vazio sem
+// nenhum aviso na tela. Cada função de load chama isto com um nome em
+// português: soma numa lista (state.dataLoadWarnings) quando dá erro, e
+// tira da lista quando volta a funcionar — vira um aviso visível no
+// topo do painel (ver renderApp) enquanto durar o problema.
+function noteLoadResult(label, error) {
+  const idx = state.dataLoadWarnings.indexOf(label);
+  if (error) {
+    console.error(label + ":", error.message);
+    if (idx === -1) state.dataLoadWarnings.push(label);
+  } else if (idx !== -1) {
+    state.dataLoadWarnings.splice(idx, 1);
+  }
 }
 
 // Se algum formulário estiver aberto, pula a atualização automática pra
@@ -421,7 +668,13 @@ function isAnyFormOpen() {
 async function loadAdminUsers() {
   const { data, error } = await supabaseClient.from("admin_users").select("id, name");
   if (!error) state.adminUsers = data;
-  else console.error("loadAdminUsers:", error.message);
+  noteLoadResult("administradores", error);
+}
+
+async function loadReviews() {
+  const { data, error } = await supabaseClient.from("product_reviews").select("*").order("created_at", { ascending: false });
+  if (!error) state.reviews = data;
+  noteLoadResult("avaliações", error);
 }
 
 /* Nome do administrador dono desse id (ex: pra mostrar "Vendido por: Bob"). */
@@ -469,9 +722,19 @@ function renderApp() {
             <button data-tab="pedidos" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "pedidos" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Pedidos${state.orders.filter((o) => o.status === "novo").length > 0 ? ` <span class="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.orders.filter((o) => o.status === "novo").length}</span>` : ""}</button>
             <button data-tab="estoque" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "estoque" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Estoque${state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length > 0 ? ` <span class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length}</span>` : ""}</button>
             <button data-tab="caixa" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "caixa" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Caixa</button>
+            <button data-tab="relatorios" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "relatorios" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Relatórios</button>
+            <button data-tab="avaliacoes" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "avaliacoes" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Avaliações${state.reviews.filter((r) => !r.approved).length > 0 ? ` <span class="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.reviews.filter((r) => !r.approved).length}</span>` : ""}</button>
           </div>
         </nav>
       </header>
+      ${state.dataLoadWarnings.length > 0 ? `
+        <div class="border-b border-amber-200 bg-amber-50 px-4 py-2">
+          <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-sm text-amber-800">
+            <span>⚠ Não foi possível atualizar: ${escapeHtml(state.dataLoadWarnings.join(", "))}. Os dados na tela podem estar desatualizados.</span>
+            <button id="data-load-warning-retry" class="rounded-lg border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100">Tentar de novo</button>
+          </div>
+        </div>
+      ` : ""}
       <main class="mx-auto max-w-6xl px-4 py-6 sm:py-8" id="main-content"></main>
     </div>
   `;
@@ -487,6 +750,15 @@ function renderApp() {
     await loadAllData();
     render();
   });
+  const dataLoadWarningRetryBtn = document.getElementById("data-load-warning-retry");
+  if (dataLoadWarningRetryBtn) {
+    dataLoadWarningRetryBtn.addEventListener("click", async () => {
+      dataLoadWarningRetryBtn.disabled = true;
+      dataLoadWarningRetryBtn.textContent = "Tentando...";
+      await loadAllData();
+      render();
+    });
+  }
 
   const main = document.getElementById("main-content");
   if (state.tab === "precificacao") renderPrecificacao(main);
@@ -496,6 +768,8 @@ function renderApp() {
   else if (state.tab === "cupons") renderCupons(main);
   else if (state.tab === "pedidos") renderPedidos(main);
   else if (state.tab === "estoque") renderEstoque(main);
+  else if (state.tab === "relatorios") renderRelatorios(main);
+  else if (state.tab === "avaliacoes") renderAvaliacoes(main);
   else renderCaixa(main);
 }
 
@@ -505,11 +779,11 @@ function renderApp() {
 async function loadProducts() {
   const { data, error } = await supabaseClient
     .from("products")
-    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order, in_stock, esgotado), suppliers(id, name, phone, instagram, address)")
+    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order, in_stock, esgotado, stock_qty), suppliers(id, name, phone, instagram, address)")
     .order("active", { ascending: false })
     .order("name", { ascending: true });
   if (!error) state.products = data;
-  else console.error("loadProducts:", error.message);
+  noteLoadResult("produtos", error);
 }
 
 // Prazo de fabricação (dias) de um produto — cada produto pode ter o
@@ -729,7 +1003,7 @@ function renderProductForm() {
   const formVariants = product && product.product_variants
     ? [...product.product_variants]
         .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name, "pt-BR"))
-        .map((v) => ({ id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null, inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false }))
+        .map((v) => ({ id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null, inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false, stockTracked: v.stock_qty != null, stockQty: v.stock_qty ?? 0 }))
     : [];
   const deletedVariantPhotoUrls = [];
 
@@ -815,15 +1089,29 @@ function renderProductForm() {
         </label>
         <div id="pf-in-stock-block">
           <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
-            <input type="checkbox" id="pf-in-stock" ${product?.in_stock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-            Em estoque (pronta entrega)
+            <input type="checkbox" id="pf-stock-tracked" ${product?.stock_qty != null ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+            Controlar por quantidade em estoque
           </label>
-          <p class="mt-1 text-xs text-navy-400">Desmarcado = sob encomenda: o Catálogo avisa o cliente o prazo de fabricação configurado abaixo, a contar da data do pedido.</p>
-          <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
-            <input type="checkbox" id="pf-esgotado" ${product?.esgotado ? "checked" : ""} class="rounded border-navy-300 text-red-600 focus:ring-red-400" />
-            Esgotado
-          </label>
-          <p class="mt-1 text-xs text-navy-400">Marcado = não dá pra comprar agora. O produto continua no Catálogo, mas some o preço/botão de comprar e aparece um aviso de "Esgotado" no lugar.</p>
+          <p class="mt-1 text-xs text-navy-400">Marcado = "Em estoque"/"Esgotado" passam a ser calculados sozinhos a partir do número abaixo, e "Nova compra de estoque" soma direto aqui. Desmarcado = do jeito de sempre, marcado à mão.</p>
+
+          <div id="pf-stock-qty-block" class="mt-2 ${product?.stock_qty != null ? "" : "hidden"}">
+            <label class="mb-1 block text-xs font-medium text-navy-700">Quantidade em estoque</label>
+            <input id="pf-stock-qty" type="number" min="0" step="1" value="${product?.stock_qty ?? 0}" class="w-32 rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+            <p id="pf-stock-qty-derived" class="mt-1 text-xs"></p>
+          </div>
+
+          <div id="pf-manual-stock-block" class="${product?.stock_qty != null ? "hidden" : ""}">
+            <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
+              <input type="checkbox" id="pf-in-stock" ${product?.in_stock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+              Em estoque (pronta entrega)
+            </label>
+            <p class="mt-1 text-xs text-navy-400">Desmarcado = sob encomenda: o Catálogo avisa o cliente o prazo de fabricação configurado abaixo, a contar da data do pedido.</p>
+            <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
+              <input type="checkbox" id="pf-esgotado" ${product?.esgotado ? "checked" : ""} class="rounded border-navy-300 text-red-600 focus:ring-red-400" />
+              Esgotado
+            </label>
+            <p class="mt-1 text-xs text-navy-400">Marcado = não dá pra comprar agora. O produto continua no Catálogo, mas some o preço/botão de comprar e aparece um aviso de "Esgotado" no lugar.</p>
+          </div>
         </div>
         <p id="pf-in-stock-variant-note" class="mt-2 hidden text-xs text-navy-400">Este produto tem modelos cadastrados — o estoque e o esgotado agora são marcados em cada modelo, logo abaixo.</p>
 
@@ -966,6 +1254,29 @@ function renderProductForm() {
   const inStockBlock = document.getElementById("pf-in-stock-block");
   const inStockVariantNote = document.getElementById("pf-in-stock-variant-note");
 
+  // Controle por quantidade (produto sem modelo): quando marcado, esconde
+  // os checkboxes manuais e mostra o campo numérico — "em estoque"/
+  // "esgotado" passam a ser calculados a partir dele (o banco garante
+  // isso via trigger, mas já mostra a prévia aqui também).
+  const stockTrackedCheckbox = document.getElementById("pf-stock-tracked");
+  const stockQtyBlock = document.getElementById("pf-stock-qty-block");
+  const manualStockBlock = document.getElementById("pf-manual-stock-block");
+  const stockQtyField = document.getElementById("pf-stock-qty");
+  const stockQtyDerivedEl = document.getElementById("pf-stock-qty-derived");
+  function updateStockQtyDerived() {
+    const n = Math.trunc(Number(stockQtyField.value));
+    if (!Number.isFinite(n)) { stockQtyDerivedEl.textContent = ""; return; }
+    stockQtyDerivedEl.textContent = n > 0 ? "→ Em estoque (pronta entrega)" : "→ Esgotado";
+    stockQtyDerivedEl.className = "mt-1 text-xs " + (n > 0 ? "text-emerald-700" : "text-red-600");
+  }
+  stockTrackedCheckbox.addEventListener("change", () => {
+    stockQtyBlock.classList.toggle("hidden", !stockTrackedCheckbox.checked);
+    manualStockBlock.classList.toggle("hidden", stockTrackedCheckbox.checked);
+    if (stockTrackedCheckbox.checked) updateStockQtyDerived();
+  });
+  stockQtyField.addEventListener("input", updateStockQtyDerived);
+  if (stockTrackedCheckbox.checked) updateStockQtyDerived();
+
   // Quando o produto tem modelo cadastrado, o estoque é controlado por
   // modelo (logo abaixo) — o checkbox de estoque do produto some, pra
   // não dar a entender que ele ainda faz alguma coisa.
@@ -985,13 +1296,23 @@ function renderProductForm() {
               <input data-variant-name="${idx}" value="${escapeHtml(v.name)}" placeholder="Ex: Azul, Modelo P..."
                 class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
               <label class="mt-1.5 flex items-center gap-1.5 text-xs text-navy-700">
-                <input type="checkbox" data-variant-in-stock="${idx}" ${v.inStock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-                Em estoque (pronta entrega)
+                <input type="checkbox" data-variant-stock-tracked="${idx}" ${v.stockTracked ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+                Controlar por quantidade
               </label>
-              <label class="mt-1 flex items-center gap-1.5 text-xs text-navy-700">
-                <input type="checkbox" data-variant-esgotado="${idx}" ${v.esgotado ? "checked" : ""} class="rounded border-navy-300 text-red-600 focus:ring-red-400" />
-                Esgotado
-              </label>
+              <div data-variant-qty-block="${idx}" class="mt-1 ${v.stockTracked ? "" : "hidden"}">
+                <input type="number" min="0" step="1" data-variant-qty="${idx}" value="${v.stockQty ?? 0}" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                <span data-variant-qty-derived="${idx}" class="ml-1 text-xs ${v.stockQty > 0 ? "text-emerald-700" : "text-red-600"}">${v.stockQty > 0 ? "→ Em estoque" : "→ Esgotado"}</span>
+              </div>
+              <div data-variant-manual-block="${idx}" class="${v.stockTracked ? "hidden" : ""}">
+                <label class="mt-1.5 flex items-center gap-1.5 text-xs text-navy-700">
+                  <input type="checkbox" data-variant-in-stock="${idx}" ${v.inStock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+                  Em estoque (pronta entrega)
+                </label>
+                <label class="mt-1 flex items-center gap-1.5 text-xs text-navy-700">
+                  <input type="checkbox" data-variant-esgotado="${idx}" ${v.esgotado ? "checked" : ""} class="rounded border-navy-300 text-red-600 focus:ring-red-400" />
+                  Esgotado
+                </label>
+              </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <input type="file" data-variant-photo="${idx}" accept="image/*" class="text-xs text-navy-700" />
@@ -1018,6 +1339,28 @@ function renderProductForm() {
     variantsListEl.querySelectorAll("[data-variant-esgotado]").forEach((input) => {
       input.addEventListener("change", () => {
         formVariants[Number(input.dataset.variantEsgotado)].esgotado = input.checked;
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-stock-tracked]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const idx = Number(input.dataset.variantStockTracked);
+        formVariants[idx].stockTracked = input.checked;
+        const qtyBlock = variantsListEl.querySelector(`[data-variant-qty-block="${idx}"]`);
+        const manualBlock = variantsListEl.querySelector(`[data-variant-manual-block="${idx}"]`);
+        if (qtyBlock) qtyBlock.classList.toggle("hidden", !input.checked);
+        if (manualBlock) manualBlock.classList.toggle("hidden", input.checked);
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-qty]").forEach((input) => {
+      input.addEventListener("input", () => {
+        const idx = Number(input.dataset.variantQty);
+        const n = Math.trunc(Number(input.value));
+        formVariants[idx].stockQty = Number.isFinite(n) ? n : 0;
+        const derivedEl = variantsListEl.querySelector(`[data-variant-qty-derived="${idx}"]`);
+        if (derivedEl) {
+          derivedEl.textContent = formVariants[idx].stockQty > 0 ? "→ Em estoque" : "→ Esgotado";
+          derivedEl.className = "ml-1 text-xs " + (formVariants[idx].stockQty > 0 ? "text-emerald-700" : "text-red-600");
+        }
       });
     });
     variantsListEl.querySelectorAll("[data-variant-photo]").forEach((input) => {
@@ -1058,7 +1401,7 @@ function renderProductForm() {
 
   renderVariantsList();
   document.getElementById("pf-variant-add").addEventListener("click", () => {
-    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false });
+    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: false, stockQty: 0 });
     renderVariantsList();
   });
 
@@ -1200,8 +1543,24 @@ function renderProductForm() {
     const pricing = promoManual != null ? calculatePricingFromManualPromo(totalCost, promoManual) : calculatePricing(totalCost);
     const showInCatalog = document.getElementById("pf-show-catalog").checked;
     const featured = document.getElementById("pf-featured").checked;
-    const inStock = document.getElementById("pf-in-stock").checked;
-    const esgotado = document.getElementById("pf-esgotado").checked;
+
+    // Estoque do PRODUTO (só vale quando não tem modelo — com modelo, quem
+    // manda é o estoque de cada variação, lá embaixo). Se "controlar por
+    // quantidade" estiver marcado, in_stock/esgotado saem calculados do
+    // número — o banco confirma isso de novo via trigger, então mesmo se
+    // esse cálculo aqui divergir por algum motivo, o valor salvo continua
+    // correto.
+    let inStock, esgotado, stockQty = null;
+    if (formVariants.length === 0 && document.getElementById("pf-stock-tracked").checked) {
+      const stockQtyRaw = document.getElementById("pf-stock-qty").value;
+      stockQty = Math.trunc(Number(String(stockQtyRaw).replace(",", ".")));
+      if (!Number.isFinite(stockQty) || stockQty < 0) { errorEl.textContent = "Quantidade em estoque inválida."; return; }
+      inStock = stockQty > 0;
+      esgotado = stockQty <= 0;
+    } else {
+      inStock = document.getElementById("pf-in-stock").checked;
+      esgotado = document.getElementById("pf-esgotado").checked;
+    }
     const categorySelected = categorySelect.value;
     if (categorySelected === "__new__" && !categoryNewField.value.trim()) {
       errorEl.textContent = "Digite o nome da nova categoria.";
@@ -1278,7 +1637,7 @@ function renderProductForm() {
       promo_price: pricing.promoPrice, promo_profit: pricing.promoProfit, promo_margin: pricing.promoMargin,
       promo_manual_price: promoManual,
       photo_url: newPhotoUrl, show_in_catalog: showInCatalog, category: category || null, featured,
-      in_stock: inStock, esgotado, lead_time_days: leadTimeDays,
+      in_stock: inStock, esgotado, stock_qty: stockQty, lead_time_days: leadTimeDays,
       description: description || null, material_tag: materialTag || null, supplier_id: supplierId,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
@@ -1310,7 +1669,15 @@ function renderProductForm() {
     // Sincroniza os modelos/variações: apaga os antigos e grava a lista atual.
     await supabaseClient.from("product_variants").delete().eq("product_id", productId);
     if (formVariants.length > 0) {
-      const variantRows = formVariants.map((v, idx) => ({ product_id: productId, name: v.name.trim(), photo_url: v.finalPhotoUrl ?? null, sort_order: idx, in_stock: v.inStock, esgotado: v.esgotado }));
+      const variantRows = formVariants.map((v, idx) => {
+        const qty = v.stockTracked ? Math.max(0, Math.trunc(Number(v.stockQty) || 0)) : null;
+        return {
+          product_id: productId, name: v.name.trim(), photo_url: v.finalPhotoUrl ?? null, sort_order: idx,
+          in_stock: qty != null ? qty > 0 : v.inStock,
+          esgotado: qty != null ? qty <= 0 : v.esgotado,
+          stock_qty: qty,
+        };
+      });
       const { error: variantError } = await supabaseClient.from("product_variants").insert(variantRows);
       if (variantError) { errorEl.textContent = variantError.message; return; }
     }
@@ -1334,7 +1701,7 @@ function renderProductForm() {
 async function loadMaterials() {
   const { data, error } = await supabaseClient.from("materials").select("*").order("active", { ascending: false }).order("name", { ascending: true });
   if (!error) state.materials = data;
-  else console.error("loadMaterials:", error.message);
+  noteLoadResult("materiais", error);
 }
 
 let materiaisState = { showInactive: false, formOpen: false, editingId: null };
@@ -1658,7 +2025,7 @@ function renderMaterialForm() {
 async function loadSuppliers() {
   const { data, error } = await supabaseClient.from("suppliers").select("*").order("active", { ascending: false }).order("name", { ascending: true });
   if (!error) state.suppliers = data;
-  else console.error("loadSuppliers:", error.message);
+  noteLoadResult("fornecedores", error);
 }
 
 let fornecedoresState = { showInactive: false, formOpen: false, editingId: null };
@@ -1890,7 +2257,7 @@ function renderSupplierForm() {
 async function loadCoupons() {
   const { data, error } = await supabaseClient.from("coupons").select("*").order("active", { ascending: false }).order("created_at", { ascending: false });
   if (!error) state.coupons = data;
-  else console.error("loadCoupons:", error.message);
+  noteLoadResult("cupons", error);
 }
 
 // Números de telefone com direito a algum cupom restrito (ver
@@ -1899,7 +2266,7 @@ async function loadCoupons() {
 async function loadCouponAllowedPhones() {
   const { data, error } = await supabaseClient.from("coupon_allowed_phones").select("*").order("created_at", { ascending: false });
   if (!error) state.couponAllowedPhones = data;
-  else console.error("loadCouponAllowedPhones:", error.message);
+  noteLoadResult("números autorizados dos cupons", error);
 }
 
 /* Resumo legível do desconto pra mostrar na tabela, ex: "5% (máx. R$ 15,00)" ou "R$ 10,00". */
@@ -2255,7 +2622,7 @@ function renderCouponPhonesModal() {
 async function loadCustomers() {
   const { data, error } = await supabaseClient.from("customers").select("*").order("active", { ascending: false }).order("name", { ascending: true });
   if (!error) state.customers = data;
-  else console.error("loadCustomers:", error.message);
+  noteLoadResult("clientes", error);
 }
 
 let clientesState = { showInactive: false, formOpen: false, editingId: null, historyForId: null };
@@ -2702,13 +3069,14 @@ function buildManufacturerMessage(order) {
 
 async function loadOrders() {
   const { data, error } = await supabaseClient.from("orders").select("*").order("created_at", { ascending: false });
-  if (error) { console.error("loadOrders:", error.message); return; }
+  if (error) { noteLoadResult("pedidos", error); return; }
+  noteLoadResult("pedidos", null);
 
   const { data: items, error: err2 } = await supabaseClient.from("order_items").select("*");
-  if (err2) console.error("loadOrders itens:", err2.message);
+  noteLoadResult("itens dos pedidos", err2);
 
   const { data: giftWraps, error: err3 } = await supabaseClient.from("order_gift_wraps").select("*");
-  if (err3) console.error("loadOrders embalagens:", err3.message);
+  noteLoadResult("embalagens dos pedidos", err3);
 
   const byOrder = {};
   (items || []).forEach((row) => { (byOrder[row.order_id] ||= []).push(row); });
@@ -3382,7 +3750,13 @@ async function iniciarVenda(order) {
     payment_method: order.payment_method,
     customer_id: customer ? customer.id : null,
     order_id: order.id,
-    paid_at: new Date().toISOString(),
+    // Reflete o "Pago" de verdade do próprio pedido — antes isso vinha
+    // sempre preenchido com a data de agora, então o Caixa mostrava o
+    // dinheiro como recebido mesmo quando o pedido ainda estava marcado
+    // como "Não pago". Se o pedido for marcado como pago depois, o
+    // lançamento continua "Não pago" até alguém marcar manualmente na
+    // aba Caixa (os dois campos são independentes, igual antes).
+    paid_at: order.paid_at ? new Date().toISOString() : null,
     created_by: state.currentUser.id,
   };
 
@@ -4022,12 +4396,13 @@ function renderPedidos(container) {
    ===================================================================== */
 async function loadCashEntries() {
   const { data, error } = await supabaseClient.from("cash_entries_with_balance").select("*").order("entry_date", { ascending: false }).order("created_at", { ascending: false });
-  if (error) { console.error("loadCashEntries:", error.message); return; }
+  if (error) { noteLoadResult("caixa", error); return; }
+  noteLoadResult("caixa", null);
 
   const { data: materialsUsed, error: err2 } = await supabaseClient
     .from("cash_entry_materials")
     .select("cash_entry_id, quantity, unit_cost, materials(id, name, unit)");
-  if (err2) console.error("loadCashEntries materiais:", err2.message);
+  noteLoadResult("materiais usados no caixa", err2);
 
   const byEntry = {};
   (materialsUsed || []).forEach((row) => {
@@ -4037,6 +4412,15 @@ async function loadCashEntries() {
 }
 
 let caixaState = { formOpen: false, editingId: null };
+
+// Período do relatório de vendas — começa no primeiro dia do mês atual
+// até hoje, que é o recorte mais comum ("como estão as vendas deste
+// mês?"). O admin pode trocar livremente pelos campos de data ou pelos
+// atalhos (Este mês / Mês passado / Últimos 7 dias / Últimos 30 dias).
+let relatoriosState = {
+  startDate: todayISO().slice(0, 8) + "01",
+  endDate: todayISO(),
+};
 // pedidoSelection: ids dos lançamentos marcados na coluna "📤" da tabela,
 // pra reunir num pedido pro fornecedor (ver pedidoState mais abaixo).
 let estoqueState = { stockDebtOpen: false, pedidoSelection: [] };
@@ -4054,6 +4438,329 @@ let stockEntryEditState = { open: false, entryId: null, productId: null, variant
 // resolvido (nome do produto, modelo, quantidade, custo) no momento em
 // que o botão "Fazer pedido" é clicado — este overlay só revisa e envia.
 let pedidoState = { open: false, supplierId: null, items: [], notes: "" };
+
+/* =====================================================================
+   ABA: RELATÓRIOS
+   ===================================================================== */
+// Filtra os lançamentos do Caixa dentro do período escolhido (inclusive
+// nas duas pontas) — mesma base de dados da aba Caixa, só que recortada
+// por data em vez de mostrar tudo.
+function relatoriosEntriesInRange() {
+  const { startDate, endDate } = relatoriosState;
+  return state.cashEntries.filter((e) => e.entry_date >= startDate && e.entry_date <= endDate);
+}
+
+// Quebra as vendas do período por categoria de produto, cruzando cada
+// lançamento de venda (que tem order_id) com os itens do pedido
+// correspondente e a categoria cadastrada de cada produto. Lançamentos de
+// venda sem order_id (ex: lançados à mão, sem vir de um pedido do
+// catálogo) entram como "Outros" porque não tem como saber os itens.
+function relatoriosCategoriaBreakdown(vendaEntries) {
+  const byCategory = {};
+  vendaEntries.forEach((e) => {
+    const order = e.order_id ? state.orders.find((o) => o.id === e.order_id) : null;
+    if (!order || !(order.items ?? []).length) {
+      byCategory["Outros"] = (byCategory["Outros"] || 0) + Number(e.amount);
+      return;
+    }
+    order.items.forEach((it) => {
+      const product = state.products.find((p) => p.id === it.product_id);
+      const cat = (product && product.category && product.category.trim()) || "Outros";
+      byCategory[cat] = (byCategory[cat] || 0) + Number(it.unit_price) * Number(it.quantity);
+    });
+  });
+  return Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+}
+
+// Produtos mais vendidos no período (por quantidade), na mesma lógica de
+// cruzamento acima.
+function relatoriosProdutosMaisVendidos(vendaEntries) {
+  const byProduct = {}; // { nome: { qty, total } }
+  vendaEntries.forEach((e) => {
+    const order = e.order_id ? state.orders.find((o) => o.id === e.order_id) : null;
+    (order?.items ?? []).forEach((it) => {
+      const label = it.product_name + (it.variant_name ? ` (${it.variant_name})` : "");
+      if (!byProduct[label]) byProduct[label] = { qty: 0, total: 0 };
+      byProduct[label].qty += Number(it.quantity);
+      byProduct[label].total += Number(it.unit_price) * Number(it.quantity);
+    });
+  });
+  return Object.entries(byProduct).sort((a, b) => b[1].qty - a[1].qty).slice(0, 10);
+}
+
+function renderRelatorios(container) {
+  const inRange = relatoriosEntriesInRange();
+  const vendaEntries = inRange.filter((e) => e.entry_type === "entrada" && e.category === "Venda");
+  const totalEntradas = inRange.filter((e) => e.entry_type === "entrada").reduce((sum, e) => sum + Number(e.amount), 0);
+  const totalSaidas = inRange.filter((e) => e.entry_type === "saida").reduce((sum, e) => sum + Number(e.amount), 0);
+  const totalVendas = vendaEntries.reduce((sum, e) => sum + Number(e.amount), 0);
+  const numVendas = vendaEntries.length;
+  const ticketMedio = numVendas > 0 ? totalVendas / numVendas : 0;
+
+  const porPagamento = {};
+  vendaEntries.forEach((e) => {
+    const key = e.payment_method || "—";
+    porPagamento[key] = (porPagamento[key] || 0) + Number(e.amount);
+  });
+  const porPagamentoList = Object.entries(porPagamento).sort((a, b) => b[1] - a[1]);
+
+  const porCategoria = relatoriosCategoriaBreakdown(vendaEntries);
+  const maisVendidos = relatoriosProdutosMaisVendidos(vendaEntries);
+
+  const presetBtn = (key, label) => `<button data-relatorio-preset="${key}" class="rounded-lg border border-navy-200 bg-white px-3 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50">${label}</button>`;
+
+  container.innerHTML = `
+    <div class="flex flex-col gap-6">
+      <div>
+        <h1 class="text-xl font-semibold text-navy-900">Relatório de Vendas</h1>
+        <p class="text-sm text-navy-500">Resumo das vendas num período — pra acompanhar como o negócio está indo.</p>
+      </div>
+
+      <div class="flex flex-wrap items-end gap-3 rounded-xl border border-navy-100 bg-white p-4 shadow">
+        <div>
+          <label class="mb-1 block text-xs font-medium text-navy-500">De</label>
+          <input type="date" id="rel-start-date" value="${relatoriosState.startDate}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-navy-500">Até</label>
+          <input type="date" id="rel-end-date" value="${relatoriosState.endDate}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+        </div>
+        <div class="flex flex-wrap gap-2">
+          ${presetBtn("este_mes", "Este mês")}
+          ${presetBtn("mes_passado", "Mês passado")}
+          ${presetBtn("ultimos_7", "Últimos 7 dias")}
+          ${presetBtn("ultimos_30", "Últimos 30 dias")}
+        </div>
+        <button id="rel-export-csv" class="ml-auto rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">⬇ Exportar CSV</button>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-xl bg-navy-900 px-5 py-4 text-cream-50 shadow">
+          <p class="text-xs uppercase tracking-wide opacity-80">Total vendido</p>
+          <p class="mt-1 text-2xl font-semibold">${formatBRL(totalVendas)}</p>
+        </div>
+        <div class="rounded-xl border border-navy-100 bg-white px-5 py-4 shadow">
+          <p class="text-xs uppercase tracking-wide text-navy-400">Nº de vendas</p>
+          <p class="mt-1 text-2xl font-semibold text-navy-900">${numVendas}</p>
+        </div>
+        <div class="rounded-xl border border-navy-100 bg-white px-5 py-4 shadow">
+          <p class="text-xs uppercase tracking-wide text-navy-400">Ticket médio</p>
+          <p class="mt-1 text-2xl font-semibold text-navy-900">${formatBRL(ticketMedio)}</p>
+        </div>
+        <div class="rounded-xl border border-navy-100 bg-white px-5 py-4 shadow">
+          <p class="text-xs uppercase tracking-wide text-navy-400">Saldo do período</p>
+          <p class="mt-1 text-2xl font-semibold ${totalEntradas - totalSaidas >= 0 ? "text-emerald-700" : "text-red-700"}">${formatBRL(totalEntradas - totalSaidas)}</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="rounded-xl border border-navy-100 bg-white p-4 shadow">
+          <h2 class="mb-3 text-sm font-semibold text-navy-900">Vendas por forma de pagamento</h2>
+          ${porPagamentoList.length === 0 ? `<p class="text-sm text-navy-400">Nenhuma venda no período.</p>` : `
+            <ul class="flex flex-col gap-2 text-sm">
+              ${porPagamentoList.map(([metodo, total]) => `
+                <li class="flex items-center justify-between border-b border-navy-50 pb-2 last:border-0 last:pb-0">
+                  <span class="capitalize text-navy-600">${escapeHtml(metodo)}</span>
+                  <span class="font-medium text-navy-900">${formatBRL(total)}</span>
+                </li>
+              `).join("")}
+            </ul>
+          `}
+        </div>
+        <div class="rounded-xl border border-navy-100 bg-white p-4 shadow">
+          <h2 class="mb-3 text-sm font-semibold text-navy-900">Vendas por categoria</h2>
+          ${porCategoria.length === 0 ? `<p class="text-sm text-navy-400">Nenhuma venda no período.</p>` : `
+            <ul class="flex flex-col gap-2 text-sm">
+              ${porCategoria.map(([cat, total]) => `
+                <li class="flex items-center justify-between border-b border-navy-50 pb-2 last:border-0 last:pb-0">
+                  <span class="text-navy-600">${escapeHtml(cat)}</span>
+                  <span class="font-medium text-navy-900">${formatBRL(total)}</span>
+                </li>
+              `).join("")}
+            </ul>
+          `}
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-navy-100 bg-white p-4 shadow">
+        <h2 class="mb-3 text-sm font-semibold text-navy-900">Produtos mais vendidos</h2>
+        ${maisVendidos.length === 0 ? `<p class="text-sm text-navy-400">Nenhuma venda no período.</p>` : `
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[420px] text-sm">
+              <thead>
+                <tr class="border-b border-navy-100 text-left text-xs uppercase tracking-wide text-navy-400">
+                  <th class="py-2">Produto</th>
+                  <th class="py-2 text-right">Quantidade</th>
+                  <th class="py-2 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${maisVendidos.map(([label, info]) => `
+                  <tr class="border-b border-navy-50 last:border-0">
+                    <td class="py-2 text-navy-700">${escapeHtml(label)}</td>
+                    <td class="py-2 text-right text-navy-900">${info.qty}</td>
+                    <td class="py-2 text-right font-medium text-navy-900">${formatBRL(info.total)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `}
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
+        <table class="w-full min-w-[720px] text-sm">
+          <thead>
+            <tr class="border-b border-navy-100 bg-navy-900 text-left text-xs uppercase tracking-wide text-cream-50">
+              <th class="px-3 py-3">Data</th>
+              <th class="px-3 py-3">Categoria</th>
+              <th class="px-3 py-3">Descrição</th>
+              <th class="px-3 py-3">Pagamento</th>
+              <th class="px-3 py-3 text-right">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${vendaEntries.length === 0 ? `<tr><td colspan="5" class="px-4 py-8 text-center text-navy-400">Nenhuma venda no período.</td></tr>` : vendaEntries.map((e) => `
+              <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50">
+                <td class="px-3 py-2.5">${formatDate(e.entry_date)}</td>
+                <td class="px-3 py-2.5">${escapeHtml(e.category) || "—"}</td>
+                <td class="px-3 py-2.5 text-navy-600">${escapeHtml(e.description) || "—"}</td>
+                <td class="px-3 py-2.5 capitalize">${escapeHtml(e.payment_method) || "—"}</td>
+                <td class="px-3 py-2.5 text-right font-medium text-emerald-700">${formatBRL(e.amount)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("rel-start-date").addEventListener("change", (e) => {
+    relatoriosState.startDate = e.target.value;
+    renderRelatorios(container);
+  });
+  document.getElementById("rel-end-date").addEventListener("change", (e) => {
+    relatoriosState.endDate = e.target.value;
+    renderRelatorios(container);
+  });
+  container.querySelectorAll("[data-relatorio-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const today = new Date();
+      const preset = btn.dataset.relatorioPreset;
+      if (preset === "este_mes") {
+        relatoriosState.startDate = todayISO().slice(0, 8) + "01";
+        relatoriosState.endDate = todayISO();
+      } else if (preset === "mes_passado") {
+        const firstOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const lastOfPrevMonth = new Date(firstOfThisMonth.getTime() - 24 * 60 * 60 * 1000);
+        const firstOfPrevMonth = new Date(lastOfPrevMonth.getFullYear(), lastOfPrevMonth.getMonth(), 1);
+        relatoriosState.startDate = toLocalISODate(firstOfPrevMonth);
+        relatoriosState.endDate = toLocalISODate(lastOfPrevMonth);
+      } else if (preset === "ultimos_7") {
+        relatoriosState.startDate = toLocalISODate(new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000));
+        relatoriosState.endDate = todayISO();
+      } else if (preset === "ultimos_30") {
+        relatoriosState.startDate = toLocalISODate(new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000));
+        relatoriosState.endDate = todayISO();
+      }
+      renderRelatorios(container);
+    });
+  });
+  document.getElementById("rel-export-csv").addEventListener("click", () => {
+    const rows = [["Data", "Categoria", "Descrição", "Pagamento", "Valor"]];
+    vendaEntries.forEach((e) => {
+      rows.push([formatDate(e.entry_date), e.category || "", e.description || "", e.payment_method || "", String(e.amount).replace(".", ",")]);
+    });
+    downloadCSV(`vendas_${relatoriosState.startDate}_a_${relatoriosState.endDate}.csv`, rows);
+  });
+}
+
+/* =====================================================================
+   ABA: AVALIAÇÕES
+   ===================================================================== */
+// ★ preenchidas até a nota, ☆ vazias no resto — nota inteira de 1 a 5
+// (não tem meia-estrela no formulário do cliente).
+function starDisplay(rating) {
+  const n = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+  return "★".repeat(n) + "☆".repeat(5 - n);
+}
+
+function renderAvaliacoes(container) {
+  const pending = state.reviews.filter((r) => !r.approved).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const approved = state.reviews.filter((r) => r.approved).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const productName = (id) => state.products.find((p) => p.id === id)?.name ?? "(produto removido)";
+
+  const reviewCard = (r, { pendingActions }) => `
+    <div class="rounded-xl border border-navy-100 bg-white p-4 shadow" data-review-card="${r.id}">
+      <div class="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p class="text-sm font-semibold text-navy-900">${escapeHtml(r.customer_name)}</p>
+          <p class="text-xs text-navy-400">${escapeHtml(productName(r.product_id))} · ${formatDateTime(r.created_at)}</p>
+        </div>
+        <span class="text-amber-500" title="${r.rating}/5">${starDisplay(r.rating)}</span>
+      </div>
+      ${r.comment ? `<p class="mt-2 text-sm text-navy-600">${escapeHtml(r.comment)}</p>` : `<p class="mt-2 text-sm italic text-navy-300">Sem comentário, só a nota.</p>`}
+      <div class="mt-3 flex justify-end gap-2">
+        ${pendingActions ? `<button data-approve-review="${r.id}" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">Aprovar</button>` : ""}
+        <button data-delete-review="${r.id}" class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50">Excluir</button>
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = `
+    <div class="flex flex-col gap-6">
+      <div>
+        <h1 class="text-xl font-semibold text-navy-900">Avaliações de produtos</h1>
+        <p class="text-sm text-navy-500">Comentários e notas enviados pelos clientes no catálogo — só aparecem lá depois de aprovados aqui.</p>
+      </div>
+
+      <div>
+        <h2 class="mb-3 text-sm font-semibold text-navy-900">Pendentes de aprovação ${pending.length > 0 ? `<span class="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${pending.length}</span>` : ""}</h2>
+        ${pending.length === 0 ? `
+          <p class="rounded-xl border border-navy-100 bg-white px-4 py-6 text-center text-sm text-navy-400 shadow">Nenhuma avaliação esperando aprovação.</p>
+        ` : `
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            ${pending.map((r) => reviewCard(r, { pendingActions: true })).join("")}
+          </div>
+        `}
+      </div>
+
+      <div>
+        <h2 class="mb-3 text-sm font-semibold text-navy-900">Aprovadas (visíveis no catálogo)</h2>
+        ${approved.length === 0 ? `
+          <p class="rounded-xl border border-navy-100 bg-white px-4 py-6 text-center text-sm text-navy-400 shadow">Nenhuma avaliação aprovada ainda.</p>
+        ` : `
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            ${approved.map((r) => reviewCard(r, { pendingActions: false })).join("")}
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  container.querySelectorAll("[data-approve-review]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Aprovando...";
+      const { error } = await supabaseClient.from("product_reviews")
+        .update({ approved: true, reviewed_by: state.currentUser.id, reviewed_at: new Date().toISOString() })
+        .eq("id", btn.dataset.approveReview);
+      if (error) { alert("Não foi possível aprovar: " + error.message); btn.disabled = false; btn.textContent = "Aprovar"; return; }
+      await loadReviews();
+      // Re-renderiza o app inteiro pra atualizar o contador na aba do menu também.
+      renderApp();
+    });
+  });
+  container.querySelectorAll("[data-delete-review]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Excluir esta avaliação? Essa ação não pode ser desfeita.")) return;
+      const { error } = await supabaseClient.from("product_reviews").delete().eq("id", btn.dataset.deleteReview);
+      if (error) { alert("Não foi possível excluir: " + error.message); return; }
+      await loadReviews();
+      renderApp();
+    });
+  });
+}
 
 function renderCaixa(container) {
   const entries = state.cashEntries;
@@ -5541,6 +6248,7 @@ function renderStockPurchaseOverlay() {
     stockPurchaseState.items.push({
       productId: product.id,
       productName: product.name,
+      variantId: variant ? variant.id : null,
       variantName: variant ? variant.name : null,
       unitCost: round2(unitCost),
       quantity: qty,
@@ -5613,6 +6321,39 @@ async function submeterCompraEstoque(e) {
     submitBtn.disabled = false;
     submitBtn.textContent = "Registrar compra";
     return;
+  }
+
+  // Quem tem estoque CONTROLADO POR QUANTIDADE (stock_qty preenchido no
+  // cadastro do produto/modelo) ganha a quantidade comprada automaticamente
+  // — sem isso, "Nova compra de estoque" só lançava a despesa no Caixa e o
+  // "em estoque" continuava um controle manual totalmente desconectado.
+  // Quem não usa quantidade (stock_qty null) continua exatamente como
+  // sempre foi: só a despesa é lançada, o admin marca "em estoque" à mão.
+  const qtyByTarget = new Map(); // "productId::variantId" -> { productId, variantId, addQty }
+  stockPurchaseState.items.forEach((it) => {
+    const key = `${it.productId}::${it.variantId || ""}`;
+    const existing = qtyByTarget.get(key);
+    if (existing) existing.addQty += it.quantity;
+    else qtyByTarget.set(key, { productId: it.productId, variantId: it.variantId, addQty: it.quantity });
+  });
+  for (const { productId: pid, variantId: vid, addQty } of qtyByTarget.values()) {
+    const product = state.products.find((p) => p.id === pid);
+    if (!product) continue;
+    if (vid) {
+      const variant = (product.product_variants ?? []).find((v) => v.id === vid);
+      if (!variant || variant.stock_qty == null) continue;
+      const newQty = Math.max(0, Number(variant.stock_qty) + addQty);
+      // in_stock/esgotado também vão explícitos aqui (não só stock_qty) —
+      // o banco confirma isso de novo sozinho via trigger, mas assim o
+      // resultado já sai certo mesmo antes do próximo loadProducts().
+      const { error: variantStockError } = await supabaseClient.from("product_variants").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: newQty <= 0 }).eq("id", vid);
+      if (variantStockError) console.error("Não foi possível atualizar o estoque do modelo:", variantStockError.message);
+    } else {
+      if (product.stock_qty == null) continue;
+      const newQty = Math.max(0, Number(product.stock_qty) + addQty);
+      const { error: productStockError } = await supabaseClient.from("products").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: newQty <= 0, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", pid);
+      if (productStockError) console.error("Não foi possível atualizar o estoque do produto:", productStockError.message);
+    }
   }
 
   stockPurchaseState = { open: false, items: [], date: todayISO(), payment: "pix", paid: true, supplierId: "", _selectedProductId: null, _selectedVariantId: null, _qty: "1", _unitCost: "" };
@@ -5732,6 +6473,14 @@ function enviarPedido(e) {
 // login de novo. Antes, todo F5 voltava pra tela de login mesmo com a
 // sessão ainda válida.
 (async function boot() {
+  // Link de redefinição de senha: nunca entra direto no painel, mesmo que
+  // a sessão temporária de recuperação pareça uma sessão válida — tem que
+  // passar pela tela de trocar a senha primeiro.
+  if (isPasswordRecoveryLink) {
+    state.screen = "resetPassword";
+    render();
+    return;
+  }
   try {
     const { data } = await supabaseClient.auth.getSession();
     if (data?.session) {
