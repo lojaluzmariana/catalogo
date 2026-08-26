@@ -252,11 +252,10 @@ const state = {
   policyTab: "privacidade", // privacidade | termos — qual aba mostrar na tela de política/termos
   lastOrderNumber: null, // Nº do pedido que acabou de ser feito nesta sessão (pra oferecer "Acompanhar meu pedido" na tela de sucesso)
   lastOrderWhatsapp: "", // WhatsApp usado nesse último pedido — pré-preenche o rastreio
-  trackOrderNumber: "", // Nº do pedido digitado na tela de Rastrear pedido
   trackWhatsapp: "", // WhatsApp digitado na tela de Rastrear pedido
   trackLoading: false,
   trackError: null, // mensagem de erro/"não encontrado" da última busca
-  trackResult: null, // pedido encontrado pela última busca (ou null)
+  trackResults: null, // lista de pedidos encontrados pra esse WhatsApp na última busca (ou null antes de buscar)
   reviewForm: { rating: 0, name: "", comment: "", submitting: false, submitted: false, error: null }, // formulário de "deixar avaliação" na página do produto
   submitting: false,
   submitError: null,
@@ -553,11 +552,12 @@ function render() {
 function renderHeader() {
   return `
     <header class="bg-navy-900">
-      <div class="mx-auto flex max-w-5xl items-center justify-center px-4 py-3">
+      <div class="mx-auto flex max-w-5xl items-center justify-center gap-3 px-4 py-3">
         <button type="button" data-go-home class="flex items-center gap-3 border-0 bg-transparent p-0 transition hover:opacity-90">
           <img src="logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
           <span class="text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
         </button>
+        <button type="button" data-open-track class="rounded-full border border-navy-700 px-2.5 py-1 text-[11px] font-medium text-navy-300 transition hover:border-navy-500 hover:text-cream-100">Rastrear pedido</button>
       </div>
     </header>
   `;
@@ -626,8 +626,6 @@ function renderFooter() {
       <p>Luz Mariana - Artigos Religiosos · CNPJ ${STORE_CNPJ}</p>
       <p class="mt-1">© 2026 Luz Mariana. Todos os direitos reservados.</p>
       <p class="mt-2 space-x-3">
-        <button data-open-track class="underline hover:text-navy-500">Rastrear pedido</button>
-        <span>·</span>
         <button data-open-policy="privacidade" class="underline hover:text-navy-500">Política de Privacidade</button>
         <span>·</span>
         <button data-open-policy="termos" class="underline hover:text-navy-500">Termos de Uso</button>
@@ -1847,9 +1845,8 @@ function renderSuccess() {
   const trackBtn = document.getElementById("track-this-order-btn");
   if (trackBtn) {
     trackBtn.addEventListener("click", () => {
-      state.trackOrderNumber = String(state.lastOrderNumber);
       state.trackWhatsapp = state.lastOrderWhatsapp;
-      state.trackResult = null;
+      state.trackResults = null;
       state.trackError = null;
       state.screen = "track";
       render();
@@ -1861,42 +1858,42 @@ function renderSuccess() {
 /* =====================================================================
    RASTREAR PEDIDO
    ===================================================================== */
-// Busca o pedido pelo número + WhatsApp usados na compra, via função
-// pública do banco (track_order) — só acha o pedido se os dois baterem
-// juntos, então não dá pra "adivinhar" o pedido de outra pessoa só pelo
-// número sequencial.
+// Busca todos os pedidos feitos com um WhatsApp, via função pública do
+// banco (track_orders_by_phone) — devolve só nome/instagram-like dados
+// do próprio pedido, nunca a lista de todos os pedidos da loja, então
+// não dá pra "passear" pelos pedidos de outras pessoas sem saber o
+// WhatsApp usado na compra delas. Mesmo padrão de segurança já usado
+// aqui pra "lookup_customer_by_phone".
 async function searchTrackedOrder() {
-  const numberDigits = String(state.trackOrderNumber ?? "").replace(/\D/g, "");
-  if (!numberDigits || !state.trackWhatsapp.trim()) {
-    state.trackError = "Preencha o número do pedido e o WhatsApp usado na compra.";
-    state.trackResult = null;
+  if (!state.trackWhatsapp.trim()) {
+    state.trackError = "Preencha o WhatsApp usado na compra.";
+    state.trackResults = null;
     render();
     return;
   }
   state.trackLoading = true;
   state.trackError = null;
-  state.trackResult = null;
+  state.trackResults = null;
   render();
 
   const whatsappFormatted = formatWhatsappBR(state.trackWhatsapp.trim()) || state.trackWhatsapp.trim();
-  const { data, error } = await supabaseClient.rpc("track_order", {
-    p_order_number: Number(numberDigits),
+  const { data, error } = await supabaseClient.rpc("track_orders_by_phone", {
     p_whatsapp: whatsappFormatted,
   });
 
   state.trackLoading = false;
   if (error) {
-    state.trackError = "Não foi possível buscar o pedido agora. Tente novamente em instantes.";
+    state.trackError = "Não foi possível buscar seus pedidos agora. Tente novamente em instantes.";
     render();
     return;
   }
-  const result = Array.isArray(data) ? data[0] : data;
-  if (!result) {
-    state.trackError = "Pedido não encontrado. Confira o número do pedido e o WhatsApp usados na compra.";
+  const results = Array.isArray(data) ? data : data ? [data] : [];
+  if (results.length === 0) {
+    state.trackError = "Nenhum pedido encontrado pra esse WhatsApp. Confira se digitou o número usado na compra.";
     render();
     return;
   }
-  state.trackResult = result;
+  state.trackResults = results;
   render();
 }
 
@@ -1923,25 +1920,19 @@ function renderTrackForm() {
   return `
     <form id="track-form" class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
       <div>
-        <label class="mb-1 block text-sm font-medium text-navy-700">Número do pedido</label>
-        <input id="track-order-number" inputmode="numeric" placeholder="Ex: 12" value="${escapeHtml(state.trackOrderNumber)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-      </div>
-      <div>
         <label class="mb-1 block text-sm font-medium text-navy-700">WhatsApp usado na compra</label>
         <input id="track-whatsapp" inputmode="tel" placeholder="(11) 91234-5678" value="${escapeHtml(state.trackWhatsapp)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
       </div>
       ${state.trackError ? `<p class="text-sm text-red-600">${escapeHtml(state.trackError)}</p>` : ""}
-      <button type="submit" id="track-submit" ${state.trackLoading ? "disabled" : ""} class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">${state.trackLoading ? "Buscando..." : "Buscar pedido"}</button>
+      <button type="submit" id="track-submit" ${state.trackLoading ? "disabled" : ""} class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">${state.trackLoading ? "Buscando..." : "Buscar pedidos"}</button>
     </form>
   `;
 }
 
-function renderTrackResult() {
-  const order = state.trackResult;
-  if (!order) return "";
+function renderTrackOrderCard(order) {
   const reached = trackStepsReached(order);
   return `
-    <div class="mt-6 flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+    <div class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-navy-900">Pedido Nº ${String(order.order_number).padStart(6, "0")}</h2>
         <span class="rounded-full px-2.5 py-1 text-xs font-medium ${order.status === "cancelado" ? "bg-red-100 text-red-700" : order.status === "concluido" ? "bg-emerald-100 text-emerald-800" : "bg-gold-100 text-gold-800"}">${ORDER_STATUS_LABEL[order.status] || order.status}</span>
@@ -1980,21 +1971,31 @@ function renderTrackResult() {
   `;
 }
 
+function renderTrackResults() {
+  if (!state.trackResults) return "";
+  // Mais recente primeiro (a função do banco já devolve nessa ordem).
+  return `
+    <div class="mt-6 flex flex-col gap-4">
+      ${state.trackResults.length > 1 ? `<p class="text-xs text-navy-400">${state.trackResults.length} pedidos encontrados pra esse WhatsApp.</p>` : ""}
+      ${state.trackResults.map((order) => renderTrackOrderCard(order)).join("")}
+    </div>
+  `;
+}
+
 function renderTrack() {
   app.innerHTML = `
     ${renderHeader()}
     <main class="mx-auto max-w-lg px-4 py-8" id="main-content">
       <button data-go-home class="mb-6 inline-flex items-center gap-1 text-sm font-medium text-navy-500 hover:text-navy-700">← Voltar ao catálogo</button>
       <h1 class="mb-1 text-xl font-semibold text-navy-900">Rastrear pedido</h1>
-      <p class="mb-6 text-sm text-navy-500">Digite o número do pedido e o WhatsApp usados na compra pra ver o andamento.</p>
+      <p class="mb-6 text-sm text-navy-500">Digite o WhatsApp usado na compra pra ver o andamento dos seus pedidos.</p>
       ${renderTrackForm()}
-      ${renderTrackResult()}
+      ${renderTrackResults()}
     </main>
     ${renderFooter()}
   `;
   document.getElementById("track-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    state.trackOrderNumber = document.getElementById("track-order-number").value.trim();
     state.trackWhatsapp = document.getElementById("track-whatsapp").value.trim();
     searchTrackedOrder();
   });
