@@ -5,8 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
+<link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
 <link rel="icon" type="image/png" href="favicon.png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+
+<!-- PWA: permite "Adicionar à tela inicial" (o app abre parecido com um
+     aplicativo nativo, sem barra de endereço). Ver manifest.json e
+     sw.js — o service worker é só pra habilitar a instalação, não guarda
+     nada em cache (estoque/preço sempre vêm direto do Supabase). -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#001868" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Luz Mariana" />
 
 <!-- Pré-visualização do link no WhatsApp, Instagram, etc. -->
 <meta property="og:type" content="website" />
@@ -24,28 +34,15 @@
 <meta name="twitter:description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <meta name="twitter:image" content="https://lojaluzmariana.github.io/catalogo/og-image.jpg" />
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          navy: {
-            50: "#eef1fa", 100: "#d7ddf2", 200: "#aeb9e4", 300: "#8091d3",
-            400: "#4e64bd", 500: "#2740a3", 600: "#152e8a", 700: "#0d2276",
-            800: "#071a68", 900: "#001868", 950: "#000f42",
-          },
-          gold: {
-            50: "#fdf6e3", 100: "#faeab8", 200: "#f6da85", 300: "#f2c852",
-            400: "#efb92c", 500: "#e8a000", 600: "#c98900", 700: "#a06d00",
-            800: "#7a5300", 900: "#5c3f00",
-          },
-          cream: { 50: "#fdfbf7", 100: "#f8f0e8" },
-        },
-      },
-    },
-  };
-</script>
+<!-- CSS do Tailwind PRÉ-COMPILADO (tailwind-built.css), no lugar do
+     script da CDN (cdn.tailwindcss.com). A CDN recompila tudo no
+     navegador de cada visitante a cada carregamento — mais lento e
+     dependente de um domínio externo. O arquivo estático já vem pronto
+     com só as classes realmente usadas no catálogo e no painel. Se
+     algum dia mudar/adicionar uma classe do Tailwind no HTML e ela não
+     aparecer estilizada, é só regenerar esse arquivo (README-TAILWIND.md
+     explica o passo a passo, sem precisar mexer no resto do site). -->
+<link rel="stylesheet" href="tailwind-built.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -268,6 +265,59 @@ const state = {
   appliedCoupon: null, // { id, code, discount_type, discount_value, max_discount_amount, validatedWhatsappDigits } — null se nenhum cupom aplicado
 };
 
+/* ---------------------------------------------------------------------
+   Acessibilidade do carrinho (gaveta lateral): fecha com Esc, mantém o
+   foco preso dentro dela enquanto aberta (Tab não escapa pra trás do
+   catálogo) e devolve o foco pra quem abriu quando ela fecha — do jeito
+   que um "dialog" modal deve se comportar pra quem navega só pelo
+   teclado ou usa leitor de tela. cartWasOpenLastRender existe só pra
+   saber quando é uma transição fechado→aberto (e mover o foco pra
+   dentro da gaveta só nesse momento — não a cada re-render, senão
+   digitar/clicar em qualquer coisa lá dentro puxaria o foco de volta
+   toda hora).
+   --------------------------------------------------------------------- */
+let cartWasOpenLastRender = false;
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && state.cartOpen) {
+    state.cartOpen = false;
+    render();
+  }
+});
+
+function manageCartFocus() {
+  const panel = document.getElementById("cart-drawer-panel");
+  if (state.cartOpen && !cartWasOpenLastRender) {
+    if (panel) panel.focus();
+  } else if (!state.cartOpen && cartWasOpenLastRender) {
+    // Devolve o foco pro botão "Ver carrinho" (mesmo id nas duas telas
+    // que usam a gaveta) — busca por id de novo em vez de guardar a
+    // referência antiga, porque o render() troca o elemento inteiro
+    // (a referência velha fica "morta", presa fora do DOM).
+    document.getElementById("open-cart-btn")?.focus();
+  }
+  cartWasOpenLastRender = state.cartOpen;
+
+  if (panel && !panel.dataset.focusTrapWired) {
+    panel.dataset.focusTrapWired = "1";
+    panel.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      const focusable = [...panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter((el) => !el.disabled && el.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
+  }
+}
+
 async function loadCatalog() {
   const [{ data: products, error: prodError }, { data: variants, error: varError }, { data: giftWrapOptions, error: giftWrapError }, { data: reviews, error: reviewsError }, { data: photos, error: photosError }] = await Promise.all([
     supabaseClient.from("catalog_products").select("*").order("category", { ascending: true, nullsFirst: false }).order("name"),
@@ -298,6 +348,53 @@ async function loadCatalog() {
   pruneStaleFavorites();
   state.loading = false;
   render();
+  updateProductJsonLd();
+}
+
+// URL canônica do catálogo (usada nas tags Open Graph também, lá no
+// <head>) — repetida aqui porque o JSON-LD é montado via JS, depois que
+// os produtos chegam do Supabase.
+const CATALOG_BASE_URL = "https://lojaluzmariana.github.io/catalogo/";
+
+/* Dados estruturados (JSON-LD, schema.org) pro Google conseguir mostrar
+   preço e disponibilidade direto no resultado de busca ("rich
+   snippet"). Como o catálogo é uma página só (sem endereço próprio por
+   produto), todo Offer aponta pra mesma URL — não dá pra linkar direto
+   pro produto específico, mas o Google ainda consegue ler preço/estoque
+   associados à página. Refeito do zero a cada loadCatalog() (por isso
+   remove o <script> antigo antes de montar o novo, ao trocar de sessão
+   ou recarregar os dados). */
+function updateProductJsonLd() {
+  const existingScript = document.getElementById("product-jsonld");
+  if (existingScript) existingScript.remove();
+  if (!state.products || state.products.length === 0) return;
+
+  const items = state.products.map((p, idx) => {
+    const photos = productGalleryPhotos(p, null).filter(Boolean);
+    const price = Number(p.promo_price ?? p.credit_price ?? 0);
+    const product = {
+      "@type": "Product",
+      name: p.name,
+      ...(p.description ? { description: p.description } : {}),
+      ...(photos.length > 0 ? { image: photos } : {}),
+      ...(p.category ? { category: p.category } : {}),
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "BRL",
+        price: price.toFixed(2),
+        availability: isSoldOut(p) ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+        url: CATALOG_BASE_URL,
+      },
+    };
+    return { "@type": "ListItem", position: idx + 1, item: product };
+  });
+
+  const jsonLd = { "@context": "https://schema.org", "@type": "ItemList", itemListElement: items };
+  const script = document.createElement("script");
+  script.type = "application/ld+json";
+  script.id = "product-jsonld";
+  script.textContent = JSON.stringify(jsonLd);
+  document.head.appendChild(script);
 }
 
 /* Avaliações aprovadas de um produto, mais recentes primeiro (já vêm
@@ -732,7 +829,7 @@ function renderCatalog() {
       ${!searchActive && state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
 
       <div class="mb-5">
-        <h2 class="text-xl font-semibold text-navy-900">${searchActive ? `Resultados para "${escapeHtml(state.searchQuery.trim())}"` : state.favoritesOnly ? "❤ Seus favoritos" : state.categoryFilter === "all" ? "Encontre algo especial para sua fé" : escapeHtml(state.categoryFilter)}</h2>
+        <h1 class="text-xl font-semibold text-navy-900">${searchActive ? `Resultados para "${escapeHtml(state.searchQuery.trim())}"` : state.favoritesOnly ? "❤ Seus favoritos" : state.categoryFilter === "all" ? "Encontre algo especial para sua fé" : escapeHtml(state.categoryFilter)}</h1>
       </div>
 
       ${state.products.length === 0 ? `
@@ -791,7 +888,7 @@ function renderProductCard(p, opts = {}) {
         <button type="button" data-view-product="${p.id}" class="product-image-btn block aspect-square w-full border-0 bg-cream-100 p-0 transition hover:opacity-90">
           ${photoUrl
             ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
-            : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-10 w-10 opacity-40" /></div>`}
+            : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-10 w-10 opacity-40" /></div>`}
         </button>
         ${favoriteBtn}
       </div>
@@ -883,25 +980,25 @@ function renderCartDrawer() {
   const items = cartItems();
   return `
     <div id="cart-overlay" class="fixed inset-0 z-30 bg-navy-950/40">
-      <div class="ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-xl">
+      <div id="cart-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="cart-drawer-title" tabindex="-1" class="ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-xl outline-none">
         <div class="flex items-center justify-between border-b border-navy-100 px-4 py-3">
-          <h2 class="text-lg font-semibold text-navy-900">Seu carrinho</h2>
-          <button id="close-cart-btn" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-50">✕</button>
+          <h2 id="cart-drawer-title" class="text-lg font-semibold text-navy-900">Seu carrinho</h2>
+          <button id="close-cart-btn" aria-label="Fechar carrinho" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-50">✕</button>
         </div>
         <div class="flex-1 overflow-y-auto px-4 py-3">
           ${items.length === 0 ? `<p class="py-8 text-center text-navy-400">Seu carrinho está vazio.</p>` : items.map((it) => `
             <div class="flex items-center gap-3 border-b border-navy-50 py-3 last:border-0">
               <div class="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
-                ${(it.variant?.photo_url || it.product.photo_url) ? `<img src="${it.variant?.photo_url || it.product.photo_url}" class="h-full w-full object-cover" />` : ""}
+                ${(it.variant?.photo_url || it.product.photo_url) ? `<img src="${it.variant?.photo_url || it.product.photo_url}" alt="${escapeHtml(it.product.name)}" class="h-full w-full object-cover" />` : ""}
               </div>
               <div class="flex-1">
                 <p class="text-sm font-medium text-navy-900">${escapeHtml(it.product.name)}${it.variant ? ` <span class="font-normal text-navy-400">— ${escapeHtml(it.variant.name)}</span>` : ""}</p>
                 <p class="text-xs text-navy-500">${formatBRL(priceFor(it.product))} cada</p>
               </div>
               <div class="flex items-center gap-2">
-                <button data-qty-minus="${it.key}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
-                <span class="w-5 text-center text-sm font-semibold">${it.quantity}</span>
-                <button data-qty-plus="${it.key}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">+</button>
+                <button data-qty-minus="${it.key}" aria-label="Diminuir quantidade de ${escapeHtml(it.product.name)}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
+                <span class="w-5 text-center text-sm font-semibold" aria-live="polite">${it.quantity}</span>
+                <button data-qty-plus="${it.key}" aria-label="Aumentar quantidade de ${escapeHtml(it.product.name)}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">+</button>
               </div>
             </div>
           `).join("")}
@@ -975,14 +1072,14 @@ function renderProductDetail() {
           <div class="relative aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
             ${photoUrl
               ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-cover" />`
-              : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-16 w-16 opacity-40" /></div>`}
+              : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-16 w-16 opacity-40" /></div>`}
             <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
           </div>
           ${galleryPhotos.length > 1 ? `
             <div class="mt-2 flex flex-wrap gap-1.5">
               ${galleryPhotos.map((url, idx) => `
                 <button type="button" data-gallery-index="${idx}" aria-label="Ver foto ${idx + 1}" class="gallery-thumb-btn h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg ring-2 transition ${idx === galleryIndex ? "ring-gold-500" : "ring-transparent hover:ring-navy-200"}">
-                  <img src="${url}" class="h-full w-full object-cover" loading="lazy" />
+                  <img src="${url}" alt="" class="h-full w-full object-cover" loading="lazy" />
                 </button>
               `).join("")}
             </div>
@@ -992,7 +1089,7 @@ function renderProductDetail() {
               ${variants.map((v) => `
                 <button data-variant-select="${product.id}" data-variant-id="${v.id}"
                   class="variant-swatch-btn flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs font-medium transition ${variant?.id === v.id ? "border-gold-500 bg-gold-50 text-navy-900" : "border-navy-200 text-navy-500 hover:border-navy-300"}">
-                  ${v.photo_url ? `<img src="${v.photo_url}" class="h-5 w-5 rounded-full object-cover" />` : ""}
+                  ${v.photo_url ? `<img src="${v.photo_url}" alt="" class="h-5 w-5 rounded-full object-cover" />` : ""}
                   ${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}
                 </button>
               `).join("")}
@@ -1130,6 +1227,7 @@ function wireCatalogEvents() {
   if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) { state.cartOpen = false; render(); } });
   const checkoutBtn = document.getElementById("go-checkout-btn");
   if (checkoutBtn) checkoutBtn.addEventListener("click", () => { state.screen = "checkout"; state.cartOpen = false; render(); });
+  manageCartFocus();
   document.querySelectorAll(".category-bar-btn").forEach((btn) => {
     btn.addEventListener("click", () => { state.categoryFilter = btn.dataset.category; render(); });
   });
@@ -2078,6 +2176,17 @@ app.addEventListener("click", (e) => {
 });
 
 loadCatalog();
+
+// Registra o service worker só pra habilitar "Adicionar à tela inicial"
+// (ver comentário em sw.js — não guarda nada em cache). Silenciosamente
+// não faz nada em navegadores sem suporte (ex: Safari mais antigo).
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch((err) => {
+      console.error("Não foi possível registrar o service worker (PWA):", err.message);
+    });
+  });
+}
 </script>
 </body>
 </html>
