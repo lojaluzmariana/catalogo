@@ -238,12 +238,14 @@ const state = {
   loadError: null,
   products: [],
   variantsByProduct: {}, // { [product_id]: [{id, name, photo_url, sort_order}, ...] }
+  photosByProduct: {}, // { [product_id]: [{id, url, sort_order}, ...] } — fotos extras da galeria, além da foto de capa
   cart: loadCartFromStorage(), // { [cartKey]: quantity } — cartKey é o product_id, ou "product_id::variant_id" quando tem modelo escolhido
   favorites: loadFavoritesFromStorage(), // { [product_id]: true } — lista de desejos, salva só no aparelho
   favoritesOnly: false, // filtro "❤ Favoritos" ativado na barra de categorias
   selectedVariant: {}, // { [product_id]: variant_id } — modelo escolhido na página individual do produto
   cardPhotoIndex: {}, // { [product_id]: index } — foto do modelo exibida agora no carrossel automático do card
   detailProductId: null, // produto aberto na página individual
+  detailGalleryIndex: 0, // qual foto da galeria está em destaque na página do produto (0 = foto de capa)
   payment: "pix", // pix | credito
   categoryFilter: "all",
   searchQuery: "", // texto digitado na busca do catálogo (filtra por nome/descrição/categoria/material)
@@ -267,11 +269,12 @@ const state = {
 };
 
 async function loadCatalog() {
-  const [{ data: products, error: prodError }, { data: variants, error: varError }, { data: giftWrapOptions, error: giftWrapError }, { data: reviews, error: reviewsError }] = await Promise.all([
+  const [{ data: products, error: prodError }, { data: variants, error: varError }, { data: giftWrapOptions, error: giftWrapError }, { data: reviews, error: reviewsError }, { data: photos, error: photosError }] = await Promise.all([
     supabaseClient.from("catalog_products").select("*").order("category", { ascending: true, nullsFirst: false }).order("name"),
     supabaseClient.from("catalog_product_variants").select("*").order("sort_order", { ascending: true }).order("name"),
     supabaseClient.from("catalog_gift_wrap_options").select("*").order("name"),
     supabaseClient.from("catalog_product_reviews").select("*").order("created_at", { ascending: false }),
+    supabaseClient.from("catalog_product_photos").select("*").order("sort_order", { ascending: true }),
   ]);
   if (prodError) { state.loadError = prodError.message; state.loading = false; render(); return; }
   state.products = products;
@@ -280,9 +283,15 @@ async function loadCatalog() {
     if (!state.variantsByProduct[v.product_id]) state.variantsByProduct[v.product_id] = [];
     state.variantsByProduct[v.product_id].push(v);
   });
+  state.photosByProduct = {};
+  (photos || []).forEach((p) => {
+    if (!state.photosByProduct[p.product_id]) state.photosByProduct[p.product_id] = [];
+    state.photosByProduct[p.product_id].push(p);
+  });
   if (varError) console.error("Erro ao carregar modelos/variações:", varError.message);
   if (giftWrapError) console.error("Erro ao carregar opções de embalagem:", giftWrapError.message);
   if (reviewsError) console.error("Erro ao carregar avaliações:", reviewsError.message);
+  if (photosError) console.error("Erro ao carregar galeria de fotos:", photosError.message);
   state.giftWrapOptions = giftWrapOptions || [];
   state.reviews = reviews || [];
   pruneStaleCartItems();
@@ -315,6 +324,17 @@ function starDisplayCatalog(rating) {
 function variantsFor(productId) {
   const list = state.variantsByProduct[productId] || [];
   return [...list].sort((a, b) => (a.esgotado ? 1 : 0) - (b.esgotado ? 1 : 0));
+}
+
+/* Lista de fotos pra mostrar na página do produto: a foto "de capa" (do
+   modelo escolhido, se tiver, senão a do produto) primeiro, seguida das
+   fotos extras da galeria (essas são sempre do produto, não variam por
+   modelo). Sem duplicar se a foto de capa aparecer de novo na galeria. */
+function productGalleryPhotos(product, variant) {
+  const coverUrl = variant?.photo_url || product.photo_url;
+  const extra = (state.photosByProduct[product.id] || []).map((p) => p.url).filter((url) => url && url !== coverUrl);
+  const all = coverUrl ? [coverUrl, ...extra] : extra;
+  return all;
 }
 
 /* Modelo atualmente escolhido no card desse produto (o primeiro, por padrão). */
@@ -936,7 +956,9 @@ function renderProductDetail() {
   const qty = state.cart[key] ?? 0;
   const isInStock = variant ? variant.in_stock : product.in_stock;
   const isEsgotado = variant ? !!variant.esgotado : !!product.esgotado;
-  const photoUrl = variant?.photo_url || product.photo_url;
+  const galleryPhotos = productGalleryPhotos(product, variant);
+  const galleryIndex = Math.min(state.detailGalleryIndex, Math.max(0, galleryPhotos.length - 1));
+  const photoUrl = galleryPhotos[galleryIndex] ?? null;
   const categoryLabel = product.category && product.category.trim() ? product.category.trim() : "Outros";
   const hasDescription = product.description && product.description.trim();
   const related = relatedProducts(product);
@@ -956,6 +978,15 @@ function renderProductDetail() {
               : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" class="h-16 w-16 opacity-40" /></div>`}
             <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
           </div>
+          ${galleryPhotos.length > 1 ? `
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              ${galleryPhotos.map((url, idx) => `
+                <button type="button" data-gallery-index="${idx}" aria-label="Ver foto ${idx + 1}" class="gallery-thumb-btn h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg ring-2 transition ${idx === galleryIndex ? "ring-gold-500" : "ring-transparent hover:ring-navy-200"}">
+                  <img src="${url}" class="h-full w-full object-cover" loading="lazy" />
+                </button>
+              `).join("")}
+            </div>
+          ` : ""}
           ${variants.length > 0 ? `
             <div class="mt-3 flex flex-wrap gap-1.5">
               ${variants.map((v) => `
@@ -1183,9 +1214,16 @@ function wireCatalogEvents() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
+  document.querySelectorAll(".gallery-thumb-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.detailGalleryIndex = Number(btn.dataset.galleryIndex) || 0;
+      render();
+    });
+  });
   document.querySelectorAll(".variant-swatch-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.selectedVariant[btn.dataset.variantSelect] = btn.dataset.variantId;
+      state.detailGalleryIndex = 0;
       render();
     });
   });
@@ -1193,6 +1231,7 @@ function wireCatalogEvents() {
     btn.addEventListener("click", () => {
       state.screen = "product";
       state.detailProductId = btn.dataset.viewProduct;
+      state.detailGalleryIndex = 0;
       state.reviewForm = { rating: 0, name: "", comment: "", submitting: false, submitted: false, error: null };
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
