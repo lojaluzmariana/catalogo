@@ -16,6 +16,15 @@
 <link rel="stylesheet" href="../tailwind-built.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="jspdf.umd.min.js"></script>
+<!-- SheetJS (biblioteca xlsx), arquivo local — mesma lógica do jsPDF
+     acima: gera a planilha .xlsx direto no navegador, sem depender de
+     nenhum serviço externo nem enviar dado nenhum pra fora. Usado no
+     botão "Baixar como Excel" dos Relatórios. -->
+<script src="xlsx.full.min.js"></script>
+<!-- Gerador de QR Code (arquivo local, sem dependências) — usado só na
+     tela de ativar a autenticação em duas etapas (2FA), pra desenhar o
+     QR que o app autenticador (Google Authenticator, Authy etc.) lê. -->
+<script src="qrcode.js"></script>
 
 <style>
   body { font-family: Arial, Helvetica, sans-serif; }
@@ -49,6 +58,11 @@ const STORE_NAME = "Luz Mariana";
 const STORE_SUBTITLE = "Artigos Religiosos e Devoção";
 const STORE_CNPJ = "68.615.746/0001-43";
 const STORE_INSTAGRAM = "@luzmariana.art";
+// Mesmo número de WhatsApp que o Catálogo público usa pra receber os
+// pedidos (ver STORE_WHATSAPP_NUMBER em index.html) — usado aqui só pro
+// aviso manual de "estoque baixo" (botão que abre o WhatsApp da loja
+// com a mensagem pronta, pra vocês dois verem o aviso lá).
+const STORE_WHATSAPP_NUMBER = "5584991263907";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -216,7 +230,17 @@ function formatKB(bytes) {
    Redimensiona/comprime uma foto no navegador antes de enviar — evita
    fotos de celular de vários MB deixando o catálogo pesado. Reduz pro
    maior lado caber em maxDim (mantendo proporção) e exporta como JPEG.
+
+   Além disso, se mesmo depois do resize + qualidade padrão o arquivo
+   ainda sair pesado (fotos muito detalhadas/texturizadas comprimem pior
+   que fotos "lisas" na MESMA qualidade), reduz a qualidade em passos até
+   caber num teto de tamanho ou bater no piso de qualidade — garante que
+   nenhuma foto sai fora do padrão só por ser mais "difícil" de comprimir,
+   sem precisar abrir mão de nitidez nas fotos normais (que já cabem no
+   teto na primeira tentativa, sem perder qualidade nenhuma).
    --------------------------------------------------------------------- */
+const IMAGE_TARGET_MAX_BYTES = 350 * 1024; // ~350 KB
+const IMAGE_MIN_QUALITY = 0.5; // não desce daqui pra não aparecer artefato visível
 function resizeImageToBlob(file, maxDim = 1000, quality = 0.82) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -235,9 +259,15 @@ function resizeImageToBlob(file, maxDim = 1000, quality = 0.82) {
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob); else reject(new Error("Não foi possível processar a imagem."));
-      }, "image/jpeg", quality);
+
+      const tryQuality = (q) => {
+        canvas.toBlob((blob) => {
+          if (!blob) { reject(new Error("Não foi possível processar a imagem.")); return; }
+          if (blob.size <= IMAGE_TARGET_MAX_BYTES || q <= IMAGE_MIN_QUALITY) { resolve(blob); return; }
+          tryQuality(Math.round((q - 0.1) * 100) / 100);
+        }, "image/jpeg", q);
+      };
+      tryQuality(quality);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Não foi possível ler a imagem.")); };
     img.src = url;
@@ -323,6 +353,7 @@ function render() {
   if (state.screen === "setPassword") return renderSetPassword();
   if (state.screen === "forgotPassword") return renderForgotPassword();
   if (state.screen === "resetPassword") return renderResetPassword();
+  if (state.screen === "twoFactor") return renderTwoFactor();
   if (state.screen === "app") return renderApp();
 }
 
@@ -410,6 +441,63 @@ function renderLogin() {
     }
 
     await enterApp();
+  });
+}
+
+/* ---------------------------------------------------------------------
+   TELA: segundo fator (2FA/TOTP) — só aparece pra quem já ativou o 2FA
+   nas Configurações de segurança. E-mail+senha sozinhos não bastam mais
+   depois disso: precisa também do código do app autenticador (ou, se
+   perdeu o celular, de um dos códigos de recuperação gerados na hora de
+   ativar).
+   --------------------------------------------------------------------- */
+function renderTwoFactor() {
+  app.innerHTML = `
+    <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
+      <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
+        <img src="../logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" class="max-w-[260px] sm:max-w-[300px]" />
+      </div>
+      <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
+        <h1 class="mb-1 text-center text-lg font-semibold text-navy-900">Verificação em duas etapas</h1>
+        <p class="mb-6 text-center text-sm text-navy-500">Digite o código de 6 dígitos do seu app autenticador.</p>
+        <form id="two-factor-form" class="flex flex-col gap-4">
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Código</span>
+            <input id="two-factor-code" autocomplete="one-time-code" autofocus
+              class="pin-input w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-center text-2xl text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+              placeholder="••••••" />
+            <span class="mt-1.5 block text-xs text-navy-400">Perdeu o acesso ao app autenticador? Digite um dos seus códigos de recuperação (formato AAAAA-BBBBB) aqui também.</span>
+          </label>
+          ${state.error ? `<p class="text-sm text-red-600">${escapeHtml(state.error)}</p>` : ""}
+          <button type="submit" id="submit-btn" class="mt-2 rounded-lg bg-navy-900 px-4 py-3.5 text-base font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">
+            Confirmar
+          </button>
+          <button type="button" id="two-factor-cancel-btn" class="mt-1 text-center text-sm text-navy-500 underline decoration-navy-200 underline-offset-2 transition hover:text-navy-700">
+            Voltar pro login
+          </button>
+        </form>
+      </div>
+      <p class="mt-8 text-xs text-navy-400">Luz Mariana — Artigos Religiosos e Devoção</p>
+    </main>
+  `;
+
+  const codeField = document.getElementById("two-factor-code");
+  document.getElementById("two-factor-cancel-btn").addEventListener("click", logout);
+  document.getElementById("two-factor-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = codeField.value.trim();
+    if (!code) { state.error = "Digite o código."; return render(); }
+
+    const submitBtn = document.getElementById("submit-btn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Verificando...";
+
+    const { data: ok, error } = await supabaseClient.rpc("verify_totp_code", { code });
+    if (error || !ok) {
+      state.error = "Código inválido. Confira e tente de novo.";
+      return render();
+    }
+    await finishAppEntry();
   });
 }
 
@@ -658,6 +746,21 @@ async function enterApp() {
   const { data: profile } = await supabaseClient.from("admin_users").select("id, name").eq("id", uid).single();
   state.currentUser = profile ? { id: profile.id, name: profile.name } : { id: uid, name: state.selectedName };
 
+  // Segundo fator (2FA/TOTP): se o admin já tiver ativado, o e-mail+senha
+  // sozinho não é suficiente — pede o código do app autenticador (ou um
+  // código de recuperação) antes de liberar o painel de verdade.
+  const { data: twoFactorEnabled, error: twoFactorErr } = await supabaseClient.rpc("totp_status");
+  if (!twoFactorErr && twoFactorEnabled) {
+    state.screen = "twoFactor";
+    state.error = null;
+    render();
+    return;
+  }
+
+  await finishAppEntry();
+}
+
+async function finishAppEntry() {
   state.screen = "app";
   state.error = null;
   await loadAllData();
@@ -739,6 +842,7 @@ function renderApp() {
             <span class="hidden text-sm text-cream-100 sm:inline">Olá, ${escapeHtml(state.currentUser?.name ?? "")}</span>
             <span id="last-refreshed" title="Os dados se atualizam sozinhos a cada minuto" class="hidden text-xs text-navy-300 sm:inline">${state.lastRefreshedAt ? `Atualizado às ${state.lastRefreshedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}</span>
             <button id="refresh-btn" title="Recarregar os dados sem precisar dar F5 (o F5 pede login de novo)" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">↻ Atualizar</button>
+            <button id="security-settings-btn" title="Verificação em duas etapas (2FA)" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">🔒 Segurança</button>
             <button id="logout-btn" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">Sair</button>
           </div>
         </div>
@@ -765,7 +869,19 @@ function renderApp() {
           </div>
         </div>
       ` : ""}
+      ${!lowStockBannerDismissed && (countLowStockProducts() + countLowStockMaterials()) > 0 ? `
+        <div class="border-b border-amber-200 bg-amber-50 px-4 py-2">
+          <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-sm text-amber-800">
+            <span>⚠ ${countLowStockProducts() + countLowStockMaterials()} produto(s)/modelo(s)/material(is) com estoque acabando. Veja em Precificação/Materiais.</span>
+            <div class="flex items-center gap-2">
+              <button id="low-stock-whatsapp-btn" class="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100">📱 Avisar no WhatsApp da loja</button>
+              <button id="low-stock-dismiss-btn" title="Dispensar por agora (volta a aparecer se recarregar a página)" class="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100">✕</button>
+            </div>
+          </div>
+        </div>
+      ` : ""}
       <main class="mx-auto max-w-6xl px-4 py-6 sm:py-8" id="main-content"></main>
+      <div id="security-overlay-slot"></div>
     </div>
   `;
 
@@ -773,6 +889,11 @@ function renderApp() {
     btn.addEventListener("click", () => { state.tab = btn.dataset.tab; render(); });
   });
   document.getElementById("logout-btn").addEventListener("click", logout);
+  document.getElementById("security-settings-btn").addEventListener("click", () => {
+    securityState = { open: true, step: "loading", enabled: false, backupCodesRemaining: 0, newSecret: null, newBackupCodes: null, setupError: null };
+    renderApp();
+    loadSecurityStatus();
+  });
   document.getElementById("refresh-btn").addEventListener("click", async () => {
     const btn = document.getElementById("refresh-btn");
     btn.disabled = true;
@@ -789,6 +910,20 @@ function renderApp() {
       render();
     });
   }
+  const lowStockWhatsappBtn = document.getElementById("low-stock-whatsapp-btn");
+  if (lowStockWhatsappBtn) {
+    lowStockWhatsappBtn.addEventListener("click", () => {
+      const message = buildLowStockWhatsappMessage(lowStockAlertRows());
+      window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
+    });
+  }
+  const lowStockDismissBtn = document.getElementById("low-stock-dismiss-btn");
+  if (lowStockDismissBtn) {
+    lowStockDismissBtn.addEventListener("click", () => {
+      lowStockBannerDismissed = true;
+      renderApp();
+    });
+  }
 
   const main = document.getElementById("main-content");
   if (state.tab === "precificacao") renderPrecificacao(main);
@@ -801,6 +936,177 @@ function renderApp() {
   else if (state.tab === "relatorios") renderRelatorios(main);
   else if (state.tab === "avaliacoes") renderAvaliacoes(main);
   else renderCaixa(main);
+
+  if (securityState.open) renderSecurityOverlay();
+}
+
+/* =====================================================================
+   PAINEL "SEGURANÇA" — ativar/desativar a verificação em duas etapas
+   (2FA/TOTP) da PRÓPRIA conta (não existe "gerenciar o 2FA de outro
+   admin" — cada um cuida do seu, coerente com não ter papéis/permissões
+   de multi-usuário nesse painel).
+   ===================================================================== */
+async function loadSecurityStatus() {
+  const [{ data: enabled }, { data: remaining }] = await Promise.all([
+    supabaseClient.rpc("totp_status"),
+    supabaseClient.rpc("totp_backup_codes_remaining"),
+  ]);
+  securityState.enabled = !!enabled;
+  securityState.backupCodesRemaining = remaining ?? 0;
+  securityState.step = "status";
+  renderSecurityOverlay();
+}
+
+function renderSecurityOverlay() {
+  const slot = document.getElementById("security-overlay-slot");
+  if (!slot) return;
+
+  if (securityState.step === "loading") {
+    slot.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+          <p class="text-sm text-navy-500">Carregando...</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if (securityState.step === "status") {
+    slot.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+        <div class="w-full max-w-md rounded-xl bg-white shadow-xl">
+          <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+            <h2 class="text-lg font-semibold text-navy-900">Segurança — Verificação em duas etapas</h2>
+            <button id="close-security-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+          </div>
+          <div class="flex flex-col gap-4 px-5 py-4">
+            <p class="text-sm text-navy-600">Pede um segundo código (do app autenticador, além do usuário e senha) toda vez que ${escapeHtml(state.currentUser?.name ?? "você")} entrar no painel — protege mesmo se alguém descobrir a senha.</p>
+            ${securityState.enabled ? `
+              <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                <p class="font-semibold">✓ Ativada</p>
+                <p class="mt-1 text-xs ${securityState.backupCodesRemaining <= 2 ? "font-semibold text-amber-700" : "text-emerald-700"}">${securityState.backupCodesRemaining} código(s) de recuperação restante(s)${securityState.backupCodesRemaining <= 2 ? " — considere desativar e ativar de novo pra gerar códigos novos." : ""}</p>
+              </div>
+              <button id="disable-2fa-btn" class="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50">Desativar verificação em duas etapas</button>
+            ` : `
+              <div class="rounded-lg border border-navy-100 bg-cream-50 px-4 py-3 text-sm text-navy-500">Não ativada.</div>
+              <button id="start-2fa-setup-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">Ativar verificação em duas etapas</button>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById("close-security-btn").addEventListener("click", () => {
+      securityState.open = false;
+      renderApp();
+    });
+    if (securityState.enabled) {
+      document.getElementById("disable-2fa-btn").addEventListener("click", async () => {
+        if (!confirm("Desativar a verificação em duas etapas? Da próxima vez, só o usuário e senha vão bastar pra entrar.")) return;
+        await supabaseClient.rpc("totp_disable");
+        await loadSecurityStatus();
+      });
+    } else {
+      document.getElementById("start-2fa-setup-btn").addEventListener("click", async () => {
+        const { data, error } = await supabaseClient.rpc("totp_generate_secret");
+        if (error || !data) { alert("Não foi possível iniciar a ativação. Tente de novo."); return; }
+        securityState.newSecret = data.secret;
+        securityState.newBackupCodes = data.backup_codes;
+        securityState.step = "setup";
+        renderSecurityOverlay();
+      });
+    }
+    return;
+  }
+
+  if (securityState.step === "setup") {
+    const issuer = "Luz Mariana";
+    const label = `${issuer}:${state.currentUser?.name ?? "admin"}`;
+    const otpauthUrl = `otpauth://totp/${encodeURIComponent(label)}?secret=${securityState.newSecret}&issuer=${encodeURIComponent(issuer)}&digits=6&period=30`;
+    let qrSvg = "";
+    try {
+      const qr = qrcode(0, "M");
+      qr.addData(otpauthUrl);
+      qr.make();
+      qrSvg = qr.createSvgTag(4, 0);
+    } catch (err) {
+      console.error("Erro ao gerar QR do 2FA:", err);
+    }
+
+    slot.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-navy-950/50 p-4">
+        <div class="my-8 w-full max-w-md rounded-xl bg-white shadow-xl">
+          <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+            <h2 class="text-lg font-semibold text-navy-900">Ativar verificação em duas etapas</h2>
+            <button id="close-security-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+          </div>
+          <div class="flex flex-col gap-4 px-5 py-4">
+            <div>
+              <p class="mb-2 text-sm font-medium text-navy-800">1. Escaneie com o app autenticador (Google Authenticator, Authy, etc.)</p>
+              <div class="flex justify-center rounded-lg border border-navy-100 bg-white p-3">${qrSvg}</div>
+              <p class="mt-2 text-center text-xs text-navy-400">Ou digite manualmente: <span class="font-mono font-semibold text-navy-700">${securityState.newSecret}</span></p>
+            </div>
+            <div>
+              <p class="mb-2 text-sm font-medium text-navy-800">2. Guarde estes códigos de recuperação num lugar seguro</p>
+              <p class="mb-2 text-xs text-navy-500">Cada um serve pra entrar UMA VEZ caso perca o acesso ao app autenticador. Eles só aparecem aqui agora — não tem como ver de novo depois.</p>
+              <div class="grid grid-cols-2 gap-1.5 rounded-lg border border-navy-100 bg-cream-50 p-3 font-mono text-sm text-navy-800">
+                ${securityState.newBackupCodes.map((c) => `<span>${c}</span>`).join("")}
+              </div>
+              <button id="copy-backup-codes-btn" type="button" class="mt-2 w-full rounded-lg border border-navy-200 px-3 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50">📋 Copiar códigos</button>
+            </div>
+            <form id="confirm-2fa-form" class="flex flex-col gap-3 border-t border-navy-100 pt-4">
+              <label class="block">
+                <span class="mb-1.5 block text-sm font-medium text-navy-800">3. Digite o código de 6 dígitos que o app está mostrando agora, pra confirmar</span>
+                <input id="confirm-2fa-code" inputmode="numeric" pattern="\\d{6}" maxlength="6" autocomplete="one-time-code"
+                  class="pin-input w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-center text-2xl text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+                  placeholder="••••••" />
+              </label>
+              ${securityState.setupError ? `<p class="text-sm text-red-600">${escapeHtml(securityState.setupError)}</p>` : ""}
+              <button type="submit" id="confirm-2fa-btn" class="rounded-lg bg-gold-500 px-4 py-2.5 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">Confirmar e ativar</button>
+              <button type="button" id="cancel-2fa-setup-btn" class="text-center text-sm text-navy-500 underline decoration-navy-200 underline-offset-2 transition hover:text-navy-700">Cancelar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById("close-security-btn").addEventListener("click", () => {
+      securityState.open = false;
+      renderApp();
+    });
+    document.getElementById("cancel-2fa-setup-btn").addEventListener("click", () => {
+      securityState.step = "status";
+      securityState.setupError = null;
+      renderSecurityOverlay();
+    });
+    document.getElementById("copy-backup-codes-btn").addEventListener("click", async () => {
+      const btn = document.getElementById("copy-backup-codes-btn");
+      try {
+        await navigator.clipboard.writeText(securityState.newBackupCodes.join("\n"));
+        const original = btn.textContent;
+        btn.textContent = "✓ Copiado!";
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      } catch (err) {
+        console.error("copiar códigos de recuperação:", err);
+        alert("Não foi possível copiar automaticamente. Códigos:\n\n" + securityState.newBackupCodes.join("\n"));
+      }
+    });
+    document.getElementById("confirm-2fa-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const code = document.getElementById("confirm-2fa-code").value.trim();
+      if (!/^\d{6}$/.test(code)) { securityState.setupError = "Digite os 6 números do código."; return renderSecurityOverlay(); }
+      const confirmBtn = document.getElementById("confirm-2fa-btn");
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Confirmando...";
+      const { data: ok, error } = await supabaseClient.rpc("totp_confirm_enable", { code });
+      if (error || !ok) {
+        securityState.setupError = "Código incorreto. Confira no app e tente de novo.";
+        return renderSecurityOverlay();
+      }
+      securityState.setupError = null;
+      await loadSecurityStatus();
+    });
+    return;
+  }
 }
 
 /* =====================================================================
@@ -905,7 +1211,52 @@ function countLowStockMaterials() {
   return state.materials.filter((m) => m.active && Number(m.stock_qty) > 0 && Number(m.stock_qty) <= LOW_STOCK_THRESHOLD).length;
 }
 
+// Detalha (produto/modelo/material + quantidade restante) tudo que está
+// "acabando" agora — usado no aviso manual de estoque baixo, pra montar
+// a mensagem que vai pro WhatsApp da loja.
+function lowStockAlertRows() {
+  const rows = [];
+  state.products.filter((p) => p.active).forEach((p) => {
+    const variants = p.product_variants ?? [];
+    if (variants.length === 0) {
+      if (p.stock_qty != null && Number(p.stock_qty) > 0 && Number(p.stock_qty) <= LOW_STOCK_THRESHOLD) {
+        rows.push({ label: p.name, qty: Number(p.stock_qty) });
+      }
+    } else {
+      variants.forEach((v) => {
+        if (v.stock_qty != null && Number(v.stock_qty) > 0 && Number(v.stock_qty) <= LOW_STOCK_THRESHOLD) {
+          rows.push({ label: `${p.name} (${v.name})`, qty: Number(v.stock_qty) });
+        }
+      });
+    }
+  });
+  state.materials.filter((m) => m.active && Number(m.stock_qty) > 0 && Number(m.stock_qty) <= LOW_STOCK_THRESHOLD).forEach((m) => {
+    rows.push({ label: `${m.name} (material)`, qty: Number(m.stock_qty) });
+  });
+  return rows;
+}
+
+function buildLowStockWhatsappMessage(rows) {
+  const lines = [`⚠ Aviso de estoque baixo — ${STORE_NAME}`, ""];
+  if (rows.length === 0) {
+    lines.push("Nada com estoque baixo no momento.");
+  } else {
+    rows.forEach((r) => lines.push(`• ${r.label}: restam ${r.qty}`));
+  }
+  lines.push("");
+  lines.push(`Mensagem gerada pelo painel em ${formatDateTime(new Date().toISOString())}.`);
+  return lines.join("\n");
+}
+
 let precifState = { showInactive: false, formOpen: false, editingId: null, bulkOpen: false };
+// Se o aviso de "estoque baixo" foi dispensado nesta sessão do painel
+// (não persiste — some ao recarregar a página, pra não esconder o aviso
+// pra sempre por engano).
+let lowStockBannerDismissed = false;
+
+// Painel "Segurança" (2FA/TOTP) — aberto pelo botão no cabeçalho.
+// step: "loading" | "status" | "setup" | "confirm"
+let securityState = { open: false, step: "loading", enabled: false, backupCodesRemaining: 0, newSecret: null, newBackupCodes: null, setupError: null };
 
 function renderPrecificacao(container) {
   const visible = state.products.filter((p) => precifState.showInactive || p.active);
@@ -3014,7 +3365,36 @@ async function loadCustomers() {
   noteLoadResult("clientes", error);
 }
 
-let clientesState = { showInactive: false, formOpen: false, editingId: null, historyForId: null };
+let clientesState = { showInactive: false, formOpen: false, editingId: null, historyForId: null, broadcastOpen: false };
+
+// Segmenta os clientes ATIVOS por quantidade de compras já feitas (conta
+// as entradas no Caixa vinculadas a cada cliente) — pra facilitar montar
+// uma lista de transmissão de promoções no WhatsApp por perfil (quem
+// comprou só 1 vez, quem já é cliente frequente etc.), sem precisar
+// abrir cliente por cliente.
+const BROADCAST_SEGMENTS = [
+  { key: "1", label: "1 compra", test: (n) => n === 1 },
+  { key: "2-4", label: "2 a 4 compras", test: (n) => n >= 2 && n <= 4 },
+  { key: "5+", label: "5 compras ou mais", test: (n) => n >= 5 },
+];
+
+function customerPurchaseCounts() {
+  const counts = new Map();
+  state.cashEntries.filter((e) => e.entry_type === "entrada" && e.customer_id).forEach((e) => {
+    counts.set(e.customer_id, (counts.get(e.customer_id) || 0) + 1);
+  });
+  return counts;
+}
+
+function customerBroadcastSegments() {
+  const counts = customerPurchaseCounts();
+  return BROADCAST_SEGMENTS.map((seg) => ({
+    ...seg,
+    customers: state.customers
+      .filter((c) => c.active && c.whatsapp && seg.test(counts.get(c.id) || 0))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+  }));
+}
 
 function renderClientes(container) {
   const visible = state.customers.filter((c) => clientesState.showInactive || c.active);
@@ -3031,12 +3411,14 @@ function renderClientes(container) {
             <input type="checkbox" id="show-inactive-customers" ${clientesState.showInactive ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
             Mostrar inativos
           </label>
+          <button id="broadcast-list-btn" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50">📋 Lista de transmissão</button>
           <button id="new-customer-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo cliente</button>
         </div>
       </div>
 
       <div id="customer-form-slot"></div>
       <div id="customer-history-slot"></div>
+      <div id="broadcast-list-slot"></div>
 
       <div class="overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
         <table class="w-full min-w-[700px] text-sm">
@@ -3078,6 +3460,12 @@ function renderClientes(container) {
     clientesState.editingId = null;
     clientesState.formOpen = true;
     clientesState.historyForId = null;
+    clientesState.broadcastOpen = false;
+    renderClientes(container);
+  });
+  document.getElementById("broadcast-list-btn").addEventListener("click", () => {
+    clientesState.broadcastOpen = !clientesState.broadcastOpen;
+    clientesState.formOpen = false;
     renderClientes(container);
   });
   container.querySelectorAll(".edit-customer-btn").forEach((btn) => {
@@ -3124,6 +3512,59 @@ function renderClientes(container) {
 
   if (clientesState.formOpen) renderCustomerForm();
   if (clientesState.historyForId) renderCustomerHistory();
+  if (clientesState.broadcastOpen) renderBroadcastListPanel();
+}
+
+// Painel "Lista de transmissão": mostra cada segmento (1 compra / 2-4 /
+// 5+) com a contagem e um botão que copia "Nome — WhatsApp" de cada
+// cliente daquele segmento pra área de transferência — pronto pra colar
+// numa lista de transmissão do WhatsApp. Não manda nada sozinho, só
+// facilita montar a lista na mão.
+function renderBroadcastListPanel() {
+  const slot = document.getElementById("broadcast-list-slot");
+  const segments = customerBroadcastSegments();
+
+  slot.innerHTML = `
+    <div class="rounded-xl border border-navy-100 bg-white p-5 shadow">
+      <div class="mb-3 flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-navy-900">Lista de transmissão por histórico de compras</h2>
+          <p class="text-xs text-navy-500">Segmenta os clientes ativos com WhatsApp cadastrado pela quantidade de compras já feitas. Copie os números e cole numa lista de transmissão no WhatsApp — nada é enviado automaticamente.</p>
+        </div>
+        <button id="close-broadcast-list-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-3">
+        ${segments.map((seg) => `
+          <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+            <p class="text-sm font-semibold text-navy-900">${seg.label}</p>
+            <p class="mb-2 text-xs text-navy-500">${seg.customers.length} cliente${seg.customers.length === 1 ? "" : "s"}</p>
+            <button data-copy-segment="${seg.key}" ${seg.customers.length === 0 ? "disabled" : ""} class="copy-segment-btn w-full rounded-lg border border-navy-200 bg-white px-3 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">📋 Copiar números</button>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  document.getElementById("close-broadcast-list-btn").addEventListener("click", () => {
+    clientesState.broadcastOpen = false;
+    renderClientes(document.getElementById("main-content"));
+  });
+  slot.querySelectorAll(".copy-segment-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const seg = segments.find((s) => s.key === btn.dataset.copySegment);
+      if (!seg) return;
+      const text = seg.customers.map((c) => `${c.name} — ${c.whatsapp}`).join("\n");
+      try {
+        await navigator.clipboard.writeText(text);
+        const original = btn.textContent;
+        btn.textContent = "✓ Copiado!";
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      } catch (err) {
+        console.error("copiar lista de transmissão:", err);
+        alert("Não foi possível copiar automaticamente. Lista:\n\n" + text);
+      }
+    });
+  });
 }
 
 function renderCustomerForm() {
@@ -3456,6 +3897,43 @@ function buildManufacturerMessage(order) {
   return lines.join("\n");
 }
 
+// Mensagem pronta pro CLIENTE (não pro fabricante) — o texto muda de
+// acordo com o status atual do pedido, pra sempre mandar uma
+// atualização que faz sentido (não precisa editar nada na mão, mas
+// sempre dá pra revisar/ajustar antes de mandar, já que o wa.me só
+// preenche o campo de texto, nunca envia sozinho).
+function buildCustomerStatusMessage(order) {
+  const firstName = String(order.customer_name ?? "").trim().split(/\s+/)[0] || order.customer_name;
+  const numero = `Nº ${String(order.order_number ?? "").padStart(6, "0")}`;
+  const deadline = orderDeliveryDeadline(order);
+  const isLate = deadline && !deadline.ready && deadline.date < new Date();
+
+  const lines = [`Oi ${firstName}! Aqui é da ${STORE_NAME}. 🙏`, ""];
+
+  if (order.status === "cancelado") {
+    lines.push(`Seu pedido ${numero} foi cancelado. Qualquer dúvida ou se quiser refazer o pedido, é só chamar por aqui.`);
+  } else if (order.status === "concluido") {
+    lines.push(`Seu pedido ${numero} foi concluído! Muito obrigada pela confiança e pela preferência. 💙`);
+  } else if (!order.accepted_at) {
+    lines.push(`Recebemos seu pedido ${numero}, no valor de ${formatBRL(order.total)}. Já vamos começar a preparar e te aviso por aqui assim que sair!`);
+  } else if (isLate) {
+    lines.push(`Seu pedido ${numero} está com a entrega um pouco atrasada em relação ao prazo combinado — peço desculpa pela demora! Já estamos resolvendo e te aviso assim que sair.`);
+  } else if (deadline && deadline.ready) {
+    lines.push(`Seu pedido ${numero} está em preparação e é de pronta entrega — deve sair em breve!`);
+  } else if (deadline && deadline.date) {
+    lines.push(`Seu pedido ${numero} está em produção. Previsão de entrega: até ${formatDate(toLocalISODate(deadline.date))}.`);
+  } else {
+    lines.push(`Seu pedido ${numero} foi aceito e já está sendo preparado.`);
+  }
+
+  if (order.status !== "cancelado" && order.status !== "concluido" && !order.paid_at && order.payment_method !== "brinde") {
+    lines.push("");
+    lines.push("Lembrando que o pagamento desse pedido ainda está pendente — qualquer dúvida sobre isso, é só chamar.");
+  }
+
+  return lines.join("\n");
+}
+
 async function loadOrders() {
   const { data, error } = await supabaseClient.from("orders").select("*").order("created_at", { ascending: false });
   if (error) { noteLoadResult("pedidos", error); return; }
@@ -3626,6 +4104,129 @@ function buildOrdersReceiptPdf(orders) {
     if (idx > 0) doc.addPage([RECEIPT_PAGE_WIDTH_MM, 200]);
     drawReceiptPage(doc, order, RECEIPT_PAGE_WIDTH_MM);
   });
+  return doc;
+}
+
+/* =====================================================================
+   LISTA DE SEPARAÇÃO/PRODUÇÃO (PDF) — junta os itens de TODOS os
+   pedidos "Em andamento" (aceitos, ainda não concluídos/cancelados) e
+   soma as quantidades por produto+modelo. Serve pra separar/produzir em
+   lote de uma vez, sem precisar abrir pedido por pedido. Não usa preço
+   nenhum (não é um documento financeiro) — só o que precisa ser feito/
+   separado e em quais pedidos aquilo entra, pra rastreabilidade.
+   ===================================================================== */
+function buildPickingListRows() {
+  const inProgress = state.orders.filter((o) => o.status === "em_andamento");
+  const byKey = new Map();
+  inProgress.forEach((o) => {
+    (o.items ?? []).forEach((it) => {
+      const key = `${it.product_name}::${it.variant_name ?? ""}`;
+      if (!byKey.has(key)) {
+        byKey.set(key, { productName: it.product_name, variantName: it.variant_name, quantity: 0, orderNumbers: new Set() });
+      }
+      const row = byKey.get(key);
+      row.quantity += Number(it.quantity);
+      row.orderNumbers.add(o.order_number);
+    });
+    (o.giftWraps ?? []).forEach((g) => {
+      const key = `embalagem::${g.material_name}`;
+      if (!byKey.has(key)) {
+        byKey.set(key, { productName: `🎁 Embalagem — ${g.material_name}`, variantName: null, quantity: 0, orderNumbers: new Set() });
+      }
+      const row = byKey.get(key);
+      row.quantity += Number(g.quantity);
+      row.orderNumbers.add(o.order_number);
+    });
+  });
+  return [...byKey.values()]
+    .map((r) => ({ ...r, orderNumbers: [...r.orderNumbers].sort((a, b) => a - b) }))
+    .sort((a, b) => a.productName.localeCompare(b.productName, "pt-BR"));
+}
+
+function buildPickingListPdf(rows) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 15;
+  const usableWidth = pageWidth - margin * 2;
+  const cols = {
+    item: { x: margin, w: 100 },
+    qtd: { x: margin + 100, w: 22 },
+    pedidos: { x: margin + 122, w: usableWidth - 122 },
+  };
+  let y = margin;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(STORE_NAME, margin, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(STORE_SUBTITLE, margin, y);
+  y += 10;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Lista de separação — Pedidos em andamento", margin, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`Gerado em ${formatDateTime(new Date().toISOString())}`, margin, y);
+  y += 8;
+
+  function drawTableHeader() {
+    doc.setFillColor(20, 30, 70);
+    doc.rect(margin, y - 4.5, usableWidth, 7, "F");
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("Produto / modelo", cols.item.x + 1, y);
+    doc.text("Qtd. total", cols.qtd.x + cols.qtd.w - 1, y, { align: "right" });
+    doc.text("Pedidos", cols.pedidos.x + 1, y);
+    y += 5;
+    doc.setTextColor(20);
+    doc.setFont("helvetica", "normal");
+  }
+
+  drawTableHeader();
+
+  if (rows.length === 0) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(9);
+    doc.text("Nenhum pedido \"Em andamento\" no momento — nada pra separar.", margin, y + 2);
+    y += 8;
+  }
+
+  rows.forEach((r, idx) => {
+    const itemLabel = `${r.productName}${r.variantName ? ` (${r.variantName})` : ""}`;
+    const pedidosLabel = r.orderNumbers.map((n) => `Nº${String(n).padStart(6, "0")}`).join(", ");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    const wrappedItem = doc.splitTextToSize(itemLabel, cols.item.w - 2);
+    const wrappedPedidos = doc.splitTextToSize(pedidosLabel, cols.pedidos.w - 2);
+    const lineCount = Math.max(wrappedItem.length, wrappedPedidos.length);
+    const rowHeight = Math.max(6, lineCount * 3.8 + 2.2);
+
+    if (y + rowHeight > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+      drawTableHeader();
+    }
+
+    if (idx % 2 === 1) {
+      doc.setFillColor(244, 245, 249);
+      doc.rect(margin, y - 4, usableWidth, rowHeight, "F");
+    }
+    doc.setTextColor(20);
+    wrappedItem.forEach((line, i) => doc.text(line, cols.item.x + 1, y + i * 3.8));
+    doc.setFont("helvetica", "bold");
+    doc.text(String(r.quantity), cols.qtd.x + cols.qtd.w - 1, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    wrappedPedidos.forEach((line, i) => doc.text(line, cols.pedidos.x + 1, y + i * 3.8));
+    y += rowHeight;
+  });
+
   return doc;
 }
 
@@ -4485,6 +5086,7 @@ function renderPedidos(container) {
           </div>
         ` : ""}
         <div class="ml-auto flex gap-2">
+          <button id="pedidos-picking-list-btn" ${state.orders.filter((o) => o.status === "em_andamento").length === 0 ? "disabled" : ""} title="Junta os itens de todos os pedidos 'Em andamento' numa lista só, com a quantidade total de cada produto — pra separar/produzir em lote." class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🖨 Lista de separação</button>
           <button id="pedidos-download-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🧾 Gerar comprovante</button>
           <button id="pedidos-delete-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">🗑 Excluir selecionados</button>
         </div>
@@ -4522,6 +5124,7 @@ function renderPedidos(container) {
                 <span class="rounded-lg px-2 py-1.5 text-xs font-medium ${ORDER_STATUS_CLASSES[o.status]}">${ORDER_STATUS_LABELS[o.status]}</span>
                 <button data-toggle-items="${o.id}" class="toggle-order-items-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">${pedidosState.expandedId === o.id ? "Ocultar itens" : "Ver itens"}</button>
                 ${o.status !== "cancelado" ? `<button data-edit-order="${o.id}" title="Editar dados do cliente e itens deste pedido" class="edit-order-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">✎ Editar</button>` : ""}
+                ${waLink(o.customer_whatsapp) ? `<button data-msg-cliente="${o.id}" title="Monta uma mensagem de atualização (o texto muda de acordo com o status do pedido) e abre no WhatsApp do cliente — você sempre revisa antes de mandar" class="msg-cliente-btn rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">💬 Mensagem</button>` : ""}
                 ${o.payment_method === "brinde"
                   ? `<span class="rounded px-2 py-1 text-xs font-medium text-gold-800">🎁 Brinde registrado</span>`
                   : state.cashEntries.some((e) => e.order_id === o.id)
@@ -4695,6 +5298,16 @@ function renderPedidos(container) {
       renderApp();
     });
   });
+  container.querySelectorAll(".msg-cliente-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const order = state.orders.find((o) => o.id === btn.dataset.msgCliente);
+      if (!order) return;
+      const link = waLink(order.customer_whatsapp);
+      if (!link) return;
+      const message = buildCustomerStatusMessage(order);
+      window.open(`${link}?text=${encodeURIComponent(message)}`, "_blank");
+    });
+  });
   container.querySelectorAll(".enviar-fabricante-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const order = state.orders.find((o) => o.id === btn.dataset.enviarFabricante);
@@ -4785,6 +5398,26 @@ function renderPedidos(container) {
       renderPedidos(container);
     });
   });
+
+  const pickingListBtn = document.getElementById("pedidos-picking-list-btn");
+  if (pickingListBtn) {
+    pickingListBtn.addEventListener("click", () => {
+      try {
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+          alert("Não foi possível gerar a lista: a biblioteca de PDF não carregou. Recarregue a página e tente novamente.");
+          return;
+        }
+        const rows = buildPickingListRows();
+        const doc = buildPickingListPdf(rows);
+        const now = new Date();
+        const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        doc.save(`lista-separacao-luz-mariana-${stamp}.pdf`);
+      } catch (err) {
+        console.error("Erro ao gerar lista de separação:", err);
+        alert("Não foi possível gerar a lista de separação. Tente novamente ou avise o suporte.");
+      }
+    });
+  }
 
   const downloadBtn = document.getElementById("pedidos-download-btn");
   if (downloadBtn) {
@@ -5254,7 +5887,18 @@ function renderRelatorios(container) {
           ${presetBtn("ultimos_7", "Últimos 7 dias")}
           ${presetBtn("ultimos_30", "Últimos 30 dias")}
         </div>
-        <button id="rel-export-csv" class="ml-auto rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">⬇ Exportar CSV</button>
+        <div class="ml-auto flex gap-2">
+          <button id="rel-export-csv" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">⬇ Exportar CSV</button>
+          <button id="rel-export-xlsx" class="rounded-lg border border-navy-200 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow transition hover:bg-navy-50">⬇ Exportar Excel (.xlsx)</button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-navy-100 bg-white p-4 shadow">
+        <div>
+          <p class="text-sm font-semibold text-navy-900">Backup completo dos dados</p>
+          <p class="text-xs text-navy-500">Baixa TODOS os dados do painel (produtos, pedidos, clientes, caixa, cupons, fornecedores, avaliações) num arquivo — um seguro contra perda de dados. Guarde num lugar seguro (ex: Google Drive). Não depende de período/filtro.</p>
+        </div>
+        <button id="rel-export-backup" class="rounded-lg border border-navy-200 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow transition hover:bg-navy-50">💾 Baixar backup (.json)</button>
       </div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -5395,6 +6039,82 @@ function renderRelatorios(container) {
       rows.push([formatDate(e.entry_date), e.category || "", e.description || "", e.payment_method || "", String(e.amount).replace(".", ",")]);
     });
     downloadCSV(`vendas_${relatoriosState.startDate}_a_${relatoriosState.endDate}.csv`, rows);
+  });
+
+  document.getElementById("rel-export-xlsx").addEventListener("click", () => {
+    try {
+      if (!window.XLSX) {
+        alert("Não foi possível gerar a planilha: a biblioteca de Excel não carregou. Recarregue a página e tente novamente.");
+        return;
+      }
+      const wb = XLSX.utils.book_new();
+
+      const resumoSheet = XLSX.utils.aoa_to_sheet([
+        ["Relatório de Vendas — " + STORE_NAME],
+        [`Período: ${formatDate(relatoriosState.startDate)} a ${formatDate(relatoriosState.endDate)}`],
+        [],
+        ["Total vendido", totalVendas],
+        ["Nº de vendas", numVendas],
+        ["Ticket médio", ticketMedio],
+        ["Total de entradas (Caixa)", totalEntradas],
+        ["Total de saídas (Caixa)", totalSaidas],
+        ["Saldo do período", totalEntradas - totalSaidas],
+      ]);
+      XLSX.utils.book_append_sheet(wb, resumoSheet, "Resumo");
+
+      const vendasSheet = XLSX.utils.json_to_sheet(vendaEntries.map((e) => ({
+        Data: formatDate(e.entry_date),
+        Cliente: e.customer_id ? (state.customers.find((c) => c.id === e.customer_id)?.name ?? "") : "",
+        Categoria: e.category || "",
+        Descrição: e.description || "",
+        Pagamento: e.payment_method || "",
+        Valor: Number(e.amount),
+      })));
+      XLSX.utils.book_append_sheet(wb, vendasSheet, "Vendas");
+
+      const categoriaSheet = XLSX.utils.json_to_sheet(porCategoria.map(([categoria, total]) => ({ Categoria: categoria, Total: total })));
+      XLSX.utils.book_append_sheet(wb, categoriaSheet, "Por categoria");
+
+      const maisVendidosSheet = XLSX.utils.json_to_sheet(maisVendidos.map(([produto, info]) => ({ Produto: produto, Quantidade: info.qty, Total: info.total })));
+      XLSX.utils.book_append_sheet(wb, maisVendidosSheet, "Mais vendidos");
+
+      XLSX.writeFile(wb, `relatorio-vendas_${relatoriosState.startDate}_a_${relatoriosState.endDate}.xlsx`);
+    } catch (err) {
+      console.error("Erro ao exportar Excel:", err);
+      alert("Não foi possível gerar a planilha. Tente novamente ou avise o suporte.");
+    }
+  });
+
+  document.getElementById("rel-export-backup").addEventListener("click", () => {
+    try {
+      const backup = {
+        gerado_em: new Date().toISOString(),
+        loja: STORE_NAME,
+        products: state.products,
+        materials: state.materials,
+        suppliers: state.suppliers,
+        customers: state.customers,
+        coupons: state.coupons,
+        couponAllowedPhones: state.couponAllowedPhones,
+        orders: state.orders,
+        cashEntries: state.cashEntries,
+        reviews: state.reviews,
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const now = new Date();
+      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      a.href = url;
+      a.download = `backup-luz-mariana-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Erro ao gerar backup:", err);
+      alert("Não foi possível gerar o backup. Tente novamente ou avise o suporte.");
+    }
   });
 }
 
