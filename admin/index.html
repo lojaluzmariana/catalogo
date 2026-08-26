@@ -8,28 +8,12 @@
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          navy: {
-            50: "#eef1fa", 100: "#d7ddf2", 200: "#aeb9e4", 300: "#8091d3",
-            400: "#4e64bd", 500: "#2740a3", 600: "#152e8a", 700: "#0d2276",
-            800: "#071a68", 900: "#001868", 950: "#000f42",
-          },
-          gold: {
-            50: "#fdf6e3", 100: "#faeab8", 200: "#f6da85", 300: "#f2c852",
-            400: "#efb92c", 500: "#e8a000", 600: "#c98900", 700: "#a06d00",
-            800: "#7a5300", 900: "#5c3f00",
-          },
-          cream: { 50: "#fdfbf7", 100: "#f8f0e8" },
-        },
-      },
-    },
-  };
-</script>
+<!-- CSS do Tailwind PRÉ-COMPILADO (../tailwind-built.css, na raiz do
+     site), no lugar do script da CDN (cdn.tailwindcss.com) — ver o
+     mesmo comentário no index.html do catálogo. Esse arquivo é
+     COMPARTILHADO entre o catálogo e o painel (mesmas cores/config), por
+     isso mora na raiz e não dentro de /admin. -->
+<link rel="stylesheet" href="../tailwind-built.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="jspdf.umd.min.js"></script>
 
