@@ -9,6 +9,16 @@
 <link rel="icon" type="image/png" href="favicon.png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 
+<!-- Google Analytics (GA4) — só no catálogo público, não no painel admin
+     (ferramenta interna, não faz sentido rastrear o uso de vocês dois lá). -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-G0TGJJXGTF"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-G0TGJJXGTF');
+</script>
+
 <!-- PWA: permite "Adicionar à tela inicial" (o app abre parecido com um
      aplicativo nativo, sem barra de endereço). Ver manifest.json e
      sw.js — o service worker é só pra habilitar a instalação, não guarda
