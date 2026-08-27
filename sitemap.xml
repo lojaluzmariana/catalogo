@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  O catálogo é um site de uma página só (SPA): todos os produtos
+  aparecem dinamicamente nessa mesma URL, sem endereço próprio por
+  produto (não existe algo como /produto/terco-de-madeira). Por isso
+  este sitemap lista só a página inicial — é o máximo que um sitemap
+  consegue representar honestamente nessa arquitetura. A indexação dos
+  produtos em si já é ajudada pelos dados estruturados (JSON-LD) que
+  ficam na própria página inicial, não por URLs extras aqui.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://lojaluzmariana.github.io/catalogo/</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
