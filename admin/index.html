@@ -14,6 +14,17 @@
      COMPARTILHADO entre o catálogo e o painel (mesmas cores/config), por
      isso mora na raiz e não dentro de /admin. -->
 <link rel="stylesheet" href="../tailwind-built.css" />
+<!-- Aplica o modo escuro (se a pessoa tinha escolhido da última vez)
+     ANTES do resto da página carregar/desenhar — sem isso, a tela
+     apareceria clara por uma fração de segundo e "piscaria" pra escura
+     assim que o script principal rodasse. -->
+<script>
+  try {
+    if (localStorage.getItem("luz-mariana-admin-dark") === "1") {
+      document.documentElement.classList.add("dark");
+    }
+  } catch (err) { /* localStorage indisponível (ex: modo privado) — segue no claro */ }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="jspdf.umd.min.js"></script>
 <!-- SheetJS (biblioteca xlsx), arquivo local — mesma lógica do jsPDF
@@ -34,6 +45,93 @@
      num input — dá pra digitar sem a tela "pular". O !important garante
      que vale mesmo em campos com classes de fonte menor (text-sm etc). */
   input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
+
+  /* =====================================================================
+     MODO ESCURO — em vez de recompilar o tailwind-built.css com uma
+     variante "dark:" em cada classe (o que exigiria regenerar o CSS pré-
+     compilado toda vez que uma tela nova for escrita), sobrescrevemos
+     aqui as MESMAS classes utilitárias do Tailwind já usadas no painel,
+     só quando a tag <html> tem a classe "dark". Cobre exatamente as
+     cores (navy/gold/cream/emerald/red/amber) que o painel já usa — não
+     precisa mexer no HTML de tela nenhuma. Ativado pelo botão 🌙 no
+     cabeçalho, e a escolha fica salva no localStorage do navegador.
+     ===================================================================== */
+  html.dark body { background-color: #0b1120; color: #e9edf9; }
+  html.dark .bg-cream-50 { background-color: #0b1120 !important; }
+  html.dark .bg-cream-100 { background-color: #141b2e !important; }
+  html.dark .bg-white { background-color: #151d30 !important; }
+  html.dark .bg-navy-50 { background-color: #17213a !important; }
+  html.dark .bg-navy-100 { background-color: #1c2740 !important; }
+
+  html.dark .text-navy-900 { color: #f1f4fc !important; }
+  html.dark .text-navy-800 { color: #dde3f6 !important; }
+  html.dark .text-navy-700 { color: #c7d0ef !important; }
+  html.dark .text-navy-600 { color: #aab6e2 !important; }
+  html.dark .text-navy-500 { color: #8f9dd2 !important; }
+  html.dark .text-navy-400 { color: #7683b3 !important; }
+  html.dark .text-navy-300 { color: #5d6997 !important; }
+
+  html.dark .border-navy-50 { border-color: #1c2740 !important; }
+  html.dark .border-navy-100 { border-color: #232f4d !important; }
+  html.dark .border-navy-200 { border-color: #2c3a5e !important; }
+  html.dark .border-navy-300 { border-color: #3a4a72 !important; }
+  html.dark .ring-navy-100 { --tw-ring-color: #232f4d !important; }
+
+  /* Header/nav (bg-navy-900/950, border-navy-700/800) já são escuros nas
+     duas versões — não precisam mudar. */
+
+  /* Faixas de aviso (estoque baixo, aniversário, erro de carregamento) e
+     selos de status — fundo claro vira fundo escuro da mesma cor, com o
+     texto claro em vez de escuro, mantendo o significado (âmbar=aviso,
+     vermelho=alerta, esmeralda=sucesso, dourado=destaque). */
+  html.dark .bg-amber-50 { background-color: #2e2405 !important; }
+  html.dark .bg-amber-100 { background-color: #3a2e08 !important; }
+  html.dark .border-amber-200 { border-color: #55440f !important; }
+  html.dark .border-amber-300 { border-color: #6b5613 !important; }
+  html.dark .text-amber-700 { color: #f0c766 !important; }
+  html.dark .text-amber-800 { color: #f5d788 !important; }
+
+  html.dark .bg-red-50 { background-color: #2e1010 !important; }
+  html.dark .bg-red-100 { background-color: #3d1515 !important; }
+  html.dark .border-red-200 { border-color: #5c2323 !important; }
+  html.dark .ring-red-400 { --tw-ring-color: #7a3030 !important; }
+  html.dark .text-red-500 { color: #ff8a8a !important; }
+  html.dark .text-red-600 { color: #ff8a8a !important; }
+  html.dark .text-red-700 { color: #ffa3a3 !important; }
+
+  html.dark .bg-emerald-50 { background-color: #0c2620 !important; }
+  html.dark .bg-emerald-100 { background-color: #103a2e !important; }
+  html.dark .border-emerald-200 { border-color: #1c5741 !important; }
+  html.dark .border-emerald-300 { border-color: #226b4f !important; }
+  html.dark .ring-emerald-400 { --tw-ring-color: #2f8a63 !important; }
+  html.dark .text-emerald-600 { color: #5fd6a8 !important; }
+  html.dark .text-emerald-700 { color: #7fe0ba !important; }
+  html.dark .text-emerald-800 { color: #9beac9 !important; }
+
+  html.dark .bg-gold-50 { background-color: #2e2405 !important; }
+  html.dark .bg-gold-100 { background-color: #3a2e08 !important; }
+  html.dark .border-gold-300 { border-color: #6b5613 !important; }
+  html.dark .border-gold-400 { border-color: #7a6216 !important; }
+  html.dark .ring-gold-200 { --tw-ring-color: #4a3b0c !important; }
+  html.dark .ring-gold-400 { --tw-ring-color: #7a6216 !important; }
+  html.dark .text-gold-300 { color: #f2d98a !important; }
+  html.dark .text-gold-600 { color: #f0c766 !important; }
+  html.dark .text-gold-700 { color: #f0c766 !important; }
+  html.dark .text-gold-800 { color: #f5d788 !important; }
+  html.dark .text-gold-900 { color: #f9e6ac !important; }
+  /* bg-gold-500 continua igual nos dois temas (botões principais) —
+     dourado sobre texto navy-900 tem contraste bom em qualquer fundo. */
+
+  /* Campos de formulário: sem isso, ficariam com fundo escuro (herdado
+     de .bg-white sobrescrito acima) mas texto continuando escuro por
+     padrão do navegador — ilegível. */
+  html.dark input, html.dark select, html.dark textarea {
+    background-color: #151d30;
+    color: #f1f4fc;
+    border-color: #2c3a5e;
+  }
+  html.dark input::placeholder, html.dark textarea::placeholder { color: #5d6997; }
+  html.dark input:disabled, html.dark select:disabled { opacity: 0.6; }
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
@@ -159,6 +257,14 @@ function calculatePricingFromManualPromo(cost, manualPromo) {
     cost, creditPrice, creditNet, creditProfit, creditMarkup, creditMargin,
     promoPrice, promoProfit, promoMargin,
   };
+}
+
+function isDarkMode() {
+  return document.documentElement.classList.contains("dark");
+}
+function toggleDarkMode() {
+  const enabled = document.documentElement.classList.toggle("dark");
+  try { localStorage.setItem("luz-mariana-admin-dark", enabled ? "1" : "0"); } catch (err) { /* modo privado etc — só não persiste entre sessões */ }
 }
 
 function formatBRL(v) {
@@ -842,6 +948,7 @@ function renderApp() {
             <span class="hidden text-sm text-cream-100 sm:inline">Olá, ${escapeHtml(state.currentUser?.name ?? "")}</span>
             <span id="last-refreshed" title="Os dados se atualizam sozinhos a cada minuto" class="hidden text-xs text-navy-300 sm:inline">${state.lastRefreshedAt ? `Atualizado às ${state.lastRefreshedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}</span>
             <button id="refresh-btn" title="Recarregar os dados sem precisar dar F5 (o F5 pede login de novo)" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">↻ Atualizar</button>
+            <button id="dark-mode-toggle-btn" title="${isDarkMode() ? "Modo claro" : "Modo escuro"}" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">${isDarkMode() ? "☀️" : "🌙"}</button>
             <button id="security-settings-btn" title="Verificação em duas etapas (2FA)" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">🔒 Segurança</button>
             <button id="logout-btn" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">Sair</button>
           </div>
@@ -880,8 +987,20 @@ function renderApp() {
           </div>
         </div>
       ` : ""}
+      ${!birthdayBannerDismissed && customersWithBirthdayThisWeek().length > 0 ? `
+        <div class="border-b border-gold-300 bg-gold-50 px-4 py-2">
+          <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-sm text-gold-900">
+            <span>🎂 Aniversário essa semana: ${customersWithBirthdayThisWeek().map((c) => `${escapeHtml(c.name)} (${formatDate(c.birth_date).slice(0, 5)})`).join(", ")}</span>
+            <div class="flex flex-wrap items-center gap-2">
+              ${customersWithBirthdayThisWeek().filter((c) => waLink(c.whatsapp)).map((c) => `<button data-birthday-msg="${c.id}" class="birthday-msg-btn rounded-lg border border-gold-400 bg-white px-2.5 py-1 text-xs font-medium text-gold-900 hover:bg-gold-100">💬 ${escapeHtml(c.name.split(/\s+/)[0])}</button>`).join("")}
+              <button id="birthday-dismiss-btn" title="Dispensar por agora (volta a aparecer se recarregar a página)" class="rounded px-2 py-1 text-xs font-medium text-gold-800 hover:bg-gold-100">✕</button>
+            </div>
+          </div>
+        </div>
+      ` : ""}
       <main class="mx-auto max-w-6xl px-4 py-6 sm:py-8" id="main-content"></main>
       <div id="security-overlay-slot"></div>
+      <div id="price-history-overlay-slot"></div>
     </div>
   `;
 
@@ -889,6 +1008,10 @@ function renderApp() {
     btn.addEventListener("click", () => { state.tab = btn.dataset.tab; render(); });
   });
   document.getElementById("logout-btn").addEventListener("click", logout);
+  document.getElementById("dark-mode-toggle-btn").addEventListener("click", () => {
+    toggleDarkMode();
+    renderApp();
+  });
   document.getElementById("security-settings-btn").addEventListener("click", () => {
     securityState = { open: true, step: "loading", enabled: false, backupCodesRemaining: 0, newSecret: null, newBackupCodes: null, setupError: null };
     renderApp();
@@ -924,6 +1047,21 @@ function renderApp() {
       renderApp();
     });
   }
+  const birthdayDismissBtn = document.getElementById("birthday-dismiss-btn");
+  if (birthdayDismissBtn) {
+    birthdayDismissBtn.addEventListener("click", () => {
+      birthdayBannerDismissed = true;
+      renderApp();
+    });
+  }
+  document.querySelectorAll(".birthday-msg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const customer = state.customers.find((c) => c.id === btn.dataset.birthdayMsg);
+      if (!customer) return;
+      const message = buildBirthdayMessage(customer);
+      window.open(`${waLink(customer.whatsapp)}?text=${encodeURIComponent(message)}`, "_blank");
+    });
+  });
 
   const main = document.getElementById("main-content");
   if (state.tab === "precificacao") renderPrecificacao(main);
@@ -938,6 +1076,7 @@ function renderApp() {
   else renderCaixa(main);
 
   if (securityState.open) renderSecurityOverlay();
+  if (priceHistoryState.open) renderPriceHistoryOverlay();
 }
 
 /* =====================================================================
@@ -946,6 +1085,116 @@ function renderApp() {
    admin" — cada um cuida do seu, coerente com não ter papéis/permissões
    de multi-usuário nesse painel).
    ===================================================================== */
+/* =====================================================================
+   HISTÓRICO DE PREÇOS — lê a tabela alimentada pelo gatilho do banco
+   (product_price_history, ver migration_historico_precos.sql). Só
+   leitura: o painel nunca escreve nessa tabela diretamente, quem grava é
+   o próprio Postgres sempre que um UPDATE muda custo/crédito/promo de um
+   produto, então o histórico é fiel mesmo se um dia existir outro
+   caminho de edição que a gente esqueça de "avisar" o painel.
+   ===================================================================== */
+async function loadPriceHistory() {
+  priceHistoryState.loading = true;
+  priceHistoryState.error = null;
+  renderPriceHistoryOverlay();
+  const { data, error } = await supabaseClient
+    .from("product_price_history")
+    .select("*")
+    .order("changed_at", { ascending: false })
+    .limit(200);
+  priceHistoryState.loading = false;
+  if (error) {
+    priceHistoryState.error = error.message;
+    renderPriceHistoryOverlay();
+    return;
+  }
+  priceHistoryState.rows = data ?? [];
+  renderPriceHistoryOverlay();
+}
+
+function renderPriceHistoryOverlay() {
+  const slot = document.getElementById("price-history-overlay-slot");
+  if (!slot) return;
+  if (!priceHistoryState.open) { slot.innerHTML = ""; return; }
+
+  const filter = priceHistoryState.filter.trim().toLowerCase();
+  const rows = filter ? priceHistoryState.rows.filter((r) => r.product_name.toLowerCase().includes(filter)) : priceHistoryState.rows;
+
+  // Alta = vermelho, queda = verde — é só uma indicação visual de
+  // direção (subiu/desceu), não um julgamento de "bom ou ruim": um custo
+  // subindo é diferente de um preço de venda subindo, mas a cor ajuda a
+  // bater o olho e ver o que mudou sem precisar comparar os números.
+  const fmtDelta = (oldV, newV) => {
+    if (oldV == null || newV == null) return "—";
+    const diff = Number(newV) - Number(oldV);
+    const arrow = diff > 0 ? "▲" : diff < 0 ? "▼" : "•";
+    const cls = diff > 0 ? "text-red-600" : diff < 0 ? "text-emerald-700" : "text-navy-400";
+    return `${formatBRL(oldV)} → ${formatBRL(newV)} <span class="${cls}">${arrow}</span>`;
+  };
+
+  slot.innerHTML = `
+    <div id="price-history-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+      <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+          <div>
+            <h2 class="text-lg font-semibold text-navy-900">📜 Histórico de alterações de preço</h2>
+            <p class="text-xs text-navy-500">Registro automático de mudanças de custo, preço no crédito e preço promo/pix — as ${priceHistoryState.rows.length} mais recentes.</p>
+          </div>
+          <button id="close-price-history-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+        </div>
+        <div class="border-b border-navy-100 px-5 py-3">
+          <input id="price-history-filter" value="${escapeHtml(priceHistoryState.filter)}" placeholder="Filtrar por nome do produto..." class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          ${priceHistoryState.loading ? `<p class="text-sm text-navy-400">Carregando...</p>`
+            : priceHistoryState.error ? `<p class="text-sm text-red-600">Não foi possível carregar: ${escapeHtml(priceHistoryState.error)}</p>`
+            : rows.length === 0 ? `<p class="text-sm text-navy-400">${priceHistoryState.rows.length === 0 ? "Nenhuma alteração de preço registrada ainda." : "Nenhum resultado pro filtro."}</p>`
+            : `
+              <div class="overflow-x-auto">
+                <table class="w-full min-w-[640px] text-xs">
+                  <thead>
+                    <tr class="border-b border-navy-100 text-left uppercase tracking-wide text-navy-400">
+                      <th class="py-2 pr-2">Data</th>
+                      <th class="py-2 pr-2">Produto</th>
+                      <th class="py-2 pr-2">Custo</th>
+                      <th class="py-2 pr-2">Crédito</th>
+                      <th class="py-2 pr-2">Promo/Pix</th>
+                      <th class="py-2">Quem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rows.map((r) => `
+                      <tr class="border-b border-navy-50 last:border-0">
+                        <td class="py-2 pr-2 whitespace-nowrap text-navy-600">${formatDateTime(r.changed_at)}</td>
+                        <td class="py-2 pr-2 font-medium text-navy-900">${escapeHtml(r.product_name)}</td>
+                        <td class="py-2 pr-2 whitespace-nowrap">${fmtDelta(r.old_cost, r.new_cost)}</td>
+                        <td class="py-2 pr-2 whitespace-nowrap">${fmtDelta(r.old_credit_price, r.new_credit_price)}</td>
+                        <td class="py-2 pr-2 whitespace-nowrap">${fmtDelta(r.old_promo_price, r.new_promo_price)}</td>
+                        <td class="py-2 text-navy-500">${escapeHtml(adminName(r.changed_by) || "—")}</td>
+                      </tr>
+                    `).join("")}
+                  </tbody>
+                </table>
+              </div>
+            `}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("close-price-history-btn").addEventListener("click", () => {
+    priceHistoryState.open = false;
+    renderPriceHistoryOverlay();
+  });
+  const filterInput = document.getElementById("price-history-filter");
+  if (filterInput) {
+    filterInput.addEventListener("input", (e) => {
+      priceHistoryState.filter = e.target.value;
+      renderPriceHistoryOverlay();
+    });
+  }
+}
+
 async function loadSecurityStatus() {
   const [{ data: enabled }, { data: remaining }] = await Promise.all([
     supabaseClient.rpc("totp_status"),
@@ -1253,10 +1502,18 @@ let precifState = { showInactive: false, formOpen: false, editingId: null, bulkO
 // (não persiste — some ao recarregar a página, pra não esconder o aviso
 // pra sempre por engano).
 let lowStockBannerDismissed = false;
+// Mesma ideia do aviso de estoque baixo, mas pro aviso de aniversário de
+// cliente na semana.
+let birthdayBannerDismissed = false;
 
 // Painel "Segurança" (2FA/TOTP) — aberto pelo botão no cabeçalho.
 // step: "loading" | "status" | "setup" | "confirm"
 let securityState = { open: false, step: "loading", enabled: false, backupCodesRemaining: 0, newSecret: null, newBackupCodes: null, setupError: null };
+
+// Painel "Histórico de preços" — carregado sob demanda (não faz parte do
+// loadAllData() de toda tela, só busca quando a pessoa abre o painel,
+// porque a lista só cresce com o tempo e não é algo consultado toda hora).
+let priceHistoryState = { open: false, loading: false, rows: [], filter: "", error: null };
 
 function renderPrecificacao(container) {
   const visible = state.products.filter((p) => precifState.showInactive || p.active);
@@ -1275,6 +1532,7 @@ function renderPrecificacao(container) {
             Mostrar inativos
           </label>
           <button id="bulk-cost-toggle-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.bulkOpen ? "Fechar reajuste em massa" : "↕ Reajustar custo em massa"}</button>
+          <button id="price-history-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">📜 Histórico de preços</button>
           <button id="new-product-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo produto</button>
         </div>
       </div>
@@ -1437,6 +1695,15 @@ function renderPrecificacao(container) {
     bulkToggleBtn.addEventListener("click", () => {
       precifState.bulkOpen = !precifState.bulkOpen;
       renderPrecificacao(container);
+    });
+  }
+  const priceHistoryBtn = document.getElementById("price-history-btn");
+  if (priceHistoryBtn) {
+    priceHistoryBtn.addEventListener("click", () => {
+      priceHistoryState.open = true;
+      priceHistoryState.filter = "";
+      renderPriceHistoryOverlay();
+      loadPriceHistory();
     });
   }
   const bulkApplyBtn = document.getElementById("bulk-cost-apply");
@@ -3365,7 +3632,7 @@ async function loadCustomers() {
   noteLoadResult("clientes", error);
 }
 
-let clientesState = { showInactive: false, formOpen: false, editingId: null, historyForId: null, broadcastOpen: false };
+let clientesState = { showInactive: false, formOpen: false, editingId: null, historyForId: null, broadcastOpen: false, sumidosOpen: false, sumidosMinDays: 60 };
 
 // Segmenta os clientes ATIVOS por quantidade de compras já feitas (conta
 // as entradas no Caixa vinculadas a cada cliente) — pra facilitar montar
@@ -3396,6 +3663,52 @@ function customerBroadcastSegments() {
   }));
 }
 
+// Aniversariantes de HOJE até os próximos 6 dias — só clientes ativos
+// com data de nascimento cadastrada. Compara só mês/dia (ignora o ano
+// de nascimento) e lida com a virada do ano (ex: hoje 28/dez, a janela
+// de 7 dias entra em janeiro sem problema, porque "MM-DD" de cada dia
+// da janela é calculado com addDaysISO, não com aritmética de string).
+function customersWithBirthdayThisWeek() {
+  const today = todayISO();
+  const monthDay = (iso) => iso.slice(5, 10); // "MM-DD"
+  const windowDays = Array.from({ length: 7 }, (_, i) => monthDay(addDaysISO(today, i)));
+  return state.customers
+    .filter((c) => c.active && c.birth_date && windowDays.includes(monthDay(c.birth_date)))
+    .map((c) => ({ ...c, _daysUntil: windowDays.indexOf(monthDay(c.birth_date)) }))
+    .sort((a, b) => a._daysUntil - b._daysUntil);
+}
+
+// Data da ÚLTIMA compra (entrada de Caixa vinculada) de cada cliente —
+// base tanto pra "lista de sumidos" quanto pra qualquer outro uso futuro
+// que precise saber "desde quando esse cliente não compra".
+function customerLastPurchaseDates() {
+  const lastByCustomer = new Map();
+  state.cashEntries
+    .filter((e) => e.entry_type === "entrada" && e.customer_id)
+    .forEach((e) => {
+      const current = lastByCustomer.get(e.customer_id);
+      if (!current || e.entry_date > current) lastByCustomer.set(e.customer_id, e.entry_date);
+    });
+  return lastByCustomer;
+}
+
+// "Sumidos": clientes ATIVOS que já compraram pelo menos 2 vezes (ou
+// seja, tinham o hábito de voltar) e cuja última compra foi há mais de
+// `minDaysSince` dias — candidatos a receber uma mensagem de "sentimos
+// sua falta" antes que esqueçam da loja de vez. Cliente que nunca
+// comprou ou comprou só 1 vez fica de fora (não "sumiu": nunca teve o
+// hábito de voltar, é caso pra lista de transmissão normal, não essa).
+function sumidosCustomers(minDaysSince) {
+  const counts = customerPurchaseCounts();
+  const lastPurchase = customerLastPurchaseDates();
+  const today = todayISO();
+  return state.customers
+    .filter((c) => c.active && c.whatsapp && (counts.get(c.id) || 0) >= 2 && lastPurchase.has(c.id))
+    .map((c) => ({ ...c, _lastPurchase: lastPurchase.get(c.id), _daysSince: daysBetweenISO(lastPurchase.get(c.id), today) }))
+    .filter((c) => c._daysSince >= minDaysSince)
+    .sort((a, b) => b._daysSince - a._daysSince);
+}
+
 function renderClientes(container) {
   const visible = state.customers.filter((c) => clientesState.showInactive || c.active);
 
@@ -3412,6 +3725,7 @@ function renderClientes(container) {
             Mostrar inativos
           </label>
           <button id="broadcast-list-btn" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50">📋 Lista de transmissão</button>
+          <button id="sumidos-list-btn" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50">👋 Clientes sumidos</button>
           <button id="new-customer-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo cliente</button>
         </div>
       </div>
@@ -3419,6 +3733,7 @@ function renderClientes(container) {
       <div id="customer-form-slot"></div>
       <div id="customer-history-slot"></div>
       <div id="broadcast-list-slot"></div>
+      <div id="sumidos-list-slot"></div>
 
       <div class="overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
         <table class="w-full min-w-[700px] text-sm">
@@ -3465,6 +3780,13 @@ function renderClientes(container) {
   });
   document.getElementById("broadcast-list-btn").addEventListener("click", () => {
     clientesState.broadcastOpen = !clientesState.broadcastOpen;
+    clientesState.sumidosOpen = false;
+    clientesState.formOpen = false;
+    renderClientes(container);
+  });
+  document.getElementById("sumidos-list-btn").addEventListener("click", () => {
+    clientesState.sumidosOpen = !clientesState.sumidosOpen;
+    clientesState.broadcastOpen = false;
     clientesState.formOpen = false;
     renderClientes(container);
   });
@@ -3513,6 +3835,7 @@ function renderClientes(container) {
   if (clientesState.formOpen) renderCustomerForm();
   if (clientesState.historyForId) renderCustomerHistory();
   if (clientesState.broadcastOpen) renderBroadcastListPanel();
+  if (clientesState.sumidosOpen) renderSumidosPanel();
 }
 
 // Painel "Lista de transmissão": mostra cada segmento (1 compra / 2-4 /
@@ -3567,6 +3890,99 @@ function renderBroadcastListPanel() {
   });
 }
 
+// Painel "Clientes sumidos": clientes que tinham o hábito de comprar (2+
+// compras) e não voltam há um tempo — pra reengajar antes que esqueçam
+// da loja. O limite de dias é ajustável (60/90/120) porque o que conta
+// como "sumiu" varia de negócio pra negócio.
+const SUMIDOS_DAY_OPTIONS = [60, 90, 120];
+
+function renderSumidosPanel() {
+  const slot = document.getElementById("sumidos-list-slot");
+  const list = sumidosCustomers(clientesState.sumidosMinDays);
+
+  slot.innerHTML = `
+    <div class="rounded-xl border border-navy-100 bg-white p-5 shadow">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-semibold text-navy-900">Clientes sumidos</h2>
+          <p class="text-xs text-navy-500">Clientes ativos que já compraram 2 vezes ou mais, mas não compram faz um tempo — bons candidatos pra receber um "sentimos sua falta" antes de esquecerem da loja.</p>
+        </div>
+        <button id="close-sumidos-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+      </div>
+      <div class="mb-3 flex flex-wrap items-center gap-2">
+        <span class="text-xs font-medium text-navy-500">Sem comprar há mais de:</span>
+        ${SUMIDOS_DAY_OPTIONS.map((days) => `
+          <button data-sumidos-days="${days}" class="sumidos-days-btn rounded-lg border px-3 py-1.5 text-xs font-medium transition ${clientesState.sumidosMinDays === days ? "border-gold-500 bg-gold-500 text-navy-900" : "border-navy-200 bg-white text-navy-700 hover:bg-navy-50"}">${days} dias</button>
+        `).join("")}
+        ${list.length > 0 ? `<button id="copy-sumidos-btn" class="ml-auto rounded-lg border border-navy-200 bg-white px-3 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50">📋 Copiar todos</button>` : ""}
+      </div>
+      ${list.length === 0 ? `<p class="text-sm text-navy-400">Nenhum cliente sumido com esse critério — ótimo sinal!</p>` : `
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[520px] text-sm">
+            <thead>
+              <tr class="border-b border-navy-100 text-left text-xs uppercase tracking-wide text-navy-400">
+                <th class="py-2">Cliente</th>
+                <th class="py-2">WhatsApp</th>
+                <th class="py-2 text-right">Última compra</th>
+                <th class="py-2 text-right">Há quanto tempo</th>
+                <th class="py-2 text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${list.map((c) => `
+                <tr class="border-b border-navy-50 last:border-0">
+                  <td class="py-2 font-medium text-navy-900">${escapeHtml(c.name)}</td>
+                  <td class="py-2 text-navy-600">${escapeHtml(c.whatsapp)}</td>
+                  <td class="py-2 text-right text-navy-600">${formatDate(c._lastPurchase)}</td>
+                  <td class="py-2 text-right text-navy-600">${c._daysSince} dias</td>
+                  <td class="py-2 text-right">
+                    <button data-sumido-msg="${c.id}" class="sumido-msg-btn rounded-lg border border-navy-200 px-2.5 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50">💬 Mensagem</button>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+  `;
+
+  document.getElementById("close-sumidos-btn").addEventListener("click", () => {
+    clientesState.sumidosOpen = false;
+    renderClientes(document.getElementById("main-content"));
+  });
+  slot.querySelectorAll(".sumidos-days-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      clientesState.sumidosMinDays = Number(btn.dataset.sumidosDays);
+      renderSumidosPanel();
+    });
+  });
+  const copySumidosBtn = document.getElementById("copy-sumidos-btn");
+  if (copySumidosBtn) {
+    copySumidosBtn.addEventListener("click", async () => {
+      const text = list.map((c) => `${c.name} — ${c.whatsapp} (última compra: ${formatDate(c._lastPurchase)})`).join("\n");
+      try {
+        await navigator.clipboard.writeText(text);
+        const original = copySumidosBtn.textContent;
+        copySumidosBtn.textContent = "✓ Copiado!";
+        setTimeout(() => { copySumidosBtn.textContent = original; }, 1500);
+      } catch (err) {
+        console.error("copiar lista de sumidos:", err);
+        alert("Não foi possível copiar automaticamente. Lista:\n\n" + text);
+      }
+    });
+  }
+  slot.querySelectorAll(".sumido-msg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const customer = list.find((c) => c.id === btn.dataset.sumidoMsg);
+      if (!customer || !waLink(customer.whatsapp)) return;
+      const firstName = String(customer.name ?? "").trim().split(/\s+/)[0] || customer.name;
+      const message = `Oi ${firstName}! Aqui é da ${STORE_NAME}. Faz um tempinho que você não aparece por aqui — passando só pra lembrar que estamos com novidades e ficaríamos felizes em te ver de volta. 🙏💙`;
+      window.open(`${waLink(customer.whatsapp)}?text=${encodeURIComponent(message)}`, "_blank");
+    });
+  });
+}
+
 function renderCustomerForm() {
   const slot = document.getElementById("customer-form-slot");
   const customer = clientesState.editingId ? state.customers.find((c) => c.id === clientesState.editingId) : null;
@@ -3591,6 +4007,11 @@ function renderCustomerForm() {
           class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
           placeholder="@usuario" />
       </div>
+      <div class="min-w-[150px]">
+        <label class="mb-1 block text-sm font-medium text-navy-800">Aniversário (opcional)</label>
+        <input type="date" id="cf-birthdate" value="${customer && customer.birth_date ? customer.birth_date : ""}"
+          class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+      </div>
       <div id="cf-error" class="w-full text-sm text-red-600"></div>
       <div class="flex gap-2">
         <button type="submit" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">Salvar</button>
@@ -3609,11 +4030,12 @@ function renderCustomerForm() {
     const name = document.getElementById("cf-name").value.trim();
     const whatsapp = document.getElementById("cf-whatsapp").value.trim();
     const instagram = document.getElementById("cf-instagram").value.trim().replace(/^@/, "");
+    const birthDate = document.getElementById("cf-birthdate").value;
     const errorEl = document.getElementById("cf-error");
     if (!name) { errorEl.textContent = "Informe o nome do cliente."; return; }
 
     const payload = {
-      name, whatsapp: whatsapp || null, instagram: instagram || null,
+      name, whatsapp: whatsapp || null, instagram: instagram || null, birth_date: birthDate || null,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
 
@@ -3934,6 +4356,15 @@ function buildCustomerStatusMessage(order) {
   return lines.join("\n");
 }
 
+// Mensagem de parabéns pro cliente aniversariante — usada pelo banner
+// de aniversário no topo do painel. Fica de propósito sem menção a
+// cupom/desconto específico: quem for oferecer algo digita à mão antes
+// de mandar (o campo já abre editável no WhatsApp).
+function buildBirthdayMessage(customer) {
+  const firstName = String(customer.name ?? "").trim().split(/\s+/)[0] || customer.name;
+  return `Oi ${firstName}! Passando pra desejar um feliz aniversário, com muita saúde e alegria! 🎂🙏\n\nCom carinho, ${STORE_NAME}.`;
+}
+
 async function loadOrders() {
   const { data, error } = await supabaseClient.from("orders").select("*").order("created_at", { ascending: false });
   if (error) { noteLoadResult("pedidos", error); return; }
@@ -4225,6 +4656,87 @@ function buildPickingListPdf(rows) {
     doc.setFont("helvetica", "normal");
     wrappedPedidos.forEach((line, i) => doc.text(line, cols.pedidos.x + 1, y + i * 3.8));
     y += rowHeight;
+  });
+
+  return doc;
+}
+
+/* =====================================================================
+   ETIQUETA DE ENVIO (PDF) — uma etiqueta por pedido selecionado, numa
+   grade de 2x5 numa folha A4 (10 por página), pra imprimir e recortar
+   com tesoura na hora de despachar. Usa o campo "Observações" do pedido
+   como endereço, já que hoje não existe um campo de endereço separado
+   (o combinado de entrega é tratado na conversa do WhatsApp) — se
+   estiver vazio, mostra "—" em vez de inventar informação.
+   ===================================================================== */
+function buildShippingLabelsPdf(orders) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 10;
+  const cols = 2;
+  const rows = 5;
+  const gap = 4;
+  const cellWidth = (pageWidth - margin * 2 - gap * (cols - 1)) / cols;
+  const cellHeight = (pageHeight - margin * 2 - gap * (rows - 1)) / rows;
+  const perPage = cols * rows;
+
+  function drawLabel(order, x, y) {
+    // Guia de corte (linha tracejada) — não é a etiqueta em si, só ajuda
+    // a recortar reto.
+    doc.setDrawColor(200);
+    doc.setLineDashPattern([1, 1], 0);
+    doc.rect(x, y, cellWidth, cellHeight);
+    doc.setLineDashPattern([], 0);
+
+    const padX = x + 4;
+    let ty = y + 6;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text(STORE_NAME.toUpperCase(), padX, ty);
+    ty += 5;
+
+    doc.setFontSize(11);
+    doc.setTextColor(20);
+    doc.text(`Pedido Nº ${String(order.order_number ?? "").padStart(6, "0")}`, padX, ty);
+    ty += 6;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    const wrappedName = doc.splitTextToSize(order.customer_name || "—", cellWidth - 8);
+    wrappedName.slice(0, 2).forEach((line) => { doc.text(line, padX, ty); ty += 4.5; });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    if (order.customer_whatsapp) {
+      doc.text(order.customer_whatsapp, padX, ty);
+      ty += 5;
+    }
+
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8);
+    doc.setTextColor(90);
+    doc.text("Endereço/observações:", padX, ty);
+    ty += 4;
+    doc.setFont("helvetica", "normal");
+    const wrappedNotes = doc.splitTextToSize(order.notes ? order.notes : "—", cellWidth - 8);
+    wrappedNotes.slice(0, 4).forEach((line) => { doc.text(line, padX, ty); ty += 3.8; });
+
+    doc.setTextColor(20);
+  }
+
+  orders.forEach((order, idx) => {
+    const pageIdx = Math.floor(idx / perPage);
+    const posInPage = idx % perPage;
+    if (pageIdx > 0 && posInPage === 0) doc.addPage();
+    const col = posInPage % cols;
+    const row = Math.floor(posInPage / cols);
+    const x = margin + col * (cellWidth + gap);
+    const y = margin + row * (cellHeight + gap);
+    drawLabel(order, x, y);
   });
 
   return doc;
@@ -5088,6 +5600,7 @@ function renderPedidos(container) {
         <div class="ml-auto flex gap-2">
           <button id="pedidos-picking-list-btn" ${state.orders.filter((o) => o.status === "em_andamento").length === 0 ? "disabled" : ""} title="Junta os itens de todos os pedidos 'Em andamento' numa lista só, com a quantidade total de cada produto — pra separar/produzir em lote." class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🖨 Lista de separação</button>
           <button id="pedidos-download-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🧾 Gerar comprovante</button>
+          <button id="pedidos-shipping-labels-btn" ${selectedCount === 0 ? "disabled" : ""} title="Gera uma etiqueta em PDF (nome, WhatsApp, nº do pedido e observações/endereço) pra cada pedido selecionado, prontas pra imprimir e recortar." class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🏷 Etiqueta de envio</button>
           <button id="pedidos-delete-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">🗑 Excluir selecionados</button>
         </div>
       </div>
@@ -5438,6 +5951,29 @@ function renderPedidos(container) {
       } catch (err) {
         console.error("Erro ao gerar comprovante:", err);
         alert("Não foi possível gerar o comprovante. Tente novamente ou avise o suporte.");
+      }
+    });
+  }
+
+  const shippingLabelsBtn = document.getElementById("pedidos-shipping-labels-btn");
+  if (shippingLabelsBtn) {
+    shippingLabelsBtn.addEventListener("click", () => {
+      try {
+        const selectedOrders = state.orders
+          .filter((o) => pedidosState.selected.has(o.id))
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        if (selectedOrders.length === 0) return;
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+          alert("Não foi possível gerar as etiquetas: a biblioteca de PDF não carregou. Recarregue a página e tente novamente.");
+          return;
+        }
+        const doc = buildShippingLabelsPdf(selectedOrders);
+        const now = new Date();
+        const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        doc.save(`etiquetas-envio-luz-mariana-${stamp}.pdf`);
+      } catch (err) {
+        console.error("Erro ao gerar etiquetas de envio:", err);
+        alert("Não foi possível gerar as etiquetas. Tente novamente ou avise o suporte.");
       }
     });
   }
@@ -5806,6 +6342,88 @@ function relatoriosEntriesInRange() {
   return state.cashEntries.filter((e) => e.entry_date >= startDate && e.entry_date <= endDate);
 }
 
+// Soma/subtrai dias numa data "AAAA-MM-DD" sem passar por Date com fuso
+// horário de verdade — só aritmética de calendário (UTC usado aqui é só
+// um truque de cálculo, não representa hora nenhuma).
+function addDaysISO(iso, days) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+function daysBetweenISO(a, b) {
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+}
+
+// Quebra as vendas do período em "baldes" pra desenhar o gráfico de
+// barras — por dia se o período é curto (até 31 dias), por semana se
+// médio (até 180 dias) ou por mês se for um período bem longo. Sem isso,
+// um período de 1 ano viraria 365 barrinhas ilegíveis.
+function relatoriosSalesByBucket(vendaEntries) {
+  const { startDate, endDate } = relatoriosState;
+  const totalDays = daysBetweenISO(startDate, endDate) + 1;
+  const bucketDays = totalDays <= 31 ? 1 : totalDays <= 180 ? 7 : 30;
+  const buckets = [];
+  let cursor = startDate;
+  while (cursor <= endDate) {
+    const bucketEnd = addDaysISO(cursor, bucketDays - 1);
+    const clampedEnd = bucketEnd > endDate ? endDate : bucketEnd;
+    const total = vendaEntries
+      .filter((e) => e.entry_date >= cursor && e.entry_date <= clampedEnd)
+      .reduce((s, e) => s + Number(e.amount), 0);
+    buckets.push({ start: cursor, end: clampedEnd, total });
+    cursor = addDaysISO(clampedEnd, 1);
+  }
+  return buckets;
+}
+
+// Total de vendas no MESMO NÚMERO DE DIAS imediatamente anterior ao
+// período escolhido — pra comparar "como estamos indo" com o pedaço de
+// tempo equivalente antes (não com o mês civil anterior, que pode ter
+// número de dias diferente).
+function relatoriosPreviousPeriodTotal() {
+  const { startDate, endDate } = relatoriosState;
+  const totalDays = daysBetweenISO(startDate, endDate) + 1;
+  const prevEnd = addDaysISO(startDate, -1);
+  const prevStart = addDaysISO(prevEnd, -(totalDays - 1));
+  const total = state.cashEntries
+    .filter((e) => e.entry_type === "entrada" && e.category === "Venda" && e.entry_date >= prevStart && e.entry_date <= prevEnd)
+    .reduce((s, e) => s + Number(e.amount), 0);
+  return { prevStart, prevEnd, total };
+}
+
+// Desenha o gráfico de barras em SVG puro (sem lib externa) — cada barra
+// é o total vendido num "balde" (dia/semana/mês, ver relatoriosSalesByBucket).
+function renderSalesChartSvg(buckets) {
+  const width = 720, height = 220;
+  const padding = { top: 10, right: 10, bottom: 26, left: 10 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const maxVal = Math.max(1, ...buckets.map((b) => b.total));
+  const barGap = buckets.length > 20 ? 1.5 : 4;
+  const barWidth = buckets.length > 0 ? Math.max(1, (chartWidth - barGap * (buckets.length - 1)) / buckets.length) : chartWidth;
+  const showLabels = buckets.length <= 31;
+
+  const bars = buckets.map((b, i) => {
+    const barHeight = (b.total / maxVal) * chartHeight;
+    const x = padding.left + i * (barWidth + barGap);
+    const y = padding.top + (chartHeight - barHeight);
+    const label = b.start === b.end ? formatDate(b.start).slice(0, 5) : `${formatDate(b.start).slice(0, 5)}–${formatDate(b.end).slice(0, 5)}`;
+    return `
+      <g>
+        <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(0.5, barHeight).toFixed(1)}" rx="1.5" fill="#E8A000">
+          <title>${escapeHtml(label)}: ${formatBRL(b.total)}</title>
+        </rect>
+        ${showLabels ? `<text x="${(x + barWidth / 2).toFixed(1)}" y="${height - 8}" font-size="8" text-anchor="middle" fill="#5b6b8c">${escapeHtml(label)}</text>` : ""}
+      </g>
+    `;
+  }).join("");
+
+  return `<svg viewBox="0 0 ${width} ${height}" class="h-auto w-full" role="img" aria-label="Gráfico de vendas por período">${bars}</svg>`;
+}
+
 // Quebra as vendas do período por categoria de produto, cruzando cada
 // lançamento de venda (que tem order_id) com os itens do pedido
 // correspondente e a categoria cadastrada de cada produto. Lançamentos de
@@ -5862,6 +6480,9 @@ function renderRelatorios(container) {
 
   const porCategoria = relatoriosCategoriaBreakdown(vendaEntries);
   const maisVendidos = relatoriosProdutosMaisVendidos(vendaEntries);
+  const salesBuckets = relatoriosSalesByBucket(vendaEntries);
+  const previousPeriod = relatoriosPreviousPeriodTotal();
+  const salesDelta = previousPeriod.total > 0 ? (totalVendas - previousPeriod.total) / previousPeriod.total : (totalVendas > 0 ? 1 : 0);
 
   const presetBtn = (key, label) => `<button data-relatorio-preset="${key}" class="rounded-lg border border-navy-200 bg-white px-3 py-1.5 text-xs font-medium text-navy-700 transition hover:bg-navy-50">${label}</button>`;
 
@@ -5918,6 +6539,16 @@ function renderRelatorios(container) {
           <p class="text-xs uppercase tracking-wide text-navy-400">Saldo do período</p>
           <p class="mt-1 text-2xl font-semibold ${totalEntradas - totalSaidas >= 0 ? "text-emerald-700" : "text-red-700"}">${formatBRL(totalEntradas - totalSaidas)}</p>
         </div>
+      </div>
+
+      <div class="rounded-xl border border-navy-100 bg-white p-4 shadow">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold text-navy-900">Vendas no período</h2>
+          <span class="text-xs font-medium ${salesDelta >= 0 ? "text-emerald-700" : "text-red-600"}" title="Comparado com os ${daysBetweenISO(relatoriosState.startDate, relatoriosState.endDate) + 1} dias anteriores (${formatDate(previousPeriod.prevStart)} a ${formatDate(previousPeriod.prevEnd)}): ${formatBRL(previousPeriod.total)}">
+            ${salesDelta >= 0 ? "▲" : "▼"} ${formatPercent(Math.abs(salesDelta))} vs. período anterior
+          </span>
+        </div>
+        ${vendaEntries.length === 0 ? `<p class="text-sm text-navy-400">Nenhuma venda no período.</p>` : renderSalesChartSvg(salesBuckets)}
       </div>
 
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
