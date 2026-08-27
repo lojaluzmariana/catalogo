@@ -1531,7 +1531,7 @@ function buildLowStockWhatsappMessage(rows) {
   return lines.join("\n");
 }
 
-let precifState = { showInactive: false, formOpen: false, editingId: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set(), priceTableGenerating: false };
+let precifState = { showInactive: false, formOpen: false, editingId: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set() };
 // Se o aviso de "estoque baixo" foi dispensado nesta sessão do painel
 // (não persiste — some ao recarregar a página, pra não esconder o aviso
 // pra sempre por engano).
@@ -1575,7 +1575,7 @@ function renderPrecificacao(container) {
           </label>
           <button id="bulk-cost-toggle-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.bulkOpen ? "Fechar reajuste em massa" : "↕ Reajustar custo em massa"}</button>
           <button id="price-history-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">📜 Histórico de preços</button>
-          <button id="price-table-toggle-btn" title="Monta um PDF com os produtos que você escolher — foto, preço no crédito e preço à vista — pronto pra imprimir e levar num evento, feira ou bazar." class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.priceTableOpen ? "Fechar tabela de preços" : "🖨️ Tabela de preços"}</button>
+          <button id="price-table-toggle-btn" title="Monta um PDF simples com os produtos que você escolher — nome, preço no crédito e preço à vista, agrupados por categoria — pronto pra imprimir e levar num evento, feira ou bazar." class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.priceTableOpen ? "Fechar tabela de preços" : "🖨️ Tabela de preços"}</button>
           <button id="new-product-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo produto</button>
         </div>
       </div>
@@ -1609,7 +1609,7 @@ function renderPrecificacao(container) {
             Selecionar todos os visíveis
           </label>
           <span class="text-sm text-navy-400">${priceTableSelectedCount} selecionado${priceTableSelectedCount === 1 ? "" : "s"}</span>
-          <button id="price-table-generate-btn" ${priceTableSelectedCount === 0 || precifState.priceTableGenerating ? "disabled" : ""} class="ml-auto rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-40">${precifState.priceTableGenerating ? "Gerando... (carregando fotos)" : `🖨️ Gerar tabela de preços (${priceTableSelectedCount})`}</button>
+          <button id="price-table-generate-btn" ${priceTableSelectedCount === 0 ? "disabled" : ""} class="ml-auto rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-40">🖨️ Gerar tabela de preços (${priceTableSelectedCount})</button>
         </div>
       ` : ""}
 
@@ -1792,7 +1792,7 @@ function renderPrecificacao(container) {
   });
   const priceTableGenerateBtn = document.getElementById("price-table-generate-btn");
   if (priceTableGenerateBtn) {
-    priceTableGenerateBtn.addEventListener("click", async () => {
+    priceTableGenerateBtn.addEventListener("click", () => {
       const selectedProducts = state.products
         .filter((p) => precifState.priceTableSelected.has(p.id))
         .sort((a, b) => (a.category || "").localeCompare(b.category || "", "pt-BR") || a.name.localeCompare(b.name, "pt-BR"));
@@ -1801,23 +1801,14 @@ function renderPrecificacao(container) {
         alert("Não foi possível gerar a tabela: a biblioteca de PDF não carregou. Recarregue a página e tente novamente.");
         return;
       }
-      precifState.priceTableGenerating = true;
-      renderPrecificacao(container);
       try {
-        const withPhotos = await Promise.all(selectedProducts.map(async (p) => ({
-          ...p,
-          _photoDataUrl: p.photo_url ? await loadImageAsDataUrl(p.photo_url).catch(() => null) : null,
-        })));
-        const doc = buildPriceTablePdf(withPhotos);
+        const doc = buildPriceTablePdf(selectedProducts);
         const now = new Date();
         const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
         doc.save(`tabela-precos-luz-mariana-${stamp}.pdf`);
       } catch (err) {
         console.error("Erro ao gerar tabela de preços:", err);
         alert("Não foi possível gerar a tabela de preços. Tente novamente ou avise o suporte.");
-      } finally {
-        precifState.priceTableGenerating = false;
-        renderPrecificacao(container);
       }
     });
   }
@@ -4776,38 +4767,16 @@ function buildPickingListPdf(rows) {
   return doc;
 }
 
-/* ---------------------------------------------------------------------
-   Baixa uma foto (URL pública do Supabase Storage) e devolve como
-   data URL (base64), formato que o jsPDF entende com addImage(). Usado
-   só na Tabela de Preços (PDF) — se uma foto falhar (sem internet no
-   momento, link quebrado etc.), quem chamou trata o erro e segue sem
-   ela, não trava a geração do PDF inteiro por causa de 1 foto.
-   --------------------------------------------------------------------- */
-function loadImageAsDataUrl(url) {
-  return fetch(url)
-    .then((res) => {
-      if (!res.ok) throw new Error(`Falha ao baixar imagem (${res.status})`);
-      return res.blob();
-    })
-    .then((blob) => new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(new Error("Não foi possível ler a imagem"));
-      reader.readAsDataURL(blob);
-    }));
-}
-function dataUrlImageFormat(dataUrl) {
-  const m = /^data:image\/(\w+);/i.exec(dataUrl || "");
-  const type = (m ? m[1] : "").toLowerCase();
-  return type === "png" ? "PNG" : "JPEG"; // qualquer outra coisa tenta como JPEG
-}
-
 /* =====================================================================
    TABELA DE PREÇOS (PDF) — pra levar impressa num evento/feira/bazar:
    os produtos escolhidos (todos ou só alguns, via checkbox na tabela da
-   Precificação), agrupados por categoria, com foto, preço no crédito e
-   preço à vista (Pix/dinheiro). NÃO mostra custo, lucro nem margem —
-   só o que o cliente do evento precisa ver.
+   Precificação), agrupados por categoria, com preço no crédito e preço
+   à vista (Pix/dinheiro). Sem foto de propósito — o pedido foi algo
+   simples de ler rápido "na correria" e que coubesse numa folha só, uma
+   linha por produto é bem mais compacto que um card com imagem. NÃO
+   mostra custo, lucro nem margem — só o que o cliente do evento precisa
+   ver. Se a seleção for grande demais pra 1 página, pagina sozinha (não
+   trava nem corta produto no meio).
    ===================================================================== */
 function buildPriceTablePdf(products) {
   const { jsPDF } = window.jspdf;
@@ -4817,56 +4786,47 @@ function buildPriceTablePdf(products) {
   const margin = 15;
   const usableWidth = pageWidth - margin * 2;
   const cols = {
-    photo: { x: margin, w: 18 },
-    nome: { x: margin + 21, w: 73 },
-    credito: { x: margin + 96, w: 34 },
-    avista: { x: margin + 132, w: usableWidth - 132 },
+    nome: { x: margin, w: 95 },
+    credito: { x: margin + 98, w: 33 },
+    avista: { x: margin + 133, w: usableWidth - 133 },
   };
-  const ROW_HEIGHT = 20;
+  const ROW_HEIGHT = 5.2;
+  const CATEGORY_HEADER_HEIGHT = 5.2;
   let y = margin;
 
   function drawStoreHeader() {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text(STORE_NAME, margin, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(STORE_SUBTITLE, margin, y);
-    y += 10;
-
-    doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text("Tabela de preços", margin, y);
-    y += 6;
+    doc.text(`${STORE_NAME} — Tabela de preços`, margin, y);
+    y += 4.6;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(`Gerado em ${formatDateTime(new Date().toISOString())} · ${products.length} produto${products.length === 1 ? "" : "s"}`, margin, y);
-    y += 8;
+    doc.setFontSize(7.5);
+    doc.text(`${STORE_SUBTITLE} · Gerado em ${formatDateTime(new Date().toISOString())} · ${products.length} produto${products.length === 1 ? "" : "s"}`, margin, y);
+    y += 4;
   }
 
   function drawColumnHeader() {
     doc.setFillColor(20, 30, 70);
-    doc.rect(margin, y, usableWidth, 7, "F");
+    doc.rect(margin, y, usableWidth, 6, "F");
     doc.setTextColor(255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.text("Produto", cols.nome.x, y + 5);
-    doc.text("Crédito", cols.credito.x + cols.credito.w - 1, y + 5, { align: "right" });
-    doc.text("À vista (Pix/dinheiro)", cols.avista.x + cols.avista.w - 1, y + 5, { align: "right" });
-    y += 10;
+    doc.text("Produto", cols.nome.x + 1, y + 4.2);
+    doc.text("Crédito", cols.credito.x + cols.credito.w - 1, y + 4.2, { align: "right" });
+    doc.text("À vista (Pix/dinheiro)", cols.avista.x + cols.avista.w - 1, y + 4.2, { align: "right" });
+    y += 6.5;
     doc.setTextColor(20);
     doc.setFont("helvetica", "normal");
   }
 
   function drawCategoryHeader(label) {
     doc.setFillColor(250, 234, 184);
-    doc.rect(margin, y, usableWidth, 6, "F");
+    doc.rect(margin, y, usableWidth, CATEGORY_HEADER_HEIGHT - 0.7, "F");
     doc.setTextColor(122, 83, 0);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text(label, margin + 2, y + 4.3);
-    y += 9;
+    doc.setFontSize(8.5);
+    doc.text(label, margin + 2, y + 3.2);
+    y += CATEGORY_HEADER_HEIGHT;
     doc.setTextColor(20);
     doc.setFont("helvetica", "normal");
   }
@@ -4895,7 +4855,7 @@ function buildPriceTablePdf(products) {
   products.forEach((p) => {
     const category = p.category && p.category.trim() ? p.category.trim() : "Outros";
     if (category !== currentCategory) {
-      ensureSpace(9 + ROW_HEIGHT, null);
+      ensureSpace(CATEGORY_HEADER_HEIGHT + ROW_HEIGHT, null);
       drawCategoryHeader(category);
       currentCategory = category;
       rowIdx = 0;
@@ -4909,36 +4869,15 @@ function buildPriceTablePdf(products) {
       doc.rect(margin, rowTop, usableWidth, ROW_HEIGHT, "F");
     }
 
-    if (p._photoDataUrl) {
-      try {
-        doc.addImage(p._photoDataUrl, dataUrlImageFormat(p._photoDataUrl), cols.photo.x + 1, rowTop + 2, 16, 16);
-      } catch (err) {
-        console.error("addImage falhou pra", p.name, err);
-      }
-    } else {
-      doc.setDrawColor(220, 224, 236);
-      doc.setFillColor(238, 241, 250);
-      doc.roundedRect(cols.photo.x + 1, rowTop + 2, 16, 16, 1.5, 1.5, "FD");
-    }
-
     doc.setTextColor(20);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    const nameLines = doc.splitTextToSize(p.name, cols.nome.w - 2).slice(0, 2);
-    nameLines.forEach((line, i) => doc.text(line, cols.nome.x, rowTop + 8 + i * 4.6));
+    doc.setFontSize(9);
+    const nameLine = doc.splitTextToSize(p.name, cols.nome.w - 2)[0];
+    doc.text(nameLine, cols.nome.x + 1, rowTop + 3.7);
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(120, 128, 150);
-    doc.text("Crédito", cols.credito.x + cols.credito.w - 1, rowTop + 6, { align: "right" });
-    doc.text("À vista", cols.avista.x + cols.avista.w - 1, rowTop + 6, { align: "right" });
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(20);
-    doc.text(formatBRL(p.credit_price), cols.credito.x + cols.credito.w - 1, rowTop + 13, { align: "right" });
+    doc.text(formatBRL(p.credit_price), cols.credito.x + cols.credito.w - 1, rowTop + 3.7, { align: "right" });
     doc.setTextColor(4, 120, 87);
-    doc.text(formatBRL(p.promo_price), cols.avista.x + cols.avista.w - 1, rowTop + 13, { align: "right" });
+    doc.text(formatBRL(p.promo_price), cols.avista.x + cols.avista.w - 1, rowTop + 3.7, { align: "right" });
     doc.setTextColor(20);
 
     y = rowTop + ROW_HEIGHT;
