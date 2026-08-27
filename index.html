@@ -726,6 +726,24 @@ function renderCategoryBar(categories) {
   `;
 }
 
+// "Mais vendidos" = ranking automático por unidades vendidas
+// (catalog_products.units_sold, já soma tudo exceto pedido cancelado —
+// ver migration_mais_vendidos.sql) + qualquer produto marcado manualmente
+// como destaque no Painel (products.featured), mesmo com zero vendas —
+// é o "empurrão manual" que o dono pediu pra continuar existindo.
+// Produtos manuais sempre entram; o restante das vagas (até
+// BEST_SELLERS_AUTO_LIMIT) é preenchido pelos mais vendidos automáticos.
+const BEST_SELLERS_AUTO_LIMIT = 8;
+function computeBestSellers(products) {
+  const manual = products.filter((p) => p.featured);
+  const manualIds = new Set(manual.map((p) => p.id));
+  const bySales = products
+    .filter((p) => !manualIds.has(p.id) && (p.units_sold || 0) > 0)
+    .sort((a, b) => (b.units_sold || 0) - (a.units_sold || 0))
+    .slice(0, BEST_SELLERS_AUTO_LIMIT);
+  return [...manual, ...bySales];
+}
+
 function renderFeaturedCarousel(products) {
   if (products.length === 0) return "";
   // Esgotados vão pro final da vitrine — dá mais destaque pra quem
@@ -737,7 +755,7 @@ function renderFeaturedCarousel(products) {
   const duration = Math.max(12, products.length * 6);
   return `
     <div class="mb-8">
-      <h2 class="mb-3 text-lg font-semibold text-navy-900">✨ Produtos em destaque</h2>
+      <h2 class="mb-3 text-lg font-semibold text-navy-900">🔥 Mais vendidos</h2>
       <div class="featured-carousel-wrap overflow-hidden">
         <div class="featured-carousel-track flex gap-4" style="animation-duration: ${duration}s;">
           ${track.map((p) => `<div class="w-40 flex-shrink-0 sm:w-48">${renderProductCard(p, { hideDescription: true })}</div>`).join("")}
@@ -817,7 +835,7 @@ function renderPolicy() {
 function renderCatalog() {
   const grouped = groupByCategory(state.products);
   const categories = grouped.map((g) => g.category);
-  const featured = state.products.filter((p) => p.featured);
+  const featured = computeBestSellers(state.products);
   const searchActive = state.searchQuery.trim().length > 0;
   const categoryFiltered = state.categoryFilter === "all"
     ? state.products
@@ -864,7 +882,6 @@ function renderCatalog() {
 function renderProductCard(p, opts = {}) {
   const variants = variantsFor(p.id);
   const frames = carouselFrames(p);
-  const hasDescription = !opts.hideDescription && p.description && p.description.trim();
   const isFav = !!state.favorites[p.id];
   const favoriteBtn = `
     <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/85 text-base shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
@@ -957,8 +974,6 @@ function renderProductCard(p, opts = {}) {
             ${p.material_tag ? `<span class="rounded-full bg-navy-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
           </div>
         </div>
-
-        ${hasDescription ? `<p class="text-justify text-[11px] leading-relaxed text-navy-600">${escapeHtml(p.description).replace(/\n/g, "<br>")}</p>` : ""}
 
         <div class="leading-tight">
           <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)} <span class="text-[10px] font-normal text-navy-400">Em até 3x no crédito</span></p>
