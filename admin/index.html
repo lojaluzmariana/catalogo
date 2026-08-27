@@ -1531,7 +1531,7 @@ function buildLowStockWhatsappMessage(rows) {
   return lines.join("\n");
 }
 
-let precifState = { showInactive: false, formOpen: false, editingId: null, bulkOpen: false };
+let precifState = { showInactive: false, formOpen: false, editingId: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set(), priceTableGenerating: false };
 // Se o aviso de "estoque baixo" foi dispensado nesta sessão do painel
 // (não persiste — some ao recarregar a página, pra não esconder o aviso
 // pra sempre por engano).
@@ -1553,6 +1553,14 @@ function renderPrecificacao(container) {
   const visible = state.products.filter((p) => precifState.showInactive || p.active);
   const categories = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
+  // "Tabela de preços" (PDF) — seleção independente do resto da tela,
+  // limpa sozinha quando um produto selecionado deixa de estar visível
+  // (ex: desmarcou "Mostrar inativos" com um inativo selecionado).
+  [...precifState.priceTableSelected].forEach((id) => { if (!visible.some((p) => p.id === id)) precifState.priceTableSelected.delete(id); });
+  const priceTableSelectedCount = precifState.priceTableSelected.size;
+  const allVisibleSelectedForPriceTable = visible.length > 0 && visible.every((p) => precifState.priceTableSelected.has(p.id));
+  const tableColCount = 13 + (precifState.priceTableOpen ? 1 : 0);
+
   container.innerHTML = `
     <div class="flex flex-col gap-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1567,6 +1575,7 @@ function renderPrecificacao(container) {
           </label>
           <button id="bulk-cost-toggle-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.bulkOpen ? "Fechar reajuste em massa" : "↕ Reajustar custo em massa"}</button>
           <button id="price-history-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">📜 Histórico de preços</button>
+          <button id="price-table-toggle-btn" title="Monta um PDF com os produtos que você escolher — foto, preço no crédito e preço à vista — pronto pra imprimir e levar num evento, feira ou bazar." class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.priceTableOpen ? "Fechar tabela de preços" : "🖨️ Tabela de preços"}</button>
           <button id="new-product-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo produto</button>
         </div>
       </div>
@@ -1593,12 +1602,24 @@ function renderPrecificacao(container) {
         </div>
       ` : ""}
 
+      ${precifState.priceTableOpen ? `
+        <div class="flex flex-wrap items-center gap-3 rounded-xl border border-gold-300 bg-white p-3 shadow">
+          <label class="flex items-center gap-2 text-sm text-navy-700">
+            <input type="checkbox" id="price-table-select-all" class="h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" ${visible.length === 0 ? "disabled" : ""} ${allVisibleSelectedForPriceTable ? "checked" : ""} />
+            Selecionar todos os visíveis
+          </label>
+          <span class="text-sm text-navy-400">${priceTableSelectedCount} selecionado${priceTableSelectedCount === 1 ? "" : "s"}</span>
+          <button id="price-table-generate-btn" ${priceTableSelectedCount === 0 || precifState.priceTableGenerating ? "disabled" : ""} class="ml-auto rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-40">${precifState.priceTableGenerating ? "Gerando... (carregando fotos)" : `🖨️ Gerar tabela de preços (${priceTableSelectedCount})`}</button>
+        </div>
+      ` : ""}
+
       <div id="product-form-slot"></div>
 
       <div class="overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
         <table class="w-full table-auto text-[11px] sm:text-xs">
           <thead>
             <tr class="border-b border-navy-100 bg-navy-900 text-left text-[10px] uppercase tracking-wide text-cream-50 sm:text-[11px]">
+              ${precifState.priceTableOpen ? `<th class="px-1 py-1.5 text-center"></th>` : ""}
               <th class="px-1 py-1.5">Produto</th>
               <th class="px-1 py-1.5 text-right">Custo</th>
               <th class="px-1 py-1.5 text-right" title="Preço Crédito">Créd.</th>
@@ -1615,8 +1636,13 @@ function renderPrecificacao(container) {
             </tr>
           </thead>
           <tbody>
-            ${visible.length === 0 ? `<tr><td colspan="13" class="px-4 py-8 text-center text-navy-400">Nenhum produto encontrado.</td></tr>` : visible.map((p) => `
+            ${visible.length === 0 ? `<tr><td colspan="${tableColCount}" class="px-4 py-8 text-center text-navy-400">Nenhum produto encontrado.</td></tr>` : visible.map((p) => `
               <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50 ${!p.active ? "opacity-50" : ""}">
+                ${precifState.priceTableOpen ? `
+                <td class="px-1 py-1.5 text-center">
+                  <input type="checkbox" data-price-table-select="${p.id}" class="price-table-select-cb h-3.5 w-3.5 rounded border-navy-300 text-gold-500 focus:ring-gold-400" ${precifState.priceTableSelected.has(p.id) ? "checked" : ""} />
+                </td>
+                ` : ""}
                 <td class="px-1 py-1.5 font-medium text-navy-900">
                   <span class="inline-flex flex-wrap items-center gap-1">
                     ${p.photo_url ? `<img src="${p.photo_url}" class="h-5 w-5 rounded object-cover" />` : ""}
@@ -1738,6 +1764,61 @@ function renderPrecificacao(container) {
       priceHistoryState.filter = "";
       renderPriceHistoryOverlay();
       loadPriceHistory();
+    });
+  }
+  const priceTableToggleBtn = document.getElementById("price-table-toggle-btn");
+  if (priceTableToggleBtn) {
+    priceTableToggleBtn.addEventListener("click", () => {
+      precifState.priceTableOpen = !precifState.priceTableOpen;
+      if (!precifState.priceTableOpen) precifState.priceTableSelected.clear();
+      renderPrecificacao(container);
+    });
+  }
+  const priceTableSelectAll = document.getElementById("price-table-select-all");
+  if (priceTableSelectAll) {
+    priceTableSelectAll.addEventListener("change", (e) => {
+      if (e.target.checked) visible.forEach((p) => precifState.priceTableSelected.add(p.id));
+      else visible.forEach((p) => precifState.priceTableSelected.delete(p.id));
+      renderPrecificacao(container);
+    });
+  }
+  container.querySelectorAll(".price-table-select-cb").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const id = cb.dataset.priceTableSelect;
+      if (cb.checked) precifState.priceTableSelected.add(id);
+      else precifState.priceTableSelected.delete(id);
+      renderPrecificacao(container);
+    });
+  });
+  const priceTableGenerateBtn = document.getElementById("price-table-generate-btn");
+  if (priceTableGenerateBtn) {
+    priceTableGenerateBtn.addEventListener("click", async () => {
+      const selectedProducts = state.products
+        .filter((p) => precifState.priceTableSelected.has(p.id))
+        .sort((a, b) => (a.category || "").localeCompare(b.category || "", "pt-BR") || a.name.localeCompare(b.name, "pt-BR"));
+      if (selectedProducts.length === 0) return;
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert("Não foi possível gerar a tabela: a biblioteca de PDF não carregou. Recarregue a página e tente novamente.");
+        return;
+      }
+      precifState.priceTableGenerating = true;
+      renderPrecificacao(container);
+      try {
+        const withPhotos = await Promise.all(selectedProducts.map(async (p) => ({
+          ...p,
+          _photoDataUrl: p.photo_url ? await loadImageAsDataUrl(p.photo_url).catch(() => null) : null,
+        })));
+        const doc = buildPriceTablePdf(withPhotos);
+        const now = new Date();
+        const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        doc.save(`tabela-precos-luz-mariana-${stamp}.pdf`);
+      } catch (err) {
+        console.error("Erro ao gerar tabela de preços:", err);
+        alert("Não foi possível gerar a tabela de preços. Tente novamente ou avise o suporte.");
+      } finally {
+        precifState.priceTableGenerating = false;
+        renderPrecificacao(container);
+      }
     });
   }
   const bulkApplyBtn = document.getElementById("bulk-cost-apply");
@@ -4690,6 +4771,178 @@ function buildPickingListPdf(rows) {
     doc.setFont("helvetica", "normal");
     wrappedPedidos.forEach((line, i) => doc.text(line, cols.pedidos.x + 1, y + i * 3.8));
     y += rowHeight;
+  });
+
+  return doc;
+}
+
+/* ---------------------------------------------------------------------
+   Baixa uma foto (URL pública do Supabase Storage) e devolve como
+   data URL (base64), formato que o jsPDF entende com addImage(). Usado
+   só na Tabela de Preços (PDF) — se uma foto falhar (sem internet no
+   momento, link quebrado etc.), quem chamou trata o erro e segue sem
+   ela, não trava a geração do PDF inteiro por causa de 1 foto.
+   --------------------------------------------------------------------- */
+function loadImageAsDataUrl(url) {
+  return fetch(url)
+    .then((res) => {
+      if (!res.ok) throw new Error(`Falha ao baixar imagem (${res.status})`);
+      return res.blob();
+    })
+    .then((blob) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Não foi possível ler a imagem"));
+      reader.readAsDataURL(blob);
+    }));
+}
+function dataUrlImageFormat(dataUrl) {
+  const m = /^data:image\/(\w+);/i.exec(dataUrl || "");
+  const type = (m ? m[1] : "").toLowerCase();
+  return type === "png" ? "PNG" : "JPEG"; // qualquer outra coisa tenta como JPEG
+}
+
+/* =====================================================================
+   TABELA DE PREÇOS (PDF) — pra levar impressa num evento/feira/bazar:
+   os produtos escolhidos (todos ou só alguns, via checkbox na tabela da
+   Precificação), agrupados por categoria, com foto, preço no crédito e
+   preço à vista (Pix/dinheiro). NÃO mostra custo, lucro nem margem —
+   só o que o cliente do evento precisa ver.
+   ===================================================================== */
+function buildPriceTablePdf(products) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 15;
+  const usableWidth = pageWidth - margin * 2;
+  const cols = {
+    photo: { x: margin, w: 18 },
+    nome: { x: margin + 21, w: 73 },
+    credito: { x: margin + 96, w: 34 },
+    avista: { x: margin + 132, w: usableWidth - 132 },
+  };
+  const ROW_HEIGHT = 20;
+  let y = margin;
+
+  function drawStoreHeader() {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(STORE_NAME, margin, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(STORE_SUBTITLE, margin, y);
+    y += 10;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Tabela de preços", margin, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Gerado em ${formatDateTime(new Date().toISOString())} · ${products.length} produto${products.length === 1 ? "" : "s"}`, margin, y);
+    y += 8;
+  }
+
+  function drawColumnHeader() {
+    doc.setFillColor(20, 30, 70);
+    doc.rect(margin, y, usableWidth, 7, "F");
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("Produto", cols.nome.x, y + 5);
+    doc.text("Crédito", cols.credito.x + cols.credito.w - 1, y + 5, { align: "right" });
+    doc.text("À vista (Pix/dinheiro)", cols.avista.x + cols.avista.w - 1, y + 5, { align: "right" });
+    y += 10;
+    doc.setTextColor(20);
+    doc.setFont("helvetica", "normal");
+  }
+
+  function drawCategoryHeader(label) {
+    doc.setFillColor(250, 234, 184);
+    doc.rect(margin, y, usableWidth, 6, "F");
+    doc.setTextColor(122, 83, 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text(label, margin + 2, y + 4.3);
+    y += 9;
+    doc.setTextColor(20);
+    doc.setFont("helvetica", "normal");
+  }
+
+  function ensureSpace(neededHeight, categoryLabel) {
+    if (y + neededHeight > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+      drawColumnHeader();
+      if (categoryLabel) drawCategoryHeader(`${categoryLabel} (continuação)`);
+    }
+  }
+
+  drawStoreHeader();
+  drawColumnHeader();
+
+  if (products.length === 0) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(9);
+    doc.text("Nenhum produto selecionado.", margin, y + 2);
+    return doc;
+  }
+
+  let currentCategory = null;
+  let rowIdx = 0;
+  products.forEach((p) => {
+    const category = p.category && p.category.trim() ? p.category.trim() : "Outros";
+    if (category !== currentCategory) {
+      ensureSpace(9 + ROW_HEIGHT, null);
+      drawCategoryHeader(category);
+      currentCategory = category;
+      rowIdx = 0;
+    } else {
+      ensureSpace(ROW_HEIGHT, currentCategory);
+    }
+
+    const rowTop = y;
+    if (rowIdx % 2 === 1) {
+      doc.setFillColor(244, 245, 249);
+      doc.rect(margin, rowTop, usableWidth, ROW_HEIGHT, "F");
+    }
+
+    if (p._photoDataUrl) {
+      try {
+        doc.addImage(p._photoDataUrl, dataUrlImageFormat(p._photoDataUrl), cols.photo.x + 1, rowTop + 2, 16, 16);
+      } catch (err) {
+        console.error("addImage falhou pra", p.name, err);
+      }
+    } else {
+      doc.setDrawColor(220, 224, 236);
+      doc.setFillColor(238, 241, 250);
+      doc.roundedRect(cols.photo.x + 1, rowTop + 2, 16, 16, 1.5, 1.5, "FD");
+    }
+
+    doc.setTextColor(20);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    const nameLines = doc.splitTextToSize(p.name, cols.nome.w - 2).slice(0, 2);
+    nameLines.forEach((line, i) => doc.text(line, cols.nome.x, rowTop + 8 + i * 4.6));
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(120, 128, 150);
+    doc.text("Crédito", cols.credito.x + cols.credito.w - 1, rowTop + 6, { align: "right" });
+    doc.text("À vista", cols.avista.x + cols.avista.w - 1, rowTop + 6, { align: "right" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(20);
+    doc.text(formatBRL(p.credit_price), cols.credito.x + cols.credito.w - 1, rowTop + 13, { align: "right" });
+    doc.setTextColor(4, 120, 87);
+    doc.text(formatBRL(p.promo_price), cols.avista.x + cols.avista.w - 1, rowTop + 13, { align: "right" });
+    doc.setTextColor(20);
+
+    y = rowTop + ROW_HEIGHT;
+    rowIdx++;
   });
 
   return doc;
