@@ -961,9 +961,8 @@ function renderProductCard(p, opts = {}) {
         ${hasDescription ? `<p class="text-justify text-[11px] leading-relaxed text-navy-600">${escapeHtml(p.description).replace(/\n/g, "<br>")}</p>` : ""}
 
         <div class="leading-tight">
-          <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)}</p>
-          <p class="text-[10px] text-navy-400">Em até 3x no crédito</p>
-          <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} no Pix / à vista</p>
+          <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)} <span class="text-[10px] font-normal text-navy-400">Em até 3x no crédito</span></p>
+          <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} em pagamentos à vista (Pix ou espécie)</p>
         </div>
         ${variants.length > 0
           ? `<p data-stock-note="${p.id}" class="text-[10px] font-medium text-gold-700 ${initialInStock || initialEsgotado ? "hidden" : ""}">🕑 ${madeToOrderText(p)}</p>`
@@ -1125,9 +1124,8 @@ function renderProductDetail() {
           ${hasDescription ? `<p class="text-justify text-sm leading-relaxed text-navy-600">${escapeHtml(product.description).replace(/\n/g, "<br>")}</p>` : ""}
 
           <div class="leading-tight">
-            <p class="text-2xl font-semibold text-navy-900">${formatBRL(product.credit_price)}</p>
-            <p class="text-xs text-navy-400">Em até 3x no crédito</p>
-            <p class="text-sm text-navy-400">ou ${formatBRL(product.promo_price)} no Pix / à vista</p>
+            <p class="text-2xl font-semibold text-navy-900">${formatBRL(product.credit_price)} <span class="text-xs font-normal text-navy-400">Em até 3x no crédito</span></p>
+            <p class="text-sm text-navy-400">ou ${formatBRL(product.promo_price)} em pagamentos à vista (Pix ou espécie)</p>
           </div>
 
           ${!isInStock && !isEsgotado ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-xs font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : ""}
