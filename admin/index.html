@@ -1576,7 +1576,7 @@ function renderPrecificacao(container) {
               <th class="px-1 py-1.5 text-right" title="Lucro Promo">Lucro P.</th>
               <th class="px-1 py-1.5 text-right" title="Margem Promo">Marg. P.</th>
               <th class="px-1 py-1.5 text-center" title="Visível no Catálogo">Visível</th>
-              <th class="px-1 py-1.5 text-center" title="Destacar no Catálogo">Dest.</th>
+              <th class="px-1 py-1.5 text-center" title="Forçar em 'Mais vendidos' no Catálogo, mesmo sem vendas (a vitrine já entra automática pelos mais vendidos)">Dest.</th>
               <th class="px-1 py-1.5 text-center">Ações</th>
             </tr>
           </thead>
@@ -1922,7 +1922,7 @@ function renderProductForm() {
         </label>
         <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
           <input type="checkbox" id="pf-featured" ${product?.featured ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-          Produto em destaque (aparece numa vitrine especial no topo do Catálogo)
+          Forçar em "Mais vendidos" (a vitrine no topo do Catálogo já entra automaticamente com os produtos mais vendidos — marque aqui só se quiser garantir este produto lá mesmo sem vendas)
         </label>
         <div id="pf-in-stock-block">
           <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
