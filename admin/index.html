@@ -4309,6 +4309,31 @@ function orderCost(order) {
 // um "retrato" do nome na hora da compra, não uma referência); se o
 // modelo não existir mais no cadastro (renomeado/apagado), trata como
 // sob encomenda por segurança, do mesmo jeito que produto removido.
+// Ajusta o estoque numérico (stock_qty) de um produto ou modelo em
+// `delta` unidades (negativo pra baixar numa venda, positivo pra repor) —
+// mesma lógica de "Nova compra de estoque" (que só soma), só que aqui
+// generalizada pros dois sentidos. Nunca deixa o estoque negativo (trava
+// em 0) e recalcula in_stock/esgotado junto, igual o resto do painel já
+// faz. Quem NÃO tem stock_qty preenchido (controle manual por
+// checkbox) não é mexido — continua exatamente como já era antes dessa
+// função existir.
+async function ajustarEstoqueQtd(productId, variantId, delta) {
+  const product = state.products.find((p) => p.id === productId);
+  if (!product) return;
+  if (variantId) {
+    const variant = (product.product_variants ?? []).find((v) => v.id === variantId);
+    if (!variant || variant.stock_qty == null) return;
+    const newQty = Math.max(0, Number(variant.stock_qty) + delta);
+    const { error } = await supabaseClient.from("product_variants").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: newQty <= 0 }).eq("id", variantId);
+    if (error) console.error("Não foi possível ajustar o estoque do modelo:", error.message);
+  } else {
+    if (product.stock_qty == null) return;
+    const newQty = Math.max(0, Number(product.stock_qty) + delta);
+    const { error } = await supabaseClient.from("products").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: newQty <= 0, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", productId);
+    if (error) console.error("Não foi possível ajustar o estoque do produto:", error.message);
+  }
+}
+
 function itemIsInStock(item, product) {
   if (!product) return false;
   const variants = product.product_variants ?? [];
@@ -6529,7 +6554,58 @@ async function loadCashEntries() {
   state.cashEntries = data.map((e) => ({ ...e, materials_used: byEntry[e.id] || [] }));
 }
 
-let caixaState = { formOpen: false, editingId: null };
+let caixaState = { formOpen: false, editingId: null, eventFilter: "" };
+
+/* =====================================================================
+   SIMULAR VENDA — calculadora pura, NÃO grava nada no banco. Serve pra
+   testar "quanto eu lucraria se vendesse X + Y no crédito", montando uma
+   venda hipotética com vários produtos/modelos antes de vender de
+   verdade. Fecha e esquece: não fica em nenhum histórico.
+   ===================================================================== */
+let simulateState = { open: false, items: [], payment: "pix", _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+
+// Preço de venda de um produto pra uma forma de pagamento — mesma regra
+// usada em "Novo lançamento" (ver applyProductPrice) e no Catálogo:
+// crédito usa credit_price (já embute a taxa da maquininha + margem
+// maior), pix/dinheiro usa promo_price.
+function salePriceFor(product, payment) {
+  if (!product) return 0;
+  return Number(payment === "credito" ? product.credit_price : product.promo_price);
+}
+
+/* =====================================================================
+   MODO EVENTO — feiras, bazares, encontros: um "evento" é só um texto
+   (nome) que marca um grupo de lançamentos no Caixa (cash_entries.event_tag),
+   podendo se espalhar por vários dias (cada venda mantém sua própria
+   entry_date). Ativar o modo evento aqui só pré-preenche o nome nas
+   vendas que forem registradas por "Registrar venda (evento)" enquanto
+   estiver ativo — não cria tabela nova nem mexe no resto do Caixa.
+   Guardado no localStorage pra sobreviver a um F5 no meio do evento.
+   ===================================================================== */
+const EVENT_MODE_STORAGE_KEY = "luz-mariana-admin-event-mode";
+function loadEventModeFromStorage() {
+  try {
+    const raw = localStorage.getItem(EVENT_MODE_STORAGE_KEY);
+    if (!raw) return { active: false, name: "" };
+    const parsed = JSON.parse(raw);
+    return { active: !!parsed.active, name: typeof parsed.name === "string" ? parsed.name : "" };
+  } catch (err) {
+    return { active: false, name: "" };
+  }
+}
+function saveEventModeToStorage() {
+  try {
+    localStorage.setItem(EVENT_MODE_STORAGE_KEY, JSON.stringify({ active: eventModeState.active, name: eventModeState.name }));
+  } catch (err) { /* localStorage indisponível — modo evento só dura a sessão atual */ }
+}
+let eventModeState = loadEventModeFromStorage();
+
+// Overlay "Registrar venda (evento)" — igual em espírito ao "Lançar
+// brinde": junta vários itens (produto + modelo + quantidade), calcula o
+// total pela forma de pagamento escolhida e, ao enviar, lança a entrada
+// (venda) e a saída (custo) no Caixa, marcadas com o event_tag, e baixa o
+// estoque de verdade dos produtos/modelos vendidos (ver aplicarBaixaEstoque).
+let eventoVendaState = { open: false, eventName: "", date: todayISO(), payment: "pix", items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
 
 // Período do relatório de vendas — começa no primeiro dia do mês atual
 // até hoje, que é o recorte mais comum ("como estão as vendas deste
@@ -7062,6 +7138,440 @@ function renderAvaliacoes(container) {
   });
 }
 
+/* =====================================================================
+   OVERLAY: SIMULAR VENDA (calculadora, não grava nada)
+   ===================================================================== */
+function closeSimulateOverlay() {
+  simulateState = { open: false, items: [], payment: "pix", _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+  renderSimulateOverlay();
+}
+
+function simulateTotals() {
+  const resolved = simulateState.items.map((it) => {
+    const product = state.products.find((p) => p.id === it.product_id);
+    const unitPrice = salePriceFor(product, simulateState.payment);
+    const unitCost = product ? Number(product.cost) : 0;
+    return { ...it, unitPrice, unitCost, lineTotal: round2(unitPrice * it.quantity), lineCost: round2(unitCost * it.quantity) };
+  });
+  const cost = orderCost({ items: simulateState.items, giftWraps: [] });
+  const subtotal = round2(resolved.reduce((s, it) => s + it.lineTotal, 0));
+  const profit = round2(subtotal - cost.cost);
+  const margin = subtotal > 0 ? round2(profit / subtotal) : 0;
+  return { resolved, subtotal, cost, profit, margin };
+}
+
+function renderSimulateOverlay() {
+  const slot = document.getElementById("simulate-overlay-slot");
+  if (!slot) return;
+  if (!simulateState.open) { slot.innerHTML = ""; return; }
+
+  const activeProducts = state.products.filter((p) => p.active);
+  const selectedProduct = activeProducts.find((p) => p.id === simulateState._selectedProductId);
+  const selectedVariants = selectedProduct?.product_variants ?? [];
+  const { resolved, subtotal, cost, profit, margin } = simulateTotals();
+
+  slot.innerHTML = `
+    <div id="simulate-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+      <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+          <div>
+            <h2 class="text-lg font-semibold text-navy-900">🧮 Simular venda</h2>
+            <p class="text-xs text-navy-500">Calculadora: monta uma venda hipotética pra ver total, custo e lucro estimado. Nada aqui é gravado — feche quando terminar.</p>
+          </div>
+          <button id="sim-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <div class="flex flex-col gap-4">
+            <div>
+              <p class="mb-1 text-xs font-medium text-navy-700">Forma de pagamento (define o preço de venda usado no cálculo)</p>
+              <div class="inline-flex rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
+                <button type="button" data-sim-payment="pix" class="sim-payment-btn rounded-md px-3 py-1.5 font-medium transition ${simulateState.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / à vista</button>
+                <button type="button" data-sim-payment="credito" class="sim-payment-btn rounded-md px-3 py-1.5 font-medium transition ${simulateState.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+              <p class="mb-2 text-sm font-medium text-navy-800">Itens da venda simulada</p>
+              <div class="flex flex-wrap items-end gap-3">
+                <div class="min-w-[200px] flex-1">
+                  <label class="mb-1 block text-xs font-medium text-navy-700">Produto</label>
+                  <select id="sim-product-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                    <option value="">— selecione —</option>
+                    ${activeProducts.map((p) => `<option value="${p.id}" ${p.id === simulateState._selectedProductId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")}
+                  </select>
+                </div>
+                ${selectedVariants.length > 0 ? `
+                  <div class="min-w-[160px]">
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
+                    <select id="sim-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                      <option value="">— selecione —</option>
+                      ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
+                    </select>
+                  </div>
+                ` : ""}
+                <div class="w-24">
+                  <label class="mb-1 block text-xs font-medium text-navy-700">Qtd.</label>
+                  <input id="sim-item-qty" value="${escapeHtml(simulateState._qty)}" inputmode="numeric" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                </div>
+                <button type="button" id="sim-item-add" class="rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar</button>
+              </div>
+              <div id="sim-error" class="mt-2 text-sm text-red-600"></div>
+              <div class="mt-3 flex flex-col gap-1">
+                ${resolved.length === 0 ? `<p class="text-xs text-navy-400">Nenhum item adicionado ainda.</p>` : resolved.map((it, idx) => `
+                  <div class="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-sm shadow-sm">
+                    <span>${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""} <span class="text-navy-400">— custo ${formatBRL(it.lineCost)}</span></span>
+                    <span class="flex items-center gap-3">
+                      <b class="text-navy-900">${formatBRL(it.lineTotal)}</b>
+                      <button type="button" data-remove-sim-idx="${idx}" class="sim-remove-item text-red-600 hover:underline">remover</button>
+                    </span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+
+            <div class="rounded-lg bg-navy-900 px-4 py-4 text-cream-50">
+              <div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <div>
+                  <p class="text-xs uppercase tracking-wide opacity-70">Total cobrado</p>
+                  <p class="mt-0.5 text-lg font-semibold">${formatBRL(subtotal)}</p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase tracking-wide opacity-70">Custo estimado</p>
+                  <p class="mt-0.5 text-lg font-semibold">${formatBRL(cost.cost)}</p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase tracking-wide opacity-70">Lucro estimado</p>
+                  <p class="mt-0.5 text-lg font-semibold ${profit >= 0 ? "text-emerald-300" : "text-red-300"}">${formatBRL(profit)}</p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase tracking-wide opacity-70">Margem</p>
+                  <p class="mt-0.5 text-lg font-semibold ${margin >= 0 ? "text-emerald-300" : "text-red-300"}">${formatPercent(margin)}</p>
+                </div>
+              </div>
+              ${cost.isApprox ? `<p class="mt-2 text-xs text-gold-300">⚠ Algum produto/material usado não está mais cadastrado — custo estimado por aproximação.</p>` : ""}
+              <p class="mt-2 text-xs opacity-70">Custo inclui produtos + materiais essenciais (fio, cola, etiqueta etc.) usados em toda venda. Embalagem de presente não entra aqui.</p>
+            </div>
+
+            <button type="button" id="sim-close-btn-2" class="self-start rounded-lg border border-navy-200 px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50">Fechar simulação</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("sim-close-btn").addEventListener("click", closeSimulateOverlay);
+  document.getElementById("sim-close-btn-2").addEventListener("click", closeSimulateOverlay);
+  document.getElementById("simulate-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "simulate-overlay") closeSimulateOverlay();
+  });
+  document.querySelectorAll(".sim-payment-btn").forEach((btn) => {
+    btn.addEventListener("click", () => { simulateState.payment = btn.dataset.simPayment; renderSimulateOverlay(); });
+  });
+  document.getElementById("sim-product-select").addEventListener("change", (e) => {
+    simulateState._selectedProductId = e.target.value || null;
+    simulateState._selectedVariantId = null;
+    renderSimulateOverlay();
+  });
+  document.getElementById("sim-item-qty").addEventListener("input", (e) => { simulateState._qty = e.target.value; });
+  document.getElementById("sim-item-add").addEventListener("click", () => {
+    const errorEl = document.getElementById("sim-error");
+    const product = activeProducts.find((p) => p.id === simulateState._selectedProductId);
+    if (!product) { errorEl.textContent = "Escolha um produto."; return; }
+    const variants = product.product_variants ?? [];
+    let variantId = null, variantName = null;
+    if (variants.length > 0) {
+      const variantSelect = document.getElementById("sim-variant-select");
+      if (!variantSelect || !variantSelect.value) { errorEl.textContent = "Escolha um modelo."; return; }
+      const variant = variants.find((v) => v.id === variantSelect.value);
+      variantId = variant.id; variantName = variant.name;
+    }
+    const qty = Math.trunc(Number(document.getElementById("sim-item-qty").value.replace(",", ".")));
+    if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Informe uma quantidade válida."; return; }
+    errorEl.textContent = "";
+    simulateState.items.push({ product_id: product.id, product_name: product.name, variant_id: variantId, variant_name: variantName, quantity: qty });
+    simulateState._qty = "1";
+    renderSimulateOverlay();
+  });
+  document.querySelectorAll(".sim-remove-item").forEach((btn) => {
+    btn.addEventListener("click", () => { simulateState.items.splice(Number(btn.dataset.removeSimIdx), 1); renderSimulateOverlay(); });
+  });
+}
+
+/* =====================================================================
+   OVERLAY: REGISTRAR VENDA (EVENTO)
+
+   Junta vários itens (produto + modelo + quantidade), calcula o total
+   pela forma de pagamento e, ao enviar, lança de verdade no Caixa
+   (entrada da venda + saída do custo, ambas marcadas com o event_tag) e
+   baixa o estoque numérico dos produtos/modelos vendidos — igual uma
+   venda real, só que sem passar pelo Catálogo/pedido.
+   ===================================================================== */
+function closeEventoVendaOverlay() {
+  eventoVendaState = { open: false, eventName: eventModeState.name, date: todayISO(), payment: "pix", items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+  renderEventoVendaOverlay();
+}
+
+function eventoVendaTotals() {
+  const resolved = eventoVendaState.items.map((it) => {
+    const product = state.products.find((p) => p.id === it.product_id);
+    const unitPrice = salePriceFor(product, eventoVendaState.payment);
+    return { ...it, unitPrice, lineTotal: round2(unitPrice * it.quantity) };
+  });
+  const cost = orderCost({ items: eventoVendaState.items, giftWraps: [] });
+  const subtotal = round2(resolved.reduce((s, it) => s + it.lineTotal, 0));
+  return { resolved, subtotal, cost };
+}
+
+function renderEventoVendaOverlay() {
+  const slot = document.getElementById("evento-venda-overlay-slot");
+  if (!slot) return;
+  if (!eventoVendaState.open) { slot.innerHTML = ""; return; }
+
+  const activeProducts = state.products.filter((p) => p.active);
+  const selectedProduct = activeProducts.find((p) => p.id === eventoVendaState._selectedProductId);
+  const selectedVariants = selectedProduct?.product_variants ?? [];
+  const { resolved, subtotal, cost } = eventoVendaTotals();
+  const knownEvents = [...new Set(state.cashEntries.map((e) => e.event_tag).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  slot.innerHTML = `
+    <div id="evento-venda-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+      <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+          <div>
+            <h2 class="text-lg font-semibold text-navy-900">📅 Registrar venda (evento)</h2>
+            <p class="text-xs text-navy-500">Lança a venda de verdade no Caixa (entrada + custo) marcada com o evento, e já baixa o estoque dos itens vendidos.</p>
+          </div>
+          <button id="ev-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <form id="evento-venda-form" class="flex flex-col gap-4">
+            <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+              <div class="flex flex-wrap gap-3">
+                <div class="min-w-[200px] flex-1">
+                  <label class="mb-1 block text-xs font-medium text-navy-700">Nome do evento</label>
+                  <input id="ev-event-name" list="ev-event-name-list" value="${escapeHtml(eventoVendaState.eventName)}" required placeholder="Ex.: Feira de Artesanato do Centro" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                  <datalist id="ev-event-name-list">
+                    ${knownEvents.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("")}
+                  </datalist>
+                </div>
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-navy-700">Data da venda</label>
+                  <input id="ev-date" type="date" value="${eventoVendaState.date}" required class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-navy-500">Use o MESMO nome de evento em todas as vendas dele (mesmo em dias diferentes) pra depois ver o panorama total. ${eventModeState.active ? `Modo evento ativo: <b>${escapeHtml(eventModeState.name)}</b>.` : ""}</p>
+            </div>
+
+            <div>
+              <p class="mb-1 text-xs font-medium text-navy-700">Forma de pagamento</p>
+              <div class="inline-flex rounded-lg border border-navy-200 bg-white p-1 text-sm">
+                <button type="button" data-ev-payment="pix" class="ev-payment-btn rounded-md px-3 py-1.5 font-medium transition ${eventoVendaState.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / dinheiro</button>
+                <button type="button" data-ev-payment="credito" class="ev-payment-btn rounded-md px-3 py-1.5 font-medium transition ${eventoVendaState.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+              <p class="mb-2 text-sm font-medium text-navy-800">Itens vendidos</p>
+              <div class="flex flex-wrap items-end gap-3">
+                <div class="min-w-[200px] flex-1">
+                  <label class="mb-1 block text-xs font-medium text-navy-700">Produto</label>
+                  <select id="ev-product-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                    <option value="">— selecione —</option>
+                    ${activeProducts.map((p) => `<option value="${p.id}" ${p.id === eventoVendaState._selectedProductId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")}
+                  </select>
+                </div>
+                ${selectedVariants.length > 0 ? `
+                  <div class="min-w-[160px]">
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
+                    <select id="ev-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                      <option value="">— selecione —</option>
+                      ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
+                    </select>
+                  </div>
+                ` : ""}
+                <div class="w-24">
+                  <label class="mb-1 block text-xs font-medium text-navy-700">Qtd.</label>
+                  <input id="ev-item-qty" value="${escapeHtml(eventoVendaState._qty)}" inputmode="numeric" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                </div>
+                <button type="button" id="ev-item-add" class="rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar</button>
+              </div>
+              <div class="mt-3 flex flex-col gap-1">
+                ${resolved.length === 0 ? `<p class="text-xs text-navy-400">Nenhum item adicionado ainda.</p>` : resolved.map((it, idx) => `
+                  <div class="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-sm shadow-sm">
+                    <span>${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""}</span>
+                    <span class="flex items-center gap-3">
+                      <b class="text-navy-900">${formatBRL(it.lineTotal)}</b>
+                      <button type="button" data-remove-ev-idx="${idx}" class="ev-remove-item text-red-600 hover:underline">remover</button>
+                    </span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+
+            ${resolved.length > 0 ? `
+              <div class="rounded-lg bg-navy-900 px-4 py-3 text-cream-50">
+                <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span>Total da venda:</span>
+                  <b class="text-gold-300 text-base">${formatBRL(subtotal)}</b>
+                </div>
+                <p class="mt-1 text-xs opacity-70">Custo estimado dos itens: ${formatBRL(cost.costExcludingEssentials)}${cost.isApprox ? " (aproximado)" : ""}</p>
+              </div>
+            ` : ""}
+
+            <div id="ev-error" class="text-sm text-red-600"></div>
+
+            <div class="flex gap-2">
+              <button type="submit" id="ev-submit" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Registrar venda do evento</button>
+              <button type="button" id="ev-cancel" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("ev-close-btn").addEventListener("click", closeEventoVendaOverlay);
+  document.getElementById("ev-cancel").addEventListener("click", closeEventoVendaOverlay);
+  document.getElementById("evento-venda-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "evento-venda-overlay") closeEventoVendaOverlay();
+  });
+  document.getElementById("ev-event-name").addEventListener("input", (e) => { eventoVendaState.eventName = e.target.value; });
+  document.getElementById("ev-date").addEventListener("input", (e) => { eventoVendaState.date = e.target.value; });
+  document.querySelectorAll(".ev-payment-btn").forEach((btn) => {
+    btn.addEventListener("click", () => { eventoVendaState.payment = btn.dataset.evPayment; renderEventoVendaOverlay(); });
+  });
+  document.getElementById("ev-product-select").addEventListener("change", (e) => {
+    eventoVendaState._selectedProductId = e.target.value || null;
+    eventoVendaState._selectedVariantId = null;
+    renderEventoVendaOverlay();
+  });
+  document.getElementById("ev-item-qty").addEventListener("input", (e) => { eventoVendaState._qty = e.target.value; });
+  document.getElementById("ev-item-add").addEventListener("click", () => {
+    const errorEl = document.getElementById("ev-error");
+    const product = activeProducts.find((p) => p.id === eventoVendaState._selectedProductId);
+    if (!product) { errorEl.textContent = "Escolha um produto."; return; }
+    const variants = product.product_variants ?? [];
+    let variantId = null, variantName = null;
+    if (variants.length > 0) {
+      const variantSelect = document.getElementById("ev-variant-select");
+      if (!variantSelect || !variantSelect.value) { errorEl.textContent = "Escolha um modelo."; return; }
+      const variant = variants.find((v) => v.id === variantSelect.value);
+      variantId = variant.id; variantName = variant.name;
+    }
+    const qty = Math.trunc(Number(document.getElementById("ev-item-qty").value.replace(",", ".")));
+    if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Informe uma quantidade válida."; return; }
+    errorEl.textContent = "";
+    eventoVendaState.items.push({ product_id: product.id, product_name: product.name, variant_id: variantId, variant_name: variantName, quantity: qty });
+    eventoVendaState._qty = "1";
+    renderEventoVendaOverlay();
+  });
+  document.querySelectorAll(".ev-remove-item").forEach((btn) => {
+    btn.addEventListener("click", () => { eventoVendaState.items.splice(Number(btn.dataset.removeEvIdx), 1); renderEventoVendaOverlay(); });
+  });
+  document.getElementById("evento-venda-form").addEventListener("submit", submeterVendaEvento);
+}
+
+async function submeterVendaEvento(e) {
+  e.preventDefault();
+  const errorEl = document.getElementById("ev-error");
+  const eventName = document.getElementById("ev-event-name").value.trim();
+  const date = document.getElementById("ev-date").value;
+  if (!eventName) { errorEl.textContent = "Informe o nome do evento."; return; }
+  if (!date) { errorEl.textContent = "Informe a data da venda."; return; }
+  if (eventoVendaState.items.length === 0) { errorEl.textContent = "Adicione ao menos um item vendido."; return; }
+  errorEl.textContent = "";
+
+  const submitBtn = document.getElementById("ev-submit");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Registrando...";
+
+  const { subtotal, cost } = eventoVendaTotals();
+  const itemsDesc = eventoVendaState.items.map((it) => `${it.quantity}x ${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""}`).join(", ");
+
+  const vendaPayload = {
+    entry_type: "entrada",
+    entry_date: date,
+    amount: subtotal,
+    category: "Venda evento",
+    description: `${eventName} — ${itemsDesc}`,
+    payment_method: eventoVendaState.payment,
+    event_tag: eventName,
+    paid_at: new Date().toISOString(),
+    created_by: state.currentUser.id,
+  };
+  const { error: vendaError } = await supabaseClient.from("cash_entries").insert(vendaPayload);
+  if (vendaError) {
+    errorEl.textContent = "Não foi possível registrar a venda: " + vendaError.message;
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Registrar venda do evento";
+    return;
+  }
+
+  if (cost.costExcludingEssentials > 0) {
+    const custoPayload = {
+      entry_type: "saida",
+      entry_date: date,
+      amount: Math.round(cost.costExcludingEssentials * 100) / 100,
+      category: "Custo do evento",
+      description: `Custo — ${eventName} — ${itemsDesc}${cost.isApprox ? " (estimado — produto não está mais cadastrado)" : ""}`,
+      payment_method: null,
+      event_tag: eventName,
+      paid_at: new Date().toISOString(),
+      created_by: state.currentUser.id,
+    };
+    const { error: custoError } = await supabaseClient.from("cash_entries").insert(custoPayload);
+    if (custoError) console.error("submeterVendaEvento custo:", custoError.message);
+  }
+
+  // Baixa o estoque de verdade — igual uma venda normal, só que essa
+  // função (ao contrário do "Iniciar venda" do Catálogo) realmente
+  // desconta a quantidade de quem tem stock_qty controlado.
+  for (const it of eventoVendaState.items) {
+    await ajustarEstoqueQtd(it.product_id, it.variant_id, -it.quantity);
+  }
+
+  // Se o modo evento estava ativo com esse mesmo nome, mantém ativo pra
+  // facilitar lançar a próxima venda do mesmo evento em seguida.
+  if (!eventModeState.active || eventModeState.name !== eventName) {
+    eventModeState = { active: true, name: eventName };
+    saveEventModeToStorage();
+  }
+
+  eventoVendaState = { open: false, eventName, date, payment: eventoVendaState.payment, items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+  await Promise.all([loadCashEntries(), loadProducts()]);
+  renderCaixa(document.getElementById("main-content"));
+}
+
+// Panorama de um evento: soma tudo que tem esse event_tag, quebrado por
+// dia (pra eventos de mais de um dia) e por forma de pagamento — a mesma
+// pergunta de "como foi o evento" tanto no dia quanto no total.
+function eventoResumo(eventTag) {
+  const eventEntries = state.cashEntries.filter((e) => e.event_tag === eventTag);
+  const totalEntradas = eventEntries.filter((e) => e.entry_type === "entrada").reduce((s, e) => s + Number(e.amount), 0);
+  const totalSaidas = eventEntries.filter((e) => e.entry_type === "saida").reduce((s, e) => s + Number(e.amount), 0);
+  const lucro = round2(totalEntradas - totalSaidas);
+
+  const porDia = {};
+  eventEntries.forEach((e) => {
+    if (!porDia[e.entry_date]) porDia[e.entry_date] = { entradas: 0, saidas: 0 };
+    if (e.entry_type === "entrada") porDia[e.entry_date].entradas += Number(e.amount);
+    else porDia[e.entry_date].saidas += Number(e.amount);
+  });
+  const diasList = Object.entries(porDia).sort((a, b) => a[0].localeCompare(b[0]));
+
+  const porPagamento = {};
+  eventEntries.filter((e) => e.entry_type === "entrada").forEach((e) => {
+    const key = e.payment_method || "—";
+    porPagamento[key] = (porPagamento[key] || 0) + Number(e.amount);
+  });
+
+  return {
+    totalEntradas, totalSaidas, lucro,
+    diasList, porPagamentoList: Object.entries(porPagamento).sort((a, b) => b[1] - a[1]),
+    numDias: diasList.length,
+  };
+}
+
 function renderCaixa(container) {
   const entries = state.cashEntries;
   const currentBalance = entries[0]?.running_balance ?? 0;
@@ -7074,6 +7584,9 @@ function renderCaixa(container) {
   });
 
   const activeProducts = state.products.filter((p) => p.active);
+  const knownEvents = [...new Set(state.cashEntries.map((e) => e.event_tag).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const filteredEntries = caixaState.eventFilter ? entries.filter((e) => e.event_tag === caixaState.eventFilter) : entries;
+  const eventoResumoData = caixaState.eventFilter ? eventoResumo(caixaState.eventFilter) : null;
 
   container.innerHTML = `
     <div class="flex flex-col gap-6">
@@ -7082,13 +7595,24 @@ function renderCaixa(container) {
           <h1 class="text-xl font-semibold text-navy-900">Controle de Caixa</h1>
           <p class="text-sm text-navy-500">Entradas e saídas, com saldo acumulado.</p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
+          <button id="sim-open-btn" class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow transition hover:bg-navy-50">🧮 Simular venda</button>
+          <button id="ev-open-btn" class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow transition hover:bg-navy-50">📅 Registrar venda (evento)</button>
           <button id="new-brinde-btn" class="rounded-lg border border-gold-400 bg-white px-4 py-2 text-sm font-semibold text-gold-700 shadow transition hover:bg-gold-50">🎁 Lançar brinde</button>
           <button id="new-entry-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">${caixaState.formOpen ? "Fechar" : "+ Novo lançamento"}</button>
         </div>
       </div>
 
+      ${eventModeState.active ? `
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gold-300 bg-gold-50 px-4 py-3">
+          <p class="text-sm text-gold-800">📅 Modo evento ativo: <b>${escapeHtml(eventModeState.name)}</b> — vendas registradas em "Registrar venda (evento)" já vêm com esse nome preenchido.</p>
+          <button id="ev-mode-stop-btn" class="rounded-lg border border-gold-400 bg-white px-3 py-1.5 text-xs font-semibold text-gold-800 hover:bg-gold-100">Encerrar evento</button>
+        </div>
+      ` : ""}
+
       <div id="brinde-overlay-slot"></div>
+      <div id="simulate-overlay-slot"></div>
+      <div id="evento-venda-overlay-slot"></div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="rounded-xl bg-navy-900 px-5 py-4 text-cream-50 shadow">
@@ -7104,6 +7628,64 @@ function renderCaixa(container) {
           <p class="mt-1 text-2xl font-semibold">${formatBRL(monthOut)}</p>
         </div>
       </div>
+
+      ${knownEvents.length > 0 ? `
+        <div class="flex flex-wrap items-end gap-3 rounded-xl border border-navy-100 bg-white p-4 shadow">
+          <div class="min-w-[220px]">
+            <label class="mb-1 block text-xs font-medium text-navy-500">Ver panorama de um evento</label>
+            <select id="caixa-event-filter" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+              <option value="">— todos os lançamentos —</option>
+              ${knownEvents.map((name) => `<option value="${escapeHtml(name)}" ${caixaState.eventFilter === name ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+      ` : ""}
+
+      ${eventoResumoData ? `
+        <div class="rounded-xl border border-gold-300 bg-white p-4 shadow">
+          <h2 class="mb-3 text-sm font-semibold text-navy-900">Panorama do evento — ${escapeHtml(caixaState.eventFilter)}${eventoResumoData.numDias > 1 ? ` (${eventoResumoData.numDias} dias)` : ""}</h2>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="rounded-xl bg-navy-900 px-4 py-3 text-cream-50">
+              <p class="text-xs uppercase tracking-wide opacity-80">Total vendido</p>
+              <p class="mt-1 text-xl font-semibold">${formatBRL(eventoResumoData.totalEntradas)}</p>
+            </div>
+            <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+              <p class="text-xs uppercase tracking-wide opacity-80">Total de custos/saídas</p>
+              <p class="mt-1 text-xl font-semibold">${formatBRL(eventoResumoData.totalSaidas)}</p>
+            </div>
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
+              <p class="text-xs uppercase tracking-wide opacity-80">Lucro do evento</p>
+              <p class="mt-1 text-xl font-semibold ${eventoResumoData.lucro >= 0 ? "" : "text-red-700"}">${formatBRL(eventoResumoData.lucro)}</p>
+            </div>
+          </div>
+          ${eventoResumoData.numDias > 1 ? `
+            <div class="mt-4">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-500">Por dia</p>
+              <ul class="flex flex-col gap-1 text-sm">
+                ${eventoResumoData.diasList.map(([dia, v]) => `
+                  <li class="flex items-center justify-between border-b border-navy-50 pb-1.5 last:border-0">
+                    <span class="text-navy-600">${formatDate(dia)}</span>
+                    <span class="text-navy-900">+${formatBRL(v.entradas)} <span class="text-red-600">-${formatBRL(v.saidas)}</span> <b>= ${formatBRL(round2(v.entradas - v.saidas))}</b></span>
+                  </li>
+                `).join("")}
+              </ul>
+            </div>
+          ` : ""}
+          ${eventoResumoData.porPagamentoList.length > 0 ? `
+            <div class="mt-4">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-500">Por forma de pagamento</p>
+              <ul class="flex flex-col gap-1 text-sm">
+                ${eventoResumoData.porPagamentoList.map(([metodo, total]) => `
+                  <li class="flex items-center justify-between border-b border-navy-50 pb-1.5 last:border-0">
+                    <span class="capitalize text-navy-600">${escapeHtml(metodo)}</span>
+                    <span class="font-medium text-navy-900">${formatBRL(total)}</span>
+                  </li>
+                `).join("")}
+              </ul>
+            </div>
+          ` : ""}
+        </div>
+      ` : ""}
 
       <div id="entry-form-slot"></div>
 
@@ -7123,7 +7705,7 @@ function renderCaixa(container) {
             </tr>
           </thead>
           <tbody>
-            ${entries.length === 0 ? `<tr><td colspan="9" class="px-4 py-8 text-center text-navy-400">Nenhum lançamento ainda.</td></tr>` : entries.map((e) => `
+            ${filteredEntries.length === 0 ? `<tr><td colspan="9" class="px-4 py-8 text-center text-navy-400">Nenhum lançamento ainda.</td></tr>` : filteredEntries.map((e) => `
               <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50">
                 <td class="px-3 py-2.5">${formatDate(e.entry_date)}</td>
                 <td class="px-3 py-2.5"><span class="rounded-full px-2 py-0.5 text-xs font-medium ${e.entry_type === "entrada" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}">${e.entry_type === "entrada" ? "Entrada" : "Saída"}</span></td>
@@ -7132,6 +7714,7 @@ function renderCaixa(container) {
                   ${escapeHtml(e.description) || "—"}
                   ${e.customer_id ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Cliente: ${escapeHtml(state.customers.find((c) => c.id === e.customer_id)?.name ?? "(removido)")}</div>` : ""}
                   ${e.supplier_id ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Fornecedor: ${escapeHtml(state.suppliers.find((s) => s.id === e.supplier_id)?.name ?? "(removido)")}</div>` : ""}
+                  ${e.event_tag ? `<div class="mt-0.5"><span class="rounded-full bg-gold-100 px-1.5 py-0.5 text-[10px] font-semibold text-gold-800">📅 ${escapeHtml(e.event_tag)}</span></div>` : ""}
                   ${e.materials_used && e.materials_used.length > 0 ? `<div class="mt-0.5 text-xs font-normal text-navy-400">Materiais: ${e.materials_used.map((mu) => `${escapeHtml(mu.materials?.name ?? "(material removido)")} (${Number(mu.quantity)} ${escapeHtml(mu.materials?.unit ?? "")})`).join(", ")}</div>` : ""}
                   ${adminName(e.created_by) ? `<div class="mt-0.5 text-xs font-normal text-navy-400">${e.entry_type === "entrada" ? "Vendido" : "Registrado"} por: <span class="font-medium text-navy-600">${escapeHtml(adminName(e.created_by))}</span></div>` : ""}
                 </td>
@@ -7167,6 +7750,30 @@ function renderCaixa(container) {
     brindeState = { open: true, items: [], giftWraps: [], name: "", whatsapp: "", instagram: "", notes: "" };
     renderBrindeOverlay();
   });
+  document.getElementById("sim-open-btn").addEventListener("click", () => {
+    simulateState = { open: true, items: [], payment: "pix", _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+    renderSimulateOverlay();
+  });
+  document.getElementById("ev-open-btn").addEventListener("click", () => {
+    eventoVendaState = { open: true, eventName: eventModeState.name, date: todayISO(), payment: "pix", items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+    renderEventoVendaOverlay();
+  });
+  const evModeStopBtn = document.getElementById("ev-mode-stop-btn");
+  if (evModeStopBtn) {
+    evModeStopBtn.addEventListener("click", () => {
+      if (!confirm(`Encerrar o modo evento "${eventModeState.name}"? As vendas já lançadas continuam no Caixa normalmente — isso só para de pré-preencher o nome em novas vendas.`)) return;
+      eventModeState = { active: false, name: "" };
+      saveEventModeToStorage();
+      renderCaixa(container);
+    });
+  }
+  const eventFilterSelect = document.getElementById("caixa-event-filter");
+  if (eventFilterSelect) {
+    eventFilterSelect.addEventListener("change", () => {
+      caixaState.eventFilter = eventFilterSelect.value;
+      renderCaixa(container);
+    });
+  }
   container.querySelectorAll(".edit-entry-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       caixaState.editingId = btn.dataset.edit;
@@ -7202,6 +7809,8 @@ function renderCaixa(container) {
     renderEntryForm(activeProducts, editingEntry);
   }
   if (brindeState.open) renderBrindeOverlay();
+  if (simulateState.open) renderSimulateOverlay();
+  if (eventoVendaState.open) renderEventoVendaOverlay();
 }
 
 /* =====================================================================
