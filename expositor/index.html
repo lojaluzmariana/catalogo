@@ -1,0 +1,2300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Luz Mariana — Expositor</title>
+<meta name="description" content="Vitrine de produtos Luz Mariana para exposição em eventos" />
+<link rel="canonical" href="https://lojaluzmariana.github.io/expositor/" />
+<link rel="icon" type="image/png" href="../catalogo/favicon.png" />
+
+<!-- Google Analytics (GA4) — mesma propriedade do catálogo, só pra saber
+     quando esse expositor é usado. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-G0TGJJXGTF"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-G0TGJJXGTF');
+</script>
+
+<!-- Esta é uma página separada, feita só pra ficar aberta num tablet
+     durante eventos/feiras — por isso NÃO usa o tailwind-built.css
+     pré-compilado do catálogo (que só contém as classes já usadas lá e
+     no painel). Aqui usamos o Tailwind via CDN mesmo: compila na hora,
+     no próprio navegador do tablet, sem depender de regenerar nenhum
+     arquivo sempre que uma classe nova for usada — a troca de
+     performance (recompilar a cada carregamento) não importa aqui
+     porque é um único aparelho, com a página aberta por horas a fio,
+     não um site de muitos visitantes. -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; }
+  @keyframes featured-carousel-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .featured-carousel-track {
+    animation-name: featured-carousel-scroll;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    width: max-content;
+  }
+  .featured-carousel-wrap:hover .featured-carousel-track {
+    animation-play-state: paused;
+  }
+</style>
+</head>
+<body class="bg-cream-50 text-navy-900 min-h-screen pb-24">
+<div id="app"></div>
+
+<script>
+/* =====================================================================
+   CONFIGURAÇÃO — mesmos dados do Supabase usados no index.html, mais o
+   número de WhatsApp da loja (só números, com código do país e DDD,
+   ex.: 55 11 91234-5678 vira "5511912345678").
+   ===================================================================== */
+const SUPABASE_URL = "https://xgcsdpqaqxstcfwgwaxw.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnY3NkcHFhcXhzdGNmd2d3YXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4MDE3MTQsImV4cCI6MjEwMjM3NzcxNH0.WFYm2q4ljkQMRiaQzhJ-yf01wj80xsO0ykmH7jhtUoo";
+const STORE_WHATSAPP_NUMBER = "5584991263907";
+const STORE_CNPJ = "68.615.746/0001-43";
+
+// Mostrado nos produtos que não estão marcados como "Em estoque" no
+// painel admin (a maioria — são feitos sob encomenda). Cada produto pode
+// ter seu próprio prazo (dias), configurado no Painel Admin — quando não
+// tem nada configurado (produto antigo, de antes dessa opção existir),
+// usa o padrão de 2 dias (mesmo valor fixo de sempre).
+const DEFAULT_LEAD_TIME_DAYS = 2;
+function madeToOrderText(product) {
+  const days = product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
+  return `Prazo de ${days} dia${days === 1 ? "" : "s"} para fabricação, a contar da data do pedido.`;
+}
+// Sinal exigido pra confirmar o pedido e iniciar a produção.
+const DEPOSIT_RATE = 0.5;
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function formatBRL(v) {
+  return Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+function escapeHtml(str) {
+  return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ---------------------------------------------------------------------
+   Telefone/WhatsApp — sempre com o +55 na frente.
+
+   Números locais (DDD + número) têm 10 ou 11 dígitos; com o "55" do
+   Brasil na frente ficam com 12 ou 13. É por isso (tamanho, não só
+   "já começa com 55") que a gente decide se falta adicionar o código
+   do país — assim não erra em DDDs que também começam com 55, tipo
+   Santa Maria/RS (ex: um número local "55 99988-7766" vira
+   "55 55 99988-7766", com o país e o DDD, e não fica faltando o país).
+   --------------------------------------------------------------------- */
+function normalizeBrPhoneDigits(raw) {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length === 10 || digits.length === 11) return "55" + digits;
+  return digits;
+}
+function formatWhatsappBR(raw) {
+  const digits = normalizeBrPhoneDigits(raw);
+  if (!digits) return "";
+  const cc = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  const area = rest.slice(0, 2);
+  const num = rest.slice(2);
+  if (num.length === 9) return `+${cc} (${area}) ${num.slice(0, 5)}-${num.slice(5)}`;
+  if (num.length === 8) return `+${cc} (${area}) ${num.slice(0, 4)}-${num.slice(4)}`;
+  return `+${cc} ${rest}`; // formato inesperado: ainda garante o +55 na frente
+}
+
+const app = document.getElementById("app");
+
+/* =====================================================================
+   CARRINHO PERSISTENTE (localStorage)
+   ===================================================================== */
+// Sem isso, o carrinho vivia só na memória (state) e sumia se a pessoa
+// atualizasse a página, saísse e voltasse, ou o navegador do celular
+// recarregasse a aba em segundo plano (comum no iOS) — carrinho abandonado
+// por acidente, não por desistência de verdade. Guardado só o objeto
+// {chave: quantidade}; os dados do produto em si (nome, foto, preço)
+// sempre vêm frescos do banco a cada carregamento, nunca do localStorage.
+const CART_STORAGE_KEY = "luzmariana_cart_v1";
+
+function loadCartFromStorage() {
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    // Só aceita entradas com quantidade numérica positiva — protege contra
+    // um localStorage corrompido/editado à mão quebrar o carrinho inteiro.
+    const cleaned = {};
+    Object.entries(parsed).forEach(([key, qty]) => {
+      const n = Number(qty);
+      if (typeof key === "string" && Number.isFinite(n) && n > 0) cleaned[key] = n;
+    });
+    return cleaned;
+  } catch (err) {
+    console.error("Não foi possível ler o carrinho salvo:", err);
+    return {};
+  }
+}
+
+function saveCartToStorage() {
+  try {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(state.cart));
+  } catch (err) {
+    // Modo privado, storage cheio/bloqueado, etc. — o carrinho continua
+    // funcionando normalmente na sessão atual, só não persiste entre visitas.
+    console.error("Não foi possível salvar o carrinho:", err);
+  }
+}
+
+/* Remove do carrinho qualquer item cujo produto (ou modelo) não existe
+   mais no catálogo atual — evita que o contador do carrinho fique
+   "errado" (contando algo que nunca vai aparecer na gaveta porque o
+   produto foi excluído/despublicado desde a última visita). */
+function pruneStaleCartItems() {
+  let changed = false;
+  Object.keys(state.cart).forEach((key) => {
+    const { productId, variantId } = parseCartKey(key);
+    const product = state.products.find((p) => p.id === productId);
+    const variantOk = !variantId || variantsFor(productId).some((v) => v.id === variantId);
+    if (!product || !variantOk) { delete state.cart[key]; changed = true; }
+  });
+  if (changed) saveCartToStorage();
+}
+
+/* =====================================================================
+   FAVORITOS/LISTA DE DESEJOS (localStorage) — mesma lógica do carrinho:
+   guarda só os IDs marcados (nada de dados de produto), pra sempre valer
+   o que está no banco na hora de mostrar. É por navegador/aparelho, não
+   por conta — não existe login de cliente neste catálogo.
+   ===================================================================== */
+const FAVORITES_STORAGE_KEY = "luzmariana_favorites_v1";
+
+function loadFavoritesFromStorage() {
+  try {
+    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const cleaned = {};
+    Object.keys(parsed).forEach((key) => { if (parsed[key] === true) cleaned[key] = true; });
+    return cleaned;
+  } catch (err) {
+    console.error("Não foi possível ler os favoritos salvos:", err);
+    return {};
+  }
+}
+
+function saveFavoritesToStorage() {
+  try {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(state.favorites));
+  } catch (err) {
+    console.error("Não foi possível salvar os favoritos:", err);
+  }
+}
+
+function pruneStaleFavorites() {
+  let changed = false;
+  Object.keys(state.favorites).forEach((productId) => {
+    if (!state.products.some((p) => p.id === productId)) { delete state.favorites[productId]; changed = true; }
+  });
+  if (changed) saveFavoritesToStorage();
+}
+
+function toggleFavorite(productId) {
+  if (state.favorites[productId]) delete state.favorites[productId];
+  else state.favorites[productId] = true;
+  saveFavoritesToStorage();
+  render();
+}
+
+const state = {
+  loading: true,
+  loadError: null,
+  products: [],
+  variantsByProduct: {}, // { [product_id]: [{id, name, photo_url, sort_order}, ...] }
+  photosByProduct: {}, // { [product_id]: [{id, url, sort_order}, ...] } — fotos extras da galeria, além da foto de capa
+  cart: loadCartFromStorage(), // { [cartKey]: quantity } — cartKey é o product_id, ou "product_id::variant_id" quando tem modelo escolhido
+  favorites: loadFavoritesFromStorage(), // { [product_id]: true } — lista de desejos, salva só no aparelho
+  favoritesOnly: false, // filtro "❤ Favoritos" ativado na barra de categorias
+  selectedVariant: {}, // { [product_id]: variant_id } — modelo escolhido na página individual do produto
+  cardPhotoIndex: {}, // { [product_id]: index } — foto do modelo exibida agora no carrossel automático do card
+  detailProductId: null, // produto aberto na página individual
+  detailGalleryIndex: 0, // qual foto da galeria está em destaque na página do produto (0 = foto de capa)
+  payment: "pix", // pix | credito
+  categoryFilter: "all",
+  searchQuery: "", // texto digitado na busca do catálogo (filtra por nome/descrição/categoria/material)
+  cartOpen: false,
+  screen: "catalog", // catalog | product | checkout | success | policy | track
+  policyTab: "privacidade", // privacidade | termos — qual aba mostrar na tela de política/termos
+  lastOrderNumber: null, // Nº do pedido que acabou de ser feito nesta sessão (pra oferecer "Acompanhar meu pedido" na tela de sucesso)
+  lastOrderWhatsapp: "", // WhatsApp usado nesse último pedido — pré-preenche o rastreio
+  trackWhatsapp: "", // WhatsApp digitado na tela de Rastrear pedido
+  trackLoading: false,
+  trackError: null, // mensagem de erro/"não encontrado" da última busca
+  trackResults: null, // lista de pedidos encontrados pra esse WhatsApp na última busca (ou null antes de buscar)
+  reviewForm: { rating: 0, name: "", comment: "", submitting: false, submitted: false, error: null }, // formulário de "deixar avaliação" na página do produto
+  submitting: false,
+  submitError: null,
+  giftWrapOptions: [], // opções de embalagem de presente disponíveis (catalog_gift_wrap_options)
+  giftWrapWanted: false,
+  giftWrapQuantities: {}, // { [material_id]: quantidade } — dá pra escolher mais de uma embalagem (ou mais de uma unidade da mesma)
+  couponCode: "", // último código de cupom digitado (só pra manter o campo preenchido entre re-renders)
+  appliedCoupon: null, // { id, code, discount_type, discount_value, max_discount_amount, validatedWhatsappDigits } — null se nenhum cupom aplicado
+};
+
+/* ---------------------------------------------------------------------
+   Acessibilidade do carrinho (gaveta lateral): fecha com Esc, mantém o
+   foco preso dentro dela enquanto aberta (Tab não escapa pra trás do
+   catálogo) e devolve o foco pra quem abriu quando ela fecha — do jeito
+   que um "dialog" modal deve se comportar pra quem navega só pelo
+   teclado ou usa leitor de tela. cartWasOpenLastRender existe só pra
+   saber quando é uma transição fechado→aberto (e mover o foco pra
+   dentro da gaveta só nesse momento — não a cada re-render, senão
+   digitar/clicar em qualquer coisa lá dentro puxaria o foco de volta
+   toda hora).
+   --------------------------------------------------------------------- */
+let cartWasOpenLastRender = false;
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && state.cartOpen) {
+    state.cartOpen = false;
+    render();
+  }
+});
+
+function manageCartFocus() {
+  const panel = document.getElementById("cart-drawer-panel");
+  if (state.cartOpen && !cartWasOpenLastRender) {
+    if (panel) panel.focus();
+  } else if (!state.cartOpen && cartWasOpenLastRender) {
+    // Devolve o foco pro botão "Ver carrinho" (mesmo id nas duas telas
+    // que usam a gaveta) — busca por id de novo em vez de guardar a
+    // referência antiga, porque o render() troca o elemento inteiro
+    // (a referência velha fica "morta", presa fora do DOM).
+    document.getElementById("open-cart-btn")?.focus();
+  }
+  cartWasOpenLastRender = state.cartOpen;
+
+  if (panel && !panel.dataset.focusTrapWired) {
+    panel.dataset.focusTrapWired = "1";
+    panel.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      const focusable = [...panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter((el) => !el.disabled && el.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
+  }
+}
+
+async function loadCatalog() {
+  const [{ data: products, error: prodError }, { data: variants, error: varError }, { data: giftWrapOptions, error: giftWrapError }, { data: reviews, error: reviewsError }, { data: photos, error: photosError }] = await Promise.all([
+    supabaseClient.from("catalog_products").select("*").order("category", { ascending: true, nullsFirst: false }).order("name"),
+    supabaseClient.from("catalog_product_variants").select("*").order("sort_order", { ascending: true }).order("name"),
+    supabaseClient.from("catalog_gift_wrap_options").select("*").order("name"),
+    supabaseClient.from("catalog_product_reviews").select("*").order("created_at", { ascending: false }),
+    supabaseClient.from("catalog_product_photos").select("*").order("sort_order", { ascending: true }),
+  ]);
+  if (prodError) { state.loadError = prodError.message; state.loading = false; render(); return; }
+  state.products = products;
+  state.variantsByProduct = {};
+  (variants || []).forEach((v) => {
+    if (!state.variantsByProduct[v.product_id]) state.variantsByProduct[v.product_id] = [];
+    state.variantsByProduct[v.product_id].push(v);
+  });
+  state.photosByProduct = {};
+  (photos || []).forEach((p) => {
+    if (!state.photosByProduct[p.product_id]) state.photosByProduct[p.product_id] = [];
+    state.photosByProduct[p.product_id].push(p);
+  });
+  if (varError) console.error("Erro ao carregar modelos/variações:", varError.message);
+  if (giftWrapError) console.error("Erro ao carregar opções de embalagem:", giftWrapError.message);
+  if (reviewsError) console.error("Erro ao carregar avaliações:", reviewsError.message);
+  if (photosError) console.error("Erro ao carregar galeria de fotos:", photosError.message);
+  state.giftWrapOptions = giftWrapOptions || [];
+  state.reviews = reviews || [];
+  pruneStaleCartItems();
+  pruneStaleFavorites();
+  state.loading = false;
+  render();
+  updateProductJsonLd();
+}
+
+// URL canônica do catálogo (usada nas tags Open Graph também, lá no
+// <head>) — repetida aqui porque o JSON-LD é montado via JS, depois que
+// os produtos chegam do Supabase.
+const CATALOG_BASE_URL = "https://lojaluzmariana.github.io/catalogo/";
+
+/* Dados estruturados (JSON-LD, schema.org) pro Google conseguir mostrar
+   preço e disponibilidade direto no resultado de busca ("rich
+   snippet"). Como o catálogo é uma página só (sem endereço próprio por
+   produto), todo Offer aponta pra mesma URL — não dá pra linkar direto
+   pro produto específico, mas o Google ainda consegue ler preço/estoque
+   associados à página. Refeito do zero a cada loadCatalog() (por isso
+   remove o <script> antigo antes de montar o novo, ao trocar de sessão
+   ou recarregar os dados). */
+function updateProductJsonLd() {
+  const existingScript = document.getElementById("product-jsonld");
+  if (existingScript) existingScript.remove();
+  if (!state.products || state.products.length === 0) return;
+
+  const items = state.products.map((p, idx) => {
+    const photos = productGalleryPhotos(p, null).filter(Boolean);
+    const price = Number(p.promo_price ?? p.credit_price ?? 0);
+    const product = {
+      "@type": "Product",
+      name: p.name,
+      ...(p.description ? { description: p.description } : {}),
+      ...(photos.length > 0 ? { image: photos } : {}),
+      ...(p.category ? { category: p.category } : {}),
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "BRL",
+        price: price.toFixed(2),
+        availability: isSoldOut(p) ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+        url: CATALOG_BASE_URL,
+      },
+    };
+    return { "@type": "ListItem", position: idx + 1, item: product };
+  });
+
+  const jsonLd = { "@context": "https://schema.org", "@type": "ItemList", itemListElement: items };
+  const script = document.createElement("script");
+  script.type = "application/ld+json";
+  script.id = "product-jsonld";
+  script.textContent = JSON.stringify(jsonLd);
+  document.head.appendChild(script);
+}
+
+/* Avaliações aprovadas de um produto, mais recentes primeiro (já vêm
+   ordenadas assim de loadCatalog). Média arredondada pra 1 casa. */
+function reviewsFor(productId) {
+  return state.reviews.filter((r) => r.product_id === productId);
+}
+function averageRating(reviews) {
+  if (reviews.length === 0) return 0;
+  return reviews.reduce((sum, r) => sum + Number(r.rating), 0) / reviews.length;
+}
+// ★ preenchidas até a nota (arredondada), ☆ vazias no resto.
+function starDisplayCatalog(rating) {
+  const n = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+  return "★".repeat(n) + "☆".repeat(5 - n);
+}
+
+/* Modelos/variações de um produto (vazio se não tiver). Os esgotados vão
+   pro final da lista — assim o modelo escolhido por padrão (o primeiro),
+   tanto no dropdown quanto no carrossel de fotos do card, é sempre um que
+   ainda dá pra comprar, sempre que sobrar algum disponível. Sem isso, se
+   o primeiro modelo cadastrado fosse justamente o que acabou, o card
+   parecia com o produto inteiro esgotado mesmo tendo outros disponíveis. */
+function variantsFor(productId) {
+  const list = state.variantsByProduct[productId] || [];
+  return [...list].sort((a, b) => (a.esgotado ? 1 : 0) - (b.esgotado ? 1 : 0));
+}
+
+/* Lista de fotos pra mostrar na página do produto: a foto "de capa" (do
+   modelo escolhido, se tiver, senão a do produto) primeiro, seguida das
+   fotos extras da galeria (essas são sempre do produto, não variam por
+   modelo). Sem duplicar se a foto de capa aparecer de novo na galeria. */
+function productGalleryPhotos(product, variant) {
+  const coverUrl = variant?.photo_url || product.photo_url;
+  const extra = (state.photosByProduct[product.id] || []).map((p) => p.url).filter((url) => url && url !== coverUrl);
+  const all = coverUrl ? [coverUrl, ...extra] : extra;
+  return all;
+}
+
+/* Modelo atualmente escolhido no card desse produto (o primeiro, por padrão). */
+function currentVariant(product) {
+  const variants = variantsFor(product.id);
+  if (variants.length === 0) return null;
+  const selectedId = state.selectedVariant[product.id];
+  return variants.find((v) => v.id === selectedId) || variants[0];
+}
+
+/* Produto totalmente esgotado (não dá pra comprar de jeito nenhum agora):
+   com modelos, só quando TODOS os modelos estão esgotados — se sobrar
+   pelo menos um modelo disponível, o produto continua comprável e não
+   conta como esgotado aqui. Sem modelos, usa o campo do produto direto. */
+function isSoldOut(p) {
+  const variants = variantsFor(p.id);
+  if (variants.length > 0) return variants.every((v) => v.esgotado);
+  return !!p.esgotado;
+}
+
+/* Chave usada no carrinho: junta produto + modelo (quando tiver) num só item. */
+function cartKey(productId, variantId) {
+  return variantId ? `${productId}::${variantId}` : productId;
+}
+function parseCartKey(key) {
+  const [productId, variantId] = key.split("::");
+  return { productId, variantId: variantId || null };
+}
+
+/* =====================================================================
+   CARROSSEL AUTOMÁTICO DE FOTOS DOS MODELOS (nos cards)
+   ===================================================================== */
+
+/* Lista de fotos pra girar no card — só existe quando o produto tem mais
+   de um modelo com foto (senão não tem o que "passar automaticamente"). */
+function carouselFrames(product) {
+  const variants = variantsFor(product.id);
+  if (variants.length <= 1) return [];
+  const frames = variants.map((v) => v.photo_url || product.photo_url).filter(Boolean);
+  return frames.length > 1 ? frames : [];
+}
+
+function stepCarousel(productId, direction) {
+  const product = state.products.find((p) => p.id === productId);
+  if (!product) return;
+  const frames = carouselFrames(product);
+  if (frames.length === 0) return;
+  const current = state.cardPhotoIndex[productId] ?? 0;
+  const next = (((current + direction) % frames.length) + frames.length) % frames.length;
+  state.cardPhotoIndex[productId] = next;
+  // Troca a foto direto no elemento (sem re-renderizar a página toda) —
+  // pode ter mais de um card do mesmo produto na tela (grid + destaques).
+  document.querySelectorAll(`[data-carousel-img="${productId}"]`).forEach((img) => { img.src = frames[next]; });
+}
+
+let carouselTimers = {}; // { [product_id]: intervalId }
+
+function startCarouselTimer(productId) {
+  stopCarouselTimer(productId);
+  carouselTimers[productId] = setInterval(() => stepCarousel(productId, 1), 3000);
+}
+function stopCarouselTimer(productId) {
+  if (carouselTimers[productId]) {
+    clearInterval(carouselTimers[productId]);
+    delete carouselTimers[productId];
+  }
+}
+
+/* Liga os carrosséis automáticos depois de cada render — reaproveita um
+   timer só por produto mesmo se ele aparecer em mais de um card na tela
+   (grid + carrossel de destaques), e pausa enquanto o dedo/mouse está
+   em cima (pra não trocar a foto bem na hora que a pessoa for decidir). */
+function setupCarousels() {
+  Object.keys(carouselTimers).forEach(stopCarouselTimer);
+  const started = new Set();
+  document.querySelectorAll("[data-carousel]").forEach((el) => {
+    const productId = el.dataset.carousel;
+    if (!started.has(productId)) {
+      started.add(productId);
+      startCarouselTimer(productId);
+    }
+    el.addEventListener("mouseenter", () => stopCarouselTimer(productId));
+    el.addEventListener("mouseleave", () => startCarouselTimer(productId));
+  });
+}
+
+/* Normaliza texto pra comparação de busca: minúsculo + sem acento, pra
+   "terço" bater com "terco" e vice-versa (comum digitar sem acento no
+   celular). */
+function normalizeSearch(str) {
+  return (str || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/* Produto bate com a busca se o texto aparecer no nome, descrição,
+   categoria ou material — assim "prata" acha tanto o produto chamado
+   "Terço de Prata" quanto um com material_tag "Prata 925". */
+function productMatchesSearch(product, query) {
+  const q = normalizeSearch(query);
+  if (!q) return true;
+  const haystack = normalizeSearch(
+    [product.name, product.description, product.category, product.material_tag].filter(Boolean).join(" ")
+  );
+  return haystack.includes(q);
+}
+
+function renderSearchBar() {
+  return `
+    <div class="mb-5">
+      <div class="relative">
+        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m0 0a7.5 7.5 0 10-10.6 0 7.5 7.5 0 0010.6 0z" /></svg>
+        <input id="catalog-search-input" type="text" inputmode="search" autocomplete="off"
+          value="${escapeHtml(state.searchQuery)}"
+          placeholder="Buscar produto..."
+          aria-label="Buscar produto no catálogo"
+          class="w-full rounded-full border border-navy-200 bg-white py-2.5 pl-9 pr-9 text-sm text-navy-900 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+        ${state.searchQuery ? `
+          <button type="button" id="catalog-search-clear" aria-label="Limpar busca" class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-navy-300 hover:text-navy-600">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        ` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function groupByCategory(products) {
+  const map = new Map();
+  products.forEach((p) => {
+    const key = p.category && p.category.trim() ? p.category.trim() : "Outros";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(p);
+  });
+  const keys = [...map.keys()].sort((a, b) => {
+    if (a === "Outros") return b === "Outros" ? 0 : 1;
+    if (b === "Outros") return -1;
+    return a.localeCompare(b, "pt-BR");
+  });
+  return keys.map((key) => ({ category: key, products: map.get(key) }));
+}
+
+function priceFor(product) {
+  return state.payment === "credito" ? Number(product.credit_price) : Number(product.promo_price);
+}
+
+function cartItems() {
+  return Object.entries(state.cart)
+    .map(([key, qty]) => {
+      const { productId, variantId } = parseCartKey(key);
+      const product = state.products.find((p) => p.id === productId);
+      const variant = variantId ? variantsFor(productId).find((v) => v.id === variantId) ?? null : null;
+      return { key, product, variant, quantity: qty };
+    })
+    .filter((it) => it.product && it.quantity > 0);
+}
+
+function cartCount() {
+  return Object.values(state.cart).reduce((sum, q) => sum + q, 0);
+}
+
+function cartTotal() {
+  return cartItems().reduce((sum, it) => sum + priceFor(it.product) * it.quantity, 0);
+}
+
+/* Embalagens de presente escolhidas no checkout agora — pode ter mais de
+   uma (tipos diferentes, ou mais de uma unidade da mesma). Cada item vem
+   com a quantidade escolhida e o subtotal já calculado. */
+function selectedGiftWraps() {
+  if (!state.giftWrapWanted) return [];
+  return state.giftWrapOptions
+    .map((g) => ({ ...g, quantity: state.giftWrapQuantities[g.id] || 0 }))
+    .filter((g) => g.quantity > 0)
+    .map((g) => ({ ...g, lineTotal: Number(g.price) * g.quantity }));
+}
+
+function giftWrapTotalPrice() {
+  return selectedGiftWraps().reduce((sum, g) => sum + g.lineTotal, 0);
+}
+
+/* Soma antes de aplicar o cupom (itens do carrinho + embalagens de presente). */
+function subtotalBeforeDiscount() {
+  return cartTotal() + giftWrapTotalPrice();
+}
+
+/* Quanto o cupom aplicado (se algum) desconta, já respeitando o teto
+   em R$ (max_discount_amount) e nunca deixando o desconto passar do
+   próprio subtotal. */
+function discountAmount() {
+  const coupon = state.appliedCoupon;
+  if (!coupon) return 0;
+  const subtotal = subtotalBeforeDiscount();
+  let raw = 0;
+  if (coupon.discount_type === "percentual") raw = subtotal * (Number(coupon.discount_value) / 100);
+  else if (coupon.discount_type === "valor_fixo") raw = Number(coupon.discount_value);
+  if (coupon.max_discount_amount != null) raw = Math.min(raw, Number(coupon.max_discount_amount));
+  raw = Math.min(raw, subtotal);
+  return Math.max(0, raw);
+}
+
+/* Total do pedido = itens do carrinho + embalagens de presente (se pedidas) − desconto do cupom aplicado. */
+function orderTotal() {
+  return Math.max(0, subtotalBeforeDiscount() - discountAmount());
+}
+
+function setQty(productId, qty) {
+  if (qty <= 0) delete state.cart[productId];
+  else state.cart[productId] = qty;
+  saveCartToStorage();
+  render();
+}
+
+/* =====================================================================
+   RENDER
+   ===================================================================== */
+function render() {
+  if (state.loading) {
+    app.innerHTML = `<main class="flex min-h-screen items-center justify-center"><p class="text-navy-400">Carregando catálogo...</p></main>`;
+    return;
+  }
+  if (state.loadError) {
+    app.innerHTML = `<main class="flex min-h-screen items-center justify-center px-4 text-center"><p class="text-red-600">Não foi possível carregar o catálogo agora. Tente novamente em instantes.</p></main>`;
+    return;
+  }
+  if (state.screen === "success") return renderSuccess();
+  if (state.screen === "checkout") return renderCheckout();
+  if (state.screen === "product") return renderProductDetail();
+  if (state.screen === "policy") return renderPolicy();
+  if (state.screen === "track") return renderTrack();
+  return renderExpositorCatalog();
+}
+
+function renderHeader() {
+  return `
+    <header class="bg-navy-900">
+      <div class="mx-auto flex max-w-5xl items-center justify-center gap-3 px-4 py-3">
+        <button type="button" data-go-home class="flex items-center gap-3 border-0 bg-transparent p-0 transition hover:opacity-90">
+          <img src="../catalogo/logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
+          <span class="text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
+        </button>
+        <button type="button" data-open-track class="rounded-full border border-navy-700 px-2.5 py-1 text-[11px] font-medium text-navy-300 transition hover:border-navy-500 hover:text-cream-100">Rastrear pedido</button>
+      </div>
+    </header>
+  `;
+}
+
+function renderHero() {
+  // Em telas de celular usamos uma imagem PRÓPRIA, já recortada à mão
+  // pra manter a logo, o texto e o selo de pagamento sempre inteiros e
+  // legíveis (não é um corte automático via CSS). A partir do tablet
+  // (640px) volta a usar a arte completa, cada vez mais larga conforme
+  // a tela cresce.
+  return `
+    <div class="w-full overflow-hidden bg-navy-900">
+      <picture>
+        <source media="(max-width: 639px)" srcset="../catalogo/hero-banner-mobile.jpg" />
+        <img src="../catalogo/hero-banner.jpg"
+          alt="Bem-vindo(a) à Luz Mariana — Fé que inspira. Presentes que têm significado. Artigos religiosos e peças de devoção para sua casa, seu cantinho de oração ou para presentear alguém especial. Condições especiais para pagamentos via Pix ou à vista."
+          class="aspect-[4/3] w-full object-cover object-center sm:aspect-[2/1] lg:aspect-[3/1]" />
+      </picture>
+    </div>
+  `;
+}
+
+function renderCategoryBar(categories) {
+  if (categories.length === 0) return "";
+  const items = [{ value: "all", label: "Todos os produtos" }, ...categories.map((c) => ({ value: c, label: c }))];
+  const favoriteCount = Object.keys(state.favorites).length;
+  return `
+    <div class="border-b border-navy-800 bg-navy-900">
+      <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 py-2 text-sm">
+        ${items.map((it) => `
+          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
+        `).join("")}
+        ${favoriteCount > 0 ? `
+          <button id="favorites-filter-btn" class="whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition ${state.favoritesOnly ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">❤ Favoritos (${favoriteCount})</button>
+        ` : ""}
+      </div>
+    </div>
+  `;
+}
+
+// "Mais vendidos" = ranking automático por unidades vendidas
+// (catalog_products.units_sold, já soma tudo exceto pedido cancelado —
+// ver migration_mais_vendidos.sql) + qualquer produto marcado manualmente
+// como destaque no Painel (products.featured), mesmo com zero vendas —
+// é o "empurrão manual" que o dono pediu pra continuar existindo.
+// Produtos manuais sempre entram; o restante das vagas (até
+// BEST_SELLERS_AUTO_LIMIT) é preenchido pelos mais vendidos automáticos.
+const BEST_SELLERS_AUTO_LIMIT = 8;
+function computeBestSellers(products) {
+  const manual = products.filter((p) => p.featured);
+  const manualIds = new Set(manual.map((p) => p.id));
+  const bySales = products
+    .filter((p) => !manualIds.has(p.id) && (p.units_sold || 0) > 0)
+    .sort((a, b) => (b.units_sold || 0) - (a.units_sold || 0))
+    .slice(0, BEST_SELLERS_AUTO_LIMIT);
+  return [...manual, ...bySales];
+}
+
+function renderFeaturedCarousel(products) {
+  if (products.length === 0) return "";
+  // Esgotados vão pro final da vitrine — dá mais destaque pra quem
+  // realmente dá pra comprar agora (ordem estável: preserva a ordem
+  // original dentro de cada grupo, só empurra os esgotados pro fim).
+  const sorted = [...products].sort((a, b) => (isSoldOut(a) ? 1 : 0) - (isSoldOut(b) ? 1 : 0));
+  // Duplica a lista pra dar loop contínuo sem "pulo" no final.
+  const track = [...sorted, ...sorted];
+  const duration = Math.max(12, products.length * 6);
+  return `
+    <div class="mb-8">
+      <h2 class="mb-3 text-lg font-semibold text-navy-900">🔥 Mais vendidos</h2>
+      <div class="featured-carousel-wrap overflow-hidden">
+        <div class="featured-carousel-track flex gap-4" style="animation-duration: ${duration}s;">
+          ${track.map((p) => `<div class="w-40 flex-shrink-0 sm:w-48">${renderProductCard(p, { hideDescription: true })}</div>`).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFooter() {
+  return `
+    <footer class="mx-auto max-w-5xl px-4 py-6 text-center text-xs text-navy-300">
+      <p>Luz Mariana - Artigos Religiosos · CNPJ ${STORE_CNPJ}</p>
+      <p class="mt-1">© 2026 Luz Mariana. Todos os direitos reservados.</p>
+      <p class="mt-2 space-x-3">
+        <button data-open-policy="privacidade" class="underline hover:text-navy-500">Política de Privacidade</button>
+        <span>·</span>
+        <button data-open-policy="termos" class="underline hover:text-navy-500">Termos de Uso</button>
+      </p>
+    </footer>
+  `;
+}
+
+/* Política de Privacidade + Termos de Uso — uma única tela com duas
+   abas (mesmo padrão de "tela informativa simples" das outras telas
+   auxiliares do catálogo). Loja pequena, sem conta de cliente nem
+   coleta de dados além do necessário pra fechar o pedido pelo
+   WhatsApp — o texto reflete exatamente isso, nada genérico/copiado. */
+function renderPolicy() {
+  const tab = state.policyTab === "termos" ? "termos" : "privacidade";
+  const tabBtn = (key, label) => `
+    <button data-policy-tab="${key}" class="rounded-full px-4 py-1.5 text-sm font-medium transition ${tab === key ? "bg-navy-900 text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"}">${label}</button>
+  `;
+  const privacidade = `
+    <div class="space-y-4 text-sm leading-relaxed text-navy-700">
+      <p>Esta política explica quais dados a Luz Mariana coleta quando você usa este catálogo e faz um pedido, e o que fazemos com eles. Última atualização: 25/08/2026.</p>
+      <h3 class="text-base font-semibold text-navy-900">Quais dados coletamos</h3>
+      <p>Para fechar um pedido pedimos seu nome, número de WhatsApp e, opcionalmente, seu Instagram — apenas o necessário para confirmar o pedido e combinar entrega/pagamento com você pelo WhatsApp. Não pedimos CPF, endereço completo, dados de cartão ou qualquer informação financeira: o pagamento é combinado diretamente com você pelo WhatsApp, fora deste site.</p>
+      <p>O catálogo também guarda os itens do seu carrinho no seu próprio navegador (não em nossos servidores), só para o carrinho não se perder se você fechar a página sem finalizar — isso fica salvo apenas no seu aparelho e some se você limpar os dados do navegador.</p>
+      <h3 class="text-base font-semibold text-navy-900">Para que usamos esses dados</h3>
+      <p>Usamos seu nome e WhatsApp exclusivamente para confirmar o pedido, tirar dúvidas e combinar entrega e pagamento com você. Não vendemos, alugamos nem compartilhamos seus dados com terceiros, e não os usamos para envio de propaganda sem sua autorização.</p>
+      <h3 class="text-base font-semibold text-navy-900">Onde seus dados ficam guardados</h3>
+      <p>As informações do pedido ficam guardadas em nosso banco de dados (Supabase), usado apenas pela equipe da Luz Mariana para atender pedidos. Mantemos esses dados pelo tempo necessário para o histórico de vendas e atendimento.</p>
+      <h3 class="text-base font-semibold text-navy-900">Seus direitos (LGPD)</h3>
+      <p>Você pode pedir a qualquer momento para saber quais dados temos sobre você, corrigi-los ou pedir que sejam apagados, entrando em contato pelo WhatsApp <a href="https://wa.me/${STORE_WHATSAPP_NUMBER}" target="_blank" rel="noopener" class="underline">${formatWhatsappBR(STORE_WHATSAPP_NUMBER)}</a>. Atendemos esse pedido assim que possível, respeitando eventuais obrigações legais de manter registros de venda.</p>
+    </div>
+  `;
+  const termos = `
+    <div class="space-y-4 text-sm leading-relaxed text-navy-700">
+      <p>Ao usar este catálogo e fazer um pedido pela Luz Mariana, você concorda com estes termos. Última atualização: 25/08/2026.</p>
+      <h3 class="text-base font-semibold text-navy-900">Como funciona o pedido</h3>
+      <p>Este catálogo é uma vitrine para você montar seu pedido e enviá-lo pelo WhatsApp — a compra só é confirmada de fato na conversa com a Luz Mariana pelo WhatsApp, onde combinamos pagamento, prazo e entrega. Os preços e a disponibilidade mostrados aqui podem mudar sem aviso prévio até a confirmação do pedido.</p>
+      <h3 class="text-base font-semibold text-navy-900">Pagamento</h3>
+      <p>O pagamento é combinado diretamente pelo WhatsApp (Pix ou outro meio informado na conversa) e não é processado neste site.</p>
+      <h3 class="text-base font-semibold text-navy-900">Prazos e produtos sob encomenda</h3>
+      <p>Produtos marcados como "pronta entrega" saem do estoque disponível; os demais são feitos sob encomenda, com o prazo informado no próprio produto ou combinado na conversa. Esse prazo é uma estimativa e pode variar conforme a demanda.</p>
+      <h3 class="text-base font-semibold text-navy-900">Trocas e devoluções</h3>
+      <p>Havendo algum problema com o produto recebido (defeito, erro no pedido), entre em contato pelo WhatsApp para combinarmos a solução — troca, reparo ou reembolso, conforme o caso.</p>
+      <h3 class="text-base font-semibold text-navy-900">Dúvidas</h3>
+      <p>Qualquer dúvida sobre estes termos ou sobre um pedido, fale com a gente pelo WhatsApp <a href="https://wa.me/${STORE_WHATSAPP_NUMBER}" target="_blank" rel="noopener" class="underline">${formatWhatsappBR(STORE_WHATSAPP_NUMBER)}</a>.</p>
+    </div>
+  `;
+  app.innerHTML = `
+    <main class="mx-auto max-w-3xl px-4 py-8" id="main-content">
+      <button data-go-home class="mb-6 inline-flex items-center gap-1 text-sm font-medium text-navy-500 hover:text-navy-700">← Voltar ao catálogo</button>
+      <h1 class="mb-4 text-xl font-semibold text-navy-900">Política de Privacidade e Termos de Uso</h1>
+      <div class="mb-6 flex gap-2">
+        ${tabBtn("privacidade", "Política de Privacidade")}
+        ${tabBtn("termos", "Termos de Uso")}
+      </div>
+      ${tab === "termos" ? termos : privacidade}
+    </main>
+    ${renderFooter()}
+  `;
+}
+
+function renderCatalog() {
+  const grouped = groupByCategory(state.products);
+  const categories = grouped.map((g) => g.category);
+  const featured = computeBestSellers(state.products);
+  const searchActive = state.searchQuery.trim().length > 0;
+  const categoryFiltered = state.categoryFilter === "all"
+    ? state.products
+    : state.products.filter((p) => (p.category && p.category.trim() ? p.category.trim() : "Outros") === state.categoryFilter);
+  const searchFiltered = searchActive
+    ? categoryFiltered.filter((p) => productMatchesSearch(p, state.searchQuery))
+    : categoryFiltered;
+  const visibleProducts = state.favoritesOnly
+    ? searchFiltered.filter((p) => state.favorites[p.id])
+    : searchFiltered;
+
+  app.innerHTML = `
+    ${renderHeader()}
+    ${renderCategoryBar(categories)}
+    ${renderHero()}
+    <main class="mx-auto max-w-5xl px-4 py-6">
+      ${renderSearchBar()}
+
+      ${!searchActive && state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
+
+      <div class="mb-5">
+        <h1 class="text-xl font-semibold text-navy-900">${searchActive ? `Resultados para "${escapeHtml(state.searchQuery.trim())}"` : state.favoritesOnly ? "❤ Seus favoritos" : state.categoryFilter === "all" ? "Encontre algo especial para sua fé" : escapeHtml(state.categoryFilter)}</h1>
+      </div>
+
+      ${state.products.length === 0 ? `
+        <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">Nenhum produto disponível no catálogo no momento.</p>
+      ` : visibleProducts.length === 0 ? `
+        <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">${searchActive ? `Nenhum produto encontrado para "${escapeHtml(state.searchQuery.trim())}".` : state.favoritesOnly ? `Nenhum favorito${state.categoryFilter !== "all" ? ` em "${escapeHtml(state.categoryFilter)}"` : ""} ainda — toque no ❤ de um produto pra guardar aqui.` : "Nenhum produto nessa categoria."}</p>
+      ` : `
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          ${visibleProducts.map((p) => renderProductCard(p)).join("")}
+        </div>
+      `}
+
+      ${!searchActive && state.categoryFilter !== "all" ? renderFeaturedCarousel(featured) : ""}
+    </main>
+    ${renderFooter()}
+    ${renderCartBar()}
+    ${state.cartOpen ? renderCartDrawer() : ""}
+  `;
+  wireCatalogEvents();
+}
+
+/* =====================================================================
+   EXPOSITOR — vitrine pro tablet de evento (Positivo Vision Tab 10,
+   usado deitado/paisagem, Chrome maximizado). Esta página inteira É o
+   expositor (fica numa pasta separada do catálogo normal) — mesmo
+   carrinho e checkout de sempre, só que os produtos aparecem um pouco
+   maiores que o catálogo comum e organizados em seções: a página rola
+   na vertical entre elas (Mais vendidos, cada categoria...) e dentro de
+   cada seção os cards deslizam na horizontal arrastando com o dedo —
+   pensado pro próprio cliente folhear, em pé, na frente do estande.
+   Tamanho propositalmente comedido: só um pouco maior que o catálogo
+   normal, não gigante, pra caber bem numa tela de 10" na horizontal.
+   ===================================================================== */
+function renderExpositorHeader() {
+  return `
+    <header class="sticky top-0 z-30 bg-navy-900 shadow-lg">
+      <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
+        <button type="button" data-go-home class="flex items-center gap-2.5 border-0 bg-transparent p-0 transition hover:opacity-90">
+          <img src="../catalogo/logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
+          <span class="text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
+        </button>
+        <a href="../catalogo/" target="_blank" rel="noopener" class="rounded-full border border-navy-700 px-3 py-1.5 text-xs font-medium text-navy-400 transition hover:border-navy-500 hover:text-cream-100">Loja completa ↗</a>
+      </div>
+    </header>
+  `;
+}
+
+function renderExpositorCategoryBar(categories) {
+  const items = [{ value: "all", label: "Todos" }, ...categories.map((c) => ({ value: c, label: c }))];
+  return `
+    <div class="border-b border-navy-800 bg-navy-900">
+      <div class="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-5 py-2.5">
+        ${items.map((it) => `
+          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+// Uma seção = título + uma fileira de cards que desliza na horizontal
+// (arrasta com o dedo) com setinhas de apoio pra quem usar mouse/trackpad.
+// Os cards em si são o MESMO componente do catálogo normal (renderProductCard)
+// — só ganham uma largura fixa um pouco maior que o normal, o bastante
+// pra facilitar a visão sem ficar exagerado.
+function renderExpositorSection(title, products, sectionId) {
+  if (products.length === 0) return "";
+  return `
+    <section class="mb-8">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-5">
+        <h2 class="text-lg font-semibold text-navy-900">${title}</h2>
+        <div class="hidden gap-2 sm:flex">
+          <button type="button" data-expositor-scroll="${sectionId}" data-dir="-1" aria-label="Anterior" class="expositor-scroll-btn flex h-8 w-8 items-center justify-center rounded-full border border-navy-200 bg-white text-lg font-semibold text-navy-700 shadow hover:bg-navy-50">‹</button>
+          <button type="button" data-expositor-scroll="${sectionId}" data-dir="1" aria-label="Próximo" class="expositor-scroll-btn flex h-8 w-8 items-center justify-center rounded-full border border-navy-200 bg-white text-lg font-semibold text-navy-700 shadow hover:bg-navy-50">›</button>
+        </div>
+      </div>
+      <div id="${sectionId}" class="mt-3 flex gap-4 overflow-x-auto px-5 pb-3" style="scroll-behavior: smooth;">
+        ${products.map((p) => `<div class="w-48 flex-shrink-0 sm:w-56">${renderProductCard(p)}</div>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderExpositorCatalog() {
+  const grouped = groupByCategory(state.products);
+  const categories = grouped.map((g) => g.category);
+  const bestSellers = computeBestSellers(state.products);
+  const searchActive = state.searchQuery.trim().length > 0;
+  const categoryFiltered = state.categoryFilter === "all"
+    ? state.products
+    : state.products.filter((p) => (p.category && p.category.trim() ? p.category.trim() : "Outros") === state.categoryFilter);
+  const visibleProducts = searchActive ? categoryFiltered.filter((p) => productMatchesSearch(p, state.searchQuery)) : categoryFiltered;
+  const visibleGrouped = state.categoryFilter === "all" && !searchActive ? grouped : [{ category: state.categoryFilter === "all" ? "Resultados" : state.categoryFilter, products: visibleProducts }];
+
+  app.innerHTML = `
+    ${renderExpositorHeader()}
+    ${renderExpositorCategoryBar(categories)}
+    <main class="py-6">
+      <div class="mx-auto mb-5 max-w-6xl px-5">
+        ${renderSearchBar()}
+      </div>
+
+      ${state.products.length === 0 ? `
+        <p class="mx-auto max-w-6xl px-5 text-center text-navy-400">Nenhum produto disponível no momento.</p>
+      ` : visibleProducts.length === 0 ? `
+        <p class="mx-auto max-w-6xl px-5 text-center text-navy-400">${searchActive ? `Nenhum produto encontrado para "${escapeHtml(state.searchQuery.trim())}".` : "Nenhum produto nessa categoria."}</p>
+      ` : `
+        ${!searchActive && state.categoryFilter === "all" ? renderExpositorSection("🔥 Mais vendidos", bestSellers, "expositor-bestsellers") : ""}
+        ${visibleGrouped.map((g, idx) => renderExpositorSection(escapeHtml(g.category), g.products, `expositor-cat-${idx}`)).join("")}
+      `}
+    </main>
+    ${renderCartBar()}
+    ${state.cartOpen ? renderCartDrawer() : ""}
+  `;
+
+  document.querySelectorAll(".expositor-scroll-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const track = document.getElementById(btn.dataset.expositorScroll);
+      if (!track) return;
+      track.scrollBy({ left: Number(btn.dataset.dir) * (track.clientWidth * 0.9), behavior: "smooth" });
+    });
+  });
+  wireCatalogEvents();
+}
+
+function renderProductCard(p, opts = {}) {
+  const variants = variantsFor(p.id);
+  const frames = carouselFrames(p);
+  const isFav = !!state.favorites[p.id];
+  const favoriteBtn = `
+    <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/85 text-base shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
+  `;
+
+  // Modelo (ou produto, se não tiver modelo) atualmente exibido no card —
+  // começa no primeiro da lista já ordenada (esgotados por último, ver
+  // variantsFor), e atualiza ao vivo se o cliente trocar de modelo no
+  // dropdown (ver wireCatalogEvents).
+  const initialEsgotado = variants.length > 0 ? !!variants[0].esgotado : !!p.esgotado;
+
+  let photoBlock;
+  if (frames.length > 1) {
+    // Mais de um modelo com fotos diferentes: mostra em carrossel
+    // automático, com setinhas pra passar manualmente.
+    const idx = (state.cardPhotoIndex[p.id] ?? 0) % frames.length;
+    photoBlock = `
+      <div class="relative aspect-square w-full overflow-hidden bg-cream-100" data-carousel="${p.id}">
+        <button type="button" data-view-product="${p.id}" class="product-image-btn block h-full w-full border-0 p-0 transition hover:opacity-90">
+          <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />
+        </button>
+        <button type="button" data-carousel-prev="${p.id}" aria-label="Modelo anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">‹</button>
+        <button type="button" data-carousel-next="${p.id}" aria-label="Próximo modelo" class="carousel-nav-btn absolute right-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">›</button>
+        ${favoriteBtn}
+      </div>
+    `;
+  } else {
+    const photoUrl = variants[0]?.photo_url || p.photo_url;
+    photoBlock = `
+      <div class="relative overflow-hidden">
+        <button type="button" data-view-product="${p.id}" class="product-image-btn block aspect-square w-full border-0 bg-cream-100 p-0 transition hover:opacity-90">
+          ${photoUrl
+            ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
+            : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="../catalogo/logo-symbol.png" alt="" class="h-10 w-10 opacity-40" /></div>`}
+        </button>
+        ${favoriteBtn}
+      </div>
+    `;
+  }
+
+  // Produto com modelo cadastrado: o "pronta entrega / sob encomenda" e o
+  // "esgotado" são por modelo agora, não pelo produto inteiro — começa
+  // mostrando o do primeiro modelo da lista (o que já vem selecionado no
+  // <select>) e atualiza ao vivo se o cliente trocar de modelo (ver
+  // wireCatalogEvents).
+  const initialInStock = variants.length > 0 ? !!variants[0].in_stock : !!p.in_stock;
+
+  // Produto/modelo esgotado continua aparecendo no Catálogo, só não dá
+  // pra comprar agora — some o botão/contador e aparece esse aviso no
+  // lugar (bem diferente de "sob encomenda", que ainda pode ser comprado).
+  const esgotadoTag = `<span class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm font-semibold text-red-700">Esgotado</span>`;
+
+  let addBlock;
+  if (variants.length > 0) {
+    // Produto com modelos: escolhe o modelo aqui mesmo, na hora de
+    // adicionar (a seleção "fixa" fica na página do produto).
+    addBlock = `
+      <div class="mt-auto flex flex-col gap-1.5" data-variant-add-group="${p.id}">
+        <select class="variant-add-select w-full rounded-lg border border-navy-200 px-2 py-2 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+          ${variants.map((v) => `<option value="${v.id}" data-in-stock="${v.in_stock ? "1" : "0"}" data-esgotado="${v.esgotado ? "1" : "0"}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
+        </select>
+        <button type="button" class="add-variant-btn w-full rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 ${initialEsgotado ? "hidden" : ""}">Adicionar</button>
+        <span data-variant-esgotado-tag="${p.id}" class="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-semibold text-red-700 ${initialEsgotado ? "" : "hidden"}">Esgotado</span>
+      </div>
+    `;
+  } else if (p.esgotado) {
+    addBlock = `<div class="mt-auto">${esgotadoTag}</div>`;
+  } else {
+    const key = cartKey(p.id, null);
+    const qty = state.cart[key] ?? 0;
+    addBlock = qty === 0
+      ? `<button data-add="${key}" class="add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>`
+      : `
+        <div class="mt-auto flex items-center justify-between rounded-lg border border-navy-200">
+          <button data-qty-minus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
+          <span class="text-sm font-semibold text-navy-900">${qty}</span>
+          <button data-qty-plus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">+</button>
+        </div>
+      `;
+  }
+
+  return `
+    <div data-product-card="${p.id}" class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
+      ${photoBlock}
+      <div class="flex flex-1 flex-col gap-2 p-3">
+        <div>
+          <p class="text-sm font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
+          <div class="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn text-[11px] text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
+            ${p.material_tag ? `<span class="rounded-full bg-navy-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
+          </div>
+        </div>
+
+        <div class="leading-tight">
+          <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)} <span class="text-[10px] font-normal text-navy-400">Em até 3x no crédito</span></p>
+          <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} em pagamentos à vista (Pix ou espécie)</p>
+        </div>
+        ${variants.length > 0
+          ? `<p data-stock-note="${p.id}" class="text-[10px] font-medium text-gold-700 ${initialInStock || initialEsgotado ? "hidden" : ""}">🕑 ${madeToOrderText(p)}</p>`
+          : !initialInStock && !p.esgotado ? `<p class="text-[10px] font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
+        ${addBlock}
+      </div>
+    </div>
+  `;
+}
+
+function renderCartBar() {
+  const count = cartCount();
+  if (count === 0) return "";
+  return `
+    <div class="fixed inset-x-0 bottom-0 z-20 border-t border-navy-100 bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+      <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <span class="text-sm text-navy-600">${count} ${count === 1 ? "item" : "itens"} · <b class="text-navy-900">${formatBRL(cartTotal())}</b></span>
+        <button id="open-cart-btn" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">Ver carrinho</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderCartDrawer() {
+  const items = cartItems();
+  return `
+    <div id="cart-overlay" class="fixed inset-0 z-30 bg-navy-950/40">
+      <div id="cart-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="cart-drawer-title" tabindex="-1" class="ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-xl outline-none">
+        <div class="flex items-center justify-between border-b border-navy-100 px-4 py-3">
+          <h2 id="cart-drawer-title" class="text-lg font-semibold text-navy-900">Seu carrinho</h2>
+          <button id="close-cart-btn" aria-label="Fechar carrinho" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-50">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-4 py-3">
+          ${items.length === 0 ? `<p class="py-8 text-center text-navy-400">Seu carrinho está vazio.</p>` : items.map((it) => `
+            <div class="flex items-center gap-3 border-b border-navy-50 py-3 last:border-0">
+              <div class="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
+                ${(it.variant?.photo_url || it.product.photo_url) ? `<img src="${it.variant?.photo_url || it.product.photo_url}" alt="${escapeHtml(it.product.name)}" class="h-full w-full object-cover" />` : ""}
+              </div>
+              <div class="flex-1">
+                <p class="text-sm font-medium text-navy-900">${escapeHtml(it.product.name)}${it.variant ? ` <span class="font-normal text-navy-400">— ${escapeHtml(it.variant.name)}</span>` : ""}</p>
+                <p class="text-xs text-navy-500">${formatBRL(priceFor(it.product))} cada</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button data-qty-minus="${it.key}" aria-label="Diminuir quantidade de ${escapeHtml(it.product.name)}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
+                <span class="w-5 text-center text-sm font-semibold" aria-live="polite">${it.quantity}</span>
+                <button data-qty-plus="${it.key}" aria-label="Aumentar quantidade de ${escapeHtml(it.product.name)}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">+</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="border-t border-navy-100 px-4 py-4">
+          <div class="mb-3 flex items-center justify-between text-sm">
+            <span class="text-navy-600">Total (${state.payment === "credito" ? "cartão de crédito" : "pix / à vista"})</span>
+            <span class="text-lg font-semibold text-navy-900">${formatBRL(cartTotal())}</span>
+          </div>
+          <button id="go-checkout-btn" ${items.length === 0 ? "disabled" : ""} class="w-full rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-50">Continuar pedido</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Produtos relacionados: prioriza a mesma categoria do produto aberto
+// (excluindo ele mesmo); se a categoria tiver poucos produtos, completa
+// com outros produtos quaisquer até o limite, pra a seção nunca ficar
+// vazia ou esquisitamente curta numa categoria pequena. Só considera
+// produtos visíveis no catálogo (mesma base já filtrada em state.products).
+function relatedProducts(product, limit = 4) {
+  const categoryLabel = product.category && product.category.trim() ? product.category.trim() : "Outros";
+  const others = state.products.filter((p) => p.id !== product.id);
+  const sameCategory = others.filter((p) => (p.category && p.category.trim() ? p.category.trim() : "Outros") === categoryLabel);
+  const rest = others.filter((p) => !sameCategory.includes(p));
+  return [...sameCategory, ...rest].slice(0, limit);
+}
+
+/* =====================================================================
+   PÁGINA INDIVIDUAL DO PRODUTO
+   ===================================================================== */
+function renderProductDetail() {
+  const product = state.products.find((p) => p.id === state.detailProductId);
+
+  if (!product) {
+    app.innerHTML = `
+      ${renderHeader()}
+      <main class="mx-auto max-w-3xl px-4 py-16 text-center">
+        <p class="mb-4 text-navy-500">Não encontramos esse produto — talvez ele não esteja mais disponível.</p>
+        <button id="back-to-catalog-btn" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">&larr; Voltar ao catálogo</button>
+      </main>
+      ${renderFooter()}
+    `;
+    document.getElementById("back-to-catalog-btn").addEventListener("click", () => { state.screen = "catalog"; state.detailProductId = null; render(); });
+    return;
+  }
+
+  const variants = variantsFor(product.id);
+  const variant = currentVariant(product);
+  const key = cartKey(product.id, variant?.id);
+  const qty = state.cart[key] ?? 0;
+  const isInStock = variant ? variant.in_stock : product.in_stock;
+  const isEsgotado = variant ? !!variant.esgotado : !!product.esgotado;
+  const galleryPhotos = productGalleryPhotos(product, variant);
+  const galleryIndex = Math.min(state.detailGalleryIndex, Math.max(0, galleryPhotos.length - 1));
+  const photoUrl = galleryPhotos[galleryIndex] ?? null;
+  const categoryLabel = product.category && product.category.trim() ? product.category.trim() : "Outros";
+  const hasDescription = product.description && product.description.trim();
+  const related = relatedProducts(product);
+  const isFav = !!state.favorites[product.id];
+  const productReviews = reviewsFor(product.id);
+  const avgRating = averageRating(productReviews);
+
+  app.innerHTML = `
+    ${renderHeader()}
+    <main class="mx-auto max-w-3xl px-4 py-6">
+      <button id="back-to-catalog-btn" class="mb-4 text-sm text-navy-600 hover:underline">&larr; Voltar ao catálogo</button>
+      <div id="product-detail-panel" class="grid gap-6 sm:grid-cols-2">
+        <div>
+          <div class="relative aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
+            ${photoUrl
+              ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-cover" />`
+              : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="../catalogo/logo-symbol.png" alt="" class="h-16 w-16 opacity-40" /></div>`}
+            <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
+          </div>
+          ${galleryPhotos.length > 1 ? `
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              ${galleryPhotos.map((url, idx) => `
+                <button type="button" data-gallery-index="${idx}" aria-label="Ver foto ${idx + 1}" class="gallery-thumb-btn h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg ring-2 transition ${idx === galleryIndex ? "ring-gold-500" : "ring-transparent hover:ring-navy-200"}">
+                  <img src="${url}" alt="" class="h-full w-full object-cover" loading="lazy" />
+                </button>
+              `).join("")}
+            </div>
+          ` : ""}
+          ${variants.length > 0 ? `
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              ${variants.map((v) => `
+                <button data-variant-select="${product.id}" data-variant-id="${v.id}"
+                  class="variant-swatch-btn flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs font-medium transition ${variant?.id === v.id ? "border-gold-500 bg-gold-50 text-navy-900" : "border-navy-200 text-navy-500 hover:border-navy-300"}">
+                  ${v.photo_url ? `<img src="${v.photo_url}" alt="" class="h-5 w-5 rounded-full object-cover" />` : ""}
+                  ${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}
+                </button>
+              `).join("")}
+            </div>
+          ` : ""}
+        </div>
+        <div class="flex flex-col gap-3">
+          <div>
+            <h1 class="text-xl font-semibold text-navy-900">${escapeHtml(product.name)}</h1>
+            <div class="mt-1 flex flex-wrap items-center gap-1.5">
+              <button data-tag-category="${escapeHtml(categoryLabel)}" class="category-tag-btn text-xs text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(categoryLabel)}</button>
+              ${product.material_tag ? `<span class="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(product.material_tag)}</span>` : ""}
+            </div>
+            ${productReviews.length > 0 ? `
+              <button data-scroll-to-reviews class="mt-1.5 flex items-center gap-1 text-sm text-navy-500 hover:text-navy-700">
+                <span class="text-amber-500">${starDisplayCatalog(avgRating)}</span>
+                <span>${avgRating.toFixed(1)} (${productReviews.length} ${productReviews.length === 1 ? "avaliação" : "avaliações"})</span>
+              </button>
+            ` : ""}
+          </div>
+
+          ${hasDescription ? `<p class="text-justify text-sm leading-relaxed text-navy-600">${escapeHtml(product.description).replace(/\n/g, "<br>")}</p>` : ""}
+
+          <div class="leading-tight">
+            <p class="text-2xl font-semibold text-navy-900">${formatBRL(product.credit_price)} <span class="text-xs font-normal text-navy-400">Em até 3x no crédito</span></p>
+            <p class="text-sm text-navy-400">ou ${formatBRL(product.promo_price)} em pagamentos à vista (Pix ou espécie)</p>
+          </div>
+
+          ${!isInStock && !isEsgotado ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-xs font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : ""}
+
+          ${isEsgotado ? `
+            <span class="mt-2 inline-block w-fit rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">Esgotado</span>
+          ` : qty === 0 ? `
+            <button data-add="${key}" class="add-to-cart-btn mt-2 w-full rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 sm:w-auto">Adicionar</button>
+          ` : `
+            <div class="mt-2 flex w-full max-w-[180px] items-center justify-between rounded-lg border border-navy-200">
+              <button data-qty-minus="${key}" class="qty-btn px-4 py-2.5 text-lg font-semibold text-navy-700">−</button>
+              <span class="text-sm font-semibold text-navy-900">${qty}</span>
+              <button data-qty-plus="${key}" class="qty-btn px-4 py-2.5 text-lg font-semibold text-navy-700">+</button>
+            </div>
+          `}
+        </div>
+      </div>
+
+      <div id="reviews-section" class="mt-10 border-t border-navy-100 pt-8">
+        <h2 class="mb-4 text-lg font-semibold text-navy-900">Avaliações${productReviews.length > 0 ? ` (${productReviews.length})` : ""}</h2>
+
+        ${productReviews.length === 0 ? `
+          <p class="mb-6 text-sm text-navy-400">Ainda não tem avaliação pra esse produto — seja a primeira pessoa a avaliar!</p>
+        ` : `
+          <div class="mb-6 flex flex-col gap-3">
+            ${productReviews.map((r) => `
+              <div class="rounded-xl border border-navy-100 bg-white p-4 shadow-sm">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium text-navy-900">${escapeHtml(r.customer_name)}</p>
+                  <span class="text-amber-500 text-sm">${starDisplayCatalog(r.rating)}</span>
+                </div>
+                ${r.comment ? `<p class="mt-1.5 text-sm text-navy-600">${escapeHtml(r.comment)}</p>` : ""}
+              </div>
+            `).join("")}
+          </div>
+        `}
+
+        ${state.reviewForm.submitted ? `
+          <p class="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">✓ Obrigado! Sua avaliação foi enviada e vai aparecer aqui assim que for aprovada.</p>
+        ` : `
+          <form id="review-form" class="flex max-w-md flex-col gap-3 rounded-xl border border-navy-100 bg-white p-4 shadow-sm">
+            <p class="text-sm font-medium text-navy-800">Deixe sua avaliação</p>
+            <div class="flex items-center gap-1" id="review-star-picker">
+              ${[1, 2, 3, 4, 5].map((n) => `
+                <button type="button" data-review-star="${n}" aria-label="${n} estrela${n === 1 ? "" : "s"}" class="review-star-btn text-2xl leading-none ${n <= state.reviewForm.rating ? "text-amber-500" : "text-navy-200"}">★</button>
+              `).join("")}
+            </div>
+            <input id="review-name" placeholder="Seu nome" value="${escapeHtml(state.reviewForm.name)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+            <textarea id="review-comment" rows="3" placeholder="Comentário (opcional)" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">${escapeHtml(state.reviewForm.comment)}</textarea>
+            ${state.reviewForm.error ? `<p class="text-sm text-red-600">${escapeHtml(state.reviewForm.error)}</p>` : ""}
+            <button type="submit" ${state.reviewForm.submitting ? "disabled" : ""} class="self-start rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">${state.reviewForm.submitting ? "Enviando..." : "Enviar avaliação"}</button>
+          </form>
+        `}
+      </div>
+
+      ${related.length > 0 ? `
+        <div class="mt-10">
+          <h2 class="mb-3 text-lg font-semibold text-navy-900">Você também pode gostar</h2>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            ${related.map((p) => renderProductCard(p, { hideDescription: true })).join("")}
+          </div>
+        </div>
+      ` : ""}
+    </main>
+    ${renderFooter()}
+    ${renderCartBar()}
+    ${state.cartOpen ? renderCartDrawer() : ""}
+  `;
+  document.getElementById("back-to-catalog-btn").addEventListener("click", () => { state.screen = "catalog"; state.detailProductId = null; render(); });
+  wireCatalogEvents();
+}
+
+function wireCatalogEvents() {
+  const searchInput = document.getElementById("catalog-search-input");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      state.searchQuery = searchInput.value;
+      const cursorPos = searchInput.selectionStart;
+      render();
+      // Re-renderizar troca o elemento do input inteiro — sem isso, cada
+      // letra digitada tirava o foco/cursor do campo de busca.
+      const freshInput = document.getElementById("catalog-search-input");
+      if (freshInput) { freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+    });
+  }
+  const searchClearBtn = document.getElementById("catalog-search-clear");
+  if (searchClearBtn) {
+    searchClearBtn.addEventListener("click", () => {
+      state.searchQuery = "";
+      render();
+      const freshInput = document.getElementById("catalog-search-input");
+      if (freshInput) freshInput.focus();
+    });
+  }
+  document.querySelectorAll(".add-to-cart-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setQty(btn.dataset.add, 1));
+  });
+  document.querySelectorAll("[data-qty-plus]").forEach((btn) => {
+    btn.addEventListener("click", () => setQty(btn.dataset.qtyPlus, (state.cart[btn.dataset.qtyPlus] ?? 0) + 1));
+  });
+  document.querySelectorAll("[data-qty-minus]").forEach((btn) => {
+    btn.addEventListener("click", () => setQty(btn.dataset.qtyMinus, (state.cart[btn.dataset.qtyMinus] ?? 0) - 1));
+  });
+  const openBtn = document.getElementById("open-cart-btn");
+  if (openBtn) openBtn.addEventListener("click", () => { state.cartOpen = true; render(); });
+  const closeBtn = document.getElementById("close-cart-btn");
+  if (closeBtn) closeBtn.addEventListener("click", () => { state.cartOpen = false; render(); });
+  const overlay = document.getElementById("cart-overlay");
+  if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) { state.cartOpen = false; render(); } });
+  const checkoutBtn = document.getElementById("go-checkout-btn");
+  if (checkoutBtn) checkoutBtn.addEventListener("click", () => { state.screen = "checkout"; state.cartOpen = false; render(); });
+  manageCartFocus();
+  document.querySelectorAll(".category-bar-btn").forEach((btn) => {
+    btn.addEventListener("click", () => { state.categoryFilter = btn.dataset.category; render(); });
+  });
+  const favoritesFilterBtn = document.getElementById("favorites-filter-btn");
+  if (favoritesFilterBtn) {
+    favoritesFilterBtn.addEventListener("click", () => { state.favoritesOnly = !state.favoritesOnly; render(); });
+  }
+  document.querySelectorAll("[data-toggle-favorite]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleFavorite(btn.dataset.toggleFavorite);
+    });
+  });
+  const scrollToReviewsBtn = document.querySelector("[data-scroll-to-reviews]");
+  if (scrollToReviewsBtn) {
+    scrollToReviewsBtn.addEventListener("click", () => {
+      document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+  const starPicker = document.getElementById("review-star-picker");
+  if (starPicker) {
+    starPicker.querySelectorAll("[data-review-star]").forEach((starBtn) => {
+      starBtn.addEventListener("click", () => {
+        const n = Number(starBtn.dataset.reviewStar);
+        state.reviewForm.rating = n;
+        // Atualiza só a cor das estrelas na hora, sem re-renderizar a
+        // página inteira — um render() aqui perderia o que a pessoa já
+        // tinha digitado no nome/comentário (o valor só é lido do DOM na
+        // hora de enviar, não fica sincronizado com o state a cada tecla).
+        starPicker.querySelectorAll("[data-review-star]").forEach((b) => {
+          const active = Number(b.dataset.reviewStar) <= n;
+          b.classList.toggle("text-amber-500", active);
+          b.classList.toggle("text-navy-200", !active);
+        });
+      });
+    });
+  }
+  const reviewForm = document.getElementById("review-form");
+  if (reviewForm) {
+    reviewForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("review-name").value.trim();
+      const comment = document.getElementById("review-comment").value.trim();
+      const rating = state.reviewForm.rating;
+      // Guarda o que já foi digitado ANTES de validar — se faltar nome ou
+      // nota, o re-render (pra mostrar o erro) não pode apagar o que a
+      // pessoa já preencheu.
+      state.reviewForm.name = name;
+      state.reviewForm.comment = comment;
+      if (!name) { state.reviewForm.error = "Digite seu nome."; render(); return; }
+      if (!rating) { state.reviewForm.error = "Escolha uma nota de 1 a 5 estrelas."; render(); return; }
+
+      state.reviewForm.submitting = true;
+      state.reviewForm.error = null;
+      render();
+
+      const { error } = await supabaseClient.from("product_reviews").insert({
+        product_id: state.detailProductId,
+        customer_name: name,
+        rating,
+        comment: comment || null,
+      });
+
+      state.reviewForm.submitting = false;
+      if (error) {
+        state.reviewForm.error = "Não foi possível enviar sua avaliação agora. Tente novamente em instantes.";
+        render();
+        return;
+      }
+      state.reviewForm.submitted = true;
+      render();
+      document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+  document.querySelectorAll(".category-tag-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.categoryFilter = btn.dataset.tagCategory;
+      state.searchQuery = "";
+      state.screen = "catalog";
+      state.detailProductId = null;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+  document.querySelectorAll(".gallery-thumb-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.detailGalleryIndex = Number(btn.dataset.galleryIndex) || 0;
+      render();
+    });
+  });
+  document.querySelectorAll(".variant-swatch-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.selectedVariant[btn.dataset.variantSelect] = btn.dataset.variantId;
+      state.detailGalleryIndex = 0;
+      render();
+    });
+  });
+  document.querySelectorAll(".product-image-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.screen = "product";
+      state.detailProductId = btn.dataset.viewProduct;
+      state.detailGalleryIndex = 0;
+      state.reviewForm = { rating: 0, name: "", comment: "", submitting: false, submitted: false, error: null };
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+  document.querySelectorAll(".add-variant-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const group = btn.closest("[data-variant-add-group]");
+      const productId = group.dataset.variantAddGroup;
+      const select = group.querySelector(".variant-add-select");
+      // Segurança extra: o botão já some quando o modelo escolhido está
+      // esgotado, mas não custa nada checar de novo antes de adicionar.
+      if (select.selectedOptions[0]?.dataset.esgotado === "1") return;
+      const variantId = select.value;
+      const key = cartKey(productId, variantId);
+      setQty(key, (state.cart[key] ?? 0) + 1);
+    });
+  });
+  // Cada modelo tem seu próprio "pronta entrega / sob encomenda" e
+  // "esgotado" agora — ao trocar o modelo escolhido no cartãozinho do
+  // produto, atualiza os avisos na hora, sem precisar redesenhar o card
+  // inteiro. IMPORTANTE: um produto "em destaque" aparece DUAS vezes na
+  // página (na vitrine especial do topo e de novo na grade normal) —
+  // então tem que buscar a nota/tag/botão só DENTRO do card que disparou
+  // o evento (via [data-product-card], que envolve tudo), nunca com
+  // document.querySelector(id), senão a troca de modelo num card acaba
+  // atualizando o card ERRADO (o outro "clone" do mesmo produto).
+  document.querySelectorAll(".variant-add-select").forEach((select) => {
+    select.addEventListener("change", () => {
+      const card = select.closest("[data-product-card]");
+      if (!card) return;
+      const group = select.closest("[data-variant-add-group]");
+      const opt = select.selectedOptions[0];
+      const inStock = opt?.dataset.inStock === "1";
+      const esgotado = opt?.dataset.esgotado === "1";
+      const note = card.querySelector("[data-stock-note]");
+      if (note) note.classList.toggle("hidden", inStock || esgotado);
+      const addBtn = group.querySelector(".add-variant-btn");
+      if (addBtn) addBtn.classList.toggle("hidden", esgotado);
+      const esgotadoTag = card.querySelector("[data-variant-esgotado-tag]");
+      if (esgotadoTag) esgotadoTag.classList.toggle("hidden", !esgotado);
+    });
+  });
+  document.querySelectorAll("[data-carousel-prev]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const productId = btn.dataset.carouselPrev;
+      stepCarousel(productId, -1);
+      startCarouselTimer(productId);
+    });
+  });
+  document.querySelectorAll("[data-carousel-next]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const productId = btn.dataset.carouselNext;
+      stepCarousel(productId, 1);
+      startCarouselTimer(productId);
+    });
+  });
+  setupCarousels();
+}
+
+/* =====================================================================
+   CHECKOUT
+   ===================================================================== */
+function renderCheckout() {
+  const items = cartItems();
+  app.innerHTML = `
+    ${renderHeader()}
+    <main class="mx-auto max-w-lg px-4 py-6">
+      <button id="back-to-catalog-btn" class="mb-4 text-sm text-navy-600 hover:underline">&larr; Voltar ao catálogo</button>
+      <h1 class="mb-4 text-xl font-semibold text-navy-900">Finalizar pedido</h1>
+
+      <div class="mb-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+        ${items.map((it) => `
+          <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm last:border-0">
+            <span>${it.quantity}× ${escapeHtml(it.product.name)}${it.variant ? ` <span class="text-navy-400">(${escapeHtml(it.variant.name)})</span>` : ""}</span>
+            <span class="font-medium text-navy-900">${formatBRL(priceFor(it.product) * it.quantity)}</span>
+          </div>
+        `).join("")}
+        <div id="ck-giftwrap-lines">
+          ${selectedGiftWraps().map((g) => `
+            <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm" data-giftwrap-line="${g.id}">
+              <span>🎁 ${g.quantity}× ${escapeHtml(g.name)}</span>
+              <span class="font-medium text-navy-900">${formatBRL(g.lineTotal)}</span>
+            </div>
+          `).join("")}
+        </div>
+        <div id="ck-discount-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-emerald-700 ${state.appliedCoupon ? "" : "hidden"}">
+          <span>Desconto (<span id="ck-discount-code">${state.appliedCoupon ? escapeHtml(state.appliedCoupon.code) : ""}</span>)</span>
+          <span id="ck-discount-value">−${formatBRL(discountAmount())}</span>
+        </div>
+        <div class="mt-2 flex items-center justify-between border-t border-navy-100 pt-2 text-base font-semibold text-navy-900">
+          <span>Total</span>
+          <span id="ck-total-value">${formatBRL(orderTotal())}</span>
+        </div>
+        <div class="mt-1 flex items-center justify-between text-xs font-medium text-gold-700">
+          <span>Sinal p/ confirmar o pedido (${Math.round(DEPOSIT_RATE * 100)}%)</span>
+          <span id="ck-deposit-value">${formatBRL(orderTotal() * DEPOSIT_RATE)}</span>
+        </div>
+      </div>
+
+      <form id="checkout-form" class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Forma de pagamento</label>
+          <div class="flex gap-1 rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
+            <button type="button" data-payment="pix" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / à vista</button>
+            <button type="button" data-payment="credito" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
+          </div>
+          <div class="mt-2 rounded-lg bg-cream-50 p-3 text-xs text-navy-600">
+            <p class="mb-1">É necessário um sinal de ${Math.round(DEPOSIT_RATE * 100)}% do valor (<span id="ck-deposit-note-value">${formatBRL(orderTotal() * DEPOSIT_RATE)}</span>) para confirmar o pedido e iniciar a produção. O restante é combinado na entrega/retirada.</p>
+            ${state.payment === "pix" ? `
+              <div class="mt-2 flex flex-col items-center gap-1">
+                <img src="../catalogo/pix-qrcode.png" alt="QR Code Pix da Luz Mariana" class="h-32 w-32 rounded-lg border border-navy-200 bg-white p-1" />
+                <p class="text-[11px] text-navy-400">Prefere escanear? Aponte a câmera do banco pro QR Code acima.</p>
+              </div>
+              <div class="mt-2 flex items-center gap-2">
+                <input id="ck-pix-key" readonly value="${STORE_CNPJ}" class="min-w-0 flex-1 rounded-lg border border-navy-200 bg-white px-2 py-1.5 text-xs text-navy-900" />
+                <button type="button" id="ck-copy-pix" class="flex-shrink-0 rounded-lg border border-navy-300 px-2 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-100">Copiar chave Pix</button>
+              </div>
+              <p class="mt-1 text-[11px] text-navy-400">Ou, se preferir, cole a chave Pix (CNPJ) acima manualmente.</p>
+            ` : `
+              <p class="mt-1 text-[11px] text-navy-400">Pagamento via link de pagamento ou maquineta — combinamos o melhor jeito com você pelo WhatsApp.</p>
+            `}
+          </div>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">WhatsApp</label>
+          <input id="ck-whatsapp" required inputmode="tel" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
+          <p id="ck-whatsapp-msg" class="mt-1 text-xs text-navy-400"></p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Cupom de desconto (opcional)</label>
+          <div class="flex gap-2">
+            <input id="ck-coupon-input" value="${escapeHtml(state.couponCode || "")}" ${state.appliedCoupon ? "disabled" : ""}
+              class="min-w-0 flex-1 rounded-lg border border-navy-200 px-3 py-2 uppercase outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-cream-50 disabled:text-navy-400"
+              placeholder="Ex: BEMVINDA5" />
+            <button type="button" id="ck-coupon-apply" class="flex-shrink-0 rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100 ${state.appliedCoupon ? "hidden" : ""}">Aplicar</button>
+            <button type="button" id="ck-coupon-remove" class="flex-shrink-0 rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100 ${state.appliedCoupon ? "" : "hidden"}">Remover</button>
+          </div>
+          <p id="ck-coupon-msg" class="mt-1 text-xs"></p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Nome</label>
+          <input id="ck-name" required class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Seu nome" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Instagram (opcional)</label>
+          <input id="ck-instagram" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="@usuario" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Observações (opcional)</label>
+          <textarea id="ck-notes" rows="2" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Endereço de entrega, alguma personalização, etc."></textarea>
+        </div>
+        ${state.giftWrapOptions.length > 0 ? `
+        <div>
+          <label class="flex items-center gap-2 text-sm font-medium text-navy-800">
+            <input type="checkbox" id="ck-gift-wrap" ${state.giftWrapWanted ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+            Embalar para presente?
+          </label>
+          <p class="mt-1 text-xs text-navy-400">Dá pra escolher mais de uma — tipos diferentes, ou mais de uma unidade da mesma.</p>
+          <div id="ck-gift-wrap-list" class="mt-2 flex flex-col gap-2 rounded-lg bg-cream-50 p-3 ${state.giftWrapWanted ? "" : "hidden"}">
+            ${state.giftWrapOptions.map((g) => `
+              <div class="flex items-center justify-between gap-3 text-sm" data-giftwrap-row="${g.id}">
+                <div class="flex-1">
+                  <p class="font-medium text-navy-800">${escapeHtml(g.name)}</p>
+                  <p class="text-xs text-navy-400">${formatBRL(g.price)} cada</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" data-giftwrap-minus="${g.id}" class="giftwrap-qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
+                  <span data-giftwrap-qty-display="${g.id}" class="w-5 text-center font-semibold">${state.giftWrapQuantities[g.id] || 0}</span>
+                  <button type="button" data-giftwrap-plus="${g.id}" class="giftwrap-qty-btn rounded border border-navy-200 px-2 text-navy-700">+</button>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        ` : ""}
+        <div id="ck-error" class="text-sm text-red-600"></div>
+        <button type="submit" id="ck-submit" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">Confirmar pedido e abrir WhatsApp</button>
+        <p class="text-center text-xs text-navy-400">Ao confirmar, o WhatsApp abre com seu pedido pronto — é só apertar enviar.</p>
+        <p class="text-center text-xs text-navy-400">Ao confirmar, você concorda com a <button type="button" data-open-policy="privacidade" class="underline hover:text-navy-600">Política de Privacidade</button> e os <button type="button" data-open-policy="termos" class="underline hover:text-navy-600">Termos de Uso</button>.</p>
+      </form>
+    </main>
+  `;
+
+  document.getElementById("back-to-catalog-btn").addEventListener("click", () => { state.screen = "catalog"; render(); });
+  document.querySelectorAll(".checkout-payment-btn").forEach((btn) => {
+    btn.addEventListener("click", () => { state.payment = btn.dataset.payment; render(); });
+  });
+  document.getElementById("checkout-form").addEventListener("submit", onSubmitOrder);
+  document.getElementById("ck-whatsapp").addEventListener("blur", onWhatsappBlur);
+  document.getElementById("ck-coupon-apply").addEventListener("click", onApplyCoupon);
+  document.getElementById("ck-coupon-remove").addEventListener("click", () => resetCouponClientSide(""));
+
+  const copyPixBtn = document.getElementById("ck-copy-pix");
+  if (copyPixBtn) {
+    copyPixBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(STORE_CNPJ);
+      } catch (_err) {
+        // Sem permissão de clipboard (ex: navegador dentro de outro app):
+        // seleciona o texto pra a pessoa copiar manualmente.
+        const pixField = document.getElementById("ck-pix-key");
+        if (pixField) { pixField.focus(); pixField.select(); }
+      }
+      const originalText = copyPixBtn.textContent;
+      copyPixBtn.textContent = "Copiado!";
+      setTimeout(() => { copyPixBtn.textContent = originalText; }, 1500);
+    });
+  }
+
+  const giftWrapCheckbox = document.getElementById("ck-gift-wrap");
+  const giftWrapList = document.getElementById("ck-gift-wrap-list");
+  if (giftWrapCheckbox && giftWrapList) {
+    giftWrapCheckbox.addEventListener("change", () => {
+      state.giftWrapWanted = giftWrapCheckbox.checked;
+      giftWrapList.classList.toggle("hidden", !state.giftWrapWanted);
+      if (!state.giftWrapWanted) state.giftWrapQuantities = {};
+      updateCheckoutTotals();
+    });
+    giftWrapList.querySelectorAll("[data-giftwrap-plus]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.giftwrapPlus;
+        state.giftWrapQuantities[id] = (state.giftWrapQuantities[id] || 0) + 1;
+        updateCheckoutTotals();
+      });
+    });
+    giftWrapList.querySelectorAll("[data-giftwrap-minus]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.giftwrapMinus;
+        const next = (state.giftWrapQuantities[id] || 0) - 1;
+        if (next <= 0) delete state.giftWrapQuantities[id];
+        else state.giftWrapQuantities[id] = next;
+        updateCheckoutTotals();
+      });
+    });
+  }
+}
+
+/* Atualiza só os valores de total/embalagens na tela de checkout, sem
+   recriar o formulário inteiro (recriar apagaria o que a pessoa já
+   digitou nos campos de nome/WhatsApp/observações). */
+function updateCheckoutTotals() {
+  const totalEl = document.getElementById("ck-total-value");
+  const depositEl = document.getElementById("ck-deposit-value");
+  const linesEl = document.getElementById("ck-giftwrap-lines");
+  if (linesEl) {
+    linesEl.innerHTML = selectedGiftWraps().map((g) => `
+      <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm" data-giftwrap-line="${g.id}">
+        <span>🎁 ${g.quantity}× ${escapeHtml(g.name)}</span>
+        <span class="font-medium text-navy-900">${formatBRL(g.lineTotal)}</span>
+      </div>
+    `).join("");
+  }
+  const discountLineEl = document.getElementById("ck-discount-line");
+  const discountValueEl = document.getElementById("ck-discount-value");
+  const discountCodeEl = document.getElementById("ck-discount-code");
+  if (discountLineEl) discountLineEl.classList.toggle("hidden", !state.appliedCoupon);
+  if (discountValueEl) discountValueEl.textContent = "−" + formatBRL(discountAmount());
+  if (discountCodeEl) discountCodeEl.textContent = state.appliedCoupon ? state.appliedCoupon.code : "";
+
+  if (totalEl) totalEl.textContent = formatBRL(orderTotal());
+  if (depositEl) depositEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
+  const depositNoteEl = document.getElementById("ck-deposit-note-value");
+  if (depositNoteEl) depositNoteEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
+
+  state.giftWrapOptions.forEach((g) => {
+    const qtyDisplay = document.querySelector(`[data-giftwrap-qty-display="${g.id}"]`);
+    if (qtyDisplay) qtyDisplay.textContent = state.giftWrapQuantities[g.id] || 0;
+  });
+}
+
+/* ---------------------------------------------------------------------
+   Cupom de desconto — aplicar/remover na tela de checkout.
+
+   Feito com manipulação direta do DOM (sem chamar render()), pelo
+   mesmo motivo do resto do checkout: o formulário é "não controlado"
+   (nome/whatsapp/instagram/observações só existem no DOM, não em
+   `state`), então um render() completo apagaria o que a pessoa já
+   tinha digitado.
+   --------------------------------------------------------------------- */
+function resetCouponClientSide(message) {
+  state.appliedCoupon = null;
+  const input = document.getElementById("ck-coupon-input");
+  const applyBtn = document.getElementById("ck-coupon-apply");
+  const removeBtn = document.getElementById("ck-coupon-remove");
+  const msgEl = document.getElementById("ck-coupon-msg");
+  if (input) input.disabled = false;
+  if (applyBtn) { applyBtn.classList.remove("hidden"); applyBtn.disabled = false; applyBtn.textContent = "Aplicar"; }
+  if (removeBtn) removeBtn.classList.add("hidden");
+  if (msgEl) {
+    msgEl.textContent = message || "";
+    msgEl.classList.remove("text-emerald-600");
+    msgEl.classList.add("text-red-600");
+  }
+  updateCheckoutTotals();
+}
+
+// Aplica um cupom já validado (por validate_coupon OU por
+// find_auto_coupon_for_phone) na UI do checkout — extraído de
+// onApplyCoupon() pra ser reaproveitado também pela aplicação automática
+// (tryAutoApplyCoupon, abaixo), sem duplicar a lógica de "acender" o
+// desconto na tela.
+function applyCouponFromResult(result, code, whatsappDigits) {
+  state.appliedCoupon = {
+    id: result.coupon_id,
+    code: code.toUpperCase(),
+    discount_type: result.discount_type,
+    discount_value: Number(result.discount_value),
+    max_discount_amount: result.max_discount_amount != null ? Number(result.max_discount_amount) : null,
+    validatedWhatsappDigits: whatsappDigits,
+  };
+  state.couponCode = code.toUpperCase();
+
+  const input = document.getElementById("ck-coupon-input");
+  const applyBtn = document.getElementById("ck-coupon-apply");
+  const removeBtn = document.getElementById("ck-coupon-remove");
+  const msgEl = document.getElementById("ck-coupon-msg");
+  if (input) { input.value = state.couponCode; input.disabled = true; }
+  if (applyBtn) { applyBtn.classList.add("hidden"); applyBtn.disabled = false; applyBtn.textContent = "Aplicar"; }
+  if (removeBtn) removeBtn.classList.remove("hidden");
+  if (msgEl) {
+    msgEl.textContent = result.message || `Cupom "${state.appliedCoupon.code}" aplicado!`;
+    msgEl.classList.remove("text-red-600");
+    msgEl.classList.add("text-emerald-600");
+  }
+
+  updateCheckoutTotals();
+}
+
+// Confere se o WhatsApp que acabou de ser digitado tem direito a algum
+// cupom especial cadastrado (ver "Números autorizados" no painel — ex:
+// compensação por atraso na entrega) e, se tiver, aplica sozinho — sem
+// precisar que o cliente digite nenhum código. Só entra em ação quando
+// NENHUM cupom já está aplicado (manual ou automático), pra nunca
+// sobrescrever silenciosamente uma escolha que a pessoa já fez.
+async function tryAutoApplyCoupon(whatsapp) {
+  if (state.appliedCoupon || !whatsapp) return;
+
+  const { data, error } = await supabaseClient.rpc("find_auto_coupon_for_phone", { p_whatsapp: whatsapp });
+  if (error) { console.error("find_auto_coupon_for_phone:", error.message); return; }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) return;
+
+  // Confere de novo bem na hora de aplicar — o whatsapp pode ter mudado
+  // de novo enquanto essa consulta estava no ar (RPC assíncrona).
+  const whatsappField = document.getElementById("ck-whatsapp");
+  const stillSamePhone = whatsappField && normalizeBrPhoneDigits(whatsappField.value.trim()) === normalizeBrPhoneDigits(whatsapp);
+  if (!stillSamePhone || state.appliedCoupon) return;
+
+  applyCouponFromResult(result, result.code, normalizeBrPhoneDigits(whatsapp));
+}
+
+async function onApplyCoupon() {
+  const input = document.getElementById("ck-coupon-input");
+  const applyBtn = document.getElementById("ck-coupon-apply");
+  const removeBtn = document.getElementById("ck-coupon-remove");
+  const msgEl = document.getElementById("ck-coupon-msg");
+  if (!input || !msgEl) return;
+
+  const code = input.value.trim();
+  state.couponCode = code;
+
+  if (!code) {
+    msgEl.textContent = "Informe o código do cupom.";
+    msgEl.classList.remove("text-emerald-600");
+    msgEl.classList.add("text-red-600");
+    return;
+  }
+
+  const whatsappField = document.getElementById("ck-whatsapp");
+  const whatsappRaw = whatsappField ? whatsappField.value.trim() : "";
+  const whatsapp = formatWhatsappBR(whatsappRaw) || whatsappRaw;
+  if (!whatsapp) {
+    msgEl.textContent = "Informe seu WhatsApp acima antes de aplicar o cupom.";
+    msgEl.classList.remove("text-emerald-600");
+    msgEl.classList.add("text-red-600");
+    return;
+  }
+
+  if (applyBtn) { applyBtn.disabled = true; applyBtn.textContent = "Verificando..."; }
+  msgEl.textContent = "Verificando cupom...";
+  msgEl.classList.remove("text-emerald-600", "text-red-600");
+
+  const { data, error } = await supabaseClient.rpc("validate_coupon", { p_code: code, p_whatsapp: whatsapp });
+  const result = Array.isArray(data) ? data[0] : data;
+
+  if (error || !result || !result.valid) {
+    state.appliedCoupon = null;
+    if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = "Aplicar"; }
+    msgEl.textContent = error ? "Não foi possível validar o cupom agora. Tente de novo." : (result && result.message) || "Cupom inválido.";
+    msgEl.classList.remove("text-emerald-600");
+    msgEl.classList.add("text-red-600");
+    return;
+  }
+
+  applyCouponFromResult(result, code, normalizeBrPhoneDigits(whatsapp));
+}
+
+/* ---------------------------------------------------------------------
+   Ao sair do campo de WhatsApp: já formata o número com o +55 e, se
+   reconhecer que essa pessoa já comprou antes (mesmo número, mesmo que
+   cadastrado num formato diferente), preenche sozinho o nome e o
+   instagram informados da primeira vez — só nos campos que ainda
+   estiverem vazios, pra não sobrescrever o que a pessoa já digitou.
+   --------------------------------------------------------------------- */
+async function onWhatsappBlur() {
+  const whatsappField = document.getElementById("ck-whatsapp");
+  const msgEl = document.getElementById("ck-whatsapp-msg");
+  if (!whatsappField || !msgEl) return;
+
+  const raw = whatsappField.value.trim();
+  if (!raw) { msgEl.textContent = ""; return; }
+
+  const formatted = formatWhatsappBR(raw);
+  if (formatted) whatsappField.value = formatted;
+
+  // Se já tinha um cupom aplicado pra um WhatsApp diferente do que está
+  // no campo agora, remove o cupom — a validação (principalmente a
+  // regra de "só na primeira compra") foi feita pro número anterior e
+  // pode não valer mais pra esse.
+  if (state.appliedCoupon) {
+    const currentDigits = normalizeBrPhoneDigits(formatted || raw);
+    if (currentDigits !== state.appliedCoupon.validatedWhatsappDigits) {
+      resetCouponClientSide("Cupom removido: o WhatsApp foi alterado. Aplique o cupom novamente se ainda for válido.");
+    }
+  }
+
+  // Cupom automático: se não sobrou nenhum cupom aplicado agora (nem o
+  // que acabou de ser removido acima, nem nenhum outro), confere se esse
+  // WhatsApp tem direito a um cupom especial e aplica sozinho — sem
+  // precisar digitar código nenhum.
+  if (!state.appliedCoupon) {
+    await tryAutoApplyCoupon(formatted || raw);
+  }
+
+  msgEl.textContent = "Verificando...";
+
+  const { data, error } = await supabaseClient.rpc("lookup_customer_by_phone", { p_whatsapp: formatted || raw });
+
+  if (error) {
+    console.error("lookup_customer_by_phone:", error.message);
+    msgEl.textContent = "";
+    return;
+  }
+
+  const found = Array.isArray(data) ? data[0] : data;
+  if (found) {
+    const nameField = document.getElementById("ck-name");
+    const instaField = document.getElementById("ck-instagram");
+    if (nameField && !nameField.value.trim() && found.name) nameField.value = found.name;
+    if (instaField && !instaField.value.trim() && found.instagram) instaField.value = found.instagram;
+    msgEl.textContent = found.name ? `Bem-vindo(a) de volta, ${found.name}! Já preenchemos seus dados.` : "Bem-vindo(a) de volta! Já preenchemos seus dados.";
+    msgEl.classList.add("text-emerald-600");
+  } else {
+    msgEl.textContent = "";
+    msgEl.classList.remove("text-emerald-600");
+  }
+}
+
+async function onSubmitOrder(e) {
+  e.preventDefault();
+  const errorEl = document.getElementById("ck-error");
+  const submitBtn = document.getElementById("ck-submit");
+  const name = document.getElementById("ck-name").value.trim();
+  // Garante o +55 na frente mesmo que a pessoa tenha enviado o formulário
+  // sem sair do campo de WhatsApp (o que dispararia a formatação sozinha).
+  const whatsapp = formatWhatsappBR(document.getElementById("ck-whatsapp").value.trim()) || document.getElementById("ck-whatsapp").value.trim();
+  const instagram = document.getElementById("ck-instagram").value.trim().replace(/^@/, "");
+  const notes = document.getElementById("ck-notes").value.trim();
+
+  if (!name) { errorEl.textContent = "Informe seu nome."; return; }
+  if (!whatsapp) { errorEl.textContent = "Informe seu WhatsApp."; return; }
+  const items = cartItems();
+  if (items.length === 0) { errorEl.textContent = "Seu carrinho está vazio."; return; }
+  const giftWraps = selectedGiftWraps();
+  if (state.giftWrapWanted && giftWraps.length === 0) { errorEl.textContent = "Escolha ao menos uma embalagem, ou desmarque a opção."; return; }
+
+  errorEl.textContent = "";
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Enviando pedido...";
+
+  // Abre a aba do WhatsApp já agora (síncrono, ligado ao clique) pra não
+  // ser bloqueada como pop-up depois do "await" do envio pro Supabase.
+  const waWindow = window.open("", "_blank");
+
+  const orderId = crypto.randomUUID();
+  const subtotal = cartTotal() + giftWraps.reduce((sum, g) => sum + g.lineTotal, 0);
+  const discount = discountAmount();
+  const total = Math.max(0, subtotal - discount);
+  const coupon = state.appliedCoupon;
+
+  const { error: orderError } = await supabaseClient.from("orders").insert({
+    id: orderId,
+    customer_name: name,
+    customer_whatsapp: whatsapp,
+    customer_instagram: instagram || null,
+    payment_method: state.payment,
+    notes: notes || null,
+    total,
+    coupon_id: coupon ? coupon.id : null,
+    coupon_code: coupon ? coupon.code : null,
+    discount_amount: discount > 0 ? discount : null,
+  });
+  // De propósito SEM .select() encadeado aqui: pedir a linha de volta
+  // (RETURNING) exigiria uma política de leitura pública em "orders",
+  // que abriria todos os pedidos de todo mundo pra leitura. O número do
+  // pedido é buscado à parte logo abaixo, por uma função que só devolve
+  // esse único número (ver get_order_number no supabase-schema.sql).
+
+  if (orderError) {
+    if (waWindow) waWindow.close();
+    errorEl.textContent = "Não foi possível registrar o pedido: " + orderError.message;
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Confirmar pedido e abrir WhatsApp";
+    return;
+  }
+
+  let orderNumber = null;
+  const { data: orderNumberData, error: orderNumberError } = await supabaseClient.rpc("get_order_number", { p_order_id: orderId });
+  if (orderNumberError) {
+    console.error("Erro ao buscar número do pedido:", orderNumberError.message);
+    // Não trava o fluxo por isso — o pedido já foi criado de verdade, só
+    // o número pra mostrar/rastrear na hora que pode faltar.
+  } else {
+    orderNumber = orderNumberData;
+  }
+
+  const itemRows = items.map((it) => ({
+    order_id: orderId,
+    product_id: it.product.id,
+    product_name: it.product.name,
+    variant_name: it.variant ? it.variant.name : null,
+    unit_price: priceFor(it.product),
+    quantity: it.quantity,
+  }));
+  const { error: itemsError } = await supabaseClient.from("order_items").insert(itemRows);
+  if (itemsError) {
+    console.error("Erro ao salvar itens do pedido:", itemsError.message);
+    // O pedido em si já foi criado — segue o fluxo mesmo assim, a loja
+    // ainda recebe a mensagem completa no WhatsApp.
+  }
+
+  if (giftWraps.length > 0) {
+    const giftWrapRows = giftWraps.map((g) => ({
+      order_id: orderId,
+      material_id: g.id,
+      material_name: g.name,
+      quantity: g.quantity,
+      unit_price: g.price,
+    }));
+    const { error: giftWrapError } = await supabaseClient.from("order_gift_wraps").insert(giftWrapRows);
+    if (giftWrapError) {
+      console.error("Erro ao salvar embalagens do pedido:", giftWrapError.message);
+      // Mesma lógica: o pedido já foi criado, segue o fluxo mesmo assim.
+    }
+  }
+
+  // Cadastra (ou atualiza) o cliente no painel automaticamente. Se essa
+  // pessoa já tinha comprado antes (mesmo WhatsApp), não duplica — só
+  // completa o instagram, se informado agora. Isso não deve travar o
+  // fluxo de compra mesmo se der algum problema.
+  const { error: customerError } = await supabaseClient.rpc("upsert_customer_from_order", {
+    p_name: name,
+    p_whatsapp: whatsapp,
+    p_instagram: instagram || null,
+  });
+  if (customerError) {
+    console.error("Erro ao cadastrar cliente automaticamente:", customerError.message);
+  }
+
+  // Se um cupom foi usado (manual ou automático), marca esse WhatsApp
+  // como "já usou" — só tem efeito de verdade em cupons restritos por
+  // telefone (ver coupon_allowed_phones); pra cupons normais, é um
+  // no-op seguro (não encontra nenhuma linha pra atualizar).
+  if (coupon) {
+    const { error: markUsedError } = await supabaseClient.rpc("mark_coupon_phone_used", {
+      p_coupon_id: coupon.id, p_whatsapp: whatsapp, p_order_id: orderId,
+    });
+    if (markUsedError) {
+      console.error("mark_coupon_phone_used:", markUsedError.message);
+    }
+  }
+
+  const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, subtotal, discount, couponCode: coupon ? coupon.code : null, total, payment: state.payment, giftWraps });
+  const waUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+  if (waWindow) waWindow.location.href = waUrl;
+  else window.open(waUrl, "_blank");
+
+  state.cart = {};
+  saveCartToStorage();
+  state.giftWrapWanted = false;
+  state.giftWrapQuantities = {};
+  state.couponCode = "";
+  state.appliedCoupon = null;
+  state.lastOrderNumber = orderNumber;
+  state.lastOrderWhatsapp = whatsapp;
+  state.screen = "success";
+  render();
+}
+
+function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, subtotal, discount, couponCode, total, payment, giftWraps }) {
+  const lines = [];
+  lines.push(`Olá! Gostaria de fazer um pedido pelo Catálogo Luz Mariana:`);
+  lines.push("");
+  items.forEach((it) => {
+    const variantLabel = it.variant ? ` (${it.variant.name})` : "";
+    lines.push(`• ${it.quantity}x ${it.product.name}${variantLabel} — ${formatBRL(priceFor(it.product) * it.quantity)}`);
+  });
+  (giftWraps || []).forEach((g) => {
+    lines.push(`🎁 ${g.quantity}x ${g.name} (embalagem p/ presente) — ${formatBRL(g.lineTotal)}`);
+  });
+  lines.push("");
+  if (discount > 0) {
+    lines.push(`Subtotal: ${formatBRL(subtotal)}`);
+    lines.push(`Cupom ${couponCode}: −${formatBRL(discount)}`);
+  }
+  lines.push(`Total: ${formatBRL(total)}`);
+  lines.push(`Sinal para confirmar o pedido (${Math.round(DEPOSIT_RATE * 100)}%): ${formatBRL(total * DEPOSIT_RATE)}`);
+  lines.push(`Pagamento: ${payment === "credito" ? "Cartão de crédito" : "Pix / à vista"}`);
+  if (payment === "pix") {
+    lines.push(`Chave Pix (CNPJ): ${STORE_CNPJ}`);
+  } else {
+    lines.push(`Combinar link de pagamento ou maquineta.`);
+  }
+  lines.push("");
+  lines.push(`Nome: ${name}`);
+  lines.push(`WhatsApp: ${whatsapp}`);
+  if (instagram) lines.push(`Instagram: @${instagram}`);
+  if (notes) lines.push(`Observações: ${notes}`);
+  return lines.join("\n");
+}
+
+/* =====================================================================
+   SUCESSO
+   ===================================================================== */
+function renderSuccess() {
+  app.innerHTML = `
+    ${renderHeader()}
+    <main class="mx-auto flex max-w-lg flex-col items-center px-4 py-16 text-center">
+      <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✓</div>
+      <h1 class="mb-2 text-xl font-semibold text-navy-900">Pedido enviado!</h1>
+      ${state.lastOrderNumber ? `<p class="mb-1 text-sm font-medium text-navy-800">Pedido Nº ${String(state.lastOrderNumber).padStart(6, "0")}</p>` : ""}
+      <p class="mb-6 text-sm text-navy-600">Confira a aba do WhatsApp que abriu — é só apertar "Enviar" pra confirmar o pedido com a Luz Mariana.</p>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <button id="new-order-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Fazer novo pedido</button>
+        ${state.lastOrderNumber ? `<button id="track-this-order-btn" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-semibold text-navy-700 transition hover:bg-navy-50">Acompanhar meu pedido</button>` : ""}
+      </div>
+    </main>
+  `;
+  document.getElementById("new-order-btn").addEventListener("click", () => { state.screen = "catalog"; render(); });
+  const trackBtn = document.getElementById("track-this-order-btn");
+  if (trackBtn) {
+    trackBtn.addEventListener("click", () => {
+      state.trackWhatsapp = state.lastOrderWhatsapp;
+      state.trackResults = null;
+      state.trackError = null;
+      state.screen = "track";
+      render();
+      searchTrackedOrder();
+    });
+  }
+}
+
+/* =====================================================================
+   RASTREAR PEDIDO
+   ===================================================================== */
+// Busca todos os pedidos feitos com um WhatsApp, via função pública do
+// banco (track_orders_by_phone) — devolve só nome/instagram-like dados
+// do próprio pedido, nunca a lista de todos os pedidos da loja, então
+// não dá pra "passear" pelos pedidos de outras pessoas sem saber o
+// WhatsApp usado na compra delas. Mesmo padrão de segurança já usado
+// aqui pra "lookup_customer_by_phone".
+async function searchTrackedOrder() {
+  if (!state.trackWhatsapp.trim()) {
+    state.trackError = "Preencha o WhatsApp usado na compra.";
+    state.trackResults = null;
+    render();
+    return;
+  }
+  state.trackLoading = true;
+  state.trackError = null;
+  state.trackResults = null;
+  render();
+
+  const whatsappFormatted = formatWhatsappBR(state.trackWhatsapp.trim()) || state.trackWhatsapp.trim();
+  const { data, error } = await supabaseClient.rpc("track_orders_by_phone", {
+    p_whatsapp: whatsappFormatted,
+  });
+
+  state.trackLoading = false;
+  if (error) {
+    state.trackError = "Não foi possível buscar seus pedidos agora. Tente novamente em instantes.";
+    render();
+    return;
+  }
+  const results = Array.isArray(data) ? data : data ? [data] : [];
+  if (results.length === 0) {
+    state.trackError = "Nenhum pedido encontrado pra esse WhatsApp. Confira se digitou o número usado na compra.";
+    render();
+    return;
+  }
+  state.trackResults = results;
+  render();
+}
+
+const ORDER_STATUS_LABEL = { novo: "Recebido", em_andamento: "Em andamento", concluido: "Concluído", cancelado: "Cancelado" };
+// Passos do "andamento" do pedido, na ordem — usado só pra desenhar a
+// linha do tempo visual. Pedido cancelado não segue essa linha (mostra
+// um aviso à parte, não uma etapa "concluída antes da hora").
+const ORDER_TRACK_STEPS = [
+  { key: "criado", label: "Pedido recebido" },
+  { key: "aceito", label: "Aceito pela loja" },
+  { key: "fabricacao", label: "Em preparação" },
+  { key: "concluido", label: "Concluído" },
+];
+function trackStepsReached(order) {
+  if (order.status === "cancelado") return [];
+  const reached = ["criado"];
+  if (order.accepted_at) reached.push("aceito");
+  if (order.sent_to_manufacturer_at) reached.push("fabricacao");
+  if (order.status === "concluido") reached.push("concluido");
+  return reached;
+}
+
+function renderTrackForm() {
+  return `
+    <form id="track-form" class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-navy-700">WhatsApp usado na compra</label>
+        <input id="track-whatsapp" inputmode="tel" placeholder="(11) 91234-5678" value="${escapeHtml(state.trackWhatsapp)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+      </div>
+      ${state.trackError ? `<p class="text-sm text-red-600">${escapeHtml(state.trackError)}</p>` : ""}
+      <button type="submit" id="track-submit" ${state.trackLoading ? "disabled" : ""} class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">${state.trackLoading ? "Buscando..." : "Buscar pedidos"}</button>
+    </form>
+  `;
+}
+
+function renderTrackOrderCard(order) {
+  const reached = trackStepsReached(order);
+  return `
+    <div class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-base font-semibold text-navy-900">Pedido Nº ${String(order.order_number).padStart(6, "0")}</h2>
+        <span class="rounded-full px-2.5 py-1 text-xs font-medium ${order.status === "cancelado" ? "bg-red-100 text-red-700" : order.status === "concluido" ? "bg-emerald-100 text-emerald-800" : "bg-gold-100 text-gold-800"}">${ORDER_STATUS_LABEL[order.status] || order.status}</span>
+      </div>
+
+      ${order.status === "cancelado" ? `
+        <p class="text-sm text-red-600">Este pedido foi cancelado. Qualquer dúvida, fale com a gente pelo WhatsApp.</p>
+      ` : `
+        <ol class="flex flex-col gap-2">
+          ${ORDER_TRACK_STEPS.map((step) => {
+            const done = reached.includes(step.key);
+            return `
+              <li class="flex items-center gap-2 text-sm ${done ? "text-navy-900" : "text-navy-300"}">
+                <span class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${done ? "bg-emerald-500 text-white" : "bg-navy-100"}">${done ? "✓" : ""}</span>
+                ${escapeHtml(step.label)}
+              </li>
+            `;
+          }).join("")}
+        </ol>
+      `}
+
+      <div class="border-t border-navy-50 pt-3 text-sm text-navy-600">
+        <p>Pagamento: <span class="font-medium text-navy-800">${order.paid ? "Confirmado" : "Ainda não confirmado"}</span></p>
+        <p class="mt-1">Total: <span class="font-medium text-navy-800">${formatBRL(order.total)}</span>${order.discount_amount ? ` <span class="text-xs text-navy-400">(com desconto${order.coupon_code ? ` do cupom ${escapeHtml(order.coupon_code)}` : ""})</span>` : ""}</p>
+      </div>
+
+      ${(order.items || []).length > 0 ? `
+        <div class="border-t border-navy-50 pt-3">
+          <p class="mb-2 text-sm font-medium text-navy-700">Itens:</p>
+          <ul class="flex flex-col gap-1 text-sm text-navy-600">
+            ${order.items.map((it) => `<li>${it.quantity}x ${escapeHtml(it.product_name)}${it.variant_name ? ` (${escapeHtml(it.variant_name)})` : ""}</li>`).join("")}
+          </ul>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderTrackResults() {
+  if (!state.trackResults) return "";
+  // Mais recente primeiro (a função do banco já devolve nessa ordem).
+  return `
+    <div class="mt-6 flex flex-col gap-4">
+      ${state.trackResults.length > 1 ? `<p class="text-xs text-navy-400">${state.trackResults.length} pedidos encontrados pra esse WhatsApp.</p>` : ""}
+      ${state.trackResults.map((order) => renderTrackOrderCard(order)).join("")}
+    </div>
+  `;
+}
+
+function renderTrack() {
+  app.innerHTML = `
+    ${renderHeader()}
+    <main class="mx-auto max-w-lg px-4 py-8" id="main-content">
+      <button data-go-home class="mb-6 inline-flex items-center gap-1 text-sm font-medium text-navy-500 hover:text-navy-700">← Voltar ao catálogo</button>
+      <h1 class="mb-1 text-xl font-semibold text-navy-900">Rastrear pedido</h1>
+      <p class="mb-6 text-sm text-navy-500">Digite o WhatsApp usado na compra pra ver o andamento dos seus pedidos.</p>
+      ${renderTrackForm()}
+      ${renderTrackResults()}
+    </main>
+    ${renderFooter()}
+  `;
+  document.getElementById("track-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    state.trackWhatsapp = document.getElementById("track-whatsapp").value.trim();
+    searchTrackedOrder();
+  });
+}
+
+// Clique na logo/"Luz Mariana" do cabeçalho leva pra homepage (catálogo
+// completo, sem filtro de categoria nem produto aberto) — event
+// delegation num listener só, ligado uma vez (o cabeçalho é
+// re-desenhado em toda tela: catálogo, produto, checkout, sucesso...).
+app.addEventListener("click", (e) => {
+  if (e.target.closest("[data-go-home]")) {
+    state.screen = "catalog";
+    state.detailProductId = null;
+    state.categoryFilter = "all";
+    state.searchQuery = "";
+    state.cartOpen = false;
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  const policyBtn = e.target.closest("[data-open-policy]");
+  if (policyBtn) {
+    state.screen = "policy";
+    state.policyTab = policyBtn.getAttribute("data-open-policy");
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  const policyTabBtn = e.target.closest("[data-policy-tab]");
+  if (policyTabBtn) {
+    state.policyTab = policyTabBtn.getAttribute("data-policy-tab");
+    render();
+    return;
+  }
+  const trackBtn = e.target.closest("[data-open-track]");
+  if (trackBtn) {
+    state.screen = "track";
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+});
+
+loadCatalog();
+
+// Registra o service worker só pra habilitar "Adicionar à tela inicial"
+// (ver comentário em sw.js — não guarda nada em cache). Silenciosamente
+// não faz nada em navegadores sem suporte (ex: Safari mais antigo).
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch((err) => {
+      console.error("Não foi possível registrar o service worker (PWA):", err.message);
+    });
+  });
+}
+</script>
+</body>
+</html>
