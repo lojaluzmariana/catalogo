@@ -240,6 +240,34 @@ function toggleFavorite(productId) {
   render();
 }
 
+/* ---------------------------------------------------------------------
+   MODO EXPOSITOR — layout com produtos bem maiores, em carrosséis, pra
+   usar num tablet ligado num evento/feira/bazar como "vitrine digital"
+   que o próprio cliente folheia. É um MODO (guardado no aparelho,
+   independente da tela normal do catálogo — carrinho, checkout, etc.
+   continuam funcionando do jeito de sempre por baixo dele).
+
+   Entra automaticamente se a página abrir com ?modo=expositor na URL
+   (dá pra deixar isso salvo como atalho/favorito no tablet) — senão,
+   usa a última escolha salva neste aparelho.
+   --------------------------------------------------------------------- */
+const EXPOSITOR_STORAGE_KEY = "luz-mariana-modo-expositor";
+function loadExpositorModeFromStorage() {
+  try { return localStorage.getItem(EXPOSITOR_STORAGE_KEY) === "1"; } catch (err) { return false; }
+}
+function saveExpositorModeToStorage(active) {
+  try { localStorage.setItem(EXPOSITOR_STORAGE_KEY, active ? "1" : "0"); } catch (err) { /* ignora — só não persiste entre sessões */ }
+}
+function setExpositorMode(active) {
+  state.expositorMode = active;
+  saveExpositorModeToStorage(active);
+  render();
+  window.scrollTo({ top: 0 });
+}
+const initialExpositorMode = new URLSearchParams(window.location.search).get("modo") === "expositor"
+  ? true
+  : loadExpositorModeFromStorage();
+
 const state = {
   loading: true,
   loadError: null,
@@ -273,6 +301,7 @@ const state = {
   giftWrapQuantities: {}, // { [material_id]: quantidade } — dá pra escolher mais de uma embalagem (ou mais de uma unidade da mesma)
   couponCode: "", // último código de cupom digitado (só pra manter o campo preenchido entre re-renders)
   appliedCoupon: null, // { id, code, discount_type, discount_value, max_discount_amount, validatedWhatsappDigits } — null se nenhum cupom aplicado
+  expositorMode: initialExpositorMode, // Modo Expositor (tablet em pé de evento) — ver setExpositorMode
 };
 
 /* ---------------------------------------------------------------------
@@ -673,6 +702,7 @@ function render() {
   if (state.screen === "product") return renderProductDetail();
   if (state.screen === "policy") return renderPolicy();
   if (state.screen === "track") return renderTrack();
+  if (state.expositorMode) return renderExpositorCatalog();
   return renderCatalog();
 }
 
@@ -774,6 +804,8 @@ function renderFooter() {
         <button data-open-policy="privacidade" class="underline hover:text-navy-500">Política de Privacidade</button>
         <span>·</span>
         <button data-open-policy="termos" class="underline hover:text-navy-500">Termos de Uso</button>
+        <span>·</span>
+        <button data-enter-expositor title="Layout com produtos grandes, pra usar num tablet exposto num evento" class="underline hover:text-navy-500">🖥 Modo Expositor</button>
       </p>
     </footer>
   `;
@@ -879,12 +911,118 @@ function renderCatalog() {
   wireCatalogEvents();
 }
 
+/* =====================================================================
+   MODO EXPOSITOR — vitrine em tela cheia pro tablet de evento (Positivo
+   Vision Tab 10, 10.1", 1280×800, usado deitado com o Chrome
+   maximizado). Mesmo catálogo de sempre (mesmo carrinho, mesmo
+   checkout), só que com os produtos bem maiores e organizados em
+   carrosséis: a página rola verticalmente entre as seções (Mais
+   vendidos, cada categoria...) e dentro de cada seção os cards passam
+   na horizontal, deslizando com o dedo — pensado pra o próprio cliente
+   folhear sozinho, em pé, na frente da barraca/estande.
+   ===================================================================== */
+function renderExpositorHeader() {
+  return `
+    <header class="sticky top-0 z-30 bg-navy-900 shadow-lg">
+      <div class="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-6 py-4">
+        <button type="button" data-go-home class="flex items-center gap-3 border-0 bg-transparent p-0 transition hover:opacity-90">
+          <img src="logo-symbol.png" alt="Luz Mariana" class="h-12 w-12" />
+          <span class="text-2xl font-semibold tracking-wide text-cream-50">Luz Mariana</span>
+        </button>
+        <button type="button" id="expositor-exit-btn" title="Sair do Modo Expositor" class="rounded-full border border-navy-700 px-3 py-1.5 text-xs font-medium text-navy-400 transition hover:border-navy-500 hover:text-cream-100">Sair do Modo Expositor</button>
+      </div>
+    </header>
+  `;
+}
+
+function renderExpositorCategoryBar(categories) {
+  const items = [{ value: "all", label: "Todos" }, ...categories.map((c) => ({ value: c, label: c }))];
+  return `
+    <div class="border-b border-navy-800 bg-navy-900">
+      <div class="mx-auto flex max-w-[1400px] gap-2 overflow-x-auto px-6 py-3">
+        ${items.map((it) => `
+          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-5 py-2.5 text-base font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+// Uma seção = título + uma fileira de cards grandes que desliza na
+// horizontal (scroll-snap, arrasta com o dedo) com setinhas de apoio
+// pra quem estiver usando mouse/trackpad.
+function renderExpositorSection(title, products, sectionId) {
+  if (products.length === 0) return "";
+  return `
+    <section class="mb-10">
+      <div class="mx-auto flex max-w-[1400px] items-center justify-between px-6">
+        <h2 class="text-2xl font-semibold text-navy-900">${title}</h2>
+        <div class="hidden gap-2 sm:flex">
+          <button type="button" data-expositor-scroll="${sectionId}" data-dir="-1" aria-label="Anterior" class="expositor-scroll-btn flex h-10 w-10 items-center justify-center rounded-full border border-navy-200 bg-white text-xl font-semibold text-navy-700 shadow hover:bg-navy-50">‹</button>
+          <button type="button" data-expositor-scroll="${sectionId}" data-dir="1" aria-label="Próximo" class="expositor-scroll-btn flex h-10 w-10 items-center justify-center rounded-full border border-navy-200 bg-white text-xl font-semibold text-navy-700 shadow hover:bg-navy-50">›</button>
+        </div>
+      </div>
+      <div id="${sectionId}" class="mt-4 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-3" style="scroll-behavior: smooth;">
+        ${products.map((p) => `<div class="w-72 flex-shrink-0 snap-start sm:w-80">${renderProductCard(p, { big: true })}</div>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderExpositorCatalog() {
+  const grouped = groupByCategory(state.products);
+  const categories = grouped.map((g) => g.category);
+  const bestSellers = computeBestSellers(state.products);
+  const searchActive = state.searchQuery.trim().length > 0;
+  const categoryFiltered = state.categoryFilter === "all"
+    ? state.products
+    : state.products.filter((p) => (p.category && p.category.trim() ? p.category.trim() : "Outros") === state.categoryFilter);
+  const visibleProducts = searchActive ? categoryFiltered.filter((p) => productMatchesSearch(p, state.searchQuery)) : categoryFiltered;
+  const visibleGrouped = state.categoryFilter === "all" && !searchActive ? grouped : [{ category: state.categoryFilter === "all" ? "Resultados" : state.categoryFilter, products: visibleProducts }];
+
+  app.innerHTML = `
+    ${renderExpositorHeader()}
+    ${renderExpositorCategoryBar(categories)}
+    <main class="py-8">
+      <div class="mx-auto mb-6 max-w-[1400px] px-6">
+        ${renderSearchBar()}
+      </div>
+
+      ${state.products.length === 0 ? `
+        <p class="mx-auto max-w-[1400px] px-6 text-center text-lg text-navy-400">Nenhum produto disponível no momento.</p>
+      ` : visibleProducts.length === 0 ? `
+        <p class="mx-auto max-w-[1400px] px-6 text-center text-lg text-navy-400">${searchActive ? `Nenhum produto encontrado para "${escapeHtml(state.searchQuery.trim())}".` : "Nenhum produto nessa categoria."}</p>
+      ` : `
+        ${!searchActive && state.categoryFilter === "all" ? renderExpositorSection("🔥 Mais vendidos", bestSellers, "expositor-bestsellers") : ""}
+        ${visibleGrouped.map((g, idx) => renderExpositorSection(escapeHtml(g.category), g.products, `expositor-cat-${idx}`)).join("")}
+      `}
+    </main>
+    ${renderCartBar()}
+    ${state.cartOpen ? renderCartDrawer() : ""}
+  `;
+
+  const exitBtn = document.getElementById("expositor-exit-btn");
+  if (exitBtn) exitBtn.addEventListener("click", () => setExpositorMode(false));
+  document.querySelectorAll(".expositor-scroll-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const track = document.getElementById(btn.dataset.expositorScroll);
+      if (!track) return;
+      track.scrollBy({ left: Number(btn.dataset.dir) * (track.clientWidth * 0.9), behavior: "smooth" });
+    });
+  });
+  wireCatalogEvents();
+}
+
 function renderProductCard(p, opts = {}) {
   const variants = variantsFor(p.id);
   const frames = carouselFrames(p);
   const isFav = !!state.favorites[p.id];
+  // opts.big = versão ampliada usada no Modo Expositor (tablet em pé de
+  // exposição) — mesmo card, só com fontes/botões maiores pra ficar
+  // legível e fácil de tocar de longe/em pé.
+  const big = !!opts.big;
   const favoriteBtn = `
-    <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/85 text-base shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
+    <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex ${big ? "h-10 w-10 text-xl" : "h-7 w-7 text-base"} items-center justify-center rounded-full bg-white/85 shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
   `;
 
   // Modelo (ou produto, se não tiver modelo) atualmente exibido no card —
@@ -903,8 +1041,8 @@ function renderProductCard(p, opts = {}) {
         <button type="button" data-view-product="${p.id}" class="product-image-btn block h-full w-full border-0 p-0 transition hover:opacity-90">
           <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />
         </button>
-        <button type="button" data-carousel-prev="${p.id}" aria-label="Modelo anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">‹</button>
-        <button type="button" data-carousel-next="${p.id}" aria-label="Próximo modelo" class="carousel-nav-btn absolute right-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">›</button>
+        <button type="button" data-carousel-prev="${p.id}" aria-label="Modelo anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex ${big ? "h-10 w-10 text-2xl" : "h-7 w-7 text-lg"} -translate-y-1/2 items-center justify-center rounded-full bg-white/85 font-semibold text-navy-900 shadow transition hover:bg-white">‹</button>
+        <button type="button" data-carousel-next="${p.id}" aria-label="Próximo modelo" class="carousel-nav-btn absolute right-1 top-1/2 z-10 flex ${big ? "h-10 w-10 text-2xl" : "h-7 w-7 text-lg"} -translate-y-1/2 items-center justify-center rounded-full bg-white/85 font-semibold text-navy-900 shadow transition hover:bg-white">›</button>
         ${favoriteBtn}
       </div>
     `;
@@ -940,11 +1078,11 @@ function renderProductCard(p, opts = {}) {
     // adicionar (a seleção "fixa" fica na página do produto).
     addBlock = `
       <div class="mt-auto flex flex-col gap-1.5" data-variant-add-group="${p.id}">
-        <select class="variant-add-select w-full rounded-lg border border-navy-200 px-2 py-2 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+        <select class="variant-add-select w-full rounded-lg border border-navy-200 ${big ? "px-3 py-2.5 text-sm" : "px-2 py-2 text-xs"} outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
           ${variants.map((v) => `<option value="${v.id}" data-in-stock="${v.in_stock ? "1" : "0"}" data-esgotado="${v.esgotado ? "1" : "0"}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
         </select>
-        <button type="button" class="add-variant-btn w-full rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 ${initialEsgotado ? "hidden" : ""}">Adicionar</button>
-        <span data-variant-esgotado-tag="${p.id}" class="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-semibold text-red-700 ${initialEsgotado ? "" : "hidden"}">Esgotado</span>
+        <button type="button" class="add-variant-btn w-full rounded-lg bg-gold-500 ${big ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"} font-semibold text-navy-900 transition hover:bg-gold-400 ${initialEsgotado ? "hidden" : ""}">Adicionar</button>
+        <span data-variant-esgotado-tag="${p.id}" class="w-full rounded-lg border border-red-200 bg-red-50 ${big ? "px-4 py-3 text-sm" : "px-3 py-2 text-xs"} text-center font-semibold text-red-700 ${initialEsgotado ? "" : "hidden"}">Esgotado</span>
       </div>
     `;
   } else if (p.esgotado) {
@@ -953,35 +1091,35 @@ function renderProductCard(p, opts = {}) {
     const key = cartKey(p.id, null);
     const qty = state.cart[key] ?? 0;
     addBlock = qty === 0
-      ? `<button data-add="${key}" class="add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>`
+      ? `<button data-add="${key}" class="add-to-cart-btn mt-auto rounded-lg bg-gold-500 ${big ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"} font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>`
       : `
         <div class="mt-auto flex items-center justify-between rounded-lg border border-navy-200">
-          <button data-qty-minus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
-          <span class="text-sm font-semibold text-navy-900">${qty}</span>
-          <button data-qty-plus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">+</button>
+          <button data-qty-minus="${key}" class="qty-btn ${big ? "px-4 py-2.5 text-2xl" : "px-3 py-1.5 text-lg"} font-semibold text-navy-700">−</button>
+          <span class="${big ? "text-lg" : "text-sm"} font-semibold text-navy-900">${qty}</span>
+          <button data-qty-plus="${key}" class="qty-btn ${big ? "px-4 py-2.5 text-2xl" : "px-3 py-1.5 text-lg"} font-semibold text-navy-700">+</button>
         </div>
       `;
   }
 
   return `
-    <div data-product-card="${p.id}" class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
+    <div data-product-card="${p.id}" class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow${big ? "-lg" : ""}">
       ${photoBlock}
-      <div class="flex flex-1 flex-col gap-2 p-3">
+      <div class="flex flex-1 flex-col gap-2 ${big ? "p-4" : "p-3"}">
         <div>
-          <p class="text-sm font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
+          <p class="${big ? "text-lg" : "text-sm"} font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
           <div class="mt-0.5 flex flex-wrap items-center gap-1.5">
-            <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn text-[11px] text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
-            ${p.material_tag ? `<span class="rounded-full bg-navy-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
+            <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn ${big ? "text-sm" : "text-[11px]"} text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
+            ${p.material_tag ? `<span class="rounded-full bg-navy-50 px-1.5 py-0.5 ${big ? "text-xs" : "text-[10px]"} font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
           </div>
         </div>
 
         <div class="leading-tight">
-          <p class="text-base font-semibold text-navy-900">${formatBRL(p.credit_price)} <span class="text-[10px] font-normal text-navy-400">Em até 3x no crédito</span></p>
-          <p class="text-xs text-navy-400">ou ${formatBRL(p.promo_price)} em pagamentos à vista (Pix ou espécie)</p>
+          <p class="${big ? "text-2xl" : "text-base"} font-semibold text-navy-900">${formatBRL(p.credit_price)} <span class="${big ? "text-xs" : "text-[10px]"} font-normal text-navy-400">Em até 3x no crédito</span></p>
+          <p class="${big ? "text-sm" : "text-xs"} text-navy-400">ou ${formatBRL(p.promo_price)} em pagamentos à vista (Pix ou espécie)</p>
         </div>
         ${variants.length > 0
-          ? `<p data-stock-note="${p.id}" class="text-[10px] font-medium text-gold-700 ${initialInStock || initialEsgotado ? "hidden" : ""}">🕑 ${madeToOrderText(p)}</p>`
-          : !initialInStock && !p.esgotado ? `<p class="text-[10px] font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
+          ? `<p data-stock-note="${p.id}" class="${big ? "text-xs" : "text-[10px]"} font-medium text-gold-700 ${initialInStock || initialEsgotado ? "hidden" : ""}">🕑 ${madeToOrderText(p)}</p>`
+          : !initialInStock && !p.esgotado ? `<p class="${big ? "text-xs" : "text-[10px]"} font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
         ${addBlock}
       </div>
     </div>
@@ -2201,6 +2339,11 @@ app.addEventListener("click", (e) => {
     state.screen = "track";
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  const enterExpositorBtn = e.target.closest("[data-enter-expositor]");
+  if (enterExpositorBtn) {
+    setExpositorMode(true);
   }
 });
 
