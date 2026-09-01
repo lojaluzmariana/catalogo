@@ -1549,6 +1549,68 @@ let securityState = { open: false, step: "loading", enabled: false, backupCodesR
 // porque a lista só cresce com o tempo e não é algo consultado toda hora).
 let priceHistoryState = { open: false, loading: false, rows: [], filter: "", error: null };
 
+// Célula de edição rápida de estoque, direto na lista de produtos —
+// sem precisar abrir "Editar produto". Produto sem modelo mostra um
+// campo numérico só; com modelos, um campo por modelo (cada um pode ter
+// sua própria contagem). Quem ainda não controla por quantidade (o
+// booleano manual de sempre) mostra um botão "Ativar controle" em vez
+// do número — digitar um valor liga o controle por quantidade
+// automaticamente, igual o checkbox faria no formulário completo.
+function renderStockQtyCell(p) {
+  const variants = p.product_variants ?? [];
+  if (variants.length === 0) {
+    if (p.stock_qty == null) {
+      return `<button type="button" data-stock-activate="${p.id}" class="stock-activate-btn rounded border border-navy-200 px-1.5 py-0.5 text-[10px] font-medium text-navy-500 hover:bg-navy-100">ativar controle</button>`;
+    }
+    return `
+      <span class="inline-flex items-center gap-0.5">
+        <input type="number" min="0" step="1" value="${Number(p.stock_qty)}" data-stock-qty-input="${p.id}" class="stock-qty-input w-14 rounded border border-navy-200 px-1 py-0.5 text-center text-[11px] outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-200" />
+        <button type="button" data-stock-deactivate="${p.id}" title="Parar de controlar por quantidade (volta pro manual)" class="stock-deactivate-btn rounded px-1 text-[10px] text-navy-400 hover:bg-navy-100 hover:text-red-600">✕</button>
+      </span>`;
+  }
+  return `
+    <div class="flex flex-col items-start gap-0.5">
+      ${[...variants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `
+        <span class="flex items-center gap-1 text-[10px] text-navy-500">
+          <span class="max-w-[70px] truncate" title="${escapeHtml(v.name)}">${escapeHtml(v.name)}</span>
+          ${v.stock_qty == null
+            ? `<button type="button" data-stock-activate="${p.id}" data-variant-id="${v.id}" class="stock-activate-btn rounded border border-navy-200 px-1 py-0.5 text-[9px] font-medium text-navy-500 hover:bg-navy-100">ativar</button>`
+            : `<input type="number" min="0" step="1" value="${Number(v.stock_qty)}" data-stock-qty-input="${p.id}" data-variant-id="${v.id}" class="stock-qty-input w-12 rounded border border-navy-200 px-1 py-0.5 text-center text-[10px] outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-200" />
+               <button type="button" data-stock-deactivate="${p.id}" data-variant-id="${v.id}" title="Parar de controlar por quantidade (volta pro manual)" class="stock-deactivate-btn rounded px-0.5 text-[9px] text-navy-400 hover:bg-navy-100 hover:text-red-600">✕</button>`}
+        </span>
+      `).join("")}
+    </div>`;
+}
+
+// Salva a nova quantidade em estoque (produto ou modelo), atualizando
+// junto in_stock/esgotado — usada pela edição rápida na lista de
+// produtos (renderStockQtyCell). Ativar o controle pela primeira vez
+// (stock_qty estava null) passa por aqui também, com o valor digitado.
+async function salvarEstoqueRapido(productId, variantId, rawValue) {
+  const qty = Math.max(0, Math.trunc(Number(String(rawValue).replace(",", "."))));
+  if (!Number.isFinite(qty)) return;
+  if (variantId) {
+    await supabaseClient.from("product_variants").update({ stock_qty: qty, in_stock: qty > 0, esgotado: qty <= 0 }).eq("id", variantId);
+  } else {
+    await supabaseClient.from("products").update({ stock_qty: qty, in_stock: qty > 0, esgotado: qty <= 0, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", productId);
+  }
+  await loadProducts();
+  renderPrecificacao(document.getElementById("main-content"));
+}
+
+// Desliga o controle por quantidade (volta pro booleano manual de
+// sempre), preservando o em-estoque/esgotado atual como estavam —
+// só para de recalcular sozinho a partir de um número.
+async function desativarControleEstoque(productId, variantId) {
+  if (variantId) {
+    await supabaseClient.from("product_variants").update({ stock_qty: null }).eq("id", variantId);
+  } else {
+    await supabaseClient.from("products").update({ stock_qty: null, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", productId);
+  }
+  await loadProducts();
+  renderPrecificacao(document.getElementById("main-content"));
+}
+
 function renderPrecificacao(container) {
   const visible = state.products.filter((p) => precifState.showInactive || p.active);
   const categories = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
@@ -1559,7 +1621,7 @@ function renderPrecificacao(container) {
   [...precifState.priceTableSelected].forEach((id) => { if (!visible.some((p) => p.id === id)) precifState.priceTableSelected.delete(id); });
   const priceTableSelectedCount = precifState.priceTableSelected.size;
   const allVisibleSelectedForPriceTable = visible.length > 0 && visible.every((p) => precifState.priceTableSelected.has(p.id));
-  const tableColCount = 13 + (precifState.priceTableOpen ? 1 : 0);
+  const tableColCount = 14 + (precifState.priceTableOpen ? 1 : 0);
 
   container.innerHTML = `
     <div class="flex flex-col gap-6">
@@ -1621,6 +1683,7 @@ function renderPrecificacao(container) {
             <tr class="border-b border-navy-100 bg-navy-900 text-left text-[10px] uppercase tracking-wide text-cream-50 sm:text-[11px]">
               ${precifState.priceTableOpen ? `<th class="px-1 py-1.5 text-center"></th>` : ""}
               <th class="px-1 py-1.5">Produto</th>
+              <th class="px-1 py-1.5 text-center" title="Quantidade em estoque — clique no número pra editar. Produto com modelos mostra um número por modelo.">Estoque</th>
               <th class="px-1 py-1.5 text-right">Custo</th>
               <th class="px-1 py-1.5 text-right" title="Preço Crédito">Créd.</th>
               <th class="px-1 py-1.5 text-right" title="Líquido">Líq.</th>
@@ -1658,6 +1721,7 @@ function renderPrecificacao(container) {
                   </span>
                   ${p.product_materials && p.product_materials.length > 0 ? `<div class="mt-0.5 text-[10px] font-normal text-navy-400">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).join(", ")}</div>` : ""}
                 </td>
+                <td class="px-1 py-1.5 text-center align-top">${renderStockQtyCell(p)}</td>
                 <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatBRL(p.cost)}</td>
                 <td class="px-1 py-1.5 text-right whitespace-nowrap font-semibold text-navy-900">${formatBRL(p.credit_price)}</td>
                 <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatBRL(p.credit_net)}</td>
@@ -1711,6 +1775,24 @@ function renderPrecificacao(container) {
       await supabaseClient.from("products").update({ active: !active, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", id);
       await loadProducts();
       renderPrecificacao(container);
+    });
+  });
+  container.querySelectorAll(".stock-qty-input").forEach((input) => {
+    input.addEventListener("change", () => {
+      salvarEstoqueRapido(input.dataset.stockQtyInput, input.dataset.variantId || null, input.value);
+    });
+  });
+  container.querySelectorAll(".stock-activate-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const value = prompt("Quantas unidades tem em estoque agora?", "0");
+      if (value === null) return;
+      salvarEstoqueRapido(btn.dataset.stockActivate, btn.dataset.variantId || null, value);
+    });
+  });
+  container.querySelectorAll(".stock-deactivate-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!confirm("Parar de controlar o estoque por quantidade e voltar pro manual (marcar em estoque/esgotado à mão)?")) return;
+      desativarControleEstoque(btn.dataset.stockDeactivate, btn.dataset.variantId || null);
     });
   });
   container.querySelectorAll(".visible-toggle-cb").forEach((cb) => {
@@ -4366,17 +4448,24 @@ function orderMadeToOrderDays(order) {
   return maxDays;
 }
 
-// Prazo de entrega do pedido inteiro: se todo item já está "Em estoque",
-// é pronta entrega; se algum item é sob encomenda, o prazo do pedido é o
-// do item mais demorado, a contar de quando o pedido foi feito.
+// Prazo de entrega do pedido inteiro: se o admin já combinou uma data
+// diferente com o cliente (order.custom_deadline_date — ver "Editar
+// pedido"), essa data manda e some qualquer cálculo automático. Sem
+// isso, cai na regra de sempre: pronta entrega se todo item já está
+// em estoque, senão o prazo do item mais demorado, a contar de quando
+// o pedido foi feito.
 function orderDeliveryDeadline(order) {
+  if (order.custom_deadline_date) {
+    const [y, m, d] = order.custom_deadline_date.split("-").map(Number);
+    return { ready: false, date: new Date(y, m - 1, d), overridden: true };
+  }
   const items = order.items ?? [];
   if (items.length === 0) return null;
   const days = orderMadeToOrderDays(order);
-  if (days == null) return { ready: true, date: null };
+  if (days == null) return { ready: true, date: null, overridden: false };
   const date = new Date(order.created_at);
   date.setDate(date.getDate() + days);
-  return { ready: false, date };
+  return { ready: false, date, overridden: false };
 }
 
 function formatDateTime(dateLike) {
@@ -4388,7 +4477,17 @@ function formatDateTime(dateLike) {
 // orderDeliveryDeadline (maior prazo entre os itens sob encomenda do
 // pedido), a partir da data em que o pedido entrou. Sem nenhum item sob
 // encomenda, cai no prazo padrão (mesmo comportamento de sempre).
+// Prazo de entrega combinado com o fabricante: se o admin já combinou
+// uma data direto com o CLIENTE (order.custom_deadline_date), usa essa
+// mesma data aqui também — não faz sentido o fabricante produzir num
+// prazo diferente do que já foi prometido. Sem override, cai na regra de
+// sempre (maior prazo entre os itens sob encomenda do pedido).
 function manufacturerDeadline(order) {
+  if (order.custom_deadline_date) {
+    const [y, m, d] = order.custom_deadline_date.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`;
+  }
   const days = orderMadeToOrderDays(order) ?? DEFAULT_LEAD_TIME_DAYS;
   const created = new Date(order.created_at);
   const deadline = new Date(created.getTime() + days * 24 * 60 * 60 * 1000);
@@ -5872,7 +5971,7 @@ function renderPedidos(container) {
                     ${deliveryDeadlines.get(o.id)?.ready
                       ? "📦 Pronta entrega"
                       : deliveryDeadlines.get(o.id)
-                        ? `🕑 Prazo de entrega: ${formatDate(toLocalISODate(deliveryDeadlines.get(o.id).date))}${deliveryDeadlines.get(o.id).date < new Date() && o.status !== "concluido" && o.status !== "cancelado" ? " (atrasado)" : ""}`
+                        ? `🕑 Prazo de entrega: ${formatDate(toLocalISODate(deliveryDeadlines.get(o.id).date))}${deliveryDeadlines.get(o.id).date < new Date() && o.status !== "concluido" && o.status !== "cancelado" ? " (atrasado)" : ""}${deliveryDeadlines.get(o.id).overridden ? ` <span class="rounded-full bg-navy-100 px-1.5 py-0.5 text-[9px] font-semibold text-navy-600" title="Prazo combinado manualmente com o cliente, diferente do padrão">combinado</span>` : ""}`
                         : ""}
                   </p>
                 </div>
@@ -6271,10 +6370,10 @@ function renderPedidos(container) {
 // tudo de novo manualmente, perdendo o histórico e as observações
 // originais. Segue o mesmo padrão visual/estrutural do "Lançar brinde"
 // (overlay fixo com formulário + lista de itens adicionar/remover).
-let editOrderState = { open: false, orderId: null, items: [], name: "", whatsapp: "", instagram: "", notes: "", discountAmount: 0, couponCode: null, _selectedProductId: null, _loadedUpdatedAt: null };
+let editOrderState = { open: false, orderId: null, items: [], name: "", whatsapp: "", instagram: "", notes: "", discountAmount: 0, couponCode: null, customDeadlineDate: "", _selectedProductId: null, _loadedUpdatedAt: null };
 
 function closeEditOrderOverlay() {
-  editOrderState = { open: false, orderId: null, items: [], name: "", whatsapp: "", instagram: "", notes: "", discountAmount: 0, couponCode: null, _selectedProductId: null, _loadedUpdatedAt: null };
+  editOrderState = { open: false, orderId: null, items: [], name: "", whatsapp: "", instagram: "", notes: "", discountAmount: 0, couponCode: null, customDeadlineDate: "", _selectedProductId: null, _loadedUpdatedAt: null };
   renderEditOrderOverlay();
 }
 
@@ -6291,6 +6390,9 @@ function openEditOrderOverlay(order) {
     // desconto/cupom que já foi aplicado na hora da compra.
     discountAmount: Number(order.discount_amount || 0),
     couponCode: order.coupon_code || null,
+    // Prazo combinado manualmente com o cliente (vazio = usa o cálculo
+    // automático a partir do prazo de fabricação do produto, como sempre).
+    customDeadlineDate: order.custom_deadline_date || "",
     _selectedProductId: null,
     _loadedUpdatedAt: order.updated_at,
   };
@@ -6343,6 +6445,26 @@ function renderEditOrderOverlay() {
                   <label class="mb-1 block text-xs font-medium text-navy-700">Observações (endereço, pedidos especiais...)</label>
                   <input id="edit-order-notes" value="${escapeHtml(editOrderState.notes)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                 </div>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+              <p class="mb-2 text-sm font-medium text-navy-800">Prazo de entrega</p>
+              <p class="mb-2 text-xs text-navy-500">Prazo automático deste pedido (pelo cadastro do produto): <b>${(() => {
+                const order = state.orders.find((o) => o.id === editOrderState.orderId);
+                if (!order) return "—";
+                const days = orderMadeToOrderDays(order);
+                if (days == null) return "pronta entrega";
+                const d = new Date(order.created_at);
+                d.setDate(d.getDate() + days);
+                return `até ${formatDate(toLocalISODate(d))}`;
+              })()}</b>. Combine uma data diferente com o cliente só se for o caso — fica valendo pro pedido inteiro (Catálogo, comprovantes e mensagem pro fabricante passam a usar essa data).</p>
+              <div class="flex flex-wrap items-end gap-3">
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-navy-700">Data combinada (opcional)</label>
+                  <input id="edit-order-deadline" type="date" value="${editOrderState.customDeadlineDate}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                </div>
+                ${editOrderState.customDeadlineDate ? `<button type="button" id="edit-order-deadline-clear" class="rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100">Voltar ao prazo automático</button>` : ""}
               </div>
             </div>
 
@@ -6413,6 +6535,9 @@ function renderEditOrderOverlay() {
   document.getElementById("edit-order-whatsapp").addEventListener("input", (e) => { editOrderState.whatsapp = e.target.value; });
   document.getElementById("edit-order-instagram").addEventListener("input", (e) => { editOrderState.instagram = e.target.value; });
   document.getElementById("edit-order-notes").addEventListener("input", (e) => { editOrderState.notes = e.target.value; });
+  document.getElementById("edit-order-deadline").addEventListener("input", (e) => { editOrderState.customDeadlineDate = e.target.value; renderEditOrderOverlay(); });
+  const deadlineClearBtn = document.getElementById("edit-order-deadline-clear");
+  if (deadlineClearBtn) deadlineClearBtn.addEventListener("click", () => { editOrderState.customDeadlineDate = ""; renderEditOrderOverlay(); });
 
   const productSelect = document.getElementById("edit-order-product-select");
   productSelect.addEventListener("change", () => {
@@ -6493,6 +6618,7 @@ async function submeterEdicaoPedido(e) {
     customer_instagram: instagram || null,
     notes: notes || null,
     total: newTotal,
+    custom_deadline_date: editOrderState.customDeadlineDate || null,
     updated_by: state.currentUser.id,
     updated_at: new Date().toISOString(),
   }).eq("id", editOrderState.orderId);
@@ -6554,7 +6680,7 @@ async function loadCashEntries() {
   state.cashEntries = data.map((e) => ({ ...e, materials_used: byEntry[e.id] || [] }));
 }
 
-let caixaState = { formOpen: false, editingId: null, eventFilter: "" };
+let caixaState = { formOpen: false, editingId: null, eventFilter: "", startDate: "", endDate: "" };
 
 /* =====================================================================
    SIMULAR VENDA — calculadora pura, NÃO grava nada no banco. Serve pra
@@ -7545,8 +7671,8 @@ async function submeterVendaEvento(e) {
 // Panorama de um evento: soma tudo que tem esse event_tag, quebrado por
 // dia (pra eventos de mais de um dia) e por forma de pagamento — a mesma
 // pergunta de "como foi o evento" tanto no dia quanto no total.
-function eventoResumo(eventTag) {
-  const eventEntries = state.cashEntries.filter((e) => e.event_tag === eventTag);
+function eventoResumo(eventTag, sourceEntries = state.cashEntries) {
+  const eventEntries = sourceEntries.filter((e) => e.event_tag === eventTag);
   const totalEntradas = eventEntries.filter((e) => e.entry_type === "entrada").reduce((s, e) => s + Number(e.amount), 0);
   const totalSaidas = eventEntries.filter((e) => e.entry_type === "saida").reduce((s, e) => s + Number(e.amount), 0);
   const lucro = round2(totalEntradas - totalSaidas);
@@ -7585,8 +7711,13 @@ function renderCaixa(container) {
 
   const activeProducts = state.products.filter((p) => p.active);
   const knownEvents = [...new Set(state.cashEntries.map((e) => e.event_tag).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const filteredEntries = caixaState.eventFilter ? entries.filter((e) => e.event_tag === caixaState.eventFilter) : entries;
-  const eventoResumoData = caixaState.eventFilter ? eventoResumo(caixaState.eventFilter) : null;
+  const filteredEntries = entries.filter((e) => {
+    if (caixaState.eventFilter && e.event_tag !== caixaState.eventFilter) return false;
+    if (caixaState.startDate && e.entry_date < caixaState.startDate) return false;
+    if (caixaState.endDate && e.entry_date > caixaState.endDate) return false;
+    return true;
+  });
+  const eventoResumoData = caixaState.eventFilter ? eventoResumo(caixaState.eventFilter, filteredEntries) : null;
 
   container.innerHTML = `
     <div class="flex flex-col gap-6">
@@ -7629,17 +7760,26 @@ function renderCaixa(container) {
         </div>
       </div>
 
-      ${knownEvents.length > 0 ? `
-        <div class="flex flex-wrap items-end gap-3 rounded-xl border border-navy-100 bg-white p-4 shadow">
+      <div class="flex flex-wrap items-end gap-3 rounded-xl border border-navy-100 bg-white p-4 shadow">
+        <div>
+          <label class="mb-1 block text-xs font-medium text-navy-500">De</label>
+          <input id="caixa-start-date" type="date" value="${caixaState.startDate}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-navy-500">Até</label>
+          <input id="caixa-end-date" type="date" value="${caixaState.endDate}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+        </div>
+        ${knownEvents.length > 0 ? `
           <div class="min-w-[220px]">
-            <label class="mb-1 block text-xs font-medium text-navy-500">Ver panorama de um evento</label>
+            <label class="mb-1 block text-xs font-medium text-navy-500">Evento</label>
             <select id="caixa-event-filter" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
               <option value="">— todos os lançamentos —</option>
               ${knownEvents.map((name) => `<option value="${escapeHtml(name)}" ${caixaState.eventFilter === name ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
             </select>
           </div>
-        </div>
-      ` : ""}
+        ` : ""}
+        ${(caixaState.startDate || caixaState.endDate || caixaState.eventFilter) ? `<button id="caixa-filter-clear" class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50">Limpar filtros</button>` : ""}
+      </div>
 
       ${eventoResumoData ? `
         <div class="rounded-xl border border-gold-300 bg-white p-4 shadow">
@@ -7771,6 +7911,23 @@ function renderCaixa(container) {
   if (eventFilterSelect) {
     eventFilterSelect.addEventListener("change", () => {
       caixaState.eventFilter = eventFilterSelect.value;
+      renderCaixa(container);
+    });
+  }
+  document.getElementById("caixa-start-date").addEventListener("change", (e) => {
+    caixaState.startDate = e.target.value;
+    renderCaixa(container);
+  });
+  document.getElementById("caixa-end-date").addEventListener("change", (e) => {
+    caixaState.endDate = e.target.value;
+    renderCaixa(container);
+  });
+  const caixaFilterClearBtn = document.getElementById("caixa-filter-clear");
+  if (caixaFilterClearBtn) {
+    caixaFilterClearBtn.addEventListener("click", () => {
+      caixaState.startDate = "";
+      caixaState.endDate = "";
+      caixaState.eventFilter = "";
       renderCaixa(container);
     });
   }
