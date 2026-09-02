@@ -4560,6 +4560,35 @@ function buildCustomerStatusMessage(order) {
   const deadline = orderDeliveryDeadline(order);
   const isLate = deadline && !deadline.ready && deadline.date < new Date();
 
+  // Pedido atrasado tem uma mensagem própria e completa (pedido de
+  // desculpas + explicação + cupom de compensação) — bem diferente do
+  // resto (que é só um aviso rápido de status), por isso não usa o
+  // "Oi ... Aqui é da loja" genérico nem o aviso de pagamento pendente
+  // do final da função; a mensagem já é auto-contida. Só entra aqui se
+  // o pedido realmente estiver em andamento e atrasado — não se já foi
+  // concluído/cancelado (aí o prazo antigo não importa mais).
+  if (order.status !== "cancelado" && order.status !== "concluido" && order.accepted_at && isLate) {
+    return [
+      `Olá, ${firstName}! 💙`,
+      "",
+      "Queremos te pedir desculpas pelo atraso na entrega do seu pedido. Sabemos que a espera foi maior do que deveria e sentimos muito por isso.",
+      "",
+      "Durante a produção, tivemos uma intercorrência técnica, que precisou de alguns ajustes e acabou prolongando o prazo. Preferimos aguardar para que sua peça fosse finalizada com todo o cuidado e qualidade que buscamos entregar.",
+      "",
+      "Como forma de nos desculpar e agradecer pela sua compreensão, preparamos um carinho para você: 🎁",
+      "",
+      "🎟️ Cupom: COMCARINHO",
+      "",
+      "Ele garante um desconto especial na sua próxima compra e não possui prazo de validade. Você pode guardá-lo e usar quando quiser.",
+      "",
+      "Esperamos que você goste do seu pedido e que ele leve até você todo o carinho com que foi preparado.",
+      "",
+      "Obrigada pela compreensão e por confiar em nosso trabalho. Que Nossa Senhora abençoe você e sua família! 🙏🏻",
+      "",
+      "*Luz Mariana — Artigos Religiosos e Devoção*",
+    ].join("\n");
+  }
+
   const lines = [`Oi ${firstName}! Aqui é da ${STORE_NAME}. 🙏`, ""];
 
   if (order.status === "cancelado") {
@@ -4568,8 +4597,6 @@ function buildCustomerStatusMessage(order) {
     lines.push(`Seu pedido ${numero} foi concluído! Muito obrigada pela confiança e pela preferência. 💙`);
   } else if (!order.accepted_at) {
     lines.push(`Recebemos seu pedido ${numero}, no valor de ${formatBRL(order.total)}. Já vamos começar a preparar e te aviso por aqui assim que sair!`);
-  } else if (isLate) {
-    lines.push(`Seu pedido ${numero} está com a entrega um pouco atrasada em relação ao prazo combinado — peço desculpa pela demora! Já estamos resolvendo e te aviso assim que sair.`);
   } else if (deadline && deadline.ready) {
     lines.push(`Seu pedido ${numero} está em preparação e é de pronta entrega — deve sair em breve!`);
   } else if (deadline && deadline.date) {
