@@ -91,10 +91,10 @@ const STORE_CNPJ = "68.615.746/0001-43";
 // ter seu próprio prazo (dias), configurado no Painel Admin — quando não
 // tem nada configurado (produto antigo, de antes dessa opção existir),
 // usa o padrão de 2 dias (mesmo valor fixo de sempre).
-const DEFAULT_LEAD_TIME_DAYS = 3;
+const DEFAULT_LEAD_TIME_DAYS = 2;
 function madeToOrderText(product) {
   const days = product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
-  return `Prazo de ${days} dia útil${days === 1 ? "" : "úteis"} para fabricação, a contar da data do pedido.`;
+  return `Prazo de ${days} dia${days === 1 ? "" : "s"} para fabricação, a contar da data do pedido.`;
 }
 // Sinal exigido pra confirmar o pedido e iniciar a produção.
 const DEPOSIT_RATE = 0.5;
