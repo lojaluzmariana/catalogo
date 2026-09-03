@@ -1405,18 +1405,33 @@ async function loadProducts() {
   noteLoadResult("produtos", error);
 }
 
-// Prazo de fabricação (dias) de um produto — cada produto pode ter o
-// seu, editável no cadastro (campo "Prazo de fabricação") ou aplicado de
-// uma vez a todos os produtos (botão "Aplicar a todos"). Quando o
-// produto não tem lead_time_days definido (registro antigo, de antes
-// dessa coluna existir, ou produto que sumiu do cadastro), cai no padrão
-// de 2 dias — o mesmo valor fixo que sempre foi usado antes.
-const DEFAULT_LEAD_TIME_DAYS = 2;
+// Prazo de fabricação (dias ÚTEIS, sem contar sábado/domingo) de um
+// produto — cada produto pode ter o seu, editável no cadastro (campo
+// "Prazo de fabricação") ou aplicado de uma vez a todos os produtos
+// (botão "Aplicar a todos"). Quando o produto não tem lead_time_days
+// definido (registro antigo, de antes dessa coluna existir, ou produto
+// que sumiu do cadastro), cai no padrão de 3 dias úteis.
+const DEFAULT_LEAD_TIME_DAYS = 3;
 function productLeadTimeDays(product) {
   return product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
 }
 function leadTimeDaysLabel(days) {
-  return `${days} dia${days === 1 ? "" : "s"}`;
+  return `${days} dia${days === 1 ? "" : "s"} útil${days === 1 ? "" : "eis"}`;
+}
+
+// Soma dias ÚTEIS a uma data, pulando sábado e domingo — usada em todo
+// cálculo de prazo de entrega/fabricação (orderDeliveryDeadline,
+// manufacturerDeadline), já que o prazo agora é sempre em dias úteis,
+// não corridos.
+function addBusinessDays(date, days) {
+  const result = new Date(date);
+  let remaining = days;
+  while (remaining > 0) {
+    result.setDate(result.getDate() + 1);
+    const weekday = result.getDay(); // 0 = domingo, 6 = sábado
+    if (weekday !== 0 && weekday !== 6) remaining--;
+  }
+  return result;
 }
 
 // A partir de quantas unidades um estoque com CONTROLE NUMÉRICO conta
@@ -3151,7 +3166,7 @@ function allSupplierItems(supplierId) {
           kind: "pedido", orderNumber: o.order_number, date: toLocalISODate(new Date(o.created_at)),
           productName: it.product_name, variantName: it.variant_name, quantity: it.quantity,
           unitCost: Number(product.cost), subtotal: Number(product.cost) * it.quantity,
-          paid: !!o.fornecedor_pago_at,
+          paid: !!(it.fornecedor_pago_at || o.fornecedor_pago_at),
         });
       });
     });
@@ -4350,6 +4365,20 @@ function orderCost(order) {
     return sum + Number(product.cost) * it.quantity;
   }, 0);
 
+  // Igual productCost, mas SEM os itens atendidos com o estoque da
+  // própria loja (fulfilled_from_stock) — esses nunca geraram um custo
+  // de fabricação a pagar pra ninguém (já foram pagos quando o estoque
+  // foi comprado). Usado só em "Falta pagar (fornecedor)" e na nota de
+  // fornecedor — o resto (Despesas, Lucro real) continua olhando o
+  // custo real do produto, venha ele de onde vier.
+  let isSupplierProductApprox = false;
+  const supplierProductCost = (order.items ?? []).reduce((sum, it) => {
+    if (it.fulfilled_from_stock) return sum;
+    const product = state.products.find((p) => p.id === it.product_id);
+    if (!product) { isSupplierProductApprox = true; return sum; }
+    return sum + Number(product.cost) * it.quantity;
+  }, 0);
+
   const giftWrapCost = (order.giftWraps ?? []).reduce((sum, g) => {
     const material = g.material_id ? state.materials.find((m) => m.id === g.material_id) : null;
     if (material) return sum + Number(material.unit_cost) * g.quantity;
@@ -4372,6 +4401,7 @@ function orderCost(order) {
 
   return {
     productCost, materialsCost, cost: productCost + materialsCost,
+    supplierProductCost, isSupplierProductApprox,
     // Custo "sem essenciais" — usado no lançamento de saída do Caixa ao
     // Iniciar venda. O custo do material Essencial já vira uma saída no
     // Caixa quando ele é COMPRADO (estoque aumentado, em Materiais); se
@@ -4414,6 +4444,31 @@ async function ajustarEstoqueQtd(productId, variantId, delta) {
     const { error } = await supabaseClient.from("products").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: newQty <= 0, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", productId);
     if (error) console.error("Não foi possível ajustar o estoque do produto:", error.message);
   }
+}
+
+// Itens de um pedido que ainda não foram pagos ao fornecedor/fabricante
+// — ou seja, NÃO foram atendidos com o estoque da própria loja
+// (fulfilled_from_stock, que nunca gera pagamento a fornecedor) e ainda
+// não têm pagamento registrado (fornecedor_pago_at, por item). Mesma
+// lógica de compatibilidade de orderSupplierPendingItems: pedido antigo
+// que já tinha o campo de PEDIDO orders.fornecedor_pago_at marcado conta
+// como "nada pendente".
+function orderSupplierUnpaidItems(order) {
+  if (order.fornecedor_pago_at) return [];
+  return (order.items ?? []).filter((it) => !it.fulfilled_from_stock && !it.fornecedor_pago_at);
+}
+
+// Itens de um pedido que ainda dependem do fornecedor/fabricante — ou
+// seja, NÃO foram atendidos com o estoque da própria loja
+// (fulfilled_from_stock) e ainda não têm entrega registrada
+// (fornecedor_entregue_at, por item). Pedido antigo (de antes dessa
+// separação por item existir) que já tinha o campo de PEDIDO
+// orders.fornecedor_entregue_at marcado conta como "nada pendente",
+// por compatibilidade — sem isso, todo pedido anterior à migration
+// voltaria a aparecer como pendente do fornecedor.
+function orderSupplierPendingItems(order) {
+  if (order.fornecedor_entregue_at) return [];
+  return (order.items ?? []).filter((it) => !it.fulfilled_from_stock && !it.fornecedor_entregue_at);
 }
 
 function itemIsInStock(item, product) {
@@ -4463,8 +4518,7 @@ function orderDeliveryDeadline(order) {
   if (items.length === 0) return null;
   const days = orderMadeToOrderDays(order);
   if (days == null) return { ready: true, date: null, overridden: false };
-  const date = new Date(order.created_at);
-  date.setDate(date.getDate() + days);
+  const date = addBusinessDays(order.created_at, days);
   return { ready: false, date, overridden: false };
 }
 
@@ -4489,8 +4543,7 @@ function manufacturerDeadline(order) {
     return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`;
   }
   const days = orderMadeToOrderDays(order) ?? DEFAULT_LEAD_TIME_DAYS;
-  const created = new Date(order.created_at);
-  const deadline = new Date(created.getTime() + days * 24 * 60 * 60 * 1000);
+  const deadline = addBusinessDays(order.created_at, days);
   const d = String(deadline.getDate()).padStart(2, "0");
   const m = String(deadline.getMonth() + 1).padStart(2, "0");
   const y = deadline.getFullYear();
@@ -4530,7 +4583,8 @@ function orderItemPhotoPreviewUrl(item, order) {
 // WhatsApp) e prazo — nunca preço (o fabricante não precisa saber quanto
 // o cliente pagou), e não inclui as embalagens de presente (isso a loja
 // resolve por conta própria, não é o fabricante que produz).
-function buildManufacturerMessage(order) {
+function buildManufacturerMessage(order, pendingItems) {
+  const items = pendingItems ?? orderSupplierPendingItems(order);
   const lines = [];
   lines.push(`${STORE_NAME} - ${STORE_SUBTITLE}`);
   lines.push(`CNPJ: ${STORE_CNPJ}`);
@@ -4540,7 +4594,7 @@ function buildManufacturerMessage(order) {
   lines.push(`Prazo para entrega: ${manufacturerDeadline(order)}`);
   lines.push("");
   lines.push("Itens:");
-  (order.items ?? []).forEach((it) => {
+  items.forEach((it) => {
     lines.push(`• ${it.quantity}x ${it.product_name}`);
     if (it.variant_name) lines.push(`  Variação: ${it.variant_name}`);
     const photoPreview = orderItemPhotoPreviewUrl(it, order);
@@ -5139,9 +5193,9 @@ function pendingSupplierItems(supplierId) {
   const rows = [];
   let isApprox = false;
   state.orders
-    .filter((o) => o.status !== "cancelado" && !o.fornecedor_pago_at)
+    .filter((o) => o.status !== "cancelado")
     .forEach((o) => {
-      (o.items ?? []).forEach((it) => {
+      orderSupplierUnpaidItems(o).forEach((it) => {
         const product = state.products.find((p) => p.id === it.product_id);
         if (!product) { isApprox = true; return; }
         if (product.supplier_id !== supplierId) return;
@@ -5157,7 +5211,7 @@ function pendingSupplierItems(supplierId) {
           quantity: it.quantity,
           unitCost: Number(product.cost),
           subtotal: Number(product.cost) * it.quantity,
-          fornecedorEntregou: !!o.fornecedor_entregue_at,
+          fornecedorEntregou: !!(it.fornecedor_entregue_at || o.fornecedor_entregue_at),
         });
       });
     });
@@ -5823,10 +5877,11 @@ function renderPedidos(container) {
     if (c.isMaterialsApprox) despesasMaterialsHasApprox = true;
     despesasTotal += c.cost;
     if (c.isApprox) despesasHasApprox = true;
-    if (!o.fornecedor_pago_at) {
-      faltaPagarFornecedor += c.productCost;
-      if (c.isProductApprox) faltaPagarHasApprox = true;
-    }
+    orderSupplierUnpaidItems(o).forEach((it) => {
+      const product = state.products.find((p) => p.id === it.product_id);
+      if (!product) { faltaPagarHasApprox = true; return; }
+      faltaPagarFornecedor += Number(product.cost) * it.quantity;
+    });
     // Já os valores de receita (recebidos/a receber/lucro) ficam de fora
     // pra pedidos-brinde: nada foi cobrado do cliente (total = 0), então
     // não faz sentido entrar aqui nem aparecer como "a receber".
@@ -5848,12 +5903,12 @@ function renderPedidos(container) {
   });
   const receivablesList = [...receivablesByCustomer.entries()].sort((a, b) => b[1] - a[1]);
 
-  // "Produtos a receber (fornecedor)": pedidos cujo fornecedor/fabricante
-  // ainda NÃO entregou o produto pra loja (checkbox "Fornecedor entregou"
-  // desmarcada) — do mais antigo pro mais novo, pra destacar o que está
-  // esperando há mais tempo primeiro.
+  // "Produtos a receber (fornecedor)": pedidos com pelo menos um item
+  // ainda pendente do fornecedor/fabricante (não atendido pelo estoque
+  // da loja nem já entregue) — do mais antigo pro mais novo, pra
+  // destacar o que está esperando há mais tempo primeiro.
   const produtosAReceberOrders = statsOrders
-    .filter((o) => !o.fornecedor_entregue_at)
+    .filter((o) => orderSupplierPendingItems(o).length > 0)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
   container.innerHTML = `
@@ -5934,7 +5989,7 @@ function renderPedidos(container) {
                         <span class="text-xs text-navy-400">${formatDate(toLocalISODate(new Date(o.created_at)))} · ${escapeHtml(o.customer_name)}</span>
                       </div>
                       <div class="mt-1.5 flex flex-col gap-0.5">
-                        ${(o.items ?? []).map((it) => `
+                        ${orderSupplierPendingItems(o).map((it) => `
                           <span class="text-xs text-navy-600">• ${it.quantity}x ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""}</span>
                         `).join("")}
                       </div>
@@ -6045,13 +6100,13 @@ function renderPedidos(container) {
                 <input type="checkbox" data-paid-toggle="${o.id}" ${o.paid_at ? "checked" : ""} class="paid-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
                 Pago${o.paid_at ? ` <span class="text-navy-400">(${formatDate(o.paid_at.slice(0, 10))})</span>` : ""}
               </label>
-              <label class="flex items-center gap-1.5 text-xs font-medium text-navy-700" title="Se a loja já pagou o fornecedor/fabricante pela fabricação deste pedido (independente de o cliente já ter pago ou não).">
-                <input type="checkbox" data-fornecedor-pago-toggle="${o.id}" ${o.fornecedor_pago_at ? "checked" : ""} class="fornecedor-pago-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
-                Fornecedor pago${o.fornecedor_pago_at ? ` <span class="text-navy-400">(${formatDate(o.fornecedor_pago_at.slice(0, 10))})</span>` : ""}
+              <label class="flex items-center gap-1.5 text-xs font-medium text-navy-700" title="Se a loja já pagou o fornecedor/fabricante pelos itens deste pedido (item atendido com o estoque da loja não conta aqui — ver 'Ver itens' pra marcar item por item). Independe de o cliente já ter pago ou não.">
+                <input type="checkbox" data-fornecedor-pago-toggle="${o.id}" ${orderSupplierUnpaidItems(o).length === 0 ? "checked" : ""} class="fornecedor-pago-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
+                Fornecedor pago${o.items.length > 1 && orderSupplierUnpaidItems(o).length > 0 ? ` <span class="text-navy-400">(${o.items.length - orderSupplierUnpaidItems(o).length}/${o.items.length})</span>` : ""}
               </label>
-              <label class="flex items-center gap-1.5 text-xs font-medium text-navy-700" title="Se o fornecedor/fabricante já entregou o produto pra loja (independente de já ter sido pago ou não, e de o cliente já ter pago ou não).">
-                <input type="checkbox" data-fornecedor-entregou-toggle="${o.id}" ${o.fornecedor_entregue_at ? "checked" : ""} class="fornecedor-entregou-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
-                Fornecedor entregou${o.fornecedor_entregue_at ? ` <span class="text-navy-400">(${formatDate(o.fornecedor_entregue_at.slice(0, 10))})</span>` : ""}
+              <label class="flex items-center gap-1.5 text-xs font-medium text-navy-700" title="Se o fornecedor/fabricante já entregou os itens deste pedido pra loja (item atendido com o estoque da loja não conta aqui — ver 'Ver itens' pra marcar item por item). Independe de já ter sido pago ou não, e de o cliente já ter pago ou não.">
+                <input type="checkbox" data-fornecedor-entregou-toggle="${o.id}" ${orderSupplierPendingItems(o).length === 0 ? "checked" : ""} class="fornecedor-entregou-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
+                Fornecedor entregou${o.items.length > 1 && orderSupplierPendingItems(o).length > 0 ? ` <span class="text-navy-400">(${o.items.length - orderSupplierPendingItems(o).length}/${o.items.length})</span>` : ""}
               </label>
               <select data-order="${o.id}" class="order-status-select ml-auto rounded-lg border border-navy-200 px-2 py-1.5 text-xs font-medium outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${ORDER_STATUS_CLASSES[o.status]}" title="Trocar status manualmente">
                 ${Object.entries(ORDER_STATUS_LABELS).map(([k, label]) => `<option value="${k}" ${o.status === k ? "selected" : ""}>${label}</option>`).join("")}
@@ -6064,6 +6119,16 @@ function renderPedidos(container) {
                     <div class="flex items-center gap-2">
                       ${orderItemPhoto(it) ? `<a href="${orderItemPhoto(it)}" target="_blank" rel="noopener" title="Abrir foto em tamanho real — clique com o botão direito pra copiar ou arraste pro WhatsApp"><img src="${orderItemPhoto(it)}" class="h-10 w-10 rounded object-cover ring-1 ring-navy-100" /></a>` : ""}
                       <span>${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""}</span>
+                      ${it.fulfilled_from_stock
+                        ? `<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700" title="Esse item foi atendido com o estoque da própria loja — não precisou do fornecedor.">📦 Em estoque</span>`
+                        : `<label class="flex items-center gap-1 text-[11px] font-medium text-navy-500" title="Se o fornecedor/fabricante já entregou ESSE item específico pra loja.">
+                            <input type="checkbox" data-fornecedor-entregou-item="${it.id}" data-order-id="${o.id}" ${it.fornecedor_entregue_at || o.fornecedor_entregue_at ? "checked" : ""} class="fornecedor-entregou-item-cb h-3 w-3 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
+                            Fornecedor entregou${it.fornecedor_entregue_at ? ` <span class="text-navy-400">(${formatDate(it.fornecedor_entregue_at.slice(0, 10))})</span>` : ""}
+                          </label>
+                          <label class="flex items-center gap-1 text-[11px] font-medium text-navy-500" title="Se a loja já pagou o fornecedor/fabricante por ESSE item específico.">
+                            <input type="checkbox" data-fornecedor-pago-item="${it.id}" data-order-id="${o.id}" ${it.fornecedor_pago_at || o.fornecedor_pago_at ? "checked" : ""} class="fornecedor-pago-item-cb h-3 w-3 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
+                            Fornecedor pago${it.fornecedor_pago_at ? ` <span class="text-navy-400">(${formatDate(it.fornecedor_pago_at.slice(0, 10))})</span>` : ""}
+                          </label>`}
                     </div>
                     <span>${formatBRL(it.unit_price * it.quantity)}</span>
                   </div>
@@ -6202,8 +6267,46 @@ function renderPedidos(container) {
     btn.addEventListener("click", async () => {
       const order = state.orders.find((o) => o.id === btn.dataset.enviarFabricante);
       if (!order) return;
+
+      // Antes de montar a mensagem: confere se algum item ainda pendente
+      // já tem quantidade suficiente no estoque numérico da própria loja
+      // (stock_qty controlado). Se tiver, esse item NÃO vai pro
+      // fabricante — baixa o estoque na hora e marca "Em estoque" nele,
+      // sem precisar esperar entrega de fornecedor. Só entra nessa conta
+      // quem tem controle por QUANTIDADE (stock_qty); o booleano manual
+      // "em estoque/esgotado" de sempre não diz quanto tem, então não dá
+      // pra saber se cobre a quantidade pedida — esses continuam indo
+      // pro fabricante como antes.
+      const pending = orderSupplierPendingItems(order);
+      const fulfillFromStock = [];
+      const stillPending = [];
+      pending.forEach((it) => {
+        const product = state.products.find((p) => p.id === it.product_id);
+        const variant = it.variant_name ? (product?.product_variants ?? []).find((v) => v.name === it.variant_name) : null;
+        const stockQty = variant ? variant.stock_qty : product?.stock_qty;
+        if (stockQty != null && Number(stockQty) >= it.quantity) fulfillFromStock.push({ item: it, product, variant });
+        else stillPending.push(it);
+      });
+
+      if (fulfillFromStock.length > 0) {
+        for (const { item, product, variant } of fulfillFromStock) {
+          await ajustarEstoqueQtd(product.id, variant ? variant.id : null, -item.quantity);
+          const { error } = await supabaseClient.from("order_items").update({ fulfilled_from_stock: true }).eq("id", item.id);
+          if (error) console.error("marcar item atendido por estoque:", error.message);
+        }
+        await Promise.all([loadOrders(), loadProducts()]);
+      }
+
+      if (stillPending.length === 0) {
+        alert(fulfillFromStock.length > 0
+          ? "Todos os itens pendentes já estavam em estoque — nada foi enviado ao fabricante. O estoque já foi baixado e os itens marcados como \"Em estoque\"."
+          : "Não há itens pendentes do fornecedor nesse pedido.");
+        renderPedidos(container);
+        return;
+      }
+
       try {
-        const message = buildManufacturerMessage(order);
+        const message = buildManufacturerMessage(order, stillPending);
         const waUrl = `https://wa.me/${MANUFACTURER_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
         window.open(waUrl, "_blank");
       } catch (err) {
@@ -6249,13 +6352,51 @@ function renderPedidos(container) {
   container.querySelectorAll(".fornecedor-pago-toggle-cb").forEach((cb) => {
     cb.addEventListener("change", async () => {
       const id = cb.dataset.fornecedorPagoToggle;
+      const order = state.orders.find((o) => o.id === id);
+      if (!order) return;
       cb.disabled = true;
       if (!(await checkOrderNotStale(id))) return;
-      const { error } = await supabaseClient.from("orders").update({
+
+      if (cb.checked) {
+        const unpaidIds = orderSupplierUnpaidItems(order).map((it) => it.id);
+        if (unpaidIds.length > 0) {
+          const { error } = await supabaseClient.from("order_items").update({ fornecedor_pago_at: new Date().toISOString() }).in("id", unpaidIds);
+          if (error) alert("Não foi possível atualizar o pagamento ao fornecedor: " + error.message);
+        }
+      } else {
+        const nonStockIds = (order.items ?? []).filter((it) => !it.fulfilled_from_stock).map((it) => it.id);
+        if (nonStockIds.length > 0) {
+          const { error } = await supabaseClient.from("order_items").update({ fornecedor_pago_at: null }).in("id", nonStockIds);
+          if (error) alert("Não foi possível atualizar o pagamento ao fornecedor: " + error.message);
+        }
+        if (order.fornecedor_pago_at) {
+          await supabaseClient.from("orders").update({ fornecedor_pago_at: null }).eq("id", id);
+        }
+      }
+      await loadOrders();
+      renderPedidos(container);
+    });
+  });
+  container.querySelectorAll(".fornecedor-pago-item-cb").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      const itemId = cb.dataset.fornecedorPagoItem;
+      const orderId = cb.dataset.orderId;
+      const order = state.orders.find((o) => o.id === orderId);
+      cb.disabled = true;
+      if (!(await checkOrderNotStale(orderId))) return;
+      if (order?.fornecedor_pago_at) {
+        const siblingIds = (order.items ?? [])
+          .filter((sib) => sib.id !== itemId && !sib.fulfilled_from_stock && !sib.fornecedor_pago_at)
+          .map((sib) => sib.id);
+        if (siblingIds.length > 0) {
+          await supabaseClient.from("order_items").update({ fornecedor_pago_at: order.fornecedor_pago_at }).in("id", siblingIds);
+        }
+        await supabaseClient.from("orders").update({ fornecedor_pago_at: null }).eq("id", orderId);
+      }
+      const { error } = await supabaseClient.from("order_items").update({
         fornecedor_pago_at: cb.checked ? new Date().toISOString() : null,
-        updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
-      }).eq("id", id);
-      if (error) { alert("Não foi possível atualizar o pagamento ao fornecedor: " + error.message); }
+      }).eq("id", itemId);
+      if (error) alert("Não foi possível atualizar o pagamento desse item: " + error.message);
       await loadOrders();
       renderPedidos(container);
     });
@@ -6263,13 +6404,66 @@ function renderPedidos(container) {
   container.querySelectorAll(".fornecedor-entregou-toggle-cb").forEach((cb) => {
     cb.addEventListener("change", async () => {
       const id = cb.dataset.fornecedorEntregouToggle;
+      const order = state.orders.find((o) => o.id === id);
+      if (!order) return;
       cb.disabled = true;
       if (!(await checkOrderNotStale(id))) return;
-      const { error } = await supabaseClient.from("orders").update({
+
+      if (cb.checked) {
+        // Marca TODOS os itens ainda pendentes desse pedido de uma vez —
+        // pra marcar só um item específico, use o checkbox dele em "Ver itens".
+        const pendingIds = orderSupplierPendingItems(order).map((it) => it.id);
+        if (pendingIds.length > 0) {
+          const { error } = await supabaseClient.from("order_items").update({ fornecedor_entregue_at: new Date().toISOString() }).in("id", pendingIds);
+          if (error) alert("Não foi possível atualizar a entrega do fornecedor: " + error.message);
+        }
+      } else {
+        // Desmarca todos os itens (que não vieram do estoque) e também o
+        // campo antigo do pedido inteiro, se algum pedido anterior à
+        // separação por item ainda tiver ele marcado.
+        const nonStockIds = (order.items ?? []).filter((it) => !it.fulfilled_from_stock).map((it) => it.id);
+        if (nonStockIds.length > 0) {
+          const { error } = await supabaseClient.from("order_items").update({ fornecedor_entregue_at: null }).in("id", nonStockIds);
+          if (error) alert("Não foi possível atualizar a entrega do fornecedor: " + error.message);
+        }
+        if (order.fornecedor_entregue_at) {
+          await supabaseClient.from("orders").update({ fornecedor_entregue_at: null }).eq("id", id);
+        }
+      }
+      await loadOrders();
+      renderPedidos(container);
+    });
+  });
+  container.querySelectorAll(".fornecedor-entregou-item-cb").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      const itemId = cb.dataset.fornecedorEntregouItem;
+      const orderId = cb.dataset.orderId;
+      const order = state.orders.find((o) => o.id === orderId);
+      cb.disabled = true;
+      if (!(await checkOrderNotStale(orderId))) return;
+      // Se esse pedido ainda estava usando o campo antigo (por pedido
+      // inteiro, de antes de existir controle por item), mexer num item
+      // específico "migra" o pedido pra passar a usar o controle por
+      // item dali em diante — sem isso, o campo antigo continuaria
+      // fazendo o pedido inteiro parecer "tudo entregue" mesmo depois de
+      // desmarcar um item aqui.
+      if (order?.fornecedor_entregue_at) {
+        // Preserva a data antiga nos OUTROS itens desse pedido (que
+        // dependiam só do campo antigo pra contar como "entregues") antes
+        // de desligá-lo — senão eles regrediriam pra "pendente" só porque
+        // você mexeu no checkbox de um item específico.
+        const siblingIds = (order.items ?? [])
+          .filter((sib) => sib.id !== itemId && !sib.fulfilled_from_stock && !sib.fornecedor_entregue_at)
+          .map((sib) => sib.id);
+        if (siblingIds.length > 0) {
+          await supabaseClient.from("order_items").update({ fornecedor_entregue_at: order.fornecedor_entregue_at }).in("id", siblingIds);
+        }
+        await supabaseClient.from("orders").update({ fornecedor_entregue_at: null }).eq("id", orderId);
+      }
+      const { error } = await supabaseClient.from("order_items").update({
         fornecedor_entregue_at: cb.checked ? new Date().toISOString() : null,
-        updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
-      }).eq("id", id);
-      if (error) { alert("Não foi possível atualizar a entrega do fornecedor: " + error.message); }
+      }).eq("id", itemId);
+      if (error) alert("Não foi possível atualizar a entrega desse item: " + error.message);
       await loadOrders();
       renderPedidos(container);
     });
@@ -6482,8 +6676,7 @@ function renderEditOrderOverlay() {
                 if (!order) return "—";
                 const days = orderMadeToOrderDays(order);
                 if (days == null) return "pronta entrega";
-                const d = new Date(order.created_at);
-                d.setDate(d.getDate() + days);
+                const d = addBusinessDays(order.created_at, days);
                 return `até ${formatDate(toLocalISODate(d))}`;
               })()}</b>. Combine uma data diferente com o cliente só se for o caso — fica valendo pro pedido inteiro (Catálogo, comprovantes e mensagem pro fabricante passam a usar essa data).</p>
               <div class="flex flex-wrap items-end gap-3">
