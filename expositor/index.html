@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Luz Mariana — Expositor</title>
-<meta name="description" content="Vitrine de produtos Luz Mariana para exposição em eventos" />
-<link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/expositor/" />
-<link rel="icon" type="image/png" href="../favicon.png" />
+<title>Luz Mariana — Catálogo</title>
+<meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
+<link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
+<link rel="icon" type="image/png" href="favicon.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
 
-<!-- Google Analytics (GA4) — mesma propriedade do catálogo, só pra saber
-     quando esse expositor é usado. -->
+<!-- Google Analytics (GA4) — só no catálogo público, não no painel admin
+     (ferramenta interna, não faz sentido rastrear o uso de vocês dois lá). -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-G0TGJJXGTF"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -18,16 +19,40 @@
   gtag('config', 'G-G0TGJJXGTF');
 </script>
 
-<!-- Esta é uma página separada, feita só pra ficar aberta num tablet
-     durante eventos/feiras — por isso NÃO usa o tailwind-built.css
-     pré-compilado do catálogo (que só contém as classes já usadas lá e
-     no painel). Aqui usamos o Tailwind via CDN mesmo: compila na hora,
-     no próprio navegador do tablet, sem depender de regenerar nenhum
-     arquivo sempre que uma classe nova for usada — a troca de
-     performance (recompilar a cada carregamento) não importa aqui
-     porque é um único aparelho, com a página aberta por horas a fio,
-     não um site de muitos visitantes. -->
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- PWA: permite "Adicionar à tela inicial" (o app abre parecido com um
+     aplicativo nativo, sem barra de endereço). Ver manifest.json e
+     sw.js — o service worker é só pra habilitar a instalação, não guarda
+     nada em cache (estoque/preço sempre vêm direto do Supabase). -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#001868" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Luz Mariana" />
+
+<!-- Pré-visualização do link no WhatsApp, Instagram, etc. -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Luz Mariana" />
+<meta property="og:title" content="Luz Mariana - Loja Virtual" />
+<meta property="og:description" content="Catálogo de artigos religiosos — Luz Mariana" />
+<meta property="og:url" content="https://lojaluzmariana.github.io/catalogo/" />
+<meta property="og:image" content="https://lojaluzmariana.github.io/catalogo/og-image.jpg" />
+<meta property="og:image:secure_url" content="https://lojaluzmariana.github.io/catalogo/og-image.jpg" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="1200" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Luz Mariana - Loja Virtual" />
+<meta name="twitter:description" content="Catálogo de artigos religiosos — Luz Mariana" />
+<meta name="twitter:image" content="https://lojaluzmariana.github.io/catalogo/og-image.jpg" />
+
+<!-- CSS do Tailwind PRÉ-COMPILADO (tailwind-built.css), no lugar do
+     script da CDN (cdn.tailwindcss.com). A CDN recompila tudo no
+     navegador de cada visitante a cada carregamento — mais lento e
+     dependente de um domínio externo. O arquivo estático já vem pronto
+     com só as classes realmente usadas no catálogo e no painel. Se
+     algum dia mudar/adicionar uma classe do Tailwind no HTML e ela não
+     aparecer estilizada, é só regenerar esse arquivo (README-TAILWIND.md
+     explica o passo a passo, sem precisar mexer no resto do site). -->
+<link rel="stylesheet" href="tailwind-built.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -63,13 +88,13 @@ const STORE_CNPJ = "68.615.746/0001-43";
 
 // Mostrado nos produtos que não estão marcados como "Em estoque" no
 // painel admin (a maioria — são feitos sob encomenda). Cada produto pode
-// ter seu próprio prazo (dias), configurado no Painel Admin — quando não
-// tem nada configurado (produto antigo, de antes dessa opção existir),
-// usa o padrão de 2 dias (mesmo valor fixo de sempre).
-const DEFAULT_LEAD_TIME_DAYS = 2;
+// ter seu próprio prazo (dias ÚTEIS, sem contar sábado/domingo),
+// configurado no Painel Admin — quando não tem nada configurado (produto
+// antigo, de antes dessa opção existir), usa o padrão de 3 dias úteis.
+const DEFAULT_LEAD_TIME_DAYS = 3;
 function madeToOrderText(product) {
   const days = product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
-  return `Prazo de ${days} dia${days === 1 ? "" : "s"} para fabricação, a contar da data do pedido.`;
+  return `Prazo de até ${days} dia${days === 1 ? "" : "s"} útil${days === 1 ? "" : "eis"} para fabricação, a contar da data do pedido.`;
 }
 // Sinal exigido pra confirmar o pedido e iniciar a produção.
 const DEPOSIT_RATE = 0.5;
@@ -648,7 +673,7 @@ function render() {
   if (state.screen === "product") return renderProductDetail();
   if (state.screen === "policy") return renderPolicy();
   if (state.screen === "track") return renderTrack();
-  return renderExpositorCatalog();
+  return renderCatalog();
 }
 
 function renderHeader() {
@@ -656,7 +681,7 @@ function renderHeader() {
     <header class="bg-navy-900">
       <div class="mx-auto flex max-w-5xl items-center justify-center gap-3 px-4 py-3">
         <button type="button" data-go-home class="flex items-center gap-3 border-0 bg-transparent p-0 transition hover:opacity-90">
-          <img src="../logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
+          <img src="logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
           <span class="text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
         </button>
         <button type="button" data-open-track class="rounded-full border border-navy-700 px-2.5 py-1 text-[11px] font-medium text-navy-300 transition hover:border-navy-500 hover:text-cream-100">Rastrear pedido</button>
@@ -674,8 +699,8 @@ function renderHero() {
   return `
     <div class="w-full overflow-hidden bg-navy-900">
       <picture>
-        <source media="(max-width: 639px)" srcset="../hero-banner-mobile.jpg" />
-        <img src="../hero-banner.jpg"
+        <source media="(max-width: 639px)" srcset="hero-banner-mobile.jpg" />
+        <img src="hero-banner.jpg"
           alt="Bem-vindo(a) à Luz Mariana — Fé que inspira. Presentes que têm significado. Artigos religiosos e peças de devoção para sua casa, seu cantinho de oração ou para presentear alguém especial. Condições especiais para pagamentos via Pix ou à vista."
           class="aspect-[4/3] w-full object-cover object-center sm:aspect-[2/1] lg:aspect-[3/1]" />
       </picture>
@@ -854,110 +879,6 @@ function renderCatalog() {
   wireCatalogEvents();
 }
 
-/* =====================================================================
-   EXPOSITOR — vitrine pro tablet de evento (Positivo Vision Tab 10,
-   usado deitado/paisagem, Chrome maximizado). Esta página inteira É o
-   expositor (fica numa pasta separada do catálogo normal) — mesmo
-   carrinho e checkout de sempre, só que os produtos aparecem um pouco
-   maiores que o catálogo comum e organizados em seções: a página rola
-   na vertical entre elas (Mais vendidos, cada categoria...) e dentro de
-   cada seção os cards deslizam na horizontal arrastando com o dedo —
-   pensado pro próprio cliente folhear, em pé, na frente do estande.
-   Tamanho propositalmente comedido: só um pouco maior que o catálogo
-   normal, não gigante, pra caber bem numa tela de 10" na horizontal.
-   ===================================================================== */
-function renderExpositorHeader() {
-  return `
-    <header class="sticky top-0 z-30 bg-navy-900 shadow-lg">
-      <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
-        <button type="button" data-go-home class="flex items-center gap-2.5 border-0 bg-transparent p-0 transition hover:opacity-90">
-          <img src="../logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
-          <span class="text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
-        </button>
-        <a href="../" target="_blank" rel="noopener" class="rounded-full border border-navy-700 px-3 py-1.5 text-xs font-medium text-navy-400 transition hover:border-navy-500 hover:text-cream-100">Loja completa ↗</a>
-      </div>
-    </header>
-  `;
-}
-
-function renderExpositorCategoryBar(categories) {
-  const items = [{ value: "all", label: "Todos" }, ...categories.map((c) => ({ value: c, label: c }))];
-  return `
-    <div class="border-b border-navy-800 bg-navy-900">
-      <div class="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-5 py-2.5">
-        ${items.map((it) => `
-          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
-        `).join("")}
-      </div>
-    </div>
-  `;
-}
-
-// Uma seção = título + uma fileira de cards que desliza na horizontal
-// (arrasta com o dedo) com setinhas de apoio pra quem usar mouse/trackpad.
-// Os cards em si são o MESMO componente do catálogo normal (renderProductCard)
-// — só ganham uma largura fixa um pouco maior que o normal, o bastante
-// pra facilitar a visão sem ficar exagerado.
-function renderExpositorSection(title, products, sectionId) {
-  if (products.length === 0) return "";
-  return `
-    <section class="mb-8">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-5">
-        <h2 class="text-lg font-semibold text-navy-900">${title}</h2>
-        <div class="hidden gap-2 sm:flex">
-          <button type="button" data-expositor-scroll="${sectionId}" data-dir="-1" aria-label="Anterior" class="expositor-scroll-btn flex h-8 w-8 items-center justify-center rounded-full border border-navy-200 bg-white text-lg font-semibold text-navy-700 shadow hover:bg-navy-50">‹</button>
-          <button type="button" data-expositor-scroll="${sectionId}" data-dir="1" aria-label="Próximo" class="expositor-scroll-btn flex h-8 w-8 items-center justify-center rounded-full border border-navy-200 bg-white text-lg font-semibold text-navy-700 shadow hover:bg-navy-50">›</button>
-        </div>
-      </div>
-      <div id="${sectionId}" class="mt-3 flex gap-4 overflow-x-auto px-5 pb-3" style="scroll-behavior: smooth;">
-        ${products.map((p) => `<div class="w-48 flex-shrink-0 sm:w-56">${renderProductCard(p)}</div>`).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function renderExpositorCatalog() {
-  const grouped = groupByCategory(state.products);
-  const categories = grouped.map((g) => g.category);
-  const bestSellers = computeBestSellers(state.products);
-  const searchActive = state.searchQuery.trim().length > 0;
-  const categoryFiltered = state.categoryFilter === "all"
-    ? state.products
-    : state.products.filter((p) => (p.category && p.category.trim() ? p.category.trim() : "Outros") === state.categoryFilter);
-  const visibleProducts = searchActive ? categoryFiltered.filter((p) => productMatchesSearch(p, state.searchQuery)) : categoryFiltered;
-  const visibleGrouped = state.categoryFilter === "all" && !searchActive ? grouped : [{ category: state.categoryFilter === "all" ? "Resultados" : state.categoryFilter, products: visibleProducts }];
-
-  app.innerHTML = `
-    ${renderExpositorHeader()}
-    ${renderExpositorCategoryBar(categories)}
-    <main class="py-6">
-      <div class="mx-auto mb-5 max-w-6xl px-5">
-        ${renderSearchBar()}
-      </div>
-
-      ${state.products.length === 0 ? `
-        <p class="mx-auto max-w-6xl px-5 text-center text-navy-400">Nenhum produto disponível no momento.</p>
-      ` : visibleProducts.length === 0 ? `
-        <p class="mx-auto max-w-6xl px-5 text-center text-navy-400">${searchActive ? `Nenhum produto encontrado para "${escapeHtml(state.searchQuery.trim())}".` : "Nenhum produto nessa categoria."}</p>
-      ` : `
-        ${!searchActive && state.categoryFilter === "all" ? renderExpositorSection("🔥 Mais vendidos", bestSellers, "expositor-bestsellers") : ""}
-        ${visibleGrouped.map((g, idx) => renderExpositorSection(escapeHtml(g.category), g.products, `expositor-cat-${idx}`)).join("")}
-      `}
-    </main>
-    ${renderCartBar()}
-    ${state.cartOpen ? renderCartDrawer() : ""}
-  `;
-
-  document.querySelectorAll(".expositor-scroll-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const track = document.getElementById(btn.dataset.expositorScroll);
-      if (!track) return;
-      track.scrollBy({ left: Number(btn.dataset.dir) * (track.clientWidth * 0.9), behavior: "smooth" });
-    });
-  });
-  wireCatalogEvents();
-}
-
 function renderProductCard(p, opts = {}) {
   const variants = variantsFor(p.id);
   const frames = carouselFrames(p);
@@ -994,7 +915,7 @@ function renderProductCard(p, opts = {}) {
         <button type="button" data-view-product="${p.id}" class="product-image-btn block aspect-square w-full border-0 bg-cream-100 p-0 transition hover:opacity-90">
           ${photoUrl
             ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
-            : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="../logo-symbol.png" alt="" class="h-10 w-10 opacity-40" /></div>`}
+            : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-10 w-10 opacity-40" /></div>`}
         </button>
         ${favoriteBtn}
       </div>
@@ -1176,7 +1097,7 @@ function renderProductDetail() {
           <div class="relative aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
             ${photoUrl
               ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-cover" />`
-              : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="../logo-symbol.png" alt="" class="h-16 w-16 opacity-40" /></div>`}
+              : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-16 w-16 opacity-40" /></div>`}
             <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
           </div>
           ${galleryPhotos.length > 1 ? `
@@ -1547,7 +1468,7 @@ function renderCheckout() {
             <p class="mb-1">É necessário um sinal de ${Math.round(DEPOSIT_RATE * 100)}% do valor (<span id="ck-deposit-note-value">${formatBRL(orderTotal() * DEPOSIT_RATE)}</span>) para confirmar o pedido e iniciar a produção. O restante é combinado na entrega/retirada.</p>
             ${state.payment === "pix" ? `
               <div class="mt-2 flex flex-col items-center gap-1">
-                <img src="../pix-qrcode.png" alt="QR Code Pix da Luz Mariana" class="h-32 w-32 rounded-lg border border-navy-200 bg-white p-1" />
+                <img src="pix-qrcode.png" alt="QR Code Pix da Luz Mariana" class="h-32 w-32 rounded-lg border border-navy-200 bg-white p-1" />
                 <p class="text-[11px] text-navy-400">Prefere escanear? Aponte a câmera do banco pro QR Code acima.</p>
               </div>
               <div class="mt-2 flex items-center gap-2">
