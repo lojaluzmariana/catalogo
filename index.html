@@ -88,13 +88,13 @@ const STORE_CNPJ = "68.615.746/0001-43";
 
 // Mostrado nos produtos que não estão marcados como "Em estoque" no
 // painel admin (a maioria — são feitos sob encomenda). Cada produto pode
-// ter seu próprio prazo (dias), configurado no Painel Admin — quando não
-// tem nada configurado (produto antigo, de antes dessa opção existir),
-// usa o padrão de 2 dias (mesmo valor fixo de sempre).
-const DEFAULT_LEAD_TIME_DAYS = 2;
+// ter seu próprio prazo (dias ÚTEIS, sem contar sábado/domingo),
+// configurado no Painel Admin — quando não tem nada configurado (produto
+// antigo, de antes dessa opção existir), usa o padrão de 3 dias úteis.
+const DEFAULT_LEAD_TIME_DAYS = 3;
 function madeToOrderText(product) {
   const days = product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
-  return `Prazo de ${days} dia${days === 1 ? "" : "s"} para fabricação, a contar da data do pedido.`;
+  return `Prazo de até ${days} dia${days === 1 ? "" : "s"} útil${days === 1 ? "" : "eis"} para fabricação, a contar da data do pedido.`;
 }
 // Sinal exigido pra confirmar o pedido e iniciar a produção.
 const DEPOSIT_RATE = 0.5;
