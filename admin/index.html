@@ -293,6 +293,39 @@ function calculatePricingFromManualPromo(cost, manualPromo) {
   };
 }
 
+// Produto com modelos que têm TAMANHOS diferentes (ex: terço grande vs
+// pequeno) às vezes precisa de preço por modelo, não só o preço único do
+// produto. Um modelo só tem preço próprio se `cost` estiver preenchido
+// nele (ver cadastro de produto, "Esse modelo tem preço diferente") —
+// sem isso, o modelo continua herdando custo/preço do produto inteiro,
+// exatamente como sempre foi.
+function effectiveCost(product, variant) {
+  if (variant && variant.cost != null) return Number(variant.cost);
+  return Number(product?.cost ?? 0);
+}
+function effectivePricing(product, variant) {
+  if (variant && variant.cost != null) {
+    return variant.promo_manual_price != null
+      ? calculatePricingFromManualPromo(Number(variant.cost), Number(variant.promo_manual_price))
+      : calculatePricing(Number(variant.cost));
+  }
+  return {
+    cost: Number(product?.cost ?? 0),
+    creditPrice: Number(product?.credit_price ?? 0), promoPrice: Number(product?.promo_price ?? 0),
+    creditNet: Number(product?.credit_net ?? 0), creditProfit: Number(product?.credit_profit ?? 0),
+    creditMarkup: Number(product?.credit_markup ?? 0), creditMargin: Number(product?.credit_margin ?? 0),
+    promoProfit: Number(product?.promo_profit ?? 0), promoMargin: Number(product?.promo_margin ?? 0),
+  };
+}
+// Acha o objeto do modelo a partir do NOME salvo num item de pedido —
+// order_items guarda variant_name (texto), não o id, então é assim que
+// todo o código já resolve "qual modelo era esse item" (ver
+// itemIsInStock, etc.).
+function variantByName(product, variantName) {
+  if (!variantName || !product) return null;
+  return (product.product_variants ?? []).find((v) => v.name === variantName) ?? null;
+}
+
 function isDarkMode() {
   return document.documentElement.classList.contains("dark");
 }
@@ -1398,7 +1431,7 @@ function renderSecurityOverlay() {
 async function loadProducts() {
   const { data, error } = await supabaseClient
     .from("products")
-    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order, in_stock, esgotado, stock_qty), product_photos(id, url, sort_order), suppliers(id, name, phone, instagram, address)")
+    .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order, in_stock, esgotado, stock_qty, cost, promo_manual_price, credit_price, promo_price), product_photos(id, url, sort_order), suppliers(id, name, phone, instagram, address)")
     .order("active", { ascending: false })
     .order("name", { ascending: true });
   if (!error) state.products = data;
@@ -1730,6 +1763,7 @@ function renderPrecificacao(container) {
                     ${p.suppliers ? `<span title="Fornecedor" class="rounded-full bg-navy-50 px-1 py-0.5 text-[9px] font-semibold text-navy-500 ring-1 ring-navy-100">🚚 ${escapeHtml(p.suppliers.name)}</span>` : ""}
                     ${p.description ? `<span title="Tem descrição cadastrada" class="text-[10px]">📝</span>` : ""}
                     ${p.product_variants && p.product_variants.length > 0 ? `<span title="${p.product_variants.length} modelo(s) cadastrado(s)" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
+                    ${p.product_variants && p.product_variants.some((v) => v.cost != null) ? `<span title="Um ou mais modelos têm custo/preço próprio, diferente do produto — confira em Editar" class="rounded-full bg-navy-800 px-1 py-0.5 text-[9px] font-semibold text-cream-50">💲 preço por modelo</span>` : ""}
                     ${stockBadge(p)}
                     ${esgotadoBadge(p)}
                     ${lowStockBadge(p)}
@@ -1993,6 +2027,10 @@ async function duplicarProduto(product) {
       product_id: newProductId, name: v.name, photo_url: v.photo_url ?? null, sort_order: v.sort_order ?? 0,
       in_stock: false, esgotado: true,
       stock_qty: v.stock_qty != null ? 0 : null,
+      cost: v.cost != null ? Number(v.cost) : null,
+      promo_manual_price: v.promo_manual_price != null ? Number(v.promo_manual_price) : null,
+      credit_price: v.credit_price != null ? Number(v.credit_price) : null,
+      promo_price: v.promo_price != null ? Number(v.promo_price) : null,
     }));
     const { error: varError } = await supabaseClient.from("product_variants").insert(variantRows);
     if (varError) throw varError;
@@ -2032,7 +2070,12 @@ function renderProductForm() {
   const formVariants = product && product.product_variants
     ? [...product.product_variants]
         .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name, "pt-BR"))
-        .map((v) => ({ id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null, inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false, stockTracked: v.stock_qty != null, stockQty: v.stock_qty ?? 0 }))
+        .map((v) => ({
+          id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null,
+          inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false, stockTracked: v.stock_qty != null, stockQty: v.stock_qty ?? 0,
+          ownPrice: v.cost != null, cost: v.cost != null ? Number(v.cost) : null,
+          promoManualPrice: v.promo_manual_price != null ? Number(v.promo_manual_price) : null,
+        }))
     : [];
   const deletedVariantPhotoUrls = [];
 
@@ -2366,6 +2409,23 @@ function renderProductForm() {
                   Esgotado
                 </label>
               </div>
+              <div class="mt-2 border-t border-navy-50 pt-2">
+                <label class="flex items-center gap-1.5 text-xs text-navy-700">
+                  <input type="checkbox" data-variant-own-price="${idx}" ${v.ownPrice ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+                  Esse modelo tem preço diferente (ex: tamanho maior/menor)
+                </label>
+                <div data-variant-price-block="${idx}" class="mt-1.5 flex flex-wrap items-end gap-2 ${v.ownPrice ? "" : "hidden"}">
+                  <div>
+                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Custo deste modelo (R$)</label>
+                    <input type="number" min="0" step="0.01" data-variant-cost="${idx}" value="${v.cost ?? ""}" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                  </div>
+                  <div>
+                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Pix/à vista manual (opcional)</label>
+                    <input type="number" min="0" step="0.01" data-variant-promo-manual="${idx}" value="${v.promoManualPrice ?? ""}" placeholder="auto" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                  </div>
+                  <p data-variant-price-preview="${idx}" class="text-xs text-navy-600"></p>
+                </div>
+              </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <input type="file" data-variant-photo="${idx}" accept="image/*" class="text-xs text-navy-700" />
@@ -2379,6 +2439,42 @@ function renderProductForm() {
   }
 
   function wireVariantRowEvents() {
+    function updateVariantPricePreview(idx) {
+      const v = formVariants[idx];
+      const previewEl = variantsListEl.querySelector(`[data-variant-price-preview="${idx}"]`);
+      if (!previewEl) return;
+      if (!v.ownPrice || v.cost == null || !Number.isFinite(v.cost)) { previewEl.textContent = ""; return; }
+      const pricing = v.promoManualPrice != null && Number.isFinite(v.promoManualPrice)
+        ? calculatePricingFromManualPromo(v.cost, v.promoManualPrice)
+        : calculatePricing(v.cost);
+      previewEl.textContent = `→ Crédito ${formatBRL(pricing.creditPrice)} · Pix/à vista ${formatBRL(pricing.promoPrice)}`;
+    }
+    variantsListEl.querySelectorAll("[data-variant-own-price]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const idx = Number(input.dataset.variantOwnPrice);
+        formVariants[idx].ownPrice = input.checked;
+        const block = variantsListEl.querySelector(`[data-variant-price-block="${idx}"]`);
+        if (block) block.classList.toggle("hidden", !input.checked);
+        updateVariantPricePreview(idx);
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-cost]").forEach((input) => {
+      input.addEventListener("input", () => {
+        const idx = Number(input.dataset.variantCost);
+        const n = Number(input.value);
+        formVariants[idx].cost = input.value === "" ? null : (Number.isFinite(n) ? n : null);
+        updateVariantPricePreview(idx);
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-promo-manual]").forEach((input) => {
+      input.addEventListener("input", () => {
+        const idx = Number(input.dataset.variantPromoManual);
+        const n = Number(input.value);
+        formVariants[idx].promoManualPrice = input.value === "" ? null : (Number.isFinite(n) ? n : null);
+        updateVariantPricePreview(idx);
+      });
+    });
+    formVariants.forEach((v, idx) => { if (v.ownPrice) updateVariantPricePreview(idx); });
     variantsListEl.querySelectorAll("[data-variant-name]").forEach((input) => {
       input.addEventListener("input", () => {
         formVariants[Number(input.dataset.variantName)].name = input.value;
@@ -2454,7 +2550,7 @@ function renderProductForm() {
 
   renderVariantsList();
   document.getElementById("pf-variant-add").addEventListener("click", () => {
-    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: false, stockQty: 0 });
+    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: false, stockQty: 0, ownPrice: false, cost: null, promoManualPrice: null });
     renderVariantsList();
   });
 
@@ -2670,6 +2766,10 @@ function renderProductForm() {
       errorEl.textContent = "Preencha o nome de todos os modelos (ou remova a linha vazia).";
       return;
     }
+    if (formVariants.some((v) => v.ownPrice && (v.cost == null || !Number.isFinite(v.cost) || v.cost < 0))) {
+      errorEl.textContent = "Informe um custo válido pros modelos marcados com preço diferente (ou desmarque a opção).";
+      return;
+    }
 
     // Fornecedor: usa o selecionado, ou cadastra um novo antes de salvar o
     // produto (nome e telefone são obrigatórios pro fornecedor).
@@ -2774,11 +2874,26 @@ function renderProductForm() {
     if (formVariants.length > 0) {
       const variantRows = formVariants.map((v, idx) => {
         const qty = v.stockTracked ? Math.max(0, Math.trunc(Number(v.stockQty) || 0)) : null;
+        // Igual ao produto: o CUSTO fica só aqui no painel (nunca é
+        // exposto ao público), mas o preço de venda JÁ CALCULADO
+        // (credit_price/promo_price) é salvo também — é isso que a view
+        // pública do Catálogo (catalog_product_variants) vai ler, sem
+        // precisar (nem poder) enxergar o custo/margem.
+        let variantPricing = null;
+        if (v.ownPrice && v.cost != null) {
+          variantPricing = v.promoManualPrice != null
+            ? calculatePricingFromManualPromo(v.cost, v.promoManualPrice)
+            : calculatePricing(v.cost);
+        }
         return {
           product_id: productId, name: v.name.trim(), photo_url: v.finalPhotoUrl ?? null, sort_order: idx,
           in_stock: qty != null ? qty > 0 : v.inStock,
           esgotado: qty != null ? qty <= 0 : v.esgotado,
           stock_qty: qty,
+          cost: v.ownPrice && v.cost != null ? v.cost : null,
+          promo_manual_price: v.ownPrice && v.promoManualPrice != null ? v.promoManualPrice : null,
+          credit_price: variantPricing ? variantPricing.creditPrice : null,
+          promo_price: variantPricing ? variantPricing.promoPrice : null,
         };
       });
       const { error: variantError } = await supabaseClient.from("product_variants").insert(variantRows);
@@ -3162,10 +3277,12 @@ function allSupplierItems(supplierId) {
         const product = state.products.find((p) => p.id === it.product_id);
         if (!product) { isApprox = true; return; }
         if (product.supplier_id !== supplierId) return;
+        const variant = variantByName(product, it.variant_name);
+        const unitCost = effectiveCost(product, variant);
         rows.push({
           kind: "pedido", orderNumber: o.order_number, date: toLocalISODate(new Date(o.created_at)),
           productName: it.product_name, variantName: it.variant_name, quantity: it.quantity,
-          unitCost: Number(product.cost), subtotal: Number(product.cost) * it.quantity,
+          unitCost, subtotal: unitCost * it.quantity,
           paid: !!(it.fornecedor_pago_at || o.fornecedor_pago_at),
         });
       });
@@ -4362,7 +4479,8 @@ function orderCost(order) {
   const productCost = (order.items ?? []).reduce((sum, it) => {
     const product = state.products.find((p) => p.id === it.product_id);
     if (!product) { isProductApprox = true; return sum; }
-    return sum + Number(product.cost) * it.quantity;
+    const variant = it.variant_id ? (product.product_variants ?? []).find((v) => v.id === it.variant_id) : variantByName(product, it.variant_name);
+    return sum + effectiveCost(product, variant) * it.quantity;
   }, 0);
 
   // Igual productCost, mas SEM os itens atendidos com o estoque da
@@ -4376,7 +4494,8 @@ function orderCost(order) {
     if (it.fulfilled_from_stock) return sum;
     const product = state.products.find((p) => p.id === it.product_id);
     if (!product) { isSupplierProductApprox = true; return sum; }
-    return sum + Number(product.cost) * it.quantity;
+    const variant = it.variant_id ? (product.product_variants ?? []).find((v) => v.id === it.variant_id) : variantByName(product, it.variant_name);
+    return sum + effectiveCost(product, variant) * it.quantity;
   }, 0);
 
   const giftWrapCost = (order.giftWraps ?? []).reduce((sum, g) => {
@@ -5199,6 +5318,8 @@ function pendingSupplierItems(supplierId) {
         const product = state.products.find((p) => p.id === it.product_id);
         if (!product) { isApprox = true; return; }
         if (product.supplier_id !== supplierId) return;
+        const variant = variantByName(product, it.variant_name);
+        const unitCost = effectiveCost(product, variant);
         rows.push({
           kind: "pedido",
           orderNumber: o.order_number,
@@ -5209,8 +5330,7 @@ function pendingSupplierItems(supplierId) {
           productName: it.product_name,
           variantName: it.variant_name,
           quantity: it.quantity,
-          unitCost: Number(product.cost),
-          subtotal: Number(product.cost) * it.quantity,
+          unitCost, subtotal: unitCost * it.quantity,
           fornecedorEntregou: !!(it.fornecedor_entregue_at || o.fornecedor_entregue_at),
         });
       });
@@ -5880,7 +6000,7 @@ function renderPedidos(container) {
     orderSupplierUnpaidItems(o).forEach((it) => {
       const product = state.products.find((p) => p.id === it.product_id);
       if (!product) { faltaPagarHasApprox = true; return; }
-      faltaPagarFornecedor += Number(product.cost) * it.quantity;
+      faltaPagarFornecedor += effectiveCost(product, variantByName(product, it.variant_name)) * it.quantity;
     });
     // Já os valores de receita (recebidos/a receber/lucro) ficam de fora
     // pra pedidos-brinde: nada foi cobrado do cliente (total = 0), então
@@ -6910,13 +7030,15 @@ let caixaState = { formOpen: false, editingId: null, eventFilter: "", startDate:
    ===================================================================== */
 let simulateState = { open: false, items: [], payment: "pix", _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
 
-// Preço de venda de um produto pra uma forma de pagamento — mesma regra
-// usada em "Novo lançamento" (ver applyProductPrice) e no Catálogo:
-// crédito usa credit_price (já embute a taxa da maquininha + margem
-// maior), pix/dinheiro usa promo_price.
-function salePriceFor(product, payment) {
+// Preço de venda de um produto (ou de um MODELO específico, se ele tiver
+// preço próprio — ver effectivePricing) pra uma forma de pagamento —
+// mesma regra usada em "Novo lançamento" (ver applyProductPrice) e no
+// Catálogo: crédito usa o preço de crédito (já embute a taxa da
+// maquininha + margem maior), pix/dinheiro usa o preço promo/à vista.
+function salePriceFor(product, payment, variant) {
   if (!product) return 0;
-  return Number(payment === "credito" ? product.credit_price : product.promo_price);
+  const pricing = effectivePricing(product, variant);
+  return payment === "credito" ? pricing.creditPrice : pricing.promoPrice;
 }
 
 /* =====================================================================
@@ -7514,8 +7636,9 @@ function closeSimulateOverlay() {
 function simulateTotals() {
   const resolved = simulateState.items.map((it) => {
     const product = state.products.find((p) => p.id === it.product_id);
-    const unitPrice = salePriceFor(product, simulateState.payment);
-    const unitCost = product ? Number(product.cost) : 0;
+    const variant = it.variant_id ? (product?.product_variants ?? []).find((v) => v.id === it.variant_id) : null;
+    const unitPrice = salePriceFor(product, simulateState.payment, variant);
+    const unitCost = product ? effectiveCost(product, variant) : 0;
     return { ...it, unitPrice, unitCost, lineTotal: round2(unitPrice * it.quantity), lineCost: round2(unitCost * it.quantity) };
   });
   const cost = orderCost({ items: simulateState.items, giftWraps: [] });
@@ -7679,7 +7802,8 @@ function closeEventoVendaOverlay() {
 function eventoVendaTotals() {
   const resolved = eventoVendaState.items.map((it) => {
     const product = state.products.find((p) => p.id === it.product_id);
-    const unitPrice = salePriceFor(product, eventoVendaState.payment);
+    const variant = it.variant_id ? (product?.product_variants ?? []).find((v) => v.id === it.variant_id) : null;
+    const unitPrice = salePriceFor(product, eventoVendaState.payment, variant);
     return { ...it, unitPrice, lineTotal: round2(unitPrice * it.quantity) };
   });
   const cost = orderCost({ items: eventoVendaState.items, giftWraps: [] });
@@ -7953,7 +8077,8 @@ function closeVendaManualOverlay() {
 function vendaManualResolvedItems() {
   return vendaManualState.items.map((it) => {
     const product = state.products.find((p) => p.id === it.product_id);
-    const unitPrice = salePriceFor(product, vendaManualState.payment);
+    const variant = it.variant_id ? (product?.product_variants ?? []).find((v) => v.id === it.variant_id) : null;
+    const unitPrice = salePriceFor(product, vendaManualState.payment, variant);
     return { ...it, unitPrice, lineTotal: round2(unitPrice * it.quantity) };
   });
 }
