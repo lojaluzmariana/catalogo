@@ -1748,7 +1748,7 @@ function calc3dFieldHtml(label, field, opts = {}) {
   return `
     <label class="flex flex-col text-xs font-medium text-navy-600">
       ${label}
-      <input type="number" step="any" inputmode="decimal" data-calc3d-field="${field}" value="${escapeHtml(calc3dState[field])}" ${disabled ? "disabled" : ""} class="calc3d-no-spinner mt-1 rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
+      <input type="text" inputmode="decimal" data-calc3d-field="${field}" value="${escapeHtml(calc3dState[field])}" ${disabled ? "disabled" : ""} class="calc3d-no-spinner mt-1 rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
     </label>
   `;
 }
@@ -1799,9 +1799,9 @@ function renderCalc3dOverlay() {
                 <div class="flex flex-col text-xs font-medium text-navy-600">
                   Tempo de impressão
                   <div class="mt-1 flex items-center gap-1">
-                    <input type="number" step="1" min="0" inputmode="numeric" data-calc3d-field="tempoH" value="${escapeHtml(calc3dState.tempoH)}" class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                    <input type="text" inputmode="numeric" data-calc3d-field="tempoH" value="${escapeHtml(calc3dState.tempoH)}" class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                     <span class="text-navy-400">h</span>
-                    <input type="number" step="1" min="0" max="59" inputmode="numeric" data-calc3d-field="tempoM" value="${escapeHtml(calc3dState.tempoM)}" class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                    <input type="text" inputmode="numeric" data-calc3d-field="tempoM" value="${escapeHtml(calc3dState.tempoM)}" class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                     <span class="text-navy-400">min</span>
                   </div>
                 </div>
@@ -1832,9 +1832,9 @@ function renderCalc3dOverlay() {
                 <div class="flex flex-col text-xs font-medium text-navy-600">
                   Tempo gasto manual
                   <div class="mt-1 flex items-center gap-1">
-                    <input type="number" step="1" min="0" inputmode="numeric" data-calc3d-field="horasHumanasH" value="${escapeHtml(calc3dState.horasHumanasH)}" ${calc3dState.locked ? "disabled" : ""} class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
+                    <input type="text" inputmode="numeric" data-calc3d-field="horasHumanasH" value="${escapeHtml(calc3dState.horasHumanasH)}" ${calc3dState.locked ? "disabled" : ""} class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
                     <span class="text-navy-400">h</span>
-                    <input type="number" step="1" min="0" max="59" inputmode="numeric" data-calc3d-field="horasHumanasM" value="${escapeHtml(calc3dState.horasHumanasM)}" ${calc3dState.locked ? "disabled" : ""} class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
+                    <input type="text" inputmode="numeric" data-calc3d-field="horasHumanasM" value="${escapeHtml(calc3dState.horasHumanasM)}" ${calc3dState.locked ? "disabled" : ""} class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
                     <span class="text-navy-400">min</span>
                   </div>
                 </div>
