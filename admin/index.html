@@ -1689,9 +1689,9 @@ function calc3dDefaultState() {
     locked: true, // trava os campos de custos fixos/desgaste e mão de obra/margem, pra não mexer sem querer
     projectName: "Mesa de Chaveiros",
     precoRolo: "100", pesoRolo: "1000", gramasUsadas: "110", desperdicio: "10",
-    potencia: "110", energia: "0.90", tempo: "8", unidades: "25",
+    potencia: "110", energia: "0.90", tempoH: "8", tempoM: "0", unidades: "25",
     bico: "120", vidaBico: "4000", novaMaquina: "5000", horasRenovacao: "10000", despesasFixas: "145", horasProdutivas: "300",
-    valorHoraHumana: "20", horasHumanas: "0.5", falhas: "5", lucro: "40",
+    valorHoraHumana: "20", horasHumanasH: "0", horasHumanasM: "30", falhas: "5", lucro: "40",
   };
 }
 let calc3dState = { ...calc3dDefaultState(), history: loadCalc3dHistory() };
@@ -1703,7 +1703,10 @@ function calc3dCompute() {
   const gramasUsadas = num(calc3dState.gramasUsadas);
   const desperdicio = num(calc3dState.desperdicio);
   const potencia = num(calc3dState.potencia);
-  const tempo = num(calc3dState.tempo);
+  // Horas + minutos digitados separadamente (mais natural de preencher
+  // do que decimal, ex: 8h30 em vez de "8.5") — convertidos aqui pra
+  // decimal, que é o que a fórmula usa por baixo.
+  const tempo = num(calc3dState.tempoH) + num(calc3dState.tempoM) / 60;
   const energia = num(calc3dState.energia);
   const unidades = num(calc3dState.unidades) || 1;
   const bico = num(calc3dState.bico);
@@ -1713,7 +1716,7 @@ function calc3dCompute() {
   const despesasFixas = num(calc3dState.despesasFixas);
   const horasProdutivas = num(calc3dState.horasProdutivas) || 1;
   const valorHoraHumana = num(calc3dState.valorHoraHumana);
-  const horasHumanas = num(calc3dState.horasHumanas);
+  const horasHumanas = num(calc3dState.horasHumanasH) + num(calc3dState.horasHumanasM) / 60;
   const falhas = num(calc3dState.falhas);
   const lucro = num(calc3dState.lucro);
 
@@ -1793,7 +1796,15 @@ function renderCalc3dOverlay() {
               <div class="grid grid-cols-2 gap-2">
                 ${calc3dFieldHtml("Potência média (W)", "potencia", { disabled: calc3dState.locked })}
                 ${calc3dFieldHtml("Energia (R$/kWh)", "energia", { disabled: calc3dState.locked })}
-                ${calc3dFieldHtml("Tempo de impressão (h)", "tempo")}
+                <div class="flex flex-col text-xs font-medium text-navy-600">
+                  Tempo de impressão
+                  <div class="mt-1 flex items-center gap-1">
+                    <input type="number" step="1" min="0" inputmode="numeric" data-calc3d-field="tempoH" value="${escapeHtml(calc3dState.tempoH)}" class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                    <span class="text-navy-400">h</span>
+                    <input type="number" step="1" min="0" max="59" inputmode="numeric" data-calc3d-field="tempoM" value="${escapeHtml(calc3dState.tempoM)}" class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                    <span class="text-navy-400">min</span>
+                  </div>
+                </div>
                 ${calc3dFieldHtml("Unidades na mesa", "unidades")}
               </div>
             </div>
@@ -1818,7 +1829,15 @@ function renderCalc3dOverlay() {
               <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide ${calc3dState.locked ? "text-navy-400" : "text-navy-500"}">👷 Humano &amp; margem</p>
               <div class="grid grid-cols-2 gap-2">
                 ${calc3dFieldHtml("Sua hora de trabalho (R$)", "valorHoraHumana", { disabled: calc3dState.locked })}
-                ${calc3dFieldHtml("Tempo gasto manual (h)", "horasHumanas", { disabled: calc3dState.locked })}
+                <div class="flex flex-col text-xs font-medium text-navy-600">
+                  Tempo gasto manual
+                  <div class="mt-1 flex items-center gap-1">
+                    <input type="number" step="1" min="0" inputmode="numeric" data-calc3d-field="horasHumanasH" value="${escapeHtml(calc3dState.horasHumanasH)}" ${calc3dState.locked ? "disabled" : ""} class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
+                    <span class="text-navy-400">h</span>
+                    <input type="number" step="1" min="0" max="59" inputmode="numeric" data-calc3d-field="horasHumanasM" value="${escapeHtml(calc3dState.horasHumanasM)}" ${calc3dState.locked ? "disabled" : ""} class="calc3d-no-spinner w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
+                    <span class="text-navy-400">min</span>
+                  </div>
+                </div>
                 ${calc3dFieldHtml("Taxa de falhas (%)", "falhas", { disabled: calc3dState.locked })}
                 ${calc3dFieldHtml("Margem de lucro (%)", "lucro", { disabled: calc3dState.locked })}
               </div>
@@ -1902,8 +1921,21 @@ function renderCalc3dOverlay() {
   });
   slot.querySelectorAll("[data-calc3d-field]").forEach((input) => {
     input.addEventListener("input", () => {
-      calc3dState[input.dataset.calc3dField] = input.value;
+      const field = input.dataset.calc3dField;
+      calc3dState[field] = input.value;
+      const cursorPos = input.selectionStart;
       renderCalc3dOverlay();
+      // Redesenhar troca o elemento do campo inteiro — sem isso, cada
+      // letra digitada tirava o foco/cursor do campo (precisava clicar
+      // de novo pra continuar digitando).
+      const freshInput = slot.querySelector(`[data-calc3d-field="${field}"]`);
+      if (freshInput) {
+        freshInput.focus();
+        // input type="number" não aceita setSelectionRange em alguns
+        // navegadores (ex: Chrome) — envolve em try/catch pra não
+        // quebrar o foco por causa disso.
+        try { freshInput.setSelectionRange(cursorPos, cursorPos); } catch (err) { /* tipo número não suporta — sem problema, o foco já foi restaurado */ }
+      }
     });
   });
   document.getElementById("calc3d-lock-toggle").addEventListener("click", () => {
@@ -1911,7 +1943,7 @@ function renderCalc3dOverlay() {
     renderCalc3dOverlay();
   });
   document.getElementById("calc3d-clear-btn").addEventListener("click", () => {
-    calc3dState = { ...calc3dDefaultState(), open: true, locked: calc3dState.locked, history: calc3dState.history, projectName: "", precoRolo: "", gramasUsadas: "", tempo: "", unidades: "1" };
+    calc3dState = { ...calc3dDefaultState(), open: true, locked: calc3dState.locked, history: calc3dState.history, projectName: "", precoRolo: "", gramasUsadas: "", tempoH: "", tempoM: "0", unidades: "1" };
     renderCalc3dOverlay();
   });
   document.getElementById("calc3d-save-btn").addEventListener("click", () => {
