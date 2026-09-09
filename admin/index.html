@@ -1752,18 +1752,18 @@ function renderCalc3dOverlay() {
 
   slot.innerHTML = `
     <div id="calc3d-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
-      <div class="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
-        <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+      <div class="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-navy-100 px-4 py-3">
           <div>
-            <h2 class="text-lg font-semibold text-navy-900">🖨️ Calculadora 3D</h2>
-            <p class="text-xs text-navy-500">Custo de fabricação de peças impressas em 3D. Não grava nada em produto sozinha — copie o "Custo de fabricação por peça" pro campo Custo do produto quando fizer sentido.</p>
+            <h2 class="text-base font-semibold text-navy-900">🖨️ Calculadora 3D</h2>
+            <p class="text-xs text-navy-500">Custo de fabricação de peças 3D. Não grava em produto sozinha — copie o custo por peça pro campo Custo do produto.</p>
           </div>
           <button id="calc3d-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
         </div>
-        <div class="flex-1 overflow-y-auto px-5 py-4">
-          <div class="flex flex-col gap-4">
+        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <div class="flex flex-col gap-3">
 
-            <div class="rounded-lg border-l-4 border-navy-400 bg-cream-50 p-3">
+            <div class="rounded-lg border-l-4 border-navy-400 bg-cream-50 p-2.5">
               <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-500">📂 Projeto</p>
               <label class="flex flex-col text-xs font-medium text-navy-600">
                 Nome do projeto
@@ -1771,9 +1771,9 @@ function renderCalc3dOverlay() {
               </label>
             </div>
 
-            <div class="rounded-lg border-l-4 border-navy-400 bg-cream-50 p-3">
+            <div class="rounded-lg border-l-4 border-navy-400 bg-cream-50 p-2.5">
               <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-500">🧵 Material</p>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-2 gap-2">
                 ${calc3dFieldHtml("Preço do rolo (R$)", "precoRolo")}
                 ${calc3dFieldHtml("Peso do rolo (g)", "pesoRolo")}
                 ${calc3dFieldHtml("Gramas usadas (mesa)", "gramasUsadas")}
@@ -1781,9 +1781,9 @@ function renderCalc3dOverlay() {
               </div>
             </div>
 
-            <div class="rounded-lg border-l-4 border-navy-400 bg-cream-50 p-3">
+            <div class="rounded-lg border-l-4 border-navy-400 bg-cream-50 p-2.5">
               <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-500">⚡ Impressão</p>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-2 gap-2">
                 ${calc3dFieldHtml("Potência média (W)", "potencia", { disabled: calc3dState.locked })}
                 ${calc3dFieldHtml("Energia (R$/kWh)", "energia", { disabled: calc3dState.locked })}
                 ${calc3dFieldHtml("Tempo de impressão (h)", "tempo")}
@@ -1795,9 +1795,9 @@ function renderCalc3dOverlay() {
               ${calc3dState.locked ? "🔓 Destravar ajustes fixos" : "🔒 Bloquear ajustes fixos"}
             </button>
 
-            <div class="rounded-lg border-l-4 ${calc3dState.locked ? "border-navy-200 bg-navy-50/60 opacity-80" : "border-navy-400 bg-cream-50"} p-3">
-              <p class="mb-2 text-xs font-semibold uppercase tracking-wide ${calc3dState.locked ? "text-navy-400" : "text-navy-500"}">⚙️ Custos fixos &amp; desgaste</p>
-              <div class="grid grid-cols-2 gap-3">
+            <div class="rounded-lg border-l-4 ${calc3dState.locked ? "border-navy-200 bg-navy-50/60 opacity-80" : "border-navy-400 bg-cream-50"} p-2.5">
+              <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide ${calc3dState.locked ? "text-navy-400" : "text-navy-500"}">⚙️ Custos fixos &amp; desgaste</p>
+              <div class="grid grid-cols-2 gap-2">
                 ${calc3dFieldHtml("Bico hotend (R$)", "bico", { disabled: calc3dState.locked })}
                 ${calc3dFieldHtml("Vida útil do bico (h)", "vidaBico", { disabled: calc3dState.locked })}
                 ${calc3dFieldHtml("Valor nova máquina (R$)", "novaMaquina", { disabled: calc3dState.locked })}
@@ -1807,9 +1807,9 @@ function renderCalc3dOverlay() {
               </div>
             </div>
 
-            <div class="rounded-lg border-l-4 ${calc3dState.locked ? "border-navy-200 bg-navy-50/60 opacity-80" : "border-navy-400 bg-cream-50"} p-3">
-              <p class="mb-2 text-xs font-semibold uppercase tracking-wide ${calc3dState.locked ? "text-navy-400" : "text-navy-500"}">👷 Humano &amp; margem</p>
-              <div class="grid grid-cols-2 gap-3">
+            <div class="rounded-lg border-l-4 ${calc3dState.locked ? "border-navy-200 bg-navy-50/60 opacity-80" : "border-navy-400 bg-cream-50"} p-2.5">
+              <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide ${calc3dState.locked ? "text-navy-400" : "text-navy-500"}">👷 Humano &amp; margem</p>
+              <div class="grid grid-cols-2 gap-2">
                 ${calc3dFieldHtml("Sua hora de trabalho (R$)", "valorHoraHumana", { disabled: calc3dState.locked })}
                 ${calc3dFieldHtml("Tempo gasto manual (h)", "horasHumanas", { disabled: calc3dState.locked })}
                 ${calc3dFieldHtml("Taxa de falhas (%)", "falhas", { disabled: calc3dState.locked })}
@@ -1825,12 +1825,12 @@ function renderCalc3dOverlay() {
             <div>
               <h3 class="mb-2 text-center text-sm font-semibold text-navy-900">📊 Resumo financeiro da mesa (${escapeHtml(calc3dState.projectName || "Sem nome")})</h3>
               <div class="rounded-lg border border-navy-100 bg-cream-50 p-3 text-sm">
-                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Material + desperdício:</span><span>${formatBRL(r.custoMaterial)}</span></div>
-                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Energia elétrica:</span><span>${formatBRL(r.custoEnergia)}</span></div>
-                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Desgaste de equipamento:</span><span>${formatBRL(r.custoDesgasteTotal)}</span></div>
-                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Custo operacional proporcional:</span><span>${formatBRL(r.custoOperacional)}</span></div>
-                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Mão de obra manual:</span><span>${formatBRL(r.custoMaoObra)}</span></div>
-                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Provisão para falhas:</span><span>${formatBRL(r.custoFalhas)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1"><span class="text-navy-600">Material + desperdício:</span><span>${formatBRL(r.custoMaterial)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1"><span class="text-navy-600">Energia elétrica:</span><span>${formatBRL(r.custoEnergia)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1"><span class="text-navy-600">Desgaste de equipamento:</span><span>${formatBRL(r.custoDesgasteTotal)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1"><span class="text-navy-600">Custo operacional proporcional:</span><span>${formatBRL(r.custoOperacional)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1"><span class="text-navy-600">Mão de obra manual:</span><span>${formatBRL(r.custoMaoObra)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1"><span class="text-navy-600">Provisão para falhas:</span><span>${formatBRL(r.custoFalhas)}</span></div>
                 <div class="flex justify-between pt-2 text-sm font-bold text-navy-900"><span>Custo total da mesa:</span><span>${formatBRL(r.custoTotalMesa)}</span></div>
                 <div class="flex justify-between text-base font-bold text-emerald-700"><span>Preço sugerido da mesa (total):</span><span>${formatBRL(r.precoVendaMesa)}</span></div>
               </div>
@@ -1839,7 +1839,7 @@ function renderCalc3dOverlay() {
             <div>
               <h3 class="mb-2 text-center text-sm font-semibold text-navy-900">🔑 Valores individuais (por peça)</h3>
               <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm">
-                <div class="flex justify-between border-b border-dashed border-emerald-200 py-1.5"><span class="text-navy-700">Custo de fabricação por peça:</span><span class="font-semibold">${formatBRL(r.custoPeca)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-emerald-200 py-1"><span class="text-navy-700">Custo de fabricação por peça:</span><span class="font-semibold">${formatBRL(r.custoPeca)}</span></div>
                 <div class="flex items-center justify-between pt-1.5">
                   <span class="text-base font-bold text-navy-900">Preço de venda por peça:</span>
                   <span class="flex items-center gap-2">
