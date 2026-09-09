@@ -46,6 +46,13 @@
      que vale mesmo em campos com classes de fonte menor (text-sm etc). */
   input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
 
+  /* Campos numéricos da Calculadora 3D: tira as setinhas de
+     incrementar/decrementar do navegador — só digita o número direto,
+     sem ficar clicando. */
+  .calc3d-no-spinner::-webkit-outer-spin-button,
+  .calc3d-no-spinner::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .calc3d-no-spinner { -moz-appearance: textfield; }
+
   /* =====================================================================
      MODO ESCURO — em vez de recompilar o tailwind-built.css com uma
      variante "dark:" em cada classe (o que exigiria regenerar o CSS pré-
@@ -1738,7 +1745,7 @@ function calc3dFieldHtml(label, field, opts = {}) {
   return `
     <label class="flex flex-col text-xs font-medium text-navy-600">
       ${label}
-      <input type="number" step="any" data-calc3d-field="${field}" value="${escapeHtml(calc3dState[field])}" ${disabled ? "disabled" : ""} class="mt-1 rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
+      <input type="number" step="any" inputmode="decimal" data-calc3d-field="${field}" value="${escapeHtml(calc3dState[field])}" ${disabled ? "disabled" : ""} class="calc3d-no-spinner mt-1 rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
     </label>
   `;
 }
