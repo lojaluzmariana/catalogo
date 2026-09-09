@@ -1659,6 +1659,296 @@ async function desativarControleEstoque(productId, variantId) {
   renderPrecificacao(document.getElementById("main-content"));
 }
 
+/* =====================================================================
+   CALCULADORA 3D — ferramenta separada de precificação de peças
+   impressas em 3D (rolo de filamento, energia, desgaste de bico/
+   máquina, mão de obra, taxa de falhas, margem) — baseada na calculadora
+   que você já usava separada. Não grava nada nos produtos sozinha: o
+   valor de "Custo de fabricação por peça" é só pra você copiar e colar
+   no campo Custo de um produto na Precificação, quando fizer sentido.
+   Histórico de projetos calculados fica salvo neste aparelho
+   (localStorage), igual a ferramenta original.
+   ===================================================================== */
+const CALC3D_STORAGE_KEY = "luz-mariana-calc3d-historico";
+function loadCalc3dHistory() {
+  try { return JSON.parse(localStorage.getItem(CALC3D_STORAGE_KEY)) || []; } catch (err) { return []; }
+}
+function saveCalc3dHistory(hist) {
+  try { localStorage.setItem(CALC3D_STORAGE_KEY, JSON.stringify(hist)); } catch (err) { /* localStorage indisponível — histórico só dura a sessão atual */ }
+}
+function calc3dDefaultState() {
+  return {
+    open: false,
+    locked: true, // trava os campos de custos fixos/desgaste e mão de obra/margem, pra não mexer sem querer
+    projectName: "Mesa de Chaveiros",
+    precoRolo: "100", pesoRolo: "1000", gramasUsadas: "110", desperdicio: "10",
+    potencia: "110", energia: "0.90", tempo: "8", unidades: "25",
+    bico: "120", vidaBico: "4000", novaMaquina: "5000", horasRenovacao: "10000", despesasFixas: "145", horasProdutivas: "300",
+    valorHoraHumana: "20", horasHumanas: "0.5", falhas: "5", lucro: "40",
+  };
+}
+let calc3dState = { ...calc3dDefaultState(), history: loadCalc3dHistory() };
+
+function calc3dCompute() {
+  const num = (v) => { const n = Number(String(v).replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+  const precoRolo = num(calc3dState.precoRolo);
+  const pesoRolo = num(calc3dState.pesoRolo) || 1;
+  const gramasUsadas = num(calc3dState.gramasUsadas);
+  const desperdicio = num(calc3dState.desperdicio);
+  const potencia = num(calc3dState.potencia);
+  const tempo = num(calc3dState.tempo);
+  const energia = num(calc3dState.energia);
+  const unidades = num(calc3dState.unidades) || 1;
+  const bico = num(calc3dState.bico);
+  const vidaBico = num(calc3dState.vidaBico) || 1;
+  const novaMaquina = num(calc3dState.novaMaquina);
+  const horasRenovacao = num(calc3dState.horasRenovacao) || 1;
+  const despesasFixas = num(calc3dState.despesasFixas);
+  const horasProdutivas = num(calc3dState.horasProdutivas) || 1;
+  const valorHoraHumana = num(calc3dState.valorHoraHumana);
+  const horasHumanas = num(calc3dState.horasHumanas);
+  const falhas = num(calc3dState.falhas);
+  const lucro = num(calc3dState.lucro);
+
+  const custoMaterial = (precoRolo / pesoRolo) * gramasUsadas * (1 + desperdicio / 100);
+  const custoEnergia = (potencia / 1000) * tempo * energia;
+  const custoDesgasteTotal = ((bico / vidaBico) * tempo) + ((novaMaquina / horasRenovacao) * tempo);
+  const custoOperacional = (despesasFixas / horasProdutivas) * tempo;
+  const custoMaoObra = valorHoraHumana * horasHumanas;
+
+  const subtotal = custoMaterial + custoEnergia + custoDesgasteTotal + custoOperacional + custoMaoObra;
+  const custoFalhas = subtotal * (falhas / 100);
+  const custoTotalMesa = subtotal + custoFalhas;
+  const precoVendaMesa = custoTotalMesa * (1 + lucro / 100);
+
+  return {
+    custoMaterial, custoEnergia, custoDesgasteTotal, custoOperacional, custoMaoObra, custoFalhas,
+    custoTotalMesa, precoVendaMesa, unidades,
+    custoPeca: custoTotalMesa / unidades, precoPeca: precoVendaMesa / unidades,
+  };
+}
+
+function closeCalc3dOverlay() {
+  calc3dState = { ...calc3dDefaultState(), open: false, history: calc3dState.history };
+  renderCalc3dOverlay();
+}
+
+function calc3dFieldHtml(label, field, opts = {}) {
+  const disabled = !!opts.disabled;
+  return `
+    <label class="flex flex-col text-xs font-medium text-navy-600">
+      ${label}
+      <input type="number" step="any" data-calc3d-field="${field}" value="${escapeHtml(calc3dState[field])}" ${disabled ? "disabled" : ""} class="mt-1 rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-navy-100 disabled:text-navy-400" />
+    </label>
+  `;
+}
+
+function renderCalc3dOverlay() {
+  const slot = document.getElementById("calc3d-overlay-slot");
+  if (!slot) return;
+  if (!calc3dState.open) { slot.innerHTML = ""; return; }
+
+  const r = calc3dCompute();
+
+  slot.innerHTML = `
+    <div id="calc3d-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
+      <div class="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-navy-100 px-5 py-4">
+          <div>
+            <h2 class="text-lg font-semibold text-navy-900">🖨️ Calculadora 3D</h2>
+            <p class="text-xs text-navy-500">Custo de fabricação de peças impressas em 3D. Não grava nada em produto sozinha — copie o "Custo de fabricação por peça" pro campo Custo do produto quando fizer sentido.</p>
+          </div>
+          <button id="calc3d-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <div class="flex flex-col gap-4">
+
+            <div class="rounded-lg border-l-4 border-navy-400 bg-cream-50 p-3">
+              <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-navy-500">📂 Projeto</p>
+              <label class="flex flex-col text-xs font-medium text-navy-600">
+                Nome do projeto
+                <input type="text" data-calc3d-field="projectName" value="${escapeHtml(calc3dState.projectName)}" class="mt-1 rounded-lg border border-navy-200 px-2 py-1.5 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+              </label>
+            </div>
+
+            <div class="rounded-lg border-l-4 border-navy-400 bg-cream-50 p-3">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-500">🧵 Material</p>
+              <div class="grid grid-cols-2 gap-3">
+                ${calc3dFieldHtml("Preço do rolo (R$)", "precoRolo")}
+                ${calc3dFieldHtml("Peso do rolo (g)", "pesoRolo")}
+                ${calc3dFieldHtml("Gramas usadas (mesa)", "gramasUsadas")}
+                ${calc3dFieldHtml("Desperdício (%)", "desperdicio")}
+              </div>
+            </div>
+
+            <div class="rounded-lg border-l-4 border-navy-400 bg-cream-50 p-3">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-500">⚡ Impressão</p>
+              <div class="grid grid-cols-2 gap-3">
+                ${calc3dFieldHtml("Potência média (W)", "potencia", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Energia (R$/kWh)", "energia", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Tempo de impressão (h)", "tempo")}
+                ${calc3dFieldHtml("Unidades na mesa", "unidades")}
+              </div>
+            </div>
+
+            <button type="button" id="calc3d-lock-toggle" class="self-start rounded-lg px-3 py-2 text-xs font-semibold text-white transition ${calc3dState.locked ? "bg-gold-600 hover:bg-gold-700" : "bg-navy-800 hover:bg-navy-900"}">
+              ${calc3dState.locked ? "🔓 Destravar ajustes fixos" : "🔒 Bloquear ajustes fixos"}
+            </button>
+
+            <div class="rounded-lg border-l-4 ${calc3dState.locked ? "border-navy-200 bg-navy-50/60 opacity-80" : "border-navy-400 bg-cream-50"} p-3">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wide ${calc3dState.locked ? "text-navy-400" : "text-navy-500"}">⚙️ Custos fixos &amp; desgaste</p>
+              <div class="grid grid-cols-2 gap-3">
+                ${calc3dFieldHtml("Bico hotend (R$)", "bico", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Vida útil do bico (h)", "vidaBico", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Valor nova máquina (R$)", "novaMaquina", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Horas até renovação", "horasRenovacao", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Despesas fixas/mês (R$)", "despesasFixas", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Horas produtivas/mês", "horasProdutivas", { disabled: calc3dState.locked })}
+              </div>
+            </div>
+
+            <div class="rounded-lg border-l-4 ${calc3dState.locked ? "border-navy-200 bg-navy-50/60 opacity-80" : "border-navy-400 bg-cream-50"} p-3">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wide ${calc3dState.locked ? "text-navy-400" : "text-navy-500"}">👷 Humano &amp; margem</p>
+              <div class="grid grid-cols-2 gap-3">
+                ${calc3dFieldHtml("Sua hora de trabalho (R$)", "valorHoraHumana", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Tempo gasto manual (h)", "horasHumanas", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Taxa de falhas (%)", "falhas", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Margem de lucro (%)", "lucro", { disabled: calc3dState.locked })}
+              </div>
+            </div>
+
+            <div class="flex gap-2">
+              <button type="button" id="calc3d-clear-btn" class="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Ajustar / Limpar dados</button>
+              <button type="button" id="calc3d-save-btn" class="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">Salvar no histórico</button>
+            </div>
+
+            <div>
+              <h3 class="mb-2 text-center text-sm font-semibold text-navy-900">📊 Resumo financeiro da mesa (${escapeHtml(calc3dState.projectName || "Sem nome")})</h3>
+              <div class="rounded-lg border border-navy-100 bg-cream-50 p-3 text-sm">
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Material + desperdício:</span><span>${formatBRL(r.custoMaterial)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Energia elétrica:</span><span>${formatBRL(r.custoEnergia)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Desgaste de equipamento:</span><span>${formatBRL(r.custoDesgasteTotal)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Custo operacional proporcional:</span><span>${formatBRL(r.custoOperacional)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Mão de obra manual:</span><span>${formatBRL(r.custoMaoObra)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-navy-200 py-1.5"><span class="text-navy-600">Provisão para falhas:</span><span>${formatBRL(r.custoFalhas)}</span></div>
+                <div class="flex justify-between pt-2 text-sm font-bold text-navy-900"><span>Custo total da mesa:</span><span>${formatBRL(r.custoTotalMesa)}</span></div>
+                <div class="flex justify-between text-base font-bold text-emerald-700"><span>Preço sugerido da mesa (total):</span><span>${formatBRL(r.precoVendaMesa)}</span></div>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="mb-2 text-center text-sm font-semibold text-navy-900">🔑 Valores individuais (por peça)</h3>
+              <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm">
+                <div class="flex justify-between border-b border-dashed border-emerald-200 py-1.5"><span class="text-navy-700">Custo de fabricação por peça:</span><span class="font-semibold">${formatBRL(r.custoPeca)}</span></div>
+                <div class="flex items-center justify-between pt-1.5">
+                  <span class="text-base font-bold text-navy-900">Preço de venda por peça:</span>
+                  <span class="flex items-center gap-2">
+                    <span class="text-lg font-bold text-emerald-700">${formatBRL(r.precoPeca)}</span>
+                    <button type="button" id="calc3d-copy-cost-btn" title="Copiar o custo de fabricação por peça (${formatBRL(r.custoPeca)}) pra área de transferência" class="rounded border border-emerald-300 bg-white px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100">📋 Copiar custo</button>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="mb-2 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-navy-900">📜 Histórico de projetos</h3>
+                ${calc3dState.history.length > 0 ? `<button type="button" id="calc3d-clear-hist-btn" class="rounded border border-navy-300 px-2 py-1 text-[11px] font-medium text-navy-600 hover:bg-navy-100">Apagar tudo</button>` : ""}
+              </div>
+              ${calc3dState.history.length === 0 ? `<p class="text-xs text-navy-400">Nenhum projeto salvo ainda.</p>` : `
+                <div class="overflow-x-auto rounded-lg border border-navy-100">
+                  <table class="w-full min-w-[420px] text-xs">
+                    <thead>
+                      <tr class="bg-navy-900 text-left text-cream-50">
+                        <th class="px-2 py-1.5">Projeto</th>
+                        <th class="px-2 py-1.5 text-center">Qtd.</th>
+                        <th class="px-2 py-1.5 text-right">Preço da mesa</th>
+                        <th class="px-2 py-1.5 text-right">Preço/peça</th>
+                        <th class="px-2 py-1.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${calc3dState.history.map((item, idx) => `
+                        <tr class="border-t border-navy-50">
+                          <td class="px-2 py-1.5">${escapeHtml(item.nome)}</td>
+                          <td class="px-2 py-1.5 text-center">${escapeHtml(String(item.qtd))}</td>
+                          <td class="px-2 py-1.5 text-right font-semibold text-emerald-700">${escapeHtml(item.total)}</td>
+                          <td class="px-2 py-1.5 text-right font-semibold text-navy-700">${escapeHtml(item.unitario)}</td>
+                          <td class="px-2 py-1.5 text-center"><button type="button" data-calc3d-remove-hist="${idx}" class="text-red-600 hover:underline">remover</button></td>
+                        </tr>
+                      `).join("")}
+                    </tbody>
+                  </table>
+                </div>
+              `}
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("calc3d-close-btn").addEventListener("click", closeCalc3dOverlay);
+  document.getElementById("calc3d-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "calc3d-overlay") closeCalc3dOverlay();
+  });
+  slot.querySelectorAll("[data-calc3d-field]").forEach((input) => {
+    input.addEventListener("input", () => {
+      calc3dState[input.dataset.calc3dField] = input.value;
+      renderCalc3dOverlay();
+    });
+  });
+  document.getElementById("calc3d-lock-toggle").addEventListener("click", () => {
+    calc3dState.locked = !calc3dState.locked;
+    renderCalc3dOverlay();
+  });
+  document.getElementById("calc3d-clear-btn").addEventListener("click", () => {
+    calc3dState = { ...calc3dDefaultState(), open: true, locked: calc3dState.locked, history: calc3dState.history, projectName: "", precoRolo: "", gramasUsadas: "", tempo: "", unidades: "1" };
+    renderCalc3dOverlay();
+  });
+  document.getElementById("calc3d-save-btn").addEventListener("click", () => {
+    const res = calc3dCompute();
+    calc3dState.history = [...calc3dState.history, {
+      nome: calc3dState.projectName || "Sem nome",
+      qtd: calc3dState.unidades || 1,
+      total: formatBRL(res.precoVendaMesa),
+      unitario: formatBRL(res.precoPeca),
+    }];
+    saveCalc3dHistory(calc3dState.history);
+    renderCalc3dOverlay();
+  });
+  const copyBtn = document.getElementById("calc3d-copy-cost-btn");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", async () => {
+      const res = calc3dCompute();
+      try {
+        await navigator.clipboard.writeText(res.custoPeca.toFixed(2).replace(".", ","));
+        copyBtn.textContent = "✓ Copiado!";
+        setTimeout(() => { copyBtn.textContent = "📋 Copiar custo"; }, 1500);
+      } catch (err) {
+        alert("Não foi possível copiar automaticamente. Custo por peça: " + formatBRL(res.custoPeca));
+      }
+    });
+  }
+  const clearHistBtn = document.getElementById("calc3d-clear-hist-btn");
+  if (clearHistBtn) {
+    clearHistBtn.addEventListener("click", () => {
+      if (!confirm("Apagar todo o histórico de projetos da Calculadora 3D?")) return;
+      calc3dState.history = [];
+      saveCalc3dHistory(calc3dState.history);
+      renderCalc3dOverlay();
+    });
+  }
+  slot.querySelectorAll("[data-calc3d-remove-hist]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      calc3dState.history.splice(Number(btn.dataset.calc3dRemoveHist), 1);
+      saveCalc3dHistory(calc3dState.history);
+      renderCalc3dOverlay();
+    });
+  });
+}
+
 function renderPrecificacao(container) {
   const visible = state.products.filter((p) => precifState.showInactive || p.active);
   const categories = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
@@ -1686,9 +1976,12 @@ function renderPrecificacao(container) {
           <button id="bulk-cost-toggle-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.bulkOpen ? "Fechar reajuste em massa" : "↕ Reajustar custo em massa"}</button>
           <button id="price-history-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">📜 Histórico de preços</button>
           <button id="price-table-toggle-btn" title="Monta um PDF simples com os produtos que você escolher — nome, preço no crédito e preço à vista, agrupados por categoria — pronto pra imprimir e levar num evento, feira ou bazar." class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.priceTableOpen ? "Fechar tabela de preços" : "🖨️ Tabela de preços"}</button>
+          <button id="calc3d-open-btn" title="Calcula o custo de fabricação de peças impressas em 3D (filamento, energia, desgaste, mão de obra, margem)." class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">🖨️ Calculadora 3D</button>
           <button id="new-product-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo produto</button>
         </div>
       </div>
+
+      <div id="calc3d-overlay-slot"></div>
 
       ${precifState.bulkOpen ? `
         <div class="rounded-xl border border-gold-300 bg-white p-4 shadow">
@@ -1804,6 +2097,10 @@ function renderPrecificacao(container) {
   document.getElementById("show-inactive").addEventListener("change", (e) => {
     precifState.showInactive = e.target.checked;
     renderPrecificacao(container);
+  });
+  document.getElementById("calc3d-open-btn").addEventListener("click", () => {
+    calc3dState.open = true;
+    renderCalc3dOverlay();
   });
   document.getElementById("new-product-btn").addEventListener("click", () => {
     precifState.editingId = null;
@@ -1987,6 +2284,7 @@ function renderPrecificacao(container) {
   }
 
   if (precifState.formOpen) renderProductForm();
+  if (calc3dState.open) renderCalc3dOverlay();
 }
 
 // Duplica um produto: copia preço/custo/categoria/fornecedor/materiais/
