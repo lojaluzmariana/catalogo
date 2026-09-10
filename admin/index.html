@@ -1883,11 +1883,13 @@ function renderCalc3dOverlay() {
               </div>
               ${calc3dState.history.length === 0 ? `<p class="text-xs text-navy-400">Nenhum projeto salvo ainda.</p>` : `
                 <div class="overflow-x-auto rounded-lg border border-navy-100">
-                  <table class="w-full min-w-[420px] text-xs">
+                  <table class="w-full min-w-[620px] text-xs">
                     <thead>
                       <tr class="bg-navy-900 text-left text-cream-50">
                         <th class="px-2 py-1.5">Projeto</th>
                         <th class="px-2 py-1.5 text-center">Qtd.</th>
+                        <th class="px-2 py-1.5 text-right">Custo da mesa</th>
+                        <th class="px-2 py-1.5 text-right">Custo/peça</th>
                         <th class="px-2 py-1.5 text-right">Preço da mesa</th>
                         <th class="px-2 py-1.5 text-right">Preço/peça</th>
                         <th class="px-2 py-1.5"></th>
@@ -1898,6 +1900,8 @@ function renderCalc3dOverlay() {
                         <tr class="border-t border-navy-50">
                           <td class="px-2 py-1.5">${escapeHtml(item.nome)}</td>
                           <td class="px-2 py-1.5 text-center">${escapeHtml(String(item.qtd))}</td>
+                          <td class="px-2 py-1.5 text-right text-navy-600">${escapeHtml(item.custoMesa ?? "—")}</td>
+                          <td class="px-2 py-1.5 text-right text-navy-600">${escapeHtml(item.custoPeca ?? "—")}</td>
                           <td class="px-2 py-1.5 text-right font-semibold text-emerald-700">${escapeHtml(item.total)}</td>
                           <td class="px-2 py-1.5 text-right font-semibold text-navy-700">${escapeHtml(item.unitario)}</td>
                           <td class="px-2 py-1.5 text-center"><button type="button" data-calc3d-remove-hist="${idx}" class="text-red-600 hover:underline">remover</button></td>
@@ -1951,6 +1955,8 @@ function renderCalc3dOverlay() {
     calc3dState.history = [...calc3dState.history, {
       nome: calc3dState.projectName || "Sem nome",
       qtd: calc3dState.unidades || 1,
+      custoMesa: formatBRL(res.custoTotalMesa),
+      custoPeca: formatBRL(res.custoPeca),
       total: formatBRL(res.precoVendaMesa),
       unitario: formatBRL(res.precoPeca),
     }];
