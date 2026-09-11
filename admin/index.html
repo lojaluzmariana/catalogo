@@ -173,6 +173,25 @@
   html.dark .hover\:bg-gold-50:hover { background-color: #2e2405 !important; }
   html.dark .hover\:text-navy-600:hover { color: #aab6e2 !important; }
   html.dark .hover\:text-navy-700:hover { color: #c7d0ef !important; }
+
+  /* Orçamentos — linha de itens responsiva, integrada ao painel. */
+  .orc-item-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.7fr) 90px 180px 150px 44px;
+    gap: 10px;
+    align-items: end;
+  }
+  @media (max-width: 760px) {
+    .orc-item-row { grid-template-columns: 1fr 90px 1fr; }
+    .orc-item-row .orc-total-wrap { grid-column: 1 / 3; }
+    .orc-item-row .orc-remove { grid-column: 3; }
+  }
+  @media print {
+    body * { visibility: hidden !important; }
+    #orcamento-print-area, #orcamento-print-area * { visibility: visible !important; }
+    #orcamento-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+    #orcamento-print-area .orc-no-print { display: none !important; }
+  }
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
@@ -508,13 +527,14 @@ const state = {
   selectedName: null,
   currentUser: null, // { id, name }
   forgotPassword: { username: "", submitting: false, submitted: false, error: null },
-  tab: "precificacao", // precificacao | materiais | fornecedores | clientes | cupons | pedidos | estoque | caixa
+  tab: "precificacao", // precificacao | materiais | fornecedores | clientes | cupons | orcamentos | pedidos | estoque | caixa
   products: [],
   materials: [],
   suppliers: [],
   customers: [],
   coupons: [],
   couponAllowedPhones: [], // números de telefone com direito a um cupom restrito (ver aba Cupons)
+  orcamentos: [], // orçamentos salvos no Supabase (compartilhados entre os admins)
   orders: [],
   cashEntries: [],
   reviews: [], // avaliações de produtos enviadas pelos clientes (aprovadas e pendentes)
@@ -950,7 +970,7 @@ async function finishAppEntry() {
 // Recarrega todos os dados do app de uma vez (usado ao entrar, no botão
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
-  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCouponAllowedPhones(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews()]);
+  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews()]);
   state.lastRefreshedAt = new Date();
 }
 
@@ -1001,7 +1021,7 @@ async function logout() {
   await supabaseClient.auth.signOut();
   Object.assign(state, {
     screen: "login", selectedName: null, currentUser: null, tab: "precificacao",
-    products: [], materials: [], customers: [], coupons: [], couponAllowedPhones: [], orders: [], cashEntries: [], error: null,
+    products: [], materials: [], customers: [], coupons: [], couponAllowedPhones: [], orcamentos: [], orders: [], cashEntries: [], error: null,
   });
   render();
 }
@@ -1034,6 +1054,7 @@ function renderApp() {
             <button data-tab="fornecedores" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "fornecedores" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Fornecedores</button>
             <button data-tab="clientes" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "clientes" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Clientes</button>
             <button data-tab="cupons" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "cupons" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Cupons</button>
+            <button data-tab="orcamentos" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "orcamentos" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Fazer orçamento</button>
             <button data-tab="pedidos" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "pedidos" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Pedidos${state.orders.filter((o) => o.status === "novo").length > 0 ? ` <span class="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.orders.filter((o) => o.status === "novo").length}</span>` : ""}</button>
             <button data-tab="estoque" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "estoque" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Estoque${state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length > 0 ? ` <span class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length}</span>` : ""}</button>
             <button data-tab="caixa" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "caixa" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Caixa</button>
@@ -1143,6 +1164,7 @@ function renderApp() {
   else if (state.tab === "fornecedores") renderFornecedores(main);
   else if (state.tab === "clientes") renderClientes(main);
   else if (state.tab === "cupons") renderCupons(main);
+  else if (state.tab === "orcamentos") renderOrcamentos(main);
   else if (state.tab === "pedidos") renderPedidos(main);
   else if (state.tab === "estoque") renderEstoque(main);
   else if (state.tab === "relatorios") renderRelatorios(main);
@@ -8735,6 +8757,539 @@ async function submeterVendaManual(e) {
   pedidosState.tab = "novo";
   await loadOrders();
   renderApp();
+}
+
+
+/* =====================================================================
+   ORÇAMENTOS — integrado ao painel e persistido no Supabase.
+   A numeração oficial vem da coluna IDENTITY da tabela public.orcamentos;
+   no painel ela é exibida com 3 dígitos (001, 002, 003...). Excluir um
+   orçamento NÃO faz o número voltar — a sequência do PostgreSQL segue em
+   frente, evitando reutilização de números.
+   ===================================================================== */
+const orcamentoState = {
+  editingId: null,
+  nextNumber: 1,
+  generatedText: "",
+  saving: false,
+};
+
+const ORC_MARGEM_PIX = 0.40;
+const ORC_MARGEM_CREDITO = 0.45;
+const ORC_TAXA_CREDITO = 0.05;
+
+async function loadOrcamentos() {
+  const { data, error } = await supabaseClient
+    .from("orcamentos")
+    .select("*")
+    .order("numero", { ascending: false })
+    .limit(100);
+  if (!error) state.orcamentos = data || [];
+  noteLoadResult("orçamentos", error);
+}
+
+async function loadProximoNumeroOrcamento() {
+  const { data, error } = await supabaseClient.rpc("proximo_numero_orcamento");
+  if (!error && Number.isFinite(Number(data))) {
+    orcamentoState.nextNumber = Number(data);
+    return;
+  }
+  // Fallback visual se a função RPC ainda não existir: não afeta a
+  // numeração oficial, que continua sendo definida pelo banco no INSERT.
+  const maior = Math.max(0, ...state.orcamentos.map((o) => Number(o.numero) || 0));
+  orcamentoState.nextNumber = maior + 1;
+  if (error) console.error("proximo_numero_orcamento:", error.message);
+}
+
+function orcNumeroFormatado(n) {
+  return String(Number(n) || 0).padStart(3, "0");
+}
+
+function orcNumero(v) {
+  if (typeof v === "number") return v;
+  const s = String(v || "").replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  return parseFloat(s) || 0;
+}
+
+function orcPrecoCreditoAPartirDoPix(valorPix) {
+  const pix = orcNumero(valorPix);
+  if (pix <= 0) return 0;
+  const custoEstimado = pix * (1 - ORC_MARGEM_PIX);
+  const brutoCredito = custoEstimado / ((1 - ORC_TAXA_CREDITO) * (1 - ORC_MARGEM_CREDITO));
+  return Math.round(brutoCredito);
+}
+
+function orcDataISOParaBR(valor) {
+  if (!valor) return "—";
+  const [ano, mes, dia] = String(valor).slice(0, 10).split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
+function orcAdicionarDiasCorridos(dataISO, dias) {
+  if (!dataISO) return "";
+  const [ano, mes, dia] = dataISO.split("-").map(Number);
+  const d = new Date(ano, mes - 1, dia);
+  d.setDate(d.getDate() + Number(dias || 0));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function orcAdicionarDiasUteis(dataISO, diasUteis) {
+  if (!dataISO) return "";
+  const [ano, mes, dia] = dataISO.split("-").map(Number);
+  const d = new Date(ano, mes - 1, dia);
+  let restantes = Math.max(0, parseInt(diasUteis || 0, 10));
+  while (restantes > 0) {
+    d.setDate(d.getDate() + 1);
+    const diaSemana = d.getDay();
+    if (diaSemana !== 0 && diaSemana !== 6) restantes--;
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function orcRowToData(row) {
+  return {
+    id: row.id,
+    numero: orcNumeroFormatado(row.numero),
+    nome: row.cliente_nome || "",
+    telefone: row.telefone || "",
+    dataOrcamento: row.data_orcamento || todayISO(),
+    validadeOrcamento: row.validade_orcamento || "",
+    prazoDias: Number(row.prazo_dias || 0),
+    previsaoEntrega: row.previsao_entrega || "",
+    pagamento: row.pagamento || "pix",
+    itens: Array.isArray(row.itens) ? row.itens : [],
+    subtotal: Number(row.subtotal || 0),
+    totalPix: Number(row.total_pix || 0),
+    totalCredito: Number(row.total_credito || 0),
+    total: Number(row.total_final || 0),
+    acrescimo: Number(row.acrescimo || 0),
+    criadoEm: row.created_at ? new Date(row.created_at).toLocaleString("pt-BR") : "",
+  };
+}
+
+function renderOrcamentos(container) {
+  const editingRow = orcamentoState.editingId
+    ? state.orcamentos.find((o) => o.id === orcamentoState.editingId)
+    : null;
+  const d = editingRow ? orcRowToData(editingRow) : {
+    numero: orcNumeroFormatado(orcamentoState.nextNumber || 1),
+    nome: "",
+    telefone: "",
+    dataOrcamento: todayISO(),
+    validadeOrcamento: orcAdicionarDiasCorridos(todayISO(), 2),
+    prazoDias: "",
+    previsaoEntrega: "",
+    pagamento: "pix",
+    itens: [{ pedido: "", quantidade: 1, unitarioPix: "" }],
+  };
+
+  container.innerHTML = `
+    <section class="flex flex-col gap-6">
+      <div id="orcamento-print-area" class="rounded-2xl border border-navy-100 bg-white p-6 shadow-sm">
+        <div class="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-navy-100" style="padding-bottom:1.25rem">
+          <div>
+            <h1 class="text-xl font-semibold text-navy-900">Fazer orçamento</h1>
+            <p class="mt-1 text-sm text-navy-500">Crie o orçamento, calcule Pix/crédito e salve no histórico compartilhado do Supabase.</p>
+          </div>
+          <label class="block" style="min-width:170px">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Nº do orçamento</span>
+            <input id="orc-numero" readonly value="${escapeHtml(d.numero)}"
+              class="w-full rounded-lg border border-navy-100 bg-cream-100 px-4 py-3 text-base font-semibold text-navy-900 shadow-sm outline-none" />
+          </label>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Nome do cliente</span>
+            <input id="orc-nome" value="${escapeHtml(d.nome)}" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Nome completo" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Telefone</span>
+            <input id="orc-telefone" type="tel" value="${escapeHtml(d.telefone)}" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(84) 99999-9999" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Data do orçamento</span>
+            <input id="orc-data" type="date" value="${escapeHtml(d.dataOrcamento)}" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Validade do orçamento</span>
+            <input id="orc-validade" type="date" readonly value="${escapeHtml(d.validadeOrcamento)}" class="w-full rounded-lg border border-navy-100 bg-cream-100 px-4 py-3 text-base text-navy-900 shadow-sm outline-none" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Prazo de entrega (dias úteis)</span>
+            <input id="orc-prazo" type="number" min="0" step="1" value="${d.prazoDias === "" ? "" : escapeHtml(d.prazoDias)}" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex.: 3" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Previsão de entrega</span>
+            <input id="orc-previsao" type="date" readonly value="${escapeHtml(d.previsaoEntrega)}" class="w-full rounded-lg border border-navy-100 bg-cream-100 px-4 py-3 text-base text-navy-900 shadow-sm outline-none" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-medium text-navy-800">Forma de pagamento</span>
+            <select id="orc-pagamento" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+              <option value="pix" ${d.pagamento === "pix" ? "selected" : ""}>Pix / Espécie</option>
+              <option value="credito" ${d.pagamento === "credito" ? "selected" : ""}>Cartão de crédito em até 3x</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="mt-6">
+          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-700">Itens do pedido</h2>
+          <div id="orc-itens" class="flex flex-col gap-3"></div>
+          <button id="orc-add-item" type="button" class="orc-no-print mt-3 rounded-lg border border-navy-300 bg-white px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50">+ Adicionar item</button>
+        </div>
+
+        <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div class="rounded-xl border border-gold-300 bg-gold-50 p-4">
+            <div class="text-xs text-navy-500">Total Pix / Espécie</div>
+            <div id="orc-total-pix" class="mt-1 text-lg font-semibold text-navy-900">R$ 0,00</div>
+          </div>
+          <div class="rounded-xl border border-navy-100 bg-navy-50 p-4">
+            <div class="text-xs text-navy-500">Total no crédito</div>
+            <div id="orc-total-credito" class="mt-1 text-lg font-semibold text-navy-900">R$ 0,00</div>
+          </div>
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div class="text-xs text-navy-500">Valor final selecionado</div>
+            <div id="orc-total-final" class="mt-1 text-lg font-semibold text-emerald-700">R$ 0,00</div>
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-navy-400">O valor no crédito é calculado automaticamente a partir do preço Pix, usando a regra comercial atual do painel.</p>
+
+        <div class="orc-no-print mt-6 flex flex-wrap gap-2">
+          <button id="orc-save-btn" type="button" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">${editingRow ? "Salvar alterações" : "Gerar e salvar orçamento"}</button>
+          <button id="orc-new-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-4 py-3 text-sm font-medium text-navy-700 transition hover:bg-navy-50">Novo</button>
+          <button id="orc-print-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-4 py-3 text-sm font-medium text-navy-700 transition hover:bg-navy-50">Imprimir</button>
+        </div>
+
+        <div id="orc-saida" class="mt-6 ${orcamentoState.generatedText ? "" : "hidden"}">
+          <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-navy-700">Texto gerado</h2>
+          <textarea id="orc-texto" readonly class="w-full rounded-lg border border-navy-100 bg-cream-50 px-4 py-3 text-sm text-navy-900 outline-none" style="min-height:280px;resize:vertical">${escapeHtml(orcamentoState.generatedText)}</textarea>
+          <div class="orc-no-print mt-2">
+            <button id="orc-copy-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50">Copiar texto</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-navy-100 bg-white p-6 shadow-sm">
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-navy-900">Histórico de orçamentos</h2>
+            <p class="text-sm text-navy-500">Salvo no Supabase e disponível para os administradores do painel.</p>
+          </div>
+          <span class="rounded-full bg-navy-50 px-3 py-1 text-xs font-medium text-navy-700">${state.orcamentos.length} salvo(s)</span>
+        </div>
+        <div id="orc-historico" class="flex flex-col gap-3">
+          ${renderOrcamentoHistoricoHtml()}
+        </div>
+      </div>
+    </section>
+  `;
+
+  const itens = d.itens && d.itens.length ? d.itens : [{ pedido: "", quantidade: 1, unitarioPix: "" }];
+  itens.forEach((item) => adicionarItemOrcamento(item));
+  calcularOrcamento();
+  atualizarDatasOrcamento(false);
+
+  document.getElementById("orc-add-item").addEventListener("click", () => adicionarItemOrcamento());
+  document.getElementById("orc-data").addEventListener("change", () => atualizarDatasOrcamento(true));
+  document.getElementById("orc-prazo").addEventListener("input", () => atualizarDatasOrcamento(true));
+  document.getElementById("orc-pagamento").addEventListener("change", calcularOrcamento);
+  document.getElementById("orc-save-btn").addEventListener("click", salvarOrcamentoSupabase);
+  document.getElementById("orc-new-btn").addEventListener("click", novoOrcamentoPainel);
+  document.getElementById("orc-print-btn").addEventListener("click", () => window.print());
+  document.getElementById("orc-telefone").addEventListener("input", (e) => {
+    let v = e.target.value.replace(/\D/g, "").slice(0, 11);
+    if (v.length > 10) v = v.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+    else if (v.length > 6) v = v.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
+    else if (v.length > 2) v = v.replace(/(\d{2})(\d+)/, "($1) $2");
+    e.target.value = v;
+  });
+  const copy = document.getElementById("orc-copy-btn");
+  if (copy) copy.addEventListener("click", () => copiarTextoOrcamento(orcamentoState.generatedText));
+
+  container.querySelectorAll("[data-orc-open]").forEach((btn) => btn.addEventListener("click", () => abrirOrcamento(btn.dataset.orcOpen)));
+  container.querySelectorAll("[data-orc-copy]").forEach((btn) => btn.addEventListener("click", () => copiarOrcamentoSalvo(btn.dataset.orcCopy)));
+  container.querySelectorAll("[data-orc-delete]").forEach((btn) => btn.addEventListener("click", () => excluirOrcamento(btn.dataset.orcDelete)));
+}
+
+function renderOrcamentoHistoricoHtml() {
+  if (!state.orcamentos.length) {
+    return `<div class="rounded-xl border border-navy-100 bg-cream-50 p-4 text-sm text-navy-500">Nenhum orçamento salvo ainda. O primeiro receberá o nº 001.</div>`;
+  }
+  return state.orcamentos.map((row) => {
+    const itens = Array.isArray(row.itens) ? row.itens : [];
+    const quem = adminName(row.criado_por);
+    return `
+      <div class="rounded-xl border border-navy-100 bg-white p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div class="font-semibold text-navy-900">Orçamento ${orcNumeroFormatado(row.numero)} — ${escapeHtml(row.cliente_nome || "Cliente")}</div>
+            <div class="mt-1 text-xs text-navy-500">${row.created_at ? escapeHtml(new Date(row.created_at).toLocaleString("pt-BR")) : ""} • ${itens.length} item(ns)${quem ? ` • por ${escapeHtml(quem)}` : ""}</div>
+          </div>
+          <span class="rounded-full bg-gold-50 px-3 py-1 text-sm font-semibold text-gold-900">${formatBRL(Number(row.total_final || 0))}</span>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button data-orc-open="${row.id}" class="rounded-lg border border-navy-300 bg-white px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-50">Abrir</button>
+          <button data-orc-copy="${row.id}" class="rounded-lg border border-navy-300 bg-white px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-50">Copiar texto</button>
+          <button data-orc-delete="${row.id}" class="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50">Excluir</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function adicionarItemOrcamento(dados = {}) {
+  const itens = document.getElementById("orc-itens");
+  if (!itens) return;
+  const linha = document.createElement("div");
+  linha.className = "orc-item-row rounded-xl border border-navy-100 bg-cream-50 p-3";
+  const unit = dados.unitarioPix ?? dados.unitario ?? "";
+  linha.innerHTML = `
+    <label class="block">
+      <span class="mb-1.5 block text-xs font-medium text-navy-700">Pedido / Produto</span>
+      <input class="orc-pedido w-full rounded-lg border border-navy-100 bg-white px-3 py-2 text-base text-navy-900 outline-none focus:border-gold-500" placeholder="Ex.: Sagrada Família 16 cm" value="${escapeHtml(dados.pedido || "")}" />
+    </label>
+    <label class="block">
+      <span class="mb-1.5 block text-xs font-medium text-navy-700">Qtd.</span>
+      <input class="orc-quantidade w-full rounded-lg border border-navy-100 bg-white px-3 py-2 text-base text-navy-900 outline-none focus:border-gold-500" type="number" min="1" step="1" value="${escapeHtml(dados.quantidade || 1)}" />
+    </label>
+    <label class="block">
+      <span class="mb-1.5 block text-xs font-medium text-navy-700">Valor unitário (Pix / Espécie)</span>
+      <input class="orc-unitario w-full rounded-lg border border-navy-100 bg-white px-3 py-2 text-base text-navy-900 outline-none focus:border-gold-500" type="number" min="0" step="0.01" placeholder="0,00" value="${escapeHtml(unit)}" />
+    </label>
+    <label class="orc-total-wrap block">
+      <span class="mb-1.5 block text-xs font-medium text-navy-700">Valor total</span>
+      <input class="orc-item-total w-full rounded-lg border border-navy-100 bg-white px-3 py-2 text-base text-navy-900 outline-none" readonly value="R$ 0,00" />
+    </label>
+    <button type="button" class="orc-remove rounded-lg border border-red-200 bg-white text-lg font-bold text-red-600 hover:bg-red-50" style="height:43px" title="Remover item">×</button>
+  `;
+  linha.querySelector(".orc-remove").addEventListener("click", () => { linha.remove(); calcularOrcamento(); });
+  linha.querySelectorAll("input").forEach((el) => el.addEventListener("input", calcularOrcamento));
+  itens.appendChild(linha);
+}
+
+function calcularOrcamento() {
+  let totalPix = 0;
+  let totalCredito = 0;
+  const pagamento = document.getElementById("orc-pagamento")?.value || "pix";
+  document.querySelectorAll("#orc-itens .orc-item-row").forEach((linha) => {
+    const qtd = orcNumero(linha.querySelector(".orc-quantidade").value);
+    const unitPix = orcNumero(linha.querySelector(".orc-unitario").value);
+    const unitCredito = orcPrecoCreditoAPartirDoPix(unitPix);
+    const itemPix = qtd * unitPix;
+    const itemCredito = qtd * unitCredito;
+    totalPix += itemPix;
+    totalCredito += itemCredito;
+    linha.querySelector(".orc-item-total").value = formatBRL(pagamento === "credito" ? itemCredito : itemPix);
+  });
+  const total = pagamento === "credito" ? totalCredito : totalPix;
+  const pixEl = document.getElementById("orc-total-pix");
+  const credEl = document.getElementById("orc-total-credito");
+  const finalEl = document.getElementById("orc-total-final");
+  if (pixEl) pixEl.textContent = formatBRL(totalPix);
+  if (credEl) credEl.textContent = formatBRL(totalCredito);
+  if (finalEl) finalEl.textContent = formatBRL(total);
+  return { subtotal: totalPix, totalPix, totalCredito, total, acrescimo: totalCredito - totalPix };
+}
+
+function atualizarDatasOrcamento(recalcular = true) {
+  const data = document.getElementById("orc-data")?.value || "";
+  const prazo = document.getElementById("orc-prazo")?.value ?? "";
+  const validade = document.getElementById("orc-validade");
+  const previsao = document.getElementById("orc-previsao");
+  if (validade) validade.value = data ? orcAdicionarDiasCorridos(data, 2) : "";
+  if (previsao) previsao.value = data && prazo !== "" ? orcAdicionarDiasUteis(data, prazo) : "";
+  if (recalcular) calcularOrcamento();
+}
+
+function obterDadosOrcamento() {
+  const pagamento = document.getElementById("orc-pagamento").value;
+  const itens = [...document.querySelectorAll("#orc-itens .orc-item-row")].map((linha) => {
+    const quantidade = orcNumero(linha.querySelector(".orc-quantidade").value);
+    const unitarioPix = orcNumero(linha.querySelector(".orc-unitario").value);
+    const unitarioCredito = orcPrecoCreditoAPartirDoPix(unitarioPix);
+    return {
+      pedido: linha.querySelector(".orc-pedido").value.trim(),
+      quantidade,
+      unitario: unitarioPix,
+      unitarioPix,
+      unitarioCredito,
+      totalPix: quantidade * unitarioPix,
+      totalCredito: quantidade * unitarioCredito,
+      total: pagamento === "credito" ? quantidade * unitarioCredito : quantidade * unitarioPix,
+    };
+  }).filter((i) => i.pedido || i.unitarioPix > 0);
+  const valores = calcularOrcamento();
+  return {
+    id: orcamentoState.editingId,
+    numero: document.getElementById("orc-numero").value.trim(),
+    nome: document.getElementById("orc-nome").value.trim(),
+    telefone: document.getElementById("orc-telefone").value.trim(),
+    dataOrcamento: document.getElementById("orc-data").value,
+    validadeOrcamento: document.getElementById("orc-validade").value,
+    prazoDias: orcNumero(document.getElementById("orc-prazo").value),
+    previsaoEntrega: document.getElementById("orc-previsao").value,
+    pagamento,
+    itens,
+    ...valores,
+  };
+}
+
+function gerarTextoOrcamento(d) {
+  const credito = d.pagamento === "credito";
+  const pagamento = credito ? "Cartão de crédito em até 3x" : "Pix / Espécie";
+  const itens = d.itens.map((i) => {
+    const unit = credito ? i.unitarioCredito : i.unitarioPix;
+    const totalItem = credito ? i.totalCredito : i.totalPix;
+    return `• ${i.pedido}\n  ${i.quantidade} und x ${formatBRL(unit)} = ${formatBRL(totalItem)}`;
+  }).join("\n");
+  const valorUnitario = d.itens.length === 1
+    ? `\nValor unitário: ${formatBRL(credito ? d.itens[0].unitarioCredito : d.itens[0].unitarioPix)}`
+    : "";
+  const prazoTexto = `${d.prazoDias || 0} ${d.prazoDias === 1 ? "dia útil" : "dias úteis"}`;
+  const previsaoTexto = d.previsaoEntrega ? ` (previsão: ${orcDataISOParaBR(d.previsaoEntrega)})` : "";
+  return `*LUZ MARIANA — ORÇAMENTO Nº ${d.numero || "—"}*\n\n` +
+    `*Data do orçamento:* ${orcDataISOParaBR(d.dataOrcamento)}\n` +
+    `*Validade do orçamento:* ${orcDataISOParaBR(d.validadeOrcamento)}\n\n` +
+    `*Cliente:* ${d.nome || "—"}\n` +
+    `*Telefone:* ${d.telefone || "N/A"}\n\n` +
+    `*Detalhamento do pedido:*\n${itens || "—"}\n` +
+    `------------------------------\n` +
+    `Subtotal: ${formatBRL(d.total)}${valorUnitario}\n` +
+    `*Valor total: ${formatBRL(d.total)}*\n` +
+    `------------------------------\n` +
+    `*Prazo de entrega:* ${prazoTexto}${previsaoTexto}\n` +
+    `*Forma de pagamento:* ${pagamento}\n` +
+    `Pix / Espécie possui valor promocional. No crédito, valor calculado para pagamento em até 3x.\n\n` +
+    `*Luz Mariana — Artigos Religiosos e Devoção*\n` +
+    `Siga nossa loja no Instagram https://instagram.com/luzmariana.art\n` +
+    `_Uma empresa da marca Iluminart RN_`;
+}
+
+function payloadOrcamento(d) {
+  return {
+    cliente_nome: d.nome,
+    telefone: d.telefone || null,
+    data_orcamento: d.dataOrcamento,
+    validade_orcamento: d.validadeOrcamento || null,
+    prazo_dias: Number(d.prazoDias || 0),
+    previsao_entrega: d.previsaoEntrega || null,
+    pagamento: d.pagamento,
+    itens: d.itens,
+    subtotal: round2(d.subtotal),
+    total_pix: round2(d.totalPix),
+    total_credito: round2(d.totalCredito),
+    total_final: round2(d.total),
+    acrescimo: round2(d.acrescimo),
+  };
+}
+
+async function salvarOrcamentoSupabase() {
+  if (orcamentoState.saving) return;
+  const d = obterDadosOrcamento();
+  if (!d.nome) { alert("Informe o nome do cliente."); return; }
+  if (!d.itens.length) { alert("Adicione pelo menos um item ao pedido."); return; }
+  if (d.itens.some((i) => !i.pedido)) { alert("Informe o nome de todos os itens do pedido."); return; }
+
+  const btn = document.getElementById("orc-save-btn");
+  orcamentoState.saving = true;
+  if (btn) { btn.disabled = true; btn.textContent = "Salvando..."; }
+
+  try {
+    let saved;
+    if (orcamentoState.editingId) {
+      const numeroAtual = Number(state.orcamentos.find((o) => o.id === orcamentoState.editingId)?.numero || d.numero);
+      const texto = gerarTextoOrcamento({ ...d, numero: orcNumeroFormatado(numeroAtual) });
+      const { data, error } = await supabaseClient
+        .from("orcamentos")
+        .update({ ...payloadOrcamento(d), texto_gerado: texto })
+        .eq("id", orcamentoState.editingId)
+        .select("*")
+        .single();
+      if (error) throw error;
+      saved = data;
+      orcamentoState.generatedText = texto;
+    } else {
+      // O banco atribui o número oficial por IDENTITY, evitando duplicidade
+      // mesmo se Bob e Helena salvarem orçamentos ao mesmo tempo.
+      const { data, error } = await supabaseClient
+        .from("orcamentos")
+        .insert({ ...payloadOrcamento(d), criado_por: state.currentUser?.id || null })
+        .select("*")
+        .single();
+      if (error) throw error;
+      saved = data;
+      const numeroOficial = orcNumeroFormatado(saved.numero);
+      const texto = gerarTextoOrcamento({ ...d, numero: numeroOficial });
+      const { data: updated, error: textError } = await supabaseClient
+        .from("orcamentos")
+        .update({ texto_gerado: texto })
+        .eq("id", saved.id)
+        .select("*")
+        .single();
+      if (textError) throw textError;
+      saved = updated;
+      orcamentoState.generatedText = texto;
+      orcamentoState.editingId = saved.id;
+    }
+
+    const idx = state.orcamentos.findIndex((o) => o.id === saved.id);
+    if (idx >= 0) state.orcamentos[idx] = saved;
+    else state.orcamentos.unshift(saved);
+    state.orcamentos.sort((a, b) => Number(b.numero) - Number(a.numero));
+    await loadProximoNumeroOrcamento();
+    renderOrcamentos(document.getElementById("main-content"));
+    alert(`Orçamento ${orcNumeroFormatado(saved.numero)} salvo no Supabase.`);
+  } catch (err) {
+    console.error("Salvar orçamento:", err);
+    alert("Não foi possível salvar o orçamento no Supabase: " + (err?.message || "erro desconhecido"));
+    if (btn) { btn.disabled = false; btn.textContent = orcamentoState.editingId ? "Salvar alterações" : "Gerar e salvar orçamento"; }
+  } finally {
+    orcamentoState.saving = false;
+  }
+}
+
+async function novoOrcamentoPainel() {
+  orcamentoState.editingId = null;
+  orcamentoState.generatedText = "";
+  await loadProximoNumeroOrcamento();
+  renderOrcamentos(document.getElementById("main-content"));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function abrirOrcamento(id) {
+  const row = state.orcamentos.find((o) => String(o.id) === String(id));
+  if (!row) return;
+  orcamentoState.editingId = row.id;
+  const d = orcRowToData(row);
+  orcamentoState.generatedText = row.texto_gerado || gerarTextoOrcamento(d);
+  renderOrcamentos(document.getElementById("main-content"));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function copiarTextoOrcamento(texto) {
+  if (!texto) return;
+  navigator.clipboard.writeText(texto).then(() => alert("Texto copiado!")).catch(() => prompt("Copie o texto:", texto));
+}
+
+function copiarOrcamentoSalvo(id) {
+  const row = state.orcamentos.find((o) => String(o.id) === String(id));
+  if (!row) return;
+  const texto = row.texto_gerado || gerarTextoOrcamento(orcRowToData(row));
+  copiarTextoOrcamento(texto);
+}
+
+async function excluirOrcamento(id) {
+  const row = state.orcamentos.find((o) => String(o.id) === String(id));
+  if (!row) return;
+  if (!confirm(`Excluir o orçamento ${orcNumeroFormatado(row.numero)}? O número não será reutilizado.`)) return;
+  const { error } = await supabaseClient.from("orcamentos").delete().eq("id", row.id);
+  if (error) { alert("Não foi possível excluir: " + error.message); return; }
+  state.orcamentos = state.orcamentos.filter((o) => o.id !== row.id);
+  if (orcamentoState.editingId === row.id) {
+    orcamentoState.editingId = null;
+    orcamentoState.generatedText = "";
+  }
+  await loadProximoNumeroOrcamento();
+  renderOrcamentos(document.getElementById("main-content"));
 }
 
 function renderCaixa(container) {
