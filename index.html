@@ -866,16 +866,58 @@ function addRecentlyViewed(productId) {
   ids.unshift(productId);
   try { localStorage.setItem(RECENT_PRODUCTS_KEY, JSON.stringify(ids.slice(0, 8))); } catch (_err) {}
 }
-function productShareUrl(productId) {
+function productShareUrl(productId, variantId = null) {
   const url = new URL(CATALOG_BASE_URL);
   url.searchParams.set("produto", productId);
+  if (variantId) url.searchParams.set("modelo", variantId);
   return url.toString();
+}
+function productSocialShareUrl(productId, variantId = null) {
+  const productPart = encodeURIComponent(String(productId));
+  if (variantId) {
+    return `${CATALOG_BASE_URL}share/${productPart}/${encodeURIComponent(String(variantId))}/`;
+  }
+  return `${CATALOG_BASE_URL}share/${productPart}/`;
 }
 function syncProductUrl(productId, push = true) {
   const url = new URL(window.location.href);
   if (productId) url.searchParams.set("produto", productId);
   else url.searchParams.delete("produto");
   history[push ? "pushState" : "replaceState"]({ productId: productId || null }, "", url);
+}
+
+function updateDynamicShareMeta(product = null, variant = null) {
+  const baseTitle = "Luz Mariana - Loja Virtual";
+  const baseDescription = "Catálogo de artigos religiosos — Luz Mariana";
+  const fallbackImage = `${CATALOG_BASE_URL}og-image.jpg`;
+
+  const selected = product ? (variant || bestSellingVariant(product.id)) : null;
+  const title = product ? `${product.name}${selected?.name ? ` — ${selected.name}` : ""} | Luz Mariana` : baseTitle;
+  const description = product
+    ? `${product.name}${selected?.name ? ` — ${selected.name}` : ""} disponível na Luz Mariana.`
+    : baseDescription;
+
+  // Importante: não usamos URL de imagem do Supabase nos metadados sociais.
+  // Mantemos uma imagem estática hospedada junto do catálogo.
+  const image = fallbackImage;
+  const url = product ? productShareUrl(product.id, selected?.id || null) : CATALOG_BASE_URL;
+
+  document.title = title;
+
+  const setMeta = (selector, attrName, attrValue) => {
+    const el = document.querySelector(selector);
+    if (el) el.setAttribute(attrName, attrValue);
+  };
+
+  setMeta('meta[name="description"]', "content", description);
+  setMeta('meta[property="og:title"]', "content", title);
+  setMeta('meta[property="og:description"]', "content", description);
+  setMeta('meta[property="og:url"]', "content", url);
+  setMeta('meta[property="og:image"]', "content", image);
+  setMeta('meta[property="og:image:secure_url"]', "content", image);
+  setMeta('meta[name="twitter:title"]', "content", title);
+  setMeta('meta[name="twitter:description"]', "content", description);
+  setMeta('meta[name="twitter:image"]', "content", image);
 }
 function stockQuantity(entity) {
   const value = entity?.stock_quantity ?? entity?.stock_qty ?? entity?.quantity_in_stock ?? entity?.available_quantity;
@@ -1157,10 +1199,15 @@ async function loadCatalog() {
   pruneStaleCartItems();
   pruneStaleFavorites();
 
-  const directProductId = new URL(window.location.href).searchParams.get("produto");
+  const currentUrl = new URL(window.location.href);
+  const directProductId = currentUrl.searchParams.get("produto");
+  const directVariantId = currentUrl.searchParams.get("modelo");
   if (directProductId && state.products.some((p) => String(p.id) === String(directProductId))) {
     state.screen = "product";
     state.detailProductId = directProductId;
+    if (directVariantId && variantsFor(directProductId).some((v) => String(v.id) === String(directVariantId))) {
+      state.selectedVariant[directProductId] = directVariantId;
+    }
   }
   try {
     const seen = sessionStorage.getItem(CART_RESTORED_SESSION_KEY) === "1";
@@ -1905,6 +1952,7 @@ function renderRecentlyViewed() {
 }
 
 function renderCatalog() {
+  updateDynamicShareMeta(null, null);
   const grouped = groupByCategory(state.products);
   const categories = grouped.map((g) => g.category);
   const featured = computeBestSellers(state.products);
@@ -2169,6 +2217,7 @@ function renderProductDetail() {
   const variants = variantsFor(product.id);
   const variant = currentVariant(product);
   const previewVariant = previewVariantForDetail(product);
+  updateDynamicShareMeta(product, variant || previewVariant);
   const bestSelling = bestSellingVariant(product.id);
   const showingBestSellerPreview = !variant && !!previewVariant && !!bestSelling && previewVariant.id === bestSelling.id;
   const detailPricing = variant ? effectivePricing(product, variant) : pricingSummary(product);
@@ -2383,8 +2432,11 @@ function openShareMenu(product) {
   if (!product) return;
   document.getElementById("share-menu-overlay")?.remove();
 
-  const url = productShareUrl(product.id);
-  const message = `Olha este produto da Luz Mariana: ${product.name}`;
+  const selectedVariant = currentVariant(product);
+  const sharedVariant = selectedVariant || bestSellingVariant(product.id);
+  const url = productSocialShareUrl(product.id, sharedVariant?.id || null);
+  const modelSuffix = sharedVariant?.name ? ` — ${sharedVariant.name}` : "";
+  const message = `Olha este produto da Luz Mariana: ${product.name}${modelSuffix}`;
 
   const overlay = document.createElement("div");
   overlay.id = "share-menu-overlay";
@@ -2686,6 +2738,10 @@ function wireCatalogEvents() {
       state.variantScrollLeft[productId] = row ? row.scrollLeft : 0;
       state.selectedVariant[productId] = btn.dataset.variantId;
       state.detailGalleryIndex = 0;
+      const currentProductUrl = new URL(window.location.href);
+      currentProductUrl.searchParams.set("produto", productId);
+      currentProductUrl.searchParams.set("modelo", btn.dataset.variantId);
+      history.replaceState({ productId, variantId: btn.dataset.variantId }, "", currentProductUrl);
       trackEvent("select_model", { product_id: String(productId), variant_id: String(btn.dataset.variantId) });
       render();
       requestAnimationFrame(() => {
@@ -3834,11 +3890,16 @@ window.addEventListener("unhandledrejection", (event) => {
 
 window.addEventListener("popstate", () => {
   if (state.loading) return;
-  const productId = new URL(window.location.href).searchParams.get("produto");
+  const popUrl = new URL(window.location.href);
+  const productId = popUrl.searchParams.get("produto");
+  const variantId = popUrl.searchParams.get("modelo");
   if (productId && state.products.some((p) => String(p.id) === String(productId))) {
     state.screen = "product";
     state.detailProductId = productId;
     state.detailGalleryIndex = 0;
+    if (variantId && variantsFor(productId).some((v) => String(v.id) === String(variantId))) {
+      state.selectedVariant[productId] = variantId;
+    }
   } else {
     state.screen = "catalog";
     state.detailProductId = null;
