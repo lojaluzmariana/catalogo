@@ -64,13 +64,12 @@
     to { transform: translateX(-50%); }
   }
   .featured-carousel-track {
-    animation-name: featured-carousel-scroll;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
+    animation: none !important;
     width: max-content;
   }
-  .featured-carousel-wrap:hover .featured-carousel-track {
-    animation-play-state: paused;
+  .featured-carousel-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Compra guiada: foco em celular, botões grandes e leitura simples. */
@@ -413,6 +412,131 @@
   .product-description-box summary { cursor: pointer; font-weight: 700; color: #001868; padding: 8px 0; }
   @media (min-width: 640px) { .product-description-box summary { display: none; } }
   .large-touch-action { min-height: 48px; font-size: 15px !important; }
+
+  /* Acessibilidade: leitura, foco, toque e contraste. */
+  html[data-font-size="large"] { font-size: 112.5%; }
+  body { color: #10265f; }
+  ::placeholder { color: #667085 !important; opacity: 1; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+  textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+    outline: 3px solid #d5aa3e !important;
+    outline-offset: 2px !important;
+  }
+  button, summary, .category-bar-btn, .qty-btn, .giftwrap-qty-btn {
+    touch-action: manipulation;
+  }
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { min-height: 48px; }
+  .category-bar-btn, [data-open-track], [data-font-toggle], .qty-btn,
+  .giftwrap-qty-btn, [data-checkout-remove] { min-height: 44px; }
+  .accessibility-btn {
+    min-width: 44px;
+    min-height: 44px;
+    border: 1px solid rgba(255,255,255,.28);
+    border-radius: 999px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .secure-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid #9fd7ae;
+    background: #eefaf1;
+    color: #166534;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .secure-note { color: #475467; line-height: 1.45; }
+  .checkout-sticky-summary {
+    position: sticky;
+    top: 0;
+    z-index: 14;
+    margin-bottom: 14px;
+    border: 1px solid #d9dce8;
+    border-radius: 12px;
+    background: rgba(255,255,255,.97);
+    padding: 9px 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.07);
+    backdrop-filter: blur(6px);
+  }
+  .model-scroll-hint {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+    color: #52618a;
+    font-size: 11px;
+  }
+  .photo-zoom-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(0,0,0,.82);
+  }
+  .photo-zoom-dialog {
+    position: relative;
+    width: 100%;
+    max-width: 760px;
+    max-height: 92vh;
+    border-radius: 16px;
+    background: #fff;
+    padding: 12px;
+  }
+  .photo-zoom-dialog img {
+    display: block;
+    width: 100%;
+    max-height: 82vh;
+    object-fit: contain;
+    border-radius: 10px;
+    background: #f8f6ef;
+  }
+  .photo-zoom-close {
+    position: absolute;
+    right: 18px;
+    top: 18px;
+    z-index: 2;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 999px;
+    background: #fff;
+    color: #001868;
+    box-shadow: 0 3px 12px rgba(0,0,0,.24);
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .zoom-photo-btn {
+    position: absolute;
+    right: 54px;
+    top: 8px;
+    z-index: 12;
+    min-height: 40px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.94);
+    padding: 0 12px;
+    color: #001868;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(0,0,0,.14);
+  }
+  .context-help-btn {
+    width: 100%;
+    min-height: 44px;
+    margin-top: 8px;
+    border: 1px solid #cdd3e4;
+    border-radius: 10px;
+    background: #fff;
+    color: #33436f;
+    font-size: 12px;
+    font-weight: 700;
+  }
   .checkout-step-badge {
     display: inline-flex;
     width: 26px;
@@ -490,7 +614,7 @@ const STORE_CNPJ = "68.615.746/0001-43";
 const DEFAULT_LEAD_TIME_DAYS = 3;
 function madeToOrderText(product) {
   const days = product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
-  return `Prazo de até ${days} dia${days === 1 ? "" : "s"} útil${days === 1 ? "" : "eis"} para fabricação, a contar da data do pedido.`;
+  return `Prazo de até ${days} dia${days === 1 ? "" : "s"} útil${days === 1 ? "" : "eis"} para fabricação. Previsão estimada: até ${estimatedReadyDate(product)} (segunda a sexta).`;
 }
 // Sinal exigido pra confirmar o pedido e iniciar a produção.
 const DEPOSIT_RATE = 0.5;
@@ -533,6 +657,63 @@ function formatWhatsappBR(raw) {
 }
 
 const app = document.getElementById("app");
+
+const FONT_SIZE_PREF_KEY = "luzmariana_font_size_v1";
+const PAYMENT_PREF_KEY = "luzmariana_payment_v1";
+
+function loadFontSizePreference() {
+  try { return localStorage.getItem(FONT_SIZE_PREF_KEY) === "large" ? "large" : "normal"; }
+  catch (_err) { return "normal"; }
+}
+function applyFontSizePreference(value) {
+  const size = value === "large" ? "large" : "normal";
+  document.documentElement.dataset.fontSize = size;
+  try { localStorage.setItem(FONT_SIZE_PREF_KEY, size); } catch (_err) {}
+}
+function toggleFontSizePreference() {
+  const next = document.documentElement.dataset.fontSize === "large" ? "normal" : "large";
+  applyFontSizePreference(next);
+  render();
+}
+function loadPaymentPreference() {
+  try {
+    const value = localStorage.getItem(PAYMENT_PREF_KEY);
+    return value === "credito" ? "credito" : "pix";
+  } catch (_err) { return "pix"; }
+}
+function savePaymentPreference(value) {
+  try { localStorage.setItem(PAYMENT_PREF_KEY, value === "credito" ? "credito" : "pix"); } catch (_err) {}
+}
+applyFontSizePreference(loadFontSizePreference());
+
+function formatPhoneInputMask(raw) {
+  let digits = String(raw || "").replace(/\D/g, "");
+  if (digits.startsWith("55") && digits.length > 11) digits = digits.slice(2);
+  digits = digits.slice(0, 11);
+  if (digits.length <= 2) return digits ? `(${digits}` : "";
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  if (rest.length <= 4) return `(${ddd}) ${rest}`;
+  if (rest.length <= 8) return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+  return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+}
+
+function addBusinessDays(date, days) {
+  const d = new Date(date);
+  let remaining = Math.max(0, Number(days) || 0);
+  while (remaining > 0) {
+    d.setDate(d.getDate() + 1);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) remaining -= 1;
+  }
+  return d;
+}
+
+function estimatedReadyDate(product) {
+  const days = product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
+  const date = addBusinessDays(new Date(), days);
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
 
 /* =====================================================================
    CARRINHO PERSISTENTE (localStorage)
@@ -649,7 +830,7 @@ const state = {
   cardPhotoIndex: {}, // { [product_id]: index } — foto do modelo exibida agora no carrossel automático do card
   detailProductId: null, // produto aberto na página individual
   detailGalleryIndex: 0, // qual foto da galeria está em destaque na página do produto (0 = foto de capa)
-  payment: "pix", // pix | credito
+  payment: loadPaymentPreference(), // pix | credito
   categoryFilter: "all",
   searchQuery: "", // texto digitado na busca do catálogo (filtra por nome/descrição/categoria/material)
   cartOpen: false,
@@ -1175,12 +1356,13 @@ function render() {
 function renderHeader() {
   return `
     <header class="bg-navy-900">
-      <div class="mx-auto flex max-w-5xl items-center justify-center gap-3 px-4 py-3">
-        <button type="button" data-go-home class="flex items-center gap-3 border-0 bg-transparent p-0 transition hover:opacity-90">
-          <img src="logo-symbol.png" alt="Luz Mariana" class="h-9 w-9" />
-          <span class="text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
+      <div class="mx-auto flex max-w-5xl items-center justify-center gap-2 px-3 py-3">
+        <button type="button" data-go-home aria-label="Ir para a página inicial" class="flex min-w-0 items-center gap-2 border-0 bg-transparent p-0 transition hover:opacity-90">
+          <img src="logo-symbol.png" alt="" class="h-9 w-9" />
+          <span class="truncate text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
         </button>
-        <button type="button" data-open-track class="rounded-full border border-navy-700 px-2.5 py-1 text-[11px] font-medium text-navy-300 transition hover:border-navy-500 hover:text-cream-100">Rastrear pedido</button>
+        <button type="button" data-open-track class="rounded-full border border-navy-700 px-2.5 py-1 text-[11px] font-medium text-cream-100 transition hover:border-navy-500">Rastrear pedido</button>
+        <button type="button" data-font-toggle class="accessibility-btn" aria-label="Aumentar ou reduzir o tamanho do texto" title="Tamanho do texto">${document.documentElement.dataset.fontSize === "large" ? "A−" : "A+"}</button>
       </div>
     </header>
   `;
@@ -1204,31 +1386,18 @@ function renderHero() {
   `;
 }
 
-function categoryIcon(category) {
-  const c = normalizeSearch(category);
-  if (c === "all") return "✨";
-  if (c.includes("terco")) return "📿";
-  if (c.includes("imagem") || c.includes("estatu") || c.includes("santo")) return "🙏";
-  if (c.includes("chaveiro")) return "🔑";
-  if (c.includes("marca") || c.includes("clip")) return "📖";
-  if (c.includes("decor")) return "🏠";
-  if (c.includes("conjunto")) return "🎁";
-  if (c.includes("abajur") || c.includes("lumin")) return "💡";
-  return "✦";
-}
-
 function renderCategoryBar(categories) {
   if (categories.length === 0) return "";
-  const items = [{ value: "all", label: "Todos os produtos" }, ...categories.map((c) => ({ value: c, label: c }))];
+  const items = [{ value: "all", label: "Página inicial" }, ...categories.map((c) => ({ value: c, label: c }))];
   const favoriteCount = Object.keys(state.favorites).length;
   return `
     <div class="border-b border-navy-800 bg-navy-900">
       <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 py-2 text-sm">
         ${items.map((it) => `
-          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${categoryIcon(it.value)} ${escapeHtml(it.label)}</button>
+          <button data-category="${escapeHtml(it.value)}" aria-label="${it.value === "all" ? "Ir para a página inicial" : `Abrir categoria ${escapeHtml(it.label)}`}" class="category-bar-btn whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
         `).join("")}
         ${favoriteCount > 0 ? `
-          <button id="favorites-filter-btn" class="whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.favoritesOnly ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">❤ Favoritos (${favoriteCount})</button>
+          <button id="favorites-filter-btn" class="whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.favoritesOnly ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">Favoritos (${favoriteCount})</button>
         ` : ""}
       </div>
     </div>
@@ -1260,11 +1429,11 @@ function renderFeaturedCarousel(products) {
   // original dentro de cada grupo, só empurra os esgotados pro fim).
   const sorted = [...products].sort((a, b) => (isSoldOut(a) ? 1 : 0) - (isSoldOut(b) ? 1 : 0));
   // Duplica a lista pra dar loop contínuo sem "pulo" no final.
-  const track = [...sorted, ...sorted];
+  const track = sorted;
   const duration = Math.max(12, products.length * 6);
   return `
     <div class="mb-8">
-      <h2 class="mb-3 text-lg font-semibold text-navy-900">🔥 Mais vendidos</h2>
+      <h2 class="mb-3 text-lg font-semibold text-navy-900">Mais vendidos</h2>
       <div class="featured-carousel-wrap overflow-hidden">
         <div class="featured-carousel-track flex gap-4" style="animation-duration: ${duration}s;">
           ${track.map((p) => `<div class="w-40 flex-shrink-0 sm:w-48">${renderProductCard(p, { hideDescription: true })}</div>`).join("")}
@@ -1276,7 +1445,11 @@ function renderFeaturedCarousel(products) {
 
 function renderFooter() {
   return `
-    <footer class="mx-auto max-w-5xl px-4 py-6 text-center text-xs text-navy-300">
+    <footer class="mx-auto max-w-5xl px-4 py-6 text-center text-xs text-navy-600">
+      <div class="mb-3 flex flex-col items-center gap-2">
+        <span class="secure-badge" aria-label="Ambiente protegido">🔒 Ambiente protegido</span>
+        <p class="secure-note max-w-md">Não pedimos senha nem dados de cartão neste site. O pedido é finalizado com você pelo WhatsApp.</p>
+      </div>
       <p>Luz Mariana - Artigos Religiosos · CNPJ ${STORE_CNPJ}</p>
       <p class="mt-1">© 2026 Luz Mariana. Todos os direitos reservados.</p>
       <p class="mt-2 space-x-3">
@@ -1302,7 +1475,7 @@ function renderPolicy() {
     <div class="space-y-4 text-sm leading-relaxed text-navy-700">
       <p>Esta política explica quais dados a Luz Mariana coleta quando você usa este catálogo e faz um pedido, e o que fazemos com eles. Última atualização: 25/08/2026.</p>
       <h3 class="text-base font-semibold text-navy-900">Quais dados coletamos</h3>
-      <p>Para fechar um pedido pedimos seu nome, número de WhatsApp e, opcionalmente, seu Instagram — apenas o necessário para confirmar o pedido e combinar entrega/pagamento com você pelo WhatsApp. Não pedimos CPF, endereço completo, dados de cartão ou qualquer informação financeira: o pagamento é combinado diretamente com você pelo WhatsApp, fora deste site.</p>
+      <p>Para fechar um pedido pedimos seu nome e número de WhatsApp — apenas o necessário para confirmar o pedido e combinar entrega/pagamento com você pelo WhatsApp. Não pedimos CPF, endereço completo, dados de cartão ou qualquer informação financeira: o pagamento é combinado diretamente com você pelo WhatsApp, fora deste site.</p>
       <p>O catálogo também guarda os itens do seu carrinho no seu próprio navegador (não em nossos servidores), só para o carrinho não se perder se você fechar a página sem finalizar — isso fica salvo apenas no seu aparelho e some se você limpar os dados do navegador.</p>
       <h3 class="text-base font-semibold text-navy-900">Para que usamos esses dados</h3>
       <p>Usamos seu nome e WhatsApp exclusivamente para confirmar o pedido, tirar dúvidas e combinar entrega e pagamento com você. Não vendemos, alugamos nem compartilhamos seus dados com terceiros, e não os usamos para envio de propaganda sem sua autorização.</p>
@@ -1514,7 +1687,7 @@ function renderCartBar() {
       <div class="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
         <span class="min-w-0 text-sm text-navy-600">
           <b class="block text-navy-900">Meu pedido · ${count} ${count === 1 ? "item" : "itens"}</b>
-          <span>${formatBRL(cartTotal())}</span>
+          <span>${formatBRL(cartTotal())} · salvo neste aparelho</span>
         </span>
         <button id="open-cart-btn" class="large-touch-action flex-shrink-0 rounded-lg bg-navy-900 px-5 py-2 font-semibold text-white transition hover:bg-navy-800">Continuar</button>
       </div>
@@ -1618,6 +1791,7 @@ function renderProductDetail() {
   const isFav = !!state.favorites[product.id];
   const productReviews = reviewsFor(product.id);
   const avgRating = averageRating(productReviews);
+  const selectedVariantPosition = variant ? variants.findIndex((v) => v.id === variant.id) + 1 : 0;
 
   app.innerHTML = `
     ${renderHeader()}
@@ -1631,6 +1805,7 @@ function renderProductDetail() {
               : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-16 w-16 opacity-40" /></div>`}
             ${showingBestSellerPreview ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
             <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
+            ${photoUrl ? `<button type="button" data-zoom-image="${photoUrl}" data-zoom-alt="${escapeHtml(displayVariant?.name || product.name)}" class="zoom-photo-btn" aria-label="Ampliar foto">Ampliar foto</button>` : ""}
             ${displayVariant ? `
               <div class="product-image-title-overlay">
                 <span class="title">${escapeHtml(displayVariant.name)}</span>
@@ -1652,12 +1827,16 @@ function renderProductDetail() {
             <section class="variant-thumb-section" aria-label="Escolha do modelo">
               <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">1</span>Escolha o modelo</p>
               <p class="mt-1 text-sm text-navy-500">Toque na miniatura desejada para ver a foto em destaque e selecionar o modelo.</p>
-              <div class="variant-thumb-row mt-3">
+              <div class="model-scroll-hint">
+                <span>Deslize para ver os demais modelos</span>
+                <span>${selectedVariantPosition > 0 ? `${selectedVariantPosition} de ${variants.length}` : `${variants.length} modelos`}</span>
+              </div>
+              <div class="variant-thumb-row mt-3" role="list" aria-label="Modelos disponíveis">
                 ${variants.map((v) => `
-                  <button type="button" data-variant-select="${product.id}" data-variant-id="${v.id}" aria-pressed="${variant?.id === v.id ? "true" : "false"}" class="variant-thumb-btn ${variant?.id === v.id ? "is-selected" : ""} ${v.esgotado ? "is-sold-out" : ""}">
+                  <button type="button" data-variant-select="${product.id}" data-variant-id="${v.id}" aria-pressed="${variant?.id === v.id ? "true" : "false"}" aria-label="${escapeHtml(v.name)}. ${v.esgotado ? "Esgotado" : v.in_stock ? "Pronta entrega" : "Sob encomenda"}. ${formatBRL(effectivePricing(product, v).promoPrice)} no Pix." class="variant-thumb-btn ${variant?.id === v.id ? "is-selected" : ""} ${v.esgotado ? "is-sold-out" : ""}">
                     ${v.photo_url ? `<img src="${v.photo_url}" alt="${escapeHtml(v.name)}" class="variant-thumb-photo" />` : `<span class="variant-thumb-photo flex items-center justify-center text-lg">◻</span>`}
                     <span class="variant-thumb-name">${escapeHtml(v.name)}</span>
-                    ${isBestSellingVariant(product.id, v.id) ? `<span class="best-seller-badge" style="margin-top:4px;">Mais vendido</span>` : ""}
+                    ${isBestSellingVariant(product.id, v.id) ? `<span class="best-seller-badge" style="margin-top:4px;" title="Modelo mais escolhido pelos clientes">Mais vendido</span>` : ""}
                     <span class="variant-thumb-price">${formatBRL(effectivePricing(product, v).promoPrice)} no Pix</span>
                     <span class="variant-thumb-status ${v.esgotado ? "text-red-600" : v.in_stock ? "text-emerald-800" : "text-gold-700"}">${v.esgotado ? "Esgotado" : v.in_stock ? "Pronta entrega" : "Sob encomenda"}</span>
                   </button>
@@ -1669,6 +1848,7 @@ function renderProductDetail() {
                   ${variant.esgotado ? "Modelo esgotado" : `Comprar este modelo · ${formatBRL(effectivePricing(product, variant).promoPrice)} no Pix`}
                 </button>
               ` : `<button type="button" disabled class="quick-model-add large-touch-action rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">Selecione um modelo</button>`}
+              <button type="button" data-model-help="${product.id}" class="context-help-btn">Preciso de ajuda para escolher o modelo</button>
             </section>
           ` : ""}
         </div>
@@ -1794,6 +1974,35 @@ function renderProductDetail() {
     requestAnimationFrame(() => window.scrollTo({ top: state.catalogScrollY || 0, left: 0, behavior: "auto" }));
   });
   wireCatalogEvents();
+}
+
+function openPhotoZoom(src, alt) {
+  if (!src) return;
+  document.getElementById("photo-zoom-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "photo-zoom-overlay";
+  overlay.className = "photo-zoom-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", "Foto ampliada do produto");
+  overlay.innerHTML = `
+    <div class="photo-zoom-dialog" tabindex="-1">
+      <button type="button" class="photo-zoom-close" aria-label="Fechar foto ampliada">×</button>
+      <img src="${src}" alt="${escapeHtml(alt)}" />
+    </div>`;
+  document.body.appendChild(overlay);
+  const dialog = overlay.querySelector(".photo-zoom-dialog");
+  const close = () => overlay.remove();
+  overlay.querySelector(".photo-zoom-close").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  const escHandler = (e) => {
+    if (e.key === "Escape") {
+      close();
+      document.removeEventListener("keydown", escHandler);
+    }
+  };
+  document.addEventListener("keydown", escHandler);
+  dialog.focus();
 }
 
 function showAddToast(key) {
@@ -1988,6 +2197,16 @@ function wireCatalogEvents() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
+  document.querySelectorAll("[data-zoom-image]").forEach((btn) => {
+    btn.addEventListener("click", () => openPhotoZoom(btn.dataset.zoomImage, btn.dataset.zoomAlt || "Foto do produto"));
+  });
+  document.querySelectorAll("[data-model-help]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const product = state.products.find((p) => p.id === btn.dataset.modelHelp);
+      const message = `Oi! Estou vendo ${product?.name || "um produto"} no catálogo e preciso de ajuda para escolher o modelo.`;
+      window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
+    });
+  });
   document.querySelectorAll("[data-quick-add]").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (btn.disabled) return;
@@ -2086,6 +2305,13 @@ function renderCheckout() {
         <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">4 WhatsApp</span>
       </div>
 
+      <div class="checkout-sticky-summary" aria-live="polite">
+        <div class="flex items-center justify-between gap-3 text-sm">
+          <span><b>${cartCount()} ${cartCount() === 1 ? "item" : "itens"}</b> · <span id="ck-sticky-total">${formatBRL(orderTotal())}</span></span>
+          <span class="text-gold-700">Confirmar hoje: <b id="ck-sticky-deposit">${formatBRL(orderTotal() * DEPOSIT_RATE)}</b></span>
+        </div>
+      </div>
+
       <div class="mb-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
         <p class="mb-2 text-sm font-semibold text-navy-800">Revise seu pedido</p>
         ${items.map((it) => {
@@ -2153,7 +2379,7 @@ function renderCheckout() {
             <button type="button" data-payment="credito" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
           </div>
           <div class="mt-2 rounded-lg bg-cream-50 p-3 text-xs text-navy-600">
-            <p class="mb-1">É necessário um sinal de ${Math.round(DEPOSIT_RATE * 100)}% do valor (<span id="ck-deposit-note-value">${formatBRL(orderTotal() * DEPOSIT_RATE)}</span>) para confirmar o pedido e iniciar a produção. O restante é combinado na entrega/retirada.</p>
+            <p class="mb-1"><b>Para confirmar hoje: <span id="ck-deposit-note-value">${formatBRL(orderTotal() * DEPOSIT_RATE)}</span></b> (${Math.round(DEPOSIT_RATE * 100)}% do pedido). Esse sinal confirma o pedido e inicia a produção. O restante é combinado na entrega/retirada.</p>
             ${state.payment === "pix" ? `
               <p class="mt-2 text-sm text-navy-600">No celular, toque em <b>Copiar chave Pix</b> e cole no aplicativo do seu banco quando for fazer o sinal.</p>
               <div class="mt-2 flex items-center gap-2">
@@ -2165,6 +2391,7 @@ function renderCheckout() {
               <p class="mt-1 text-[11px] text-navy-400">Pagamento via link de pagamento ou maquineta — combinamos o melhor jeito com você pelo WhatsApp.</p>
             `}
           </div>
+          <button type="button" id="checkout-payment-help" class="context-help-btn">Tenho uma dúvida sobre o pagamento</button>
         </div>
         ${state.giftWrapOptions.length > 0 ? `
         <div>
@@ -2212,12 +2439,13 @@ function renderCheckout() {
           </div>
         </details>
 
-        <div id="ck-error" class="text-sm text-red-600"></div>
+        <div id="ck-error" role="alert" aria-live="assertive" class="text-sm font-medium text-red-700"></div>
         <button type="submit" id="ck-submit" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">Enviar pedido pelo WhatsApp</button>
         <p class="text-center text-xs text-navy-400">O WhatsApp abrirá com seu pedido preenchido. Você só precisa tocar em “Enviar”.</p>
         <p class="text-center text-xs text-navy-400">Ao confirmar, você concorda com a <button type="button" data-open-policy="privacidade" class="underline hover:text-navy-600">Política de Privacidade</button> e os <button type="button" data-open-policy="termos" class="underline hover:text-navy-600">Termos de Uso</button>.</p>
       </form>
     </main>
+    ${renderFooter()}
   `;
 
   document.getElementById("back-to-catalog-btn").addEventListener("click", () => {
@@ -2283,11 +2511,21 @@ function renderCheckout() {
     btn.addEventListener("click", () => {
       captureCheckoutDraft();
       state.payment = btn.dataset.payment;
+      savePaymentPreference(state.payment);
       render();
     });
   });
   document.getElementById("checkout-form").addEventListener("submit", onSubmitOrder);
-  document.getElementById("ck-whatsapp").addEventListener("blur", onWhatsappBlur);
+  const checkoutWhatsappInput = document.getElementById("ck-whatsapp");
+  checkoutWhatsappInput.addEventListener("input", () => {
+    checkoutWhatsappInput.value = formatPhoneInputMask(checkoutWhatsappInput.value);
+    state.checkoutDraft.whatsapp = checkoutWhatsappInput.value;
+  });
+  checkoutWhatsappInput.addEventListener("blur", onWhatsappBlur);
+  document.getElementById("checkout-payment-help")?.addEventListener("click", () => {
+    const message = "Oi! Estou finalizando um pedido no catálogo da Luz Mariana e tenho uma dúvida sobre o pagamento.";
+    window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
+  });
   document.getElementById("ck-coupon-apply").addEventListener("click", onApplyCoupon);
   document.getElementById("ck-coupon-remove").addEventListener("click", () => resetCouponClientSide(""));
 
@@ -2360,6 +2598,10 @@ function updateCheckoutTotals() {
 
   if (totalEl) totalEl.textContent = formatBRL(orderTotal());
   if (depositEl) depositEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
+  const stickyTotalEl = document.getElementById("ck-sticky-total");
+  const stickyDepositEl = document.getElementById("ck-sticky-deposit");
+  if (stickyTotalEl) stickyTotalEl.textContent = formatBRL(orderTotal());
+  if (stickyDepositEl) stickyDepositEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
   const depositNoteEl = document.getElementById("ck-deposit-note-value");
   if (depositNoteEl) depositNoteEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
 
@@ -2558,6 +2800,17 @@ async function onWhatsappBlur() {
   }
 }
 
+function showCheckoutFieldError(message, fieldId) {
+  const errorEl = document.getElementById("ck-error");
+  if (errorEl) errorEl.textContent = message;
+  const field = fieldId ? document.getElementById(fieldId) : null;
+  if (field) {
+    field.setAttribute("aria-invalid", "true");
+    field.focus({ preventScroll: true });
+    field.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
 async function onSubmitOrder(e) {
   e.preventDefault();
   captureCheckoutDraft();
@@ -2570,12 +2823,21 @@ async function onSubmitOrder(e) {
   const instagram = "";
   const notes = document.getElementById("ck-notes")?.value.trim() || "";
 
-  if (!name) { errorEl.textContent = "Informe seu nome."; return; }
-  if (!whatsapp) { errorEl.textContent = "Informe seu WhatsApp."; return; }
+  document.getElementById("ck-name")?.removeAttribute("aria-invalid");
+  document.getElementById("ck-whatsapp")?.removeAttribute("aria-invalid");
+  if (!name) { showCheckoutFieldError("Digite seu nome para continuar.", "ck-name"); return; }
+  const whatsappDigits = String(document.getElementById("ck-whatsapp").value || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+  if (whatsappDigits.length < 10 || whatsappDigits.length > 11) {
+    showCheckoutFieldError("Informe um WhatsApp válido com DDD, por exemplo: (84) 99999-9999.", "ck-whatsapp");
+    return;
+  }
   const items = cartItems();
-  if (items.length === 0) { errorEl.textContent = "Seu carrinho está vazio."; return; }
+  if (items.length === 0) { showCheckoutFieldError("Seu pedido está vazio. Adicione um produto para continuar."); return; }
   const giftWraps = selectedGiftWraps();
-  if (state.giftWrapWanted && giftWraps.length === 0) { errorEl.textContent = "Escolha ao menos uma embalagem, ou desmarque a opção."; return; }
+  if (state.giftWrapWanted && giftWraps.length === 0) {
+    showCheckoutFieldError("Escolha ao menos uma embalagem ou desmarque “Embalar para presente?”.", "ck-gift-wrap");
+    return;
+  }
 
   errorEl.textContent = "";
   submitBtn.disabled = true;
@@ -2743,12 +3005,21 @@ function renderSuccess() {
       <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✓</div>
       <h1 class="mb-2 text-xl font-semibold text-navy-900">Pedido enviado!</h1>
       ${state.lastOrderNumber ? `<p class="mb-1 text-sm font-medium text-navy-800">Pedido Nº ${String(state.lastOrderNumber).padStart(6, "0")}</p>` : ""}
-      <p class="mb-6 text-sm text-navy-600">Confira a aba do WhatsApp que abriu — é só apertar "Enviar" pra confirmar o pedido com a Luz Mariana.</p>
+      <p class="mb-4 text-sm text-navy-600">Confira a aba do WhatsApp que abriu — é só apertar "Enviar" para continuar a confirmação com a Luz Mariana.</p>
+      <div class="mb-6 w-full rounded-xl border border-navy-100 bg-white p-4 text-left shadow-sm">
+        <p class="font-semibold text-navy-900">Próximos passos</p>
+        <ol class="mt-2 space-y-2 text-sm text-navy-600">
+          <li><b>1.</b> Envie a mensagem que já abrimos no WhatsApp.</li>
+          <li><b>2.</b> A loja confirma disponibilidade, prazo e o sinal do pedido.</li>
+          <li><b>3.</b> Após a confirmação, você pode acompanhar o andamento pelo número do pedido.</li>
+        </ol>
+      </div>
       <div class="flex flex-col gap-2 sm:flex-row">
         <button id="new-order-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Fazer novo pedido</button>
         ${state.lastOrderNumber ? `<button id="track-this-order-btn" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-semibold text-navy-700 transition hover:bg-navy-50">Acompanhar meu pedido</button>` : ""}
       </div>
     </main>
+    ${renderFooter()}
   `;
   document.getElementById("new-order-btn").addEventListener("click", () => { state.screen = "catalog"; render(); });
   const trackBtn = document.getElementById("track-this-order-btn");
@@ -2903,6 +3174,10 @@ function renderTrack() {
     </main>
     ${renderFooter()}
   `;
+  const trackWhatsappInput = document.getElementById("track-whatsapp");
+  trackWhatsappInput?.addEventListener("input", () => {
+    trackWhatsappInput.value = formatPhoneInputMask(trackWhatsappInput.value);
+  });
   document.getElementById("track-form").addEventListener("submit", (e) => {
     e.preventDefault();
     state.trackWhatsapp = document.getElementById("track-whatsapp").value.trim();
@@ -2923,6 +3198,11 @@ app.addEventListener("click", (e) => {
     state.cartOpen = false;
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  const fontBtn = e.target.closest("[data-font-toggle]");
+  if (fontBtn) {
+    toggleFontSizePreference();
     return;
   }
   const policyBtn = e.target.closest("[data-open-policy]");
@@ -2976,6 +3256,13 @@ document.getElementById("help-guide-whatsapp").addEventListener("click", () => {
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && helpGuideOverlay.classList.contains("is-open")) closeHelpGuide();
+});
+
+window.addEventListener("beforeunload", (e) => {
+  if (cartCount() > 0 && state.screen !== "success") {
+    e.preventDefault();
+    e.returnValue = "";
+  }
 });
 
 loadCatalog();
