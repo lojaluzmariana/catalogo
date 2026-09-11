@@ -866,16 +866,49 @@ function addRecentlyViewed(productId) {
   ids.unshift(productId);
   try { localStorage.setItem(RECENT_PRODUCTS_KEY, JSON.stringify(ids.slice(0, 8))); } catch (_err) {}
 }
+function slugifyUrl(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function findProductByUrlValue(value) {
+  if (!value) return null;
+  return state.products.find((p) =>
+    String(p.id) === String(value) ||
+    slugifyUrl(p.name) === String(value)
+  ) || null;
+}
+
+function findVariantByUrlValue(productId, value) {
+  if (!value) return null;
+  return variantsFor(productId).find((v) =>
+    String(v.id) === String(value) ||
+    slugifyUrl(v.name) === String(value)
+  ) || null;
+}
+
 function productShareUrl(productId, variantId = null) {
+  const product = state.products.find((p) => String(p.id) === String(productId));
+  const variant = variantId ? variantsFor(productId).find((v) => String(v.id) === String(variantId)) : null;
+
   const url = new URL(CATALOG_BASE_URL);
-  url.searchParams.set("produto", productId);
-  if (variantId) url.searchParams.set("modelo", variantId);
+  url.searchParams.set("produto", product ? slugifyUrl(product.name) : String(productId));
+  if (variantId) url.searchParams.set("modelo", variant ? slugifyUrl(variant.name) : String(variantId));
   return url.toString();
 }
+
 function productSocialShareUrl(productId, variantId = null) {
-  const productPart = encodeURIComponent(String(productId));
+  const product = state.products.find((p) => String(p.id) === String(productId));
+  const variant = variantId ? variantsFor(productId).find((v) => String(v.id) === String(variantId)) : null;
+  const productPart = encodeURIComponent(product ? slugifyUrl(product.name) : String(productId));
+
   if (variantId) {
-    return `${CATALOG_BASE_URL}share/${productPart}/${encodeURIComponent(String(variantId))}/`;
+    const variantPart = encodeURIComponent(variant ? slugifyUrl(variant.name) : String(variantId));
+    return `${CATALOG_BASE_URL}share/${productPart}/${variantPart}/`;
   }
   return `${CATALOG_BASE_URL}share/${productPart}/`;
 }
@@ -1200,13 +1233,15 @@ async function loadCatalog() {
   pruneStaleFavorites();
 
   const currentUrl = new URL(window.location.href);
-  const directProductId = currentUrl.searchParams.get("produto");
-  const directVariantId = currentUrl.searchParams.get("modelo");
-  if (directProductId && state.products.some((p) => String(p.id) === String(directProductId))) {
+  const directProductValue = currentUrl.searchParams.get("produto");
+  const directVariantValue = currentUrl.searchParams.get("modelo");
+  const directProduct = findProductByUrlValue(directProductValue);
+  if (directProduct) {
     state.screen = "product";
-    state.detailProductId = directProductId;
-    if (directVariantId && variantsFor(directProductId).some((v) => String(v.id) === String(directVariantId))) {
-      state.selectedVariant[directProductId] = directVariantId;
+    state.detailProductId = directProduct.id;
+    const directVariant = findVariantByUrlValue(directProduct.id, directVariantValue);
+    if (directVariant) {
+      state.selectedVariant[directProduct.id] = directVariant.id;
     }
   }
   try {
@@ -2739,8 +2774,10 @@ function wireCatalogEvents() {
       state.selectedVariant[productId] = btn.dataset.variantId;
       state.detailGalleryIndex = 0;
       const currentProductUrl = new URL(window.location.href);
-      currentProductUrl.searchParams.set("produto", productId);
-      currentProductUrl.searchParams.set("modelo", btn.dataset.variantId);
+      const currentProduct = state.products.find((p) => String(p.id) === String(productId));
+      const currentVariant = variantsFor(productId).find((v) => String(v.id) === String(btn.dataset.variantId));
+      currentProductUrl.searchParams.set("produto", currentProduct ? slugifyUrl(currentProduct.name) : productId);
+      currentProductUrl.searchParams.set("modelo", currentVariant ? slugifyUrl(currentVariant.name) : btn.dataset.variantId);
       history.replaceState({ productId, variantId: btn.dataset.variantId }, "", currentProductUrl);
       trackEvent("select_model", { product_id: String(productId), variant_id: String(btn.dataset.variantId) });
       render();
@@ -3891,14 +3928,16 @@ window.addEventListener("unhandledrejection", (event) => {
 window.addEventListener("popstate", () => {
   if (state.loading) return;
   const popUrl = new URL(window.location.href);
-  const productId = popUrl.searchParams.get("produto");
-  const variantId = popUrl.searchParams.get("modelo");
-  if (productId && state.products.some((p) => String(p.id) === String(productId))) {
+  const productValue = popUrl.searchParams.get("produto");
+  const variantValue = popUrl.searchParams.get("modelo");
+  const popProduct = findProductByUrlValue(productValue);
+  if (popProduct) {
     state.screen = "product";
-    state.detailProductId = productId;
+    state.detailProductId = popProduct.id;
     state.detailGalleryIndex = 0;
-    if (variantId && variantsFor(productId).some((v) => String(v.id) === String(variantId))) {
-      state.selectedVariant[productId] = variantId;
+    const popVariant = findVariantByUrlValue(popProduct.id, variantValue);
+    if (popVariant) {
+      state.selectedVariant[popProduct.id] = popVariant.id;
     }
   } else {
     state.screen = "catalog";
