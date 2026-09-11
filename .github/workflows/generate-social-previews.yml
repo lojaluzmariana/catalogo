@@ -1,0 +1,44 @@
+name: Atualizar previews de compartilhamento
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "share/**"
+      - "og-modelos/**"
+      - "social-preview-manifest.json"
+
+permissions:
+  contents: write
+
+jobs:
+  gerar-previews:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar Sharp
+        run: npm install sharp@^0.34.3 --no-save
+
+      - name: Gerar páginas e imagens de compartilhamento
+        run: node generate-social-previews.mjs
+
+      - name: Salvar previews no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add share og-modelos social-preview-manifest.json
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração nos previews."
+          else
+            git commit -m "Atualiza previews sociais dos produtos"
+            git push
+          fi
