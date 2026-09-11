@@ -177,10 +177,44 @@
   /* Orçamentos — linha de itens responsiva, integrada ao painel. */
   .orc-item-row {
     display: grid;
-    grid-template-columns: minmax(220px, 1.7fr) 90px 180px 150px 44px;
+    grid-template-columns: minmax(260px, 1.9fr) 90px 180px 150px 44px;
     gap: 10px;
     align-items: end;
   }
+  .orc-product-search { position: relative; }
+  .orc-product-suggestions {
+    position: absolute;
+    z-index: 40;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    max-height: 290px;
+    overflow-y: auto;
+    border: 1px solid #d7dbe2;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(12,44,120,.15);
+  }
+  .orc-product-suggestion {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 0;
+    border-bottom: 1px solid #eef0f4;
+    background: #fff;
+    color: #202534;
+    text-align: left;
+    cursor: pointer;
+  }
+  .orc-product-suggestion:last-child { border-bottom: 0; }
+  .orc-product-suggestion:hover, .orc-product-suggestion:focus { background: #fbf8ef; outline: none; }
+  .orc-product-meta { min-height: 18px; margin-top: 4px; font-size: 11px; color: #6f7683; }
+  html.dark .orc-product-suggestions { background:#151d30; border-color:#2c3a5e; }
+  html.dark .orc-product-suggestion { background:#151d30; color:#f1f4fc; border-color:#232f4d; }
+  html.dark .orc-product-suggestion:hover, html.dark .orc-product-suggestion:focus { background:#1c2740; }
   @media (max-width: 760px) {
     .orc-item-row { grid-template-columns: 1fr 90px 1fr; }
     .orc-item-row .orc-total-wrap { grid-column: 1 / 3; }
@@ -9013,7 +9047,8 @@ function renderOrcamentos(container) {
         </div>
 
         <div class="mt-6">
-          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-700">Itens do pedido</h2>
+          <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide text-navy-700">Itens do pedido</h2>
+          <p class="mb-3 text-xs text-navy-500">Comece a digitar para buscar um produto cadastrado. Ao selecionar, o preço Pix e o preço de crédito do cadastro são usados automaticamente. Se não for um produto cadastrado, continue escrevendo normalmente e informe o valor manualmente.</p>
           <div id="orc-itens" class="flex flex-col gap-3"></div>
           <button id="orc-add-item" type="button" class="orc-no-print mt-3 rounded-lg border border-navy-300 bg-white px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50">+ Adicionar item</button>
         </div>
@@ -9116,17 +9151,174 @@ function renderOrcamentoHistoricoHtml() {
   }).join("");
 }
 
+function orcNormalizarBusca(texto) {
+  return String(texto || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function orcCatalogoPesquisavel() {
+  const opcoes = [];
+  state.products
+    .filter((p) => p.active)
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"))
+    .forEach((product) => {
+      const variants = [...(product.product_variants || [])]
+        .sort((a, b) => ((a.sort_order ?? 0) - (b.sort_order ?? 0)) || String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+
+      if (variants.length === 0) {
+        const pricing = effectivePricing(product, null);
+        opcoes.push({
+          productId: product.id,
+          variantId: null,
+          productName: product.name || "Produto",
+          variantName: null,
+          label: product.name || "Produto",
+          category: product.category || "",
+          pix: Number(pricing.promoPrice || 0),
+          credito: Number(pricing.creditPrice || 0),
+        });
+        return;
+      }
+
+      variants.forEach((variant) => {
+        const pricing = effectivePricing(product, variant);
+        opcoes.push({
+          productId: product.id,
+          variantId: variant.id,
+          productName: product.name || "Produto",
+          variantName: variant.name || "",
+          label: `${product.name || "Produto"} — ${variant.name || "Modelo"}`,
+          category: product.category || "",
+          pix: Number(pricing.promoPrice || 0),
+          credito: Number(pricing.creditPrice || 0),
+        });
+      });
+    });
+  return opcoes;
+}
+
+function orcBuscarProdutos(termo, limite = 8) {
+  const q = orcNormalizarBusca(termo);
+  if (!q) return [];
+  return orcCatalogoPesquisavel()
+    .filter((op) => orcNormalizarBusca(`${op.label} ${op.category}`).includes(q))
+    .slice(0, limite);
+}
+
+function orcAtualizarMetaProduto(linha, texto = "") {
+  const meta = linha.querySelector(".orc-product-meta");
+  if (!meta) return;
+  meta.innerHTML = texto;
+}
+
+function orcLimparVinculoProduto(linha, mostrarManual = true) {
+  delete linha.dataset.productId;
+  delete linha.dataset.variantId;
+  delete linha.dataset.registeredCredit;
+  delete linha.dataset.registeredPix;
+  linha.dataset.orcSource = "manual";
+  if (mostrarManual) {
+    orcAtualizarMetaProduto(linha, '<span class="text-navy-400">Item manual — informe a descrição e o valor.</span>');
+  } else {
+    orcAtualizarMetaProduto(linha, "");
+  }
+}
+
+function orcSelecionarProduto(linha, opcao) {
+  const pedido = linha.querySelector(".orc-pedido");
+  const unitario = linha.querySelector(".orc-unitario");
+  const sugestoes = linha.querySelector(".orc-product-suggestions");
+  pedido.value = opcao.label;
+  unitario.value = Number(opcao.pix || 0).toFixed(2);
+  linha.dataset.productId = String(opcao.productId || "");
+  if (opcao.variantId) linha.dataset.variantId = String(opcao.variantId);
+  else delete linha.dataset.variantId;
+  linha.dataset.registeredPix = String(Number(opcao.pix || 0));
+  linha.dataset.registeredCredit = String(Number(opcao.credito || 0));
+  linha.dataset.orcSource = "catalogo";
+  orcAtualizarMetaProduto(
+    linha,
+    `<span class="font-medium text-emerald-700">Produto cadastrado</span> · Pix ${escapeHtml(formatBRL(opcao.pix))} · Crédito ${escapeHtml(formatBRL(opcao.credito))}`
+  );
+  if (sugestoes) sugestoes.classList.add("hidden");
+  calcularOrcamento();
+}
+
+function orcRenderSugestoesProduto(linha) {
+  const pedido = linha.querySelector(".orc-pedido");
+  const box = linha.querySelector(".orc-product-suggestions");
+  if (!pedido || !box) return;
+  const termo = pedido.value.trim();
+  if (!termo) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+
+  const matches = orcBuscarProdutos(termo);
+  const manualLabel = escapeHtml(termo);
+  box.innerHTML = `
+    ${matches.map((op, idx) => `
+      <button type="button" class="orc-product-suggestion" data-orc-suggestion="${idx}">
+        <span class="min-w-0">
+          <span class="block truncate text-sm font-medium text-navy-900">${escapeHtml(op.label)}</span>
+          ${op.category ? `<span class="block truncate text-xs text-navy-400">${escapeHtml(op.category)}</span>` : ""}
+        </span>
+        <span class="shrink-0 text-right">
+          <span class="block text-xs font-semibold text-emerald-700">Pix ${escapeHtml(formatBRL(op.pix))}</span>
+          <span class="block text-xs text-navy-500">Crédito ${escapeHtml(formatBRL(op.credito))}</span>
+        </span>
+      </button>`).join("")}
+    <button type="button" class="orc-product-suggestion" data-orc-manual="1">
+      <span>
+        <span class="block text-sm font-medium text-navy-900">Usar como item manual</span>
+        <span class="block text-xs text-navy-400">“${manualLabel}” não precisa existir no cadastro</span>
+      </span>
+      <span class="shrink-0 text-xs font-semibold text-gold-700">Manual</span>
+    </button>`;
+
+  box.classList.remove("hidden");
+  box.querySelectorAll("[data-orc-suggestion]").forEach((btn) => {
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const op = matches[Number(btn.dataset.orcSuggestion)];
+      if (op) orcSelecionarProduto(linha, op);
+    });
+  });
+  const manualBtn = box.querySelector("[data-orc-manual]");
+  if (manualBtn) manualBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    orcLimparVinculoProduto(linha, true);
+    box.classList.add("hidden");
+    linha.querySelector(".orc-unitario")?.focus();
+    calcularOrcamento();
+  });
+}
+
 function adicionarItemOrcamento(dados = {}) {
   const itens = document.getElementById("orc-itens");
   if (!itens) return;
   const linha = document.createElement("div");
   linha.className = "orc-item-row rounded-xl border border-navy-100 bg-cream-50 p-3";
   const unit = dados.unitarioPix ?? dados.unitario ?? "";
+  const source = dados.source || dados.origem || (dados.productId || dados.product_id ? "catalogo" : "manual");
+  const productId = dados.productId || dados.product_id || "";
+  const variantId = dados.variantId || dados.variant_id || "";
+  const savedCredit = dados.unitarioCredito != null ? Number(dados.unitarioCredito) : null;
+  linha.dataset.orcSource = source;
+  if (productId) linha.dataset.productId = String(productId);
+  if (variantId) linha.dataset.variantId = String(variantId);
+  if (source === "catalogo" && unit !== "") linha.dataset.registeredPix = String(Number(unit));
+  if (source === "catalogo" && savedCredit != null && Number.isFinite(savedCredit)) linha.dataset.registeredCredit = String(savedCredit);
+
   linha.innerHTML = `
-    <label class="block">
+    <div class="block">
       <span class="mb-1.5 block text-xs font-medium text-navy-700">Pedido / Produto</span>
-      <input class="orc-pedido w-full rounded-lg border border-navy-100 bg-white px-3 py-2 text-base text-navy-900 outline-none focus:border-gold-500" placeholder="Ex.: Sagrada Família 16 cm" value="${escapeHtml(dados.pedido || "")}" />
-    </label>
+      <div class="orc-product-search">
+        <input class="orc-pedido w-full rounded-lg border border-navy-100 bg-white px-3 py-2 text-base text-navy-900 outline-none focus:border-gold-500" autocomplete="off" placeholder="Digite para buscar ou escreva manualmente" value="${escapeHtml(dados.pedido || "")}" />
+        <div class="orc-product-suggestions hidden"></div>
+      </div>
+      <div class="orc-product-meta"></div>
+    </div>
     <label class="block">
       <span class="mb-1.5 block text-xs font-medium text-navy-700">Qtd.</span>
       <input class="orc-quantidade w-full rounded-lg border border-navy-100 bg-white px-3 py-2 text-base text-navy-900 outline-none focus:border-gold-500" type="number" min="1" step="1" value="${escapeHtml(dados.quantidade || 1)}" />
@@ -9141,8 +9333,44 @@ function adicionarItemOrcamento(dados = {}) {
     </label>
     <button type="button" class="orc-remove rounded-lg border border-red-200 bg-white text-lg font-bold text-red-600 hover:bg-red-50" style="height:43px" title="Remover item">×</button>
   `;
+
+  const pedido = linha.querySelector(".orc-pedido");
+  const unitario = linha.querySelector(".orc-unitario");
+  const quantidade = linha.querySelector(".orc-quantidade");
+  const sugestoes = linha.querySelector(".orc-product-suggestions");
+
+  if (source === "catalogo" && productId) {
+    const product = state.products.find((p) => String(p.id) === String(productId));
+    const variant = variantId ? (product?.product_variants || []).find((v) => String(v.id) === String(variantId)) : null;
+    const pricing = product ? effectivePricing(product, variant) : null;
+    const pixHistorico = orcNumero(unit);
+    const credHistorico = savedCredit != null && Number.isFinite(savedCredit)
+      ? savedCredit
+      : (pricing ? Number(pricing.creditPrice || 0) : orcPrecoCreditoAPartirDoPix(pixHistorico));
+    linha.dataset.registeredPix = String(pixHistorico);
+    linha.dataset.registeredCredit = String(credHistorico);
+    orcAtualizarMetaProduto(linha, `<span class="font-medium text-emerald-700">Produto cadastrado</span> · preço salvo no orçamento`);
+  } else if ((dados.pedido || "").trim()) {
+    orcLimparVinculoProduto(linha, true);
+  }
+
+  pedido.addEventListener("input", () => {
+    orcLimparVinculoProduto(linha, false);
+    orcRenderSugestoesProduto(linha);
+    calcularOrcamento();
+  });
+  pedido.addEventListener("focus", () => orcRenderSugestoesProduto(linha));
+  pedido.addEventListener("blur", () => setTimeout(() => sugestoes.classList.add("hidden"), 180));
+
+  unitario.addEventListener("input", () => {
+    // Se o preço for alterado manualmente depois de escolher um produto,
+    // o item passa a ser tratado como manual para o crédito acompanhar o
+    // novo valor informado, sem ficar preso ao preço antigo do cadastro.
+    if (linha.dataset.orcSource === "catalogo") orcLimparVinculoProduto(linha, true);
+    calcularOrcamento();
+  });
+  quantidade.addEventListener("input", calcularOrcamento);
   linha.querySelector(".orc-remove").addEventListener("click", () => { linha.remove(); calcularOrcamento(); });
-  linha.querySelectorAll("input").forEach((el) => el.addEventListener("input", calcularOrcamento));
   itens.appendChild(linha);
 }
 
@@ -9153,7 +9381,10 @@ function calcularOrcamento() {
   document.querySelectorAll("#orc-itens .orc-item-row").forEach((linha) => {
     const qtd = orcNumero(linha.querySelector(".orc-quantidade").value);
     const unitPix = orcNumero(linha.querySelector(".orc-unitario").value);
-    const unitCredito = orcPrecoCreditoAPartirDoPix(unitPix);
+    const creditoCadastrado = orcNumero(linha.dataset.registeredCredit || 0);
+    const unitCredito = linha.dataset.orcSource === "catalogo" && creditoCadastrado > 0
+      ? creditoCadastrado
+      : orcPrecoCreditoAPartirDoPix(unitPix);
     const itemPix = qtd * unitPix;
     const itemCredito = qtd * unitCredito;
     totalPix += itemPix;
@@ -9185,7 +9416,11 @@ function obterDadosOrcamento() {
   const itens = [...document.querySelectorAll("#orc-itens .orc-item-row")].map((linha) => {
     const quantidade = orcNumero(linha.querySelector(".orc-quantidade").value);
     const unitarioPix = orcNumero(linha.querySelector(".orc-unitario").value);
-    const unitarioCredito = orcPrecoCreditoAPartirDoPix(unitarioPix);
+    const creditoCadastrado = orcNumero(linha.dataset.registeredCredit || 0);
+    const source = linha.dataset.orcSource === "catalogo" ? "catalogo" : "manual";
+    const unitarioCredito = source === "catalogo" && creditoCadastrado > 0
+      ? creditoCadastrado
+      : orcPrecoCreditoAPartirDoPix(unitarioPix);
     return {
       pedido: linha.querySelector(".orc-pedido").value.trim(),
       quantidade,
@@ -9195,6 +9430,9 @@ function obterDadosOrcamento() {
       totalPix: quantidade * unitarioPix,
       totalCredito: quantidade * unitarioCredito,
       total: pagamento === "credito" ? quantidade * unitarioCredito : quantidade * unitarioPix,
+      source,
+      productId: source === "catalogo" ? (linha.dataset.productId || null) : null,
+      variantId: source === "catalogo" ? (linha.dataset.variantId || null) : null,
     };
   }).filter((i) => i.pedido || i.unitarioPix > 0);
   const valores = calcularOrcamento();
