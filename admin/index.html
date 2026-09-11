@@ -1608,7 +1608,7 @@ function buildLowStockWhatsappMessage(rows) {
   return lines.join("\n");
 }
 
-let precifState = { showInactive: false, formOpen: false, editingId: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set() };
+let precifState = { showInactive: false, formOpen: false, editingId: null, draftFromCalc3d: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set() };
 // Se o aviso de "estoque baixo" foi dispensado nesta sessão do painel
 // (não persiste — some ao recarregar a página, pra não esconder o aviso
 // pra sempre por engano).
@@ -1692,9 +1692,9 @@ async function desativarControleEstoque(productId, variantId) {
    CALCULADORA 3D — ferramenta separada de precificação de peças
    impressas em 3D (rolo de filamento, energia, desgaste de bico/
    máquina, mão de obra, taxa de falhas, margem) — baseada na calculadora
-   que você já usava separada. Não grava nada nos produtos sozinha: o
-   valor de "Custo de fabricação por peça" é só pra você copiar e colar
-   no campo Custo de um produto na Precificação, quando fizer sentido.
+   que você já usava separada. A simulação pode ser salva no histórico e
+   também enviada para o formulário de Produtos, já com custo por peça,
+   preço Pix sugerido e fornecedor "Fabricação própria" pré-preenchidos.
    Histórico de projetos calculados fica salvo neste aparelho
    (localStorage), igual a ferramenta original.
    ===================================================================== */
@@ -1752,11 +1752,14 @@ function calc3dCompute() {
   const custoFalhas = subtotal * (falhas / 100);
   const custoTotalMesa = subtotal + custoFalhas;
   const precoVendaMesa = custoTotalMesa * (1 + lucro / 100);
+  const lucroMesa = Math.max(0, precoVendaMesa - custoTotalMesa);
+  const percentualGuardar = precoVendaMesa > 0 ? (lucroMesa / precoVendaMesa) * 100 : 0;
 
   return {
     custoMaterial, custoEnergia, custoDesgasteTotal, custoOperacional, custoMaoObra, custoFalhas,
-    custoTotalMesa, precoVendaMesa, unidades,
+    custoTotalMesa, precoVendaMesa, lucroMesa, percentualGuardar, unidades,
     custoPeca: custoTotalMesa / unidades, precoPeca: precoVendaMesa / unidades,
+    lucroPeca: lucroMesa / unidades,
   };
 }
 
@@ -1788,7 +1791,7 @@ function renderCalc3dOverlay() {
         <div class="flex items-center justify-between border-b border-navy-100 px-4 py-3">
           <div>
             <h2 class="text-base font-semibold text-navy-900">🖨️ Calculadora 3D</h2>
-            <p class="text-xs text-navy-500">Custo de fabricação de peças 3D. Não grava em produto sozinha — copie o custo por peça pro campo Custo do produto.</p>
+            <p class="text-xs text-navy-500">Calcula custo, preço sugerido e quanto separar de cada venda para reinvestir na loja. Você também pode lançar a simulação direto em Produtos como “Fabricação própria”.</p>
           </div>
           <button id="calc3d-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
         </div>
@@ -1861,13 +1864,14 @@ function renderCalc3dOverlay() {
                   </div>
                 </div>
                 ${calc3dFieldHtml("Taxa de falhas (%)", "falhas", { disabled: calc3dState.locked })}
-                ${calc3dFieldHtml("Margem de lucro (%)", "lucro", { disabled: calc3dState.locked })}
+                ${calc3dFieldHtml("Lucro sobre o custo (%)", "lucro", { disabled: calc3dState.locked })}
               </div>
             </div>
 
-            <div class="flex gap-2">
-              <button type="button" id="calc3d-clear-btn" class="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Ajustar / Limpar dados</button>
-              <button type="button" id="calc3d-save-btn" class="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">Salvar no histórico</button>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <button type="button" id="calc3d-clear-btn" class="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700">Ajustar / Limpar</button>
+              <button type="button" id="calc3d-save-btn" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">Salvar no histórico</button>
+              <button type="button" id="calc3d-launch-product-btn" class="rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Salvar + lançar produto</button>
             </div>
 
             <div>
@@ -1899,6 +1903,16 @@ function renderCalc3dOverlay() {
             </div>
 
             <div>
+              <h3 class="mb-2 text-center text-sm font-semibold text-navy-900">🏦 Separação do dinheiro da venda</h3>
+              <div class="rounded-lg border border-gold-300 bg-gold-50 p-3 text-sm">
+                <div class="flex justify-between border-b border-dashed border-gold-300 py-1"><span class="text-navy-700">Fica no caixa para repor o custo (por peça):</span><span class="font-semibold">${formatBRL(r.custoPeca)}</span></div>
+                <div class="flex justify-between border-b border-dashed border-gold-300 py-1"><span class="text-navy-700">Guardar para investir na loja (lucro por peça):</span><span class="font-bold text-gold-800">${formatBRL(r.lucroPeca)}</span></div>
+                <div class="flex justify-between pt-1.5"><span class="font-semibold text-navy-900">Percentual de cada venda para guardar:</span><span class="font-bold text-gold-800">${r.percentualGuardar.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</span></div>
+                <p class="mt-2 text-[11px] leading-relaxed text-navy-500">Regra usada aqui: 100% do lucro é separado para reinvestimento; o valor do custo retorna ao caixa operacional para produzir a próxima peça.</p>
+              </div>
+            </div>
+
+            <div>
               <div class="mb-2 flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-navy-900">📜 Histórico de projetos</h3>
                 ${calc3dState.history.length > 0 ? `<button type="button" id="calc3d-clear-hist-btn" class="rounded border border-navy-300 px-2 py-1 text-[11px] font-medium text-navy-600 hover:bg-navy-100">Apagar tudo</button>` : ""}
@@ -1915,6 +1929,8 @@ function renderCalc3dOverlay() {
                         <th class="px-2 py-1.5 text-right">Custo/peça</th>
                         <th class="px-2 py-1.5 text-right">Preço da mesa</th>
                         <th class="px-2 py-1.5 text-right">Preço/peça</th>
+                        <th class="px-2 py-1.5 text-right">Guardar/peça</th>
+                        <th class="px-2 py-1.5 text-right">Guardar %</th>
                         <th class="px-2 py-1.5"></th>
                       </tr>
                     </thead>
@@ -1928,7 +1944,9 @@ function renderCalc3dOverlay() {
                           <td class="px-2 py-1.5 text-right text-navy-600">${escapeHtml(item.custoPeca ?? "—")}</td>
                           <td class="px-2 py-1.5 text-right font-semibold text-emerald-700">${escapeHtml(item.total)}</td>
                           <td class="px-2 py-1.5 text-right font-semibold text-navy-700">${escapeHtml(item.unitario)}</td>
-                          <td class="px-2 py-1.5 text-center"><button type="button" data-calc3d-remove-hist="${idx}" class="text-red-600 hover:underline">remover</button></td>
+                          <td class="px-2 py-1.5 text-right font-semibold text-gold-800">${escapeHtml(item.guardarPeca ?? "—")}</td>
+                          <td class="px-2 py-1.5 text-right text-navy-600">${escapeHtml(item.guardarPercent ?? "—")}</td>
+                          <td class="px-2 py-1.5 text-center whitespace-nowrap"><button type="button" data-calc3d-launch-hist="${idx}" class="mr-2 font-semibold text-emerald-700 hover:underline">lançar produto</button><button type="button" data-calc3d-remove-hist="${idx}" class="text-red-600 hover:underline">remover</button></td>
                         </tr>
                       `).join("")}
                     </tbody>
@@ -1974,11 +1992,11 @@ function renderCalc3dOverlay() {
     calc3dState = { ...calc3dDefaultState(), open: true, locked: calc3dState.locked, history: calc3dState.history, projectName: "", precoRolo: "", gramasUsadas: "", tempoH: "", tempoM: "0", unidades: "1" };
     renderCalc3dOverlay();
   });
-  document.getElementById("calc3d-save-btn").addEventListener("click", () => {
+  function buildCalc3dHistoryItem() {
     const res = calc3dCompute();
     const h = Math.trunc(Number(calc3dState.tempoH)) || 0;
     const m = Math.trunc(Number(calc3dState.tempoM)) || 0;
-    calc3dState.history = [...calc3dState.history, {
+    return {
       nome: calc3dState.projectName || "Sem nome",
       qtd: calc3dState.unidades || 1,
       tempo: `${h}h${m > 0 ? ` ${m}min` : ""}`,
@@ -1986,9 +2004,58 @@ function renderCalc3dOverlay() {
       custoPeca: formatBRL(res.custoPeca),
       total: formatBRL(res.precoVendaMesa),
       unitario: formatBRL(res.precoPeca),
-    }];
+      guardarPeca: formatBRL(res.lucroPeca),
+      guardarPercent: `${res.percentualGuardar.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`,
+      custoPecaRaw: round2(res.custoPeca),
+      precoPecaRaw: round2(res.precoPeca),
+      lucroPecaRaw: round2(res.lucroPeca),
+      guardarPercentRaw: round2(res.percentualGuardar),
+    };
+  }
+
+  function saveCurrentCalc3dToHistory() {
+    const item = buildCalc3dHistoryItem();
+    calc3dState.history = [...calc3dState.history, item];
     saveCalc3dHistory(calc3dState.history);
+    return item;
+  }
+
+  function calc3dFormattedBRLToNumber(value) {
+    if (typeof value === "number") return value;
+    const clean = String(value ?? "").replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".");
+    const n = Number(clean);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function openProductFromCalc3d(item) {
+    const ownSupplier = state.suppliers.find((s) => String(s.name || "").trim().toLocaleLowerCase("pt-BR") === "fabricação própria");
+    const cost = Number(item.custoPecaRaw ?? calc3dFormattedBRLToNumber(item.custoPeca));
+    const suggested = Number(item.precoPecaRaw ?? calc3dFormattedBRLToNumber(item.unitario));
+    precifState.draftFromCalc3d = {
+      name: item.nome && item.nome !== "Sem nome" ? item.nome : "Produto 3D",
+      baseCost: round2(cost),
+      promoManualPrice: round2(suggested),
+      supplierId: ownSupplier?.id ?? null,
+      createOwnSupplier: !ownSupplier,
+      supplierName: "Fabricação própria",
+      supplierPhone: "Interno",
+    };
+    precifState.editingId = null;
+    precifState.formOpen = true;
+    calc3dState.open = false;
+    renderPrecificacao(document.getElementById("main-content"));
+    const form = document.getElementById("product-form");
+    if (form) form.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  document.getElementById("calc3d-save-btn").addEventListener("click", () => {
+    saveCurrentCalc3dToHistory();
     renderCalc3dOverlay();
+  });
+
+  document.getElementById("calc3d-launch-product-btn").addEventListener("click", () => {
+    const item = saveCurrentCalc3dToHistory();
+    openProductFromCalc3d(item);
   });
   const copyBtn = document.getElementById("calc3d-copy-cost-btn");
   if (copyBtn) {
@@ -2012,6 +2079,12 @@ function renderCalc3dOverlay() {
       renderCalc3dOverlay();
     });
   }
+  slot.querySelectorAll("[data-calc3d-launch-hist]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const item = calc3dState.history[Number(btn.dataset.calc3dLaunchHist)];
+      if (item) openProductFromCalc3d(item);
+    });
+  });
   slot.querySelectorAll("[data-calc3d-remove-hist]").forEach((btn) => {
     btn.addEventListener("click", () => {
       calc3dState.history.splice(Number(btn.dataset.calc3dRemoveHist), 1);
@@ -2176,12 +2249,14 @@ function renderPrecificacao(container) {
   });
   document.getElementById("new-product-btn").addEventListener("click", () => {
     precifState.editingId = null;
+    precifState.draftFromCalc3d = null;
     precifState.formOpen = true;
     renderProductForm();
   });
   container.querySelectorAll(".edit-product-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       precifState.editingId = btn.dataset.edit;
+      precifState.draftFromCalc3d = null;
       precifState.formOpen = true;
       renderProductForm();
     });
@@ -2417,6 +2492,8 @@ async function duplicarProduto(product) {
 function renderProductForm() {
   const slot = document.getElementById("product-form-slot");
   const product = precifState.editingId ? state.products.find((p) => p.id === precifState.editingId) : null;
+  const draft = !product ? precifState.draftFromCalc3d : null;
+  const selectedSupplierId = product?.supplier_id ?? draft?.supplierId ?? null;
 
   // Lista de materiais usados neste produto (estado local do formulário).
   const formMaterials = product && product.product_materials
@@ -2462,16 +2539,17 @@ function renderProductForm() {
 
   slot.innerHTML = `
     <form id="product-form" class="flex flex-col gap-4 rounded-xl border border-gold-300 bg-white p-5 shadow">
+      ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
       <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div class="min-w-[220px] flex-1">
           <label class="mb-1 block text-sm font-medium text-navy-800">Nome do produto</label>
-          <input id="pf-name" value="${product ? escapeHtml(product.name) : ""}" required
+          <input id="pf-name" value="${product ? escapeHtml(product.name) : escapeHtml(draft?.name ?? "")}" required
             class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
             placeholder="Ex: Chaveiro Nossa Senhora" />
         </div>
         <div class="w-full sm:w-48">
           <label class="mb-1 block text-sm font-medium text-navy-800">Custo base (R$)</label>
-          <input id="pf-base-cost" value="${product ? product.base_cost : "0"}" required inputmode="decimal"
+          <input id="pf-base-cost" value="${product ? product.base_cost : (draft?.baseCost ?? "0")}" required inputmode="decimal"
             class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
             placeholder="0,00" />
           <p class="mt-1 text-xs text-navy-400">O custo do item em si, sem contar os materiais abaixo.</p>
@@ -2500,12 +2578,12 @@ function renderProductForm() {
           <label class="mb-1 block text-sm font-medium text-navy-800">Fornecedor (opcional)</label>
           <select id="pf-supplier-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
             <option value="">— sem fornecedor —</option>
-            ${state.suppliers.filter((s) => s.active || s.id === product?.supplier_id).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((s) => `<option value="${s.id}" ${product?.supplier_id === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}
-            <option value="__new__">+ Novo fornecedor...</option>
+            ${state.suppliers.filter((s) => s.active || s.id === selectedSupplierId).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((s) => `<option value="${s.id}" ${selectedSupplierId === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}
+            <option value="__new__" ${draft?.createOwnSupplier ? "selected" : ""}>+ Novo fornecedor...</option>
           </select>
           <div id="pf-supplier-new" class="mt-2 hidden flex-col gap-2 rounded-lg border border-navy-200 bg-white p-3">
-            <input id="pf-supplier-new-name" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Nome do fornecedor *" />
-            <input id="pf-supplier-new-phone" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Telefone *" />
+            <input id="pf-supplier-new-name" value="${escapeHtml(draft?.supplierName ?? "")}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Nome do fornecedor *" />
+            <input id="pf-supplier-new-phone" value="${escapeHtml(draft?.supplierPhone ?? "")}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Telefone *" />
             <input id="pf-supplier-new-instagram" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Instagram (opcional)" />
             <input id="pf-supplier-new-address" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Endereço (opcional)" />
             <p class="text-xs text-navy-400">Esse fornecedor será cadastrado ao salvar o produto.</p>
@@ -2616,7 +2694,7 @@ function renderProductForm() {
 
       <div class="w-full sm:w-56">
         <label class="mb-1 block text-sm font-medium text-navy-800">Promo/Pix manual (opcional)</label>
-        <input id="pf-promo-manual" value="${product && product.promo_manual_price != null ? Number(product.promo_manual_price) : ""}" inputmode="decimal"
+        <input id="pf-promo-manual" value="${product && product.promo_manual_price != null ? Number(product.promo_manual_price) : (draft?.promoManualPrice ?? "")}" inputmode="decimal"
           class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
           placeholder="Ex: 11,90" />
         <p class="mt-1 text-xs text-navy-400">Deixe em branco pra calcular sozinho pelo custo. Se preencher, esse é o Promo/Pix certinho — e o Crédito passa a ser calculado a partir dele (não mais do custo).</p>
@@ -3035,6 +3113,7 @@ function renderProductForm() {
 
   document.getElementById("pf-cancel").addEventListener("click", () => {
     precifState.formOpen = false;
+    precifState.draftFromCalc3d = null;
     renderPrecificacao(document.getElementById("main-content"));
   });
 
@@ -3291,6 +3370,7 @@ function renderProductForm() {
     }
 
     precifState.formOpen = false;
+    precifState.draftFromCalc3d = null;
     if (supplierSelect.value === "__new__") await loadSuppliers();
     await loadProducts();
     renderPrecificacao(document.getElementById("main-content"));
