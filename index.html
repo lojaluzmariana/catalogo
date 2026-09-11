@@ -1978,14 +1978,27 @@ async function calculateShippingQuote() {
     if (distanceKm <= LOCAL_DELIVERY_RADIUS_KM) {
       const rate = distanceKm <= REDUCED_DELIVERY_RADIUS_KM
         ? REDUCED_DELIVERY_RATE_PER_KM : STANDARD_DELIVERY_RATE_PER_KM;
-      const fee = Math.round(distanceKm * rate * 100) / 100;
-      state.shippingQuote = { type:"motoboy", fee, rate, distanceKm, cep:formatCep(fields.cep), address };
+      const calculatedFee = Math.round(distanceKm * rate * 100) / 100;
+      const fee = calculatedFee <= 5 ? 0 : calculatedFee;
+      const isFreeDelivery = fee === 0;
+
+      state.shippingQuote = {
+        type:"motoboy",
+        fee,
+        calculatedFee,
+        free: isFreeDelivery,
+        rate,
+        distanceKm,
+        cep:formatCep(fields.cep),
+        address
+      };
+
       quoteBox.className = "shipping-quote-box is-ready";
       quoteBox.innerHTML = `<b>Entrega por motoboy disponível</b><br>
         Distância estimada do trajeto: <b>${distanceKm.toFixed(1).replace(".", ",")} km</b><br>
-        Taxa: ${formatBRL(rate)} por km · <b>Entrega ${formatBRL(fee)}</b>
+        <b>Valor da entrega: ${isFreeDelivery ? "Grátis" : formatBRL(fee)}</b>
         <div class="shipping-address-summary">${escapeHtml(address)}</div>
-        <p class="mt-2 text-[11px] text-navy-500">Estimativa baseada na localização do CEP. A loja confirma os dados antes do envio.</p>`;
+        <p class="mt-2 text-[11px] text-navy-500">Estimativa baseada na localização do endereço. A loja confirma os dados antes do envio.</p>`;
     } else {
       state.shippingQuote = { type:"pac", fee:0, distanceKm, cep:formatCep(fields.cep), address };
       quoteBox.className = "shipping-quote-box is-pac";
@@ -3369,7 +3382,7 @@ function renderCheckout() {
         </div>
         <div id="ck-shipping-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-navy-700">
           <span id="ck-shipping-label">${escapeHtml(shippingSummaryText())}</span>
-          <span id="ck-shipping-value">${state.shippingMethod === "delivery" && state.shippingQuote?.type === "motoboy" ? formatBRL(shippingFeeAmount()) : state.shippingMethod === "pickup" ? "R$ 0,00" : "A calcular"}</span>
+          <span id="ck-shipping-value">${state.shippingMethod === "delivery" && state.shippingQuote?.type === "motoboy" ? (state.shippingQuote.free ? "Grátis" : formatBRL(shippingFeeAmount())) : state.shippingMethod === "pickup" ? "R$ 0,00" : "A calcular"}</span>
         </div>
         <div class="mt-2 flex items-center justify-between border-t border-navy-100 pt-2 text-base font-semibold text-navy-900">
           <span>Total</span>
@@ -3484,7 +3497,7 @@ function renderCheckout() {
             <div id="ck-shipping-quote" class="shipping-quote-box mt-3 ${state.shippingQuote?.type === "motoboy" ? "is-ready" : state.shippingQuote?.type === "pac" ? "is-pac" : ""}">
               ${state.shippingQuote
                 ? state.shippingQuote.type === "motoboy"
-                  ? `<b>Motoboy disponível</b><br>${state.shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km · <b>${formatBRL(state.shippingQuote.fee)}</b>${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}`
+                  ? `<b>Motoboy disponível</b><br>${state.shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km · <b>Valor da entrega: ${state.shippingQuote.free ? "Grátis" : formatBRL(state.shippingQuote.fee)}</b>${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}`
                   : state.shippingQuote.type === "pac"
                     ? `<b>Correios PAC</b><br>Valor a calcular e confirmar pelo WhatsApp.${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}`
                     : `Entrega a confirmar pelo WhatsApp.`
@@ -3798,7 +3811,7 @@ function updateCheckoutTotals() {
     shippingValueEl.textContent = state.shippingMethod === "pickup"
       ? "R$ 0,00"
       : state.shippingQuote?.type === "motoboy"
-        ? formatBRL(shippingFeeAmount())
+        ? (state.shippingQuote.free ? "Grátis" : formatBRL(shippingFeeAmount()))
         : "A calcular";
   }
 
@@ -4091,7 +4104,7 @@ async function onSubmitOrder(e) {
   const shippingNote = state.shippingMethod === "pickup"
     ? "Retirada a combinar"
     : state.shippingQuote?.type === "motoboy"
-      ? `Entrega por motoboy: ${state.shippingQuote.distanceKm.toFixed(1)} km, taxa ${formatBRL(state.shippingQuote.fee)}. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
+      ? `Entrega por motoboy: ${state.shippingQuote.distanceKm.toFixed(1)} km, valor ${state.shippingQuote.free ? "Grátis" : formatBRL(state.shippingQuote.fee)}. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
       : state.shippingQuote?.type === "pac"
         ? `Envio Correios PAC, valor a calcular. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
         : `Entrega a confirmar. Endereço: ${[
@@ -4250,7 +4263,7 @@ function buildWhatsAppMessage({
   if (shippingMethod === "pickup") {
     lines.push(`Entrega/retirada: Retirada a combinar`);
   } else if (shippingQuote?.type === "motoboy") {
-    lines.push(`Entrega: Motoboy — ${shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km — ${formatBRL(shippingQuote.fee)}`);
+    lines.push(`Entrega: Motoboy — ${shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km — ${shippingQuote.free ? "Grátis" : formatBRL(shippingQuote.fee)}`);
     lines.push(`Endereço: ${shippingQuote.address}${shippingComplement ? `, ${shippingComplement}` : ""}`);
   } else if (shippingQuote?.type === "pac") {
     lines.push(`Entrega: Correios PAC — frete a calcular`);
