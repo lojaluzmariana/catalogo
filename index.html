@@ -56,7 +56,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
+  html, body { max-width: 100%; overflow-x: hidden; }
   body { font-family: Arial, Helvetica, sans-serif; }
+  #app { width: 100%; max-width: 100%; overflow-x: hidden; }
   @keyframes featured-carousel-scroll {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
@@ -199,17 +201,37 @@
     object-fit: cover;
     background: #f8f6ef;
   }
-  .product-main-image-box {
-    position: relative;
+  .product-detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
     width: 100%;
     max-width: 100%;
+  }
+  .product-detail-grid > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .product-media-column {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+  .product-main-image-box {
+    position: relative;
+    width: min(100%, 520px);
+    max-width: 520px;
     aspect-ratio: 1 / 1;
-    max-height: min(72vh, 640px);
-    min-height: 280px;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    margin: 0 auto;
     overflow: hidden;
     background: #f8f6ef;
   }
   .product-main-image-box > img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     max-width: 100%;
@@ -232,6 +254,20 @@
   .gallery-thumb-btn,
   .variant-thumb-btn {
     background: #f8f6ef;
+  }
+  .variant-thumb-section,
+  .variant-thumb-row {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .variant-thumb-row {
+    width: 100%;
+    overscroll-behavior-x: contain;
+  }
+  @media (min-width: 900px) {
+    .product-detail-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
   }
   .product-image-title-overlay {
     position: absolute;
@@ -359,11 +395,6 @@
   @media (max-width: 639px) {
     .featured-carousel-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
     .featured-carousel-track { animation: none !important; }
-    .product-main-image-box {
-      aspect-ratio: 1 / 1;
-      max-height: 68vh;
-      min-height: 0;
-    }
   }
   @media (prefers-reduced-motion: reduce) {
     .featured-carousel-track { animation: none !important; }
@@ -1508,10 +1539,10 @@ function renderProductDetail() {
 
   app.innerHTML = `
     ${renderHeader()}
-    <main class="mx-auto max-w-3xl px-4 py-6">
+    <main class="mx-auto w-full max-w-3xl px-4 py-6">
       <button id="back-to-catalog-btn" class="mb-4 text-sm text-navy-600 hover:underline">&larr; Voltar ao catálogo</button>
-      <div id="product-detail-panel" class="grid gap-6 sm:grid-cols-2">
-        <div>
+      <div id="product-detail-panel" class="product-detail-grid">
+        <div class="product-media-column">
           <div id="product-main-image-box" class="product-main-image-box relative aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
             ${photoUrl
               ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-contain" />`
