@@ -870,9 +870,6 @@ function isNewProduct(product) {
   return (Date.now() - created.getTime()) <= 30 * 24 * 60 * 60 * 1000;
 }
 function productAvailabilityFlags(product) {
-  addRecentlyViewed(product.id);
-  trackEvent("view_item", { item_id: String(product.id), item_name: product.name });
-
   const variants = variantsFor(product.id);
   if (variants.length) return {
     ready: variants.some((v) => !v.esgotado && !!v.in_stock),
@@ -2042,7 +2039,7 @@ function renderProductCard(p, opts = {}) {
             ${isNewProduct(p) ? `<span class="new-product-badge">Novidade</span>` : ""}
             ${showLowStock ? `<span class="low-stock-badge">Últimas ${stockQtyValue} unidades</span>` : ""}
           </div>
-          ${cardStatus === "order" ? `<p class="mt-1 text-xs text-navy-500">${leadTimeText(p)}</p>` : ""}
+          ${cardStatus === "order" ? `<p class="mt-1 text-xs text-navy-500">${madeToOrderText(p)}</p>` : ""}
         </div>
 
         <div class="leading-tight" data-price-block="${p.id}">
@@ -2143,6 +2140,9 @@ function renderProductDetail() {
     document.getElementById("back-to-catalog-btn").addEventListener("click", () => { state.screen = "catalog"; state.detailProductId = null; render(); });
     return;
   }
+
+  addRecentlyViewed(product.id);
+  trackEvent("view_item", { item_id: String(product.id), item_name: product.name });
 
   const variants = variantsFor(product.id);
   const variant = currentVariant(product);
@@ -3716,6 +3716,24 @@ document.getElementById("welcome-order-overlay")?.addEventListener("click", (e) 
   }, { passive: true });
 });
 
+window.addEventListener("error", (event) => {
+  console.error("Erro no catálogo:", event.error || event.message);
+  if (state && state.loading) {
+    state.loading = false;
+    state.loadError = "Não foi possível abrir o catálogo agora. Atualize a página em alguns segundos.";
+    try { render(); } catch (_err) {}
+  }
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("Erro assíncrono no catálogo:", event.reason);
+  if (state && state.loading) {
+    state.loading = false;
+    state.loadError = "Não foi possível abrir o catálogo agora. Atualize a página em alguns segundos.";
+    try { render(); } catch (_err) {}
+  }
+});
+
 window.addEventListener("popstate", () => {
   if (state.loading) return;
   const productId = new URL(window.location.href).searchParams.get("produto");
@@ -3738,7 +3756,15 @@ window.addEventListener("beforeunload", (e) => {
   }
 });
 
-loadCatalog().then(() => requestAnimationFrame(() => scheduleWelcomeOrderAfterInactivity()));
+render();
+loadCatalog()
+  .then(() => requestAnimationFrame(() => scheduleWelcomeOrderAfterInactivity()))
+  .catch((err) => {
+    console.error("Erro inesperado ao carregar o catálogo:", err);
+    state.loading = false;
+    state.loadError = err?.message || "Erro inesperado";
+    render();
+  });
 
 // Registra o service worker só pra habilitar "Adicionar à tela inicial"
 // (ver comentário em sw.js — não guarda nada em cache). Silenciosamente
