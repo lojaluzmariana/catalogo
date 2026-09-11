@@ -1719,7 +1719,7 @@ async function calculateShippingQuote() {
     state.shippingQuote = null;
     quoteBox.className = "shipping-quote-box is-error";
     quoteBox.textContent = "Informe um CEP válido com 8 números.";
-    refreshCheckoutTotals();
+    updateCheckoutTotals();
     return;
   }
 
@@ -1746,7 +1746,7 @@ async function calculateShippingQuote() {
       quoteBox.innerHTML = `<b>Não conseguimos calcular a distância automaticamente.</b><br>
         Você ainda pode finalizar o pedido; confirmaremos a entrega pelo WhatsApp.
         ${address ? `<div class="shipping-address-summary">${escapeHtml(address)}</div>` : ""}`;
-      refreshCheckoutTotals();
+      updateCheckoutTotals();
       return;
     }
 
@@ -1771,12 +1771,12 @@ async function calculateShippingQuote() {
         O valor do PAC será calculado conforme CEP, peso e dimensões do pedido e confirmado pelo WhatsApp.
         <div class="shipping-address-summary">${escapeHtml(address)}</div>`;
     }
-    refreshCheckoutTotals();
+    updateCheckoutTotals();
   } catch (err) {
     state.shippingQuote = null;
     quoteBox.className = "shipping-quote-box is-error";
     quoteBox.innerHTML = `<b>Não foi possível consultar esse CEP agora.</b><br>${escapeHtml(err?.message || "Tente novamente.")}`;
-    refreshCheckoutTotals();
+    updateCheckoutTotals();
   }
 }
 
@@ -3172,7 +3172,7 @@ function renderCheckout() {
 
           <div id="ck-shipping-fields" class="mt-3 ${state.shippingMethod === "delivery" ? "" : "hidden"}">
             <p class="mb-2 rounded-lg bg-white px-3 py-2 text-xs text-navy-600">
-              Até 5 km: <b>R$ 1,50/km</b> · de 5 a 15 km: <b>R$ 1,80/km</b> · acima de 15 km: <b>Correios PAC</b>.
+              Até 15 km: <b>entregador/motoboy</b> · acima de 15 km: <b>Correios PAC</b>.
             </p>
             <div class="grid gap-2 sm:grid-cols-[1fr_110px]">
               <div>
