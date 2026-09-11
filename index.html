@@ -74,6 +74,9 @@
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen pb-24">
 <div id="app"></div>
+<a id="help-whatsapp-btn" href="#" aria-label="Precisa de ajuda? Fale com a gente no WhatsApp"
+   style="position:fixed; right:16px; bottom:104px; z-index:25; background-color:#25D366; box-shadow:0 4px 14px rgba(0,0,0,0.3); font-size:28px; line-height:1;"
+   class="flex h-14 w-14 items-center justify-center rounded-full text-white transition hover:opacity-90">💬</a>
 
 <script>
 /* =====================================================================
@@ -729,10 +732,10 @@ function renderCategoryBar(categories) {
     <div class="border-b border-navy-800 bg-navy-900">
       <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 py-2 text-sm">
         ${items.map((it) => `
-          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
+          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
         `).join("")}
         ${favoriteCount > 0 ? `
-          <button id="favorites-filter-btn" class="whitespace-nowrap rounded-full px-3 py-1.5 font-medium transition ${state.favoritesOnly ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">❤ Favoritos (${favoriteCount})</button>
+          <button id="favorites-filter-btn" class="whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.favoritesOnly ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">❤ Favoritos (${favoriteCount})</button>
         ` : ""}
       </div>
     </div>
@@ -861,12 +864,15 @@ function renderCatalog() {
     : searchFiltered;
 
   app.innerHTML = `
-    ${renderHeader()}
-    ${renderCategoryBar(categories)}
+    <div style="position:sticky; top:0; z-index:15;">
+      ${renderHeader()}
+      ${renderCategoryBar(categories)}
+    </div>
+    <div class="mx-auto max-w-5xl px-4 pt-4">
+      ${renderSearchBar()}
+    </div>
     ${renderHero()}
     <main class="mx-auto max-w-5xl px-4 py-6">
-      ${renderSearchBar()}
-
       ${!searchActive && state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
 
       <div class="mb-5">
@@ -878,7 +884,7 @@ function renderCatalog() {
       ` : visibleProducts.length === 0 ? `
         <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">${searchActive ? `Nenhum produto encontrado para "${escapeHtml(state.searchQuery.trim())}".` : state.favoritesOnly ? `Nenhum favorito${state.categoryFilter !== "all" ? ` em "${escapeHtml(state.categoryFilter)}"` : ""} ainda — toque no ❤ de um produto pra guardar aqui.` : "Nenhum produto nessa categoria."}</p>
       ` : `
-        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           ${visibleProducts.map((p) => renderProductCard(p)).join("")}
         </div>
       `}
@@ -1485,6 +1491,15 @@ function renderCheckout() {
 
       <form id="checkout-form" class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
         <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Seu nome</label>
+          <input id="ck-name" required class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Seu nome" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Seu WhatsApp</label>
+          <input id="ck-whatsapp" required inputmode="tel" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
+          <p id="ck-whatsapp-msg" class="mt-1 text-xs text-navy-400">É pra esse número que vamos confirmar seu pedido.</p>
+        </div>
+        <div>
           <label class="mb-1 block text-sm font-medium text-navy-800">Forma de pagamento</label>
           <div class="flex gap-1 rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
             <button type="button" data-payment="pix" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / à vista</button>
@@ -1506,34 +1521,6 @@ function renderCheckout() {
               <p class="mt-1 text-[11px] text-navy-400">Pagamento via link de pagamento ou maquineta — combinamos o melhor jeito com você pelo WhatsApp.</p>
             `}
           </div>
-        </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">WhatsApp</label>
-          <input id="ck-whatsapp" required inputmode="tel" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
-          <p id="ck-whatsapp-msg" class="mt-1 text-xs text-navy-400"></p>
-        </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">Cupom de desconto (opcional)</label>
-          <div class="flex gap-2">
-            <input id="ck-coupon-input" value="${escapeHtml(state.couponCode || "")}" ${state.appliedCoupon ? "disabled" : ""}
-              class="min-w-0 flex-1 rounded-lg border border-navy-200 px-3 py-2 uppercase outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-cream-50 disabled:text-navy-400"
-              placeholder="Ex: BEMVINDA5" />
-            <button type="button" id="ck-coupon-apply" class="flex-shrink-0 rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100 ${state.appliedCoupon ? "hidden" : ""}">Aplicar</button>
-            <button type="button" id="ck-coupon-remove" class="flex-shrink-0 rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100 ${state.appliedCoupon ? "" : "hidden"}">Remover</button>
-          </div>
-          <p id="ck-coupon-msg" class="mt-1 text-xs"></p>
-        </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">Nome</label>
-          <input id="ck-name" required class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Seu nome" />
-        </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">Instagram (opcional)</label>
-          <input id="ck-instagram" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="@usuario" />
-        </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">Observações (opcional)</label>
-          <textarea id="ck-notes" rows="2" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Endereço de entrega, alguma personalização, etc."></textarea>
         </div>
         ${state.giftWrapOptions.length > 0 ? `
         <div>
@@ -1559,6 +1546,32 @@ function renderCheckout() {
           </div>
         </div>
         ` : ""}
+
+        <details class="rounded-lg border border-navy-100 bg-cream-50 px-3 py-2 open:pb-3" ${state.appliedCoupon ? "open" : ""}>
+          <summary class="cursor-pointer select-none py-1 text-sm font-medium text-navy-700">Cupom, Instagram ou alguma observação? (opcional)</summary>
+          <div class="mt-3 flex flex-col gap-4">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-navy-800">Cupom de desconto</label>
+              <div class="flex gap-2">
+                <input id="ck-coupon-input" value="${escapeHtml(state.couponCode || "")}" ${state.appliedCoupon ? "disabled" : ""}
+                  class="min-w-0 flex-1 rounded-lg border border-navy-200 px-3 py-2 uppercase outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 disabled:bg-white disabled:text-navy-400"
+                  placeholder="Ex: BEMVINDA5" />
+                <button type="button" id="ck-coupon-apply" class="flex-shrink-0 rounded-lg border border-navy-300 bg-white px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100 ${state.appliedCoupon ? "hidden" : ""}">Aplicar</button>
+                <button type="button" id="ck-coupon-remove" class="flex-shrink-0 rounded-lg border border-navy-300 bg-white px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100 ${state.appliedCoupon ? "" : "hidden"}">Remover</button>
+              </div>
+              <p id="ck-coupon-msg" class="mt-1 text-xs"></p>
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-navy-800">Instagram</label>
+              <input id="ck-instagram" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="@usuario" />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-navy-800">Observações</label>
+              <textarea id="ck-notes" rows="2" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Endereço de entrega, alguma personalização, etc."></textarea>
+            </div>
+          </div>
+        </details>
+
         <div id="ck-error" class="text-sm text-red-600"></div>
         <button type="submit" id="ck-submit" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">Confirmar pedido e abrir WhatsApp</button>
         <p class="text-center text-xs text-navy-400">Ao confirmar, o WhatsApp abre com seu pedido pronto — é só apertar enviar.</p>
@@ -2228,6 +2241,18 @@ app.addEventListener("click", (e) => {
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+});
+
+// Botão flutuante "Precisa de ajuda?" — fica FORA do #app de propósito
+// (não é redesenhado a cada tela, sempre visível não importa em que
+// passo do pedido a pessoa está travou). Abre o WhatsApp da loja com uma
+// mensagem já pronta pedindo ajuda — pra quem não é tão íntimo de
+// compras online conseguir terminar o pedido com uma pessoa de verdade,
+// em vez de desistir no meio do caminho.
+document.getElementById("help-whatsapp-btn").addEventListener("click", (e) => {
+  e.preventDefault();
+  const message = "Oi! Estou tentando fazer um pedido pelo catálogo e preciso de uma ajudinha 🙏";
+  window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
 });
 
 loadCatalog();
