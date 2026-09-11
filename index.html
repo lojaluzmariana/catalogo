@@ -620,6 +620,38 @@
     transform-origin: left center;
     background: #d5aa3e;
   }
+
+  .catalog-filter-bar { display:grid; gap:10px; margin-bottom:18px; padding:12px; border:1px solid #e3e5ed; border-radius:14px; background:#fff; }
+  .catalog-filter-bar label { display:block; margin-bottom:4px; font-size:11px; font-weight:700; color:#52618a; }
+  .catalog-filter-bar select { width:100%; min-height:44px; border:1px solid #ccd2e2; border-radius:10px; background:#fff; padding:0 10px; color:#1d2857; font-size:13px; }
+  @media (min-width:640px) { .catalog-filter-bar { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+  .availability-chip,.new-product-badge,.low-stock-badge { display:inline-flex; align-items:center; border-radius:999px; padding:4px 8px; font-size:10px; font-weight:700; line-height:1; }
+  .availability-ready { background:#ecfdf3; color:#166534; border:1px solid #bbf7d0; }
+  .availability-order { background:#fff8e6; color:#8b6711; border:1px solid #efd99b; }
+  .availability-sold { background:#fff1f2; color:#b42318; border:1px solid #fecdd3; }
+  .new-product-badge { background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; }
+  .low-stock-badge { background:#fff7ed; color:#9a3412; border:1px solid #fed7aa; }
+  .recently-viewed-row { display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
+  .recently-viewed-card { flex:0 0 150px; border:1px solid #e4e6ee; border-radius:12px; background:#fff; overflow:hidden; text-align:left; }
+  .recently-viewed-card img { width:100%; aspect-ratio:1/1; object-fit:contain; background:#f8f6ef; }
+  .cart-restored-note { margin-bottom:14px; border:1px solid #b7dfc2; border-radius:12px; background:#f0fbf3; padding:10px 12px; color:#166534; font-size:12px; }
+  .share-product-btn { min-height:44px; border:1px solid #ccd2e2; border-radius:10px; background:#fff; color:#33436f; padding:0 12px; font-size:12px; font-weight:700; }
+  .footer-faq details { border-top:1px solid #e5e7ee; padding:10px 0; text-align:left; }
+  .footer-faq summary { cursor:pointer; font-weight:700; color:#1d2857; }
+  .footer-faq p { margin-top:6px; line-height:1.5; color:#52618a; }
+  .custom-order-footer-btn { display:inline-flex; min-height:44px; align-items:center; justify-content:center; border-radius:10px; background:#001868; color:#fff; padding:0 14px; font-weight:700; }
+  html[data-contrast="high"] body { background:#fff !important; color:#000 !important; }
+  html[data-contrast="high"] .text-navy-300,
+  html[data-contrast="high"] .text-navy-400,
+  html[data-contrast="high"] .text-navy-500,
+  html[data-contrast="high"] .text-navy-600 { color:#111827 !important; }
+  html[data-contrast="high"] input,
+  html[data-contrast="high"] select,
+  html[data-contrast="high"] textarea,
+  html[data-contrast="high"] button { border-color:#111827; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  }
   .checkout-step-badge {
     display: inline-flex;
     width: 26px;
@@ -760,6 +792,9 @@ const app = document.getElementById("app");
 
 const FONT_SIZE_PREF_KEY = "luzmariana_font_size_v1";
 const PAYMENT_PREF_KEY = "luzmariana_payment_v1";
+const CONTRAST_PREF_KEY = "luzmariana_contrast_v1";
+const RECENT_PRODUCTS_KEY = "luzmariana_recent_products_v1";
+const CART_RESTORED_SESSION_KEY = "luzmariana_cart_restored_seen_v1";
 
 function loadFontSizePreference() {
   try { return localStorage.getItem(FONT_SIZE_PREF_KEY) === "large" ? "large" : "normal"; }
@@ -784,7 +819,71 @@ function loadPaymentPreference() {
 function savePaymentPreference(value) {
   try { localStorage.setItem(PAYMENT_PREF_KEY, value === "credito" ? "credito" : "pix"); } catch (_err) {}
 }
+function loadContrastPreference() {
+  try { return localStorage.getItem(CONTRAST_PREF_KEY) === "high" ? "high" : "normal"; } catch (_err) { return "normal"; }
+}
+function applyContrastPreference(value) {
+  const mode = value === "high" ? "high" : "normal";
+  document.documentElement.dataset.contrast = mode;
+  try { localStorage.setItem(CONTRAST_PREF_KEY, mode); } catch (_err) {}
+}
+function toggleContrastPreference() {
+  applyContrastPreference(document.documentElement.dataset.contrast === "high" ? "normal" : "high");
+  render();
+}
+function trackEvent(name, params = {}) {
+  try { if (typeof gtag === "function") gtag("event", name, params); } catch (_err) {}
+}
+function loadRecentlyViewedIds() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECENT_PRODUCTS_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch (_err) { return []; }
+}
+function addRecentlyViewed(productId) {
+  if (!productId) return;
+  const ids = loadRecentlyViewedIds().filter((id) => String(id) !== String(productId));
+  ids.unshift(productId);
+  try { localStorage.setItem(RECENT_PRODUCTS_KEY, JSON.stringify(ids.slice(0, 8))); } catch (_err) {}
+}
+function productShareUrl(productId) {
+  const url = new URL(CATALOG_BASE_URL);
+  url.searchParams.set("produto", productId);
+  return url.toString();
+}
+function syncProductUrl(productId, push = true) {
+  const url = new URL(window.location.href);
+  if (productId) url.searchParams.set("produto", productId);
+  else url.searchParams.delete("produto");
+  history[push ? "pushState" : "replaceState"]({ productId: productId || null }, "", url);
+}
+function stockQuantity(entity) {
+  const value = entity?.stock_quantity ?? entity?.stock_qty ?? entity?.quantity_in_stock ?? entity?.available_quantity;
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function isNewProduct(product) {
+  if (!product?.created_at) return false;
+  const created = new Date(product.created_at);
+  if (Number.isNaN(created.getTime())) return false;
+  return (Date.now() - created.getTime()) <= 30 * 24 * 60 * 60 * 1000;
+}
+function productAvailabilityFlags(product) {
+  addRecentlyViewed(product.id);
+  trackEvent("view_item", { item_id: String(product.id), item_name: product.name });
+
+  const variants = variantsFor(product.id);
+  if (variants.length) return {
+    ready: variants.some((v) => !v.esgotado && !!v.in_stock),
+    order: variants.some((v) => !v.esgotado && !v.in_stock),
+    sold: variants.every((v) => !!v.esgotado),
+  };
+  return { ready: !product.esgotado && !!product.in_stock, order: !product.esgotado && !product.in_stock, sold: !!product.esgotado };
+}
+function productMinPixPrice(product) { return Number(pricingSummary(product).promoPrice || 0); }
 applyFontSizePreference(loadFontSizePreference());
+applyContrastPreference(loadContrastPreference());
 
 function formatPhoneInputMask(raw) {
   let digits = String(raw || "").replace(/\D/g, "");
@@ -933,6 +1032,10 @@ const state = {
   payment: loadPaymentPreference(), // pix | credito
   categoryFilter: "all",
   searchQuery: "", // texto digitado na busca do catálogo (filtra por nome/descrição/categoria/material)
+  availabilityFilter: "all",
+  priceFilter: "all",
+  sortMode: "featured",
+  cartRestoredNotice: false,
   cartOpen: false,
   screen: "catalog", // catalog | product | checkout | success | policy | track
   policyTab: "privacidade", // privacidade | termos — qual aba mostrar na tela de política/termos
@@ -1036,6 +1139,17 @@ async function loadCatalog() {
   state.reviews = reviews || [];
   pruneStaleCartItems();
   pruneStaleFavorites();
+
+  const directProductId = new URL(window.location.href).searchParams.get("produto");
+  if (directProductId && state.products.some((p) => String(p.id) === String(directProductId))) {
+    state.screen = "product";
+    state.detailProductId = directProductId;
+  }
+  try {
+    const seen = sessionStorage.getItem(CART_RESTORED_SESSION_KEY) === "1";
+    state.cartRestoredNotice = cartCount() > 0 && !seen;
+  } catch (_err) { state.cartRestoredNotice = false; }
+
   state.loading = false;
   render();
   updateProductJsonLd();
@@ -1110,7 +1224,14 @@ function starDisplayCatalog(rating) {
    parecia com o produto inteiro esgotado mesmo tendo outros disponíveis. */
 function variantsFor(productId) {
   const list = state.variantsByProduct[productId] || [];
-  return [...list].sort((a, b) => (a.esgotado ? 1 : 0) - (b.esgotado ? 1 : 0));
+  const statusRank = (v) => v.esgotado ? 2 : (v.in_stock ? 0 : 1);
+  return [...list].sort((a, b) => {
+    const statusDiff = statusRank(a) - statusRank(b);
+    if (statusDiff !== 0) return statusDiff;
+    const orderDiff = Number(a.sort_order ?? 9999) - Number(b.sort_order ?? 9999);
+    if (orderDiff !== 0) return orderDiff;
+    return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR");
+  });
 }
 
 /* Lista de fotos pra mostrar na página do produto: a foto "de capa" (do
@@ -1531,6 +1652,7 @@ function renderHeader() {
         </button>
         <button type="button" data-open-track class="rounded-full border border-navy-700 px-2.5 py-1 text-[11px] font-medium text-cream-100 transition hover:border-navy-500">Rastrear pedido</button>
         <button type="button" data-font-toggle class="accessibility-btn" aria-label="Aumentar ou reduzir o tamanho do texto" title="Tamanho do texto">${document.documentElement.dataset.fontSize === "large" ? "A−" : "A+"}</button>
+        <button type="button" data-contrast-toggle class="accessibility-btn px-3" aria-label="Ativar ou desativar alto contraste" title="Alto contraste">Contraste</button>
       </div>
     </header>
   `;
@@ -1618,6 +1740,19 @@ function renderFooter() {
         <span class="secure-badge" aria-label="Ambiente protegido">🔒 Ambiente protegido</span>
         <p class="secure-note max-w-md">Não pedimos senha nem dados de cartão neste site. O pedido é finalizado com você pelo WhatsApp.</p>
       </div>
+      <div class="mb-5 w-full max-w-lg">
+        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <button type="button" data-footer-whatsapp class="custom-order-footer-btn">Falar com a loja</button>
+          <button type="button" data-footer-custom-order class="custom-order-footer-btn">Encomenda personalizada</button>
+        </div>
+        <div class="footer-faq rounded-xl border border-navy-100 bg-white px-4">
+          <details><summary>Qual o prazo?</summary><p>Produtos de pronta entrega dependem apenas da combinação de retirada/entrega. Produtos sob encomenda mostram a estimativa de produção no próprio catálogo.</p></details>
+          <details><summary>Como funciona a entrega ou retirada?</summary><p>Depois que você envia o pedido pelo WhatsApp, combinamos a melhor opção de retirada ou entrega conforme sua localização.</p></details>
+          <details><summary>Como funciona o pagamento?</summary><p>O catálogo mostra os valores e o sinal necessário para confirmação. O pagamento é combinado diretamente com a Luz Mariana pelo WhatsApp.</p></details>
+          <details><summary>Vocês fazem encomendas personalizadas?</summary><p>Sim. Se não encontrou santo, modelo, cor, tamanho ou peça específica, envie uma mensagem e fazemos um orçamento personalizado.</p></details>
+          <details><summary>Como funciona uma encomenda personalizada?</summary><p>Você conta o que procura, enviamos possibilidades e orçamento pelo WhatsApp e, após a confirmação, informamos o prazo de produção.</p></details>
+        </div>
+      </div>
       <p>Luz Mariana - Artigos Religiosos · CNPJ ${STORE_CNPJ}</p>
       <p class="mt-1">© 2026 Luz Mariana. Todos os direitos reservados.</p>
       <p class="mt-2 space-x-3">
@@ -1701,6 +1836,60 @@ function renderShoppingGuide() {
   `;
 }
 
+function renderCatalogFilters() {
+  return `<div class="catalog-filter-bar" aria-label="Filtros do catálogo">
+    <div><label for="availability-filter">Disponibilidade</label><select id="availability-filter">
+      <option value="all" ${state.availabilityFilter === "all" ? "selected" : ""}>Todos</option>
+      <option value="ready" ${state.availabilityFilter === "ready" ? "selected" : ""}>Pronta entrega</option>
+      <option value="order" ${state.availabilityFilter === "order" ? "selected" : ""}>Sob encomenda</option>
+    </select></div>
+    <div><label for="price-filter">Faixa de preço no Pix</label><select id="price-filter">
+      <option value="all" ${state.priceFilter === "all" ? "selected" : ""}>Todos os preços</option>
+      <option value="under25" ${state.priceFilter === "under25" ? "selected" : ""}>Até R$ 25</option>
+      <option value="25to50" ${state.priceFilter === "25to50" ? "selected" : ""}>R$ 25 a R$ 50</option>
+      <option value="50to100" ${state.priceFilter === "50to100" ? "selected" : ""}>R$ 50 a R$ 100</option>
+      <option value="over100" ${state.priceFilter === "over100" ? "selected" : ""}>Acima de R$ 100</option>
+    </select></div>
+    <div><label for="sort-filter">Ordenar por</label><select id="sort-filter">
+      <option value="featured" ${state.sortMode === "featured" ? "selected" : ""}>Recomendados</option>
+      <option value="best" ${state.sortMode === "best" ? "selected" : ""}>Mais vendidos</option>
+      <option value="newest" ${state.sortMode === "newest" ? "selected" : ""}>Novidades</option>
+      <option value="priceAsc" ${state.sortMode === "priceAsc" ? "selected" : ""}>Menor preço</option>
+      <option value="priceDesc" ${state.sortMode === "priceDesc" ? "selected" : ""}>Maior preço</option>
+    </select></div>
+  </div>`;
+}
+function productPassesPriceFilter(product) {
+  const price = productMinPixPrice(product);
+  if (state.priceFilter === "under25") return price <= 25;
+  if (state.priceFilter === "25to50") return price >= 25 && price <= 50;
+  if (state.priceFilter === "50to100") return price >= 50 && price <= 100;
+  if (state.priceFilter === "over100") return price > 100;
+  return true;
+}
+function sortCatalogProducts(products) {
+  const list = [...products];
+  if (state.sortMode === "best") return list.sort((a,b) => Number(b.units_sold || 0) - Number(a.units_sold || 0));
+  if (state.sortMode === "priceAsc") return list.sort((a,b) => productMinPixPrice(a) - productMinPixPrice(b));
+  if (state.sortMode === "priceDesc") return list.sort((a,b) => productMinPixPrice(b) - productMinPixPrice(a));
+  if (state.sortMode === "newest") return list.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  return list;
+}
+function renderRecentlyViewed() {
+  const products = loadRecentlyViewedIds().map((id) => state.products.find((p) => String(p.id) === String(id))).filter(Boolean).slice(0,6);
+  if (!products.length) return "";
+  return `<section class="mb-6" aria-label="Produtos vistos recentemente">
+    <div class="mb-3 flex items-center justify-between gap-3"><h2 class="text-lg font-semibold text-navy-900">Você viu recentemente</h2><button type="button" id="clear-recently-viewed" class="text-xs font-semibold text-navy-500 underline">Limpar</button></div>
+    <div class="recently-viewed-row">
+      ${products.map((p) => {
+        const v = variantsFor(p.id)[0] || null;
+        const photo = p.photo_url || v?.photo_url || "";
+        return `<button type="button" data-view-product="${p.id}" class="recently-viewed-card">${photo ? `<img src="${photo}" alt="" loading="lazy" decoding="async" />` : `<div class="aspect-square bg-cream-100"></div>`}<span class="block p-2 text-xs font-semibold text-navy-900">${escapeHtml(p.name)}</span></button>`;
+      }).join("")}
+    </div>
+  </section>`;
+}
+
 function renderCatalog() {
   const grouped = groupByCategory(state.products);
   const categories = grouped.map((g) => g.category);
@@ -1712,9 +1901,14 @@ function renderCatalog() {
   const searchFiltered = searchActive
     ? categoryFiltered.filter((p) => productMatchesSearch(p, state.searchQuery))
     : categoryFiltered;
-  const visibleProducts = state.favoritesOnly
-    ? searchFiltered.filter((p) => state.favorites[p.id])
-    : searchFiltered;
+  const favoritesFiltered = state.favoritesOnly ? searchFiltered.filter((p) => state.favorites[p.id]) : searchFiltered;
+  const availabilityFiltered = favoritesFiltered.filter((p) => {
+    const flags = productAvailabilityFlags(p);
+    if (state.availabilityFilter === "ready") return flags.ready;
+    if (state.availabilityFilter === "order") return flags.order;
+    return true;
+  });
+  const visibleProducts = sortCatalogProducts(availabilityFiltered.filter(productPassesPriceFilter));
 
   app.innerHTML = `
     <div style="position:sticky; top:0; z-index:15;">
@@ -1722,12 +1916,15 @@ function renderCatalog() {
       ${renderCategoryBar(categories)}
     </div>
     <div class="mx-auto max-w-5xl px-4 py-4">
+      ${state.cartRestoredNotice ? `<div class="cart-restored-note"><div class="flex items-center justify-between gap-3"><span><b>Seu pedido continua aqui.</b> O carrinho ficou salvo neste aparelho.</span><button type="button" id="dismiss-cart-restored" class="underline">Fechar</button></div></div>` : ""}
       ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderShoppingGuide() : ""}
       ${renderSearchBar()}
+      ${renderCatalogFilters()}
     </div>
     ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderHero() : ""}
     <main class="mx-auto max-w-5xl px-4 py-6">
       ${!searchActive && state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
+      ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderRecentlyViewed() : ""}
 
       <div class="mb-5">
         <h1 class="text-xl font-semibold text-navy-900">${searchActive ? `Resultados para "${escapeHtml(state.searchQuery.trim())}"` : state.favoritesOnly ? "❤ Seus favoritos" : state.categoryFilter === "all" ? "Encontre algo especial para sua fé" : escapeHtml(state.categoryFilter)}</h1>
@@ -1758,6 +1955,12 @@ function renderProductCard(p, opts = {}) {
   const cardPreviewVariant = !p.photo_url && variants.length > 1 ? bestSellingVariant(p.id) : null;
   const showCardBestSellerTag = !!cardPreviewVariant && isBestSellingVariant(p.id, cardPreviewVariant.id);
   const isFav = !!state.favorites[p.id];
+  const availability = productAvailabilityFlags(p);
+  const cardStatus = availability.ready ? "ready" : availability.order ? "order" : "sold";
+  const cardStatusLabel = cardStatus === "ready" ? "Pronta entrega" : cardStatus === "order" ? "Sob encomenda" : "Esgotado";
+  const previewForStock = cardPreviewVariant || variants.find((v) => !v.esgotado && v.in_stock) || null;
+  const stockQtyValue = stockQuantity(previewForStock || p);
+  const showLowStock = cardStatus === "ready" && stockQtyValue != null && stockQtyValue > 0 && stockQtyValue <= 2;
   const favoriteBtn = `
     <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
   `;
@@ -1768,7 +1971,7 @@ function renderProductCard(p, opts = {}) {
     photoBlock = `
       <div class="relative aspect-square w-full overflow-hidden bg-cream-100" data-carousel="${p.id}">
         <button type="button" data-view-product="${p.id}" class="product-image-btn block h-full w-full border-0 p-0 transition hover:opacity-90">
-          <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-contain" loading="lazy" />
+          <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-contain" loading="lazy" decoding="async" />
         </button>
         ${showCardBestSellerTag ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
         <button type="button" data-carousel-prev="${p.id}" aria-label="Foto anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">‹</button>
@@ -1782,7 +1985,7 @@ function renderProductCard(p, opts = {}) {
       <div class="relative overflow-hidden">
         <button type="button" data-view-product="${p.id}" class="product-image-btn block aspect-square w-full border-0 bg-cream-100 p-0 transition hover:opacity-90">
           ${photoUrl
-            ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-contain" loading="lazy" />`
+            ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-contain" loading="lazy" decoding="async" />`
             : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-10 w-10 opacity-40" /></div>`}
         </button>
         ${showCardBestSellerTag ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
@@ -1831,9 +2034,15 @@ function renderProductCard(p, opts = {}) {
             <p class="text-base font-semibold leading-snug text-navy-900">${escapeHtml(p.name)}</p>
           </button>
           <div class="mt-1 flex flex-wrap items-center gap-1.5">
-            <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn text-xs text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
+            <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn text-xs text-navy-500 hover:text-gold-600 hover:underline">${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
             ${p.material_tag ? `<span class="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
           </div>
+          <div class="mt-1 flex flex-wrap gap-1.5">
+            <span class="availability-chip ${cardStatus === "ready" ? "availability-ready" : cardStatus === "order" ? "availability-order" : "availability-sold"}">${cardStatusLabel}</span>
+            ${isNewProduct(p) ? `<span class="new-product-badge">Novidade</span>` : ""}
+            ${showLowStock ? `<span class="low-stock-badge">Últimas ${stockQtyValue} unidades</span>` : ""}
+          </div>
+          ${cardStatus === "order" ? `<p class="mt-1 text-xs text-navy-500">${leadTimeText(p)}</p>` : ""}
         </div>
 
         <div class="leading-tight" data-price-block="${p.id}">
@@ -1920,7 +2129,7 @@ function relatedProducts(product, limit = 4) {
    PÁGINA INDIVIDUAL DO PRODUTO
    ===================================================================== */
 function renderProductDetail() {
-  const product = state.products.find((p) => p.id === state.detailProductId);
+  const product = state.products.find((p) => String(p.id) === String(state.detailProductId));
 
   if (!product) {
     app.innerHTML = `
@@ -1985,7 +2194,7 @@ function renderProductDetail() {
             <div class="mt-2 flex flex-wrap gap-1.5">
               ${galleryPhotos.map((url, idx) => `
                 <button type="button" data-gallery-index="${idx}" aria-label="Ver foto ${idx + 1}" class="gallery-thumb-btn h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg ring-2 transition ${idx === galleryIndex ? "ring-gold-500" : "ring-transparent hover:ring-navy-200"}">
-                  <img src="${url}" alt="" class="h-full w-full object-contain" loading="lazy" />
+                  <img src="${url}" alt="" class="h-full w-full object-contain" loading="lazy" decoding="async" />
                 </button>
               `).join("")}
             </div>
@@ -2022,9 +2231,12 @@ function renderProductDetail() {
         </div>
         <div class="flex flex-col gap-3">
           <div>
-            <h1 class="text-xl font-semibold text-navy-900">${escapeHtml(product.name)}</h1>
+            <div class="flex items-start justify-between gap-2">
+              <h1 class="text-xl font-semibold text-navy-900">${escapeHtml(product.name)}</h1>
+              <button type="button" id="share-product-btn" class="share-product-btn flex-shrink-0">Compartilhar</button>
+            </div>
             <div class="mt-1 flex flex-wrap items-center gap-1.5">
-              <button data-tag-category="${escapeHtml(categoryLabel)}" class="category-tag-btn text-xs text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(categoryLabel)}</button>
+              <button data-tag-category="${escapeHtml(categoryLabel)}" class="category-tag-btn text-xs text-navy-500 hover:text-gold-600 hover:underline">${escapeHtml(categoryLabel)}</button>
               ${product.material_tag ? `<span class="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(product.material_tag)}</span>` : ""}
             </div>
             ${productReviews.length > 0 ? `
@@ -2138,6 +2350,7 @@ function renderProductDetail() {
   document.getElementById("back-to-catalog-btn").addEventListener("click", () => {
     state.screen = "catalog";
     state.detailProductId = null;
+    syncProductUrl(null, true);
     render();
     requestAnimationFrame(() => window.scrollTo({ top: state.catalogScrollY || 0, left: 0, behavior: "auto" }));
   });
@@ -2209,18 +2422,39 @@ function wireCatalogEvents() {
       if (freshInput) freshInput.focus();
     });
   }
+  const availabilityFilter = document.getElementById("availability-filter");
+  availabilityFilter?.addEventListener("change", () => { state.availabilityFilter = availabilityFilter.value; render(); });
+  const priceFilter = document.getElementById("price-filter");
+  priceFilter?.addEventListener("change", () => { state.priceFilter = priceFilter.value; render(); });
+  const sortFilter = document.getElementById("sort-filter");
+  sortFilter?.addEventListener("change", () => { state.sortMode = sortFilter.value; render(); });
+  document.getElementById("dismiss-cart-restored")?.addEventListener("click", () => {
+    state.cartRestoredNotice = false;
+    try { sessionStorage.setItem(CART_RESTORED_SESSION_KEY, "1"); } catch (_err) {}
+    render();
+  });
+  document.getElementById("clear-recently-viewed")?.addEventListener("click", () => {
+    try { localStorage.removeItem(RECENT_PRODUCTS_KEY); } catch (_err) {}
+    render();
+  });
   document.querySelectorAll(".add-to-cart-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.add;
       setQty(key, (state.cart[key] ?? 0) + 1);
       showAddToast(key);
+      trackEvent("add_to_cart", { cart_key: key });
     });
   });
   document.querySelectorAll("[data-qty-plus]").forEach((btn) => {
     btn.addEventListener("click", () => setQty(btn.dataset.qtyPlus, (state.cart[btn.dataset.qtyPlus] ?? 0) + 1));
   });
   document.querySelectorAll("[data-qty-minus]").forEach((btn) => {
-    btn.addEventListener("click", () => setQty(btn.dataset.qtyMinus, (state.cart[btn.dataset.qtyMinus] ?? 0) - 1));
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.qtyMinus;
+      const current = state.cart[key] ?? 0;
+      if (current <= 1 && !window.confirm("Remover este item do pedido?")) return;
+      setQty(key, current - 1);
+    });
   });
   const openBtn = document.getElementById("open-cart-btn");
   if (openBtn) openBtn.addEventListener("click", () => { state.cartOpen = true; render(); });
@@ -2230,6 +2464,7 @@ function wireCatalogEvents() {
   if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) { state.cartOpen = false; render(); } });
   const checkoutBtn = document.getElementById("go-checkout-btn");
   if (checkoutBtn) checkoutBtn.addEventListener("click", () => {
+    trackEvent("begin_checkout", { value: cartTotal(), currency: "BRL", items_count: cartCount() });
     state.screen = "checkout";
     state.cartOpen = false;
     render();
@@ -2242,6 +2477,7 @@ function wireCatalogEvents() {
       state.screen = "product";
       state.detailProductId = btn.dataset.searchSuggestion;
       state.searchQuery = "";
+      syncProductUrl(state.detailProductId, true);
       state.detailGalleryIndex = 0;
       render();
       window.scrollTo({ top: 0, behavior: "auto" });
@@ -2344,6 +2580,7 @@ function wireCatalogEvents() {
       state.variantScrollLeft[productId] = row ? row.scrollLeft : 0;
       state.selectedVariant[productId] = btn.dataset.variantId;
       state.detailGalleryIndex = 0;
+      trackEvent("select_model", { product_id: String(productId), variant_id: String(btn.dataset.variantId) });
       render();
       requestAnimationFrame(() => {
         const freshRow = document.querySelector(".variant-thumb-row");
@@ -2360,10 +2597,22 @@ function wireCatalogEvents() {
       state.screen = "product";
       state.detailProductId = btn.dataset.viewProduct;
       state.detailGalleryIndex = 0;
+      syncProductUrl(state.detailProductId, true);
+      trackEvent("select_item", { item_id: String(state.detailProductId) });
       state.reviewForm = { rating: 0, name: "", comment: "", submitting: false, submitted: false, error: null };
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
+  });
+  document.getElementById("share-product-btn")?.addEventListener("click", async () => {
+    const product = state.products.find((p) => String(p.id) === String(state.detailProductId));
+    if (!product) return;
+    const url = productShareUrl(product.id);
+    trackEvent("share_product", { item_id: String(product.id) });
+    try {
+      if (navigator.share) await navigator.share({ title: product.name, text: `Olha este produto da Luz Mariana: ${product.name}`, url });
+      else { await navigator.clipboard.writeText(url); alert("Link do produto copiado."); }
+    } catch (_err) {}
   });
   document.querySelectorAll("[data-zoom-image]").forEach((btn) => {
     btn.addEventListener("click", () => openPhotoZoom(btn.dataset.zoomImage, btn.dataset.zoomAlt || "Foto do produto"));
@@ -2424,6 +2673,20 @@ function wireCatalogEvents() {
       const promoEl = card.querySelector("[data-price-promo]");
       if (creditEl && opt) creditEl.textContent = formatBRL(Number(opt.dataset.creditPrice));
       if (promoEl && opt) promoEl.textContent = formatBRL(Number(opt.dataset.promoPrice));
+    });
+  });
+  document.querySelectorAll("[data-footer-whatsapp]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      trackEvent("contact_store");
+      const message = "Olá! Vim pelo catálogo da Luz Mariana e gostaria de falar com a loja.";
+      window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
+    });
+  });
+  document.querySelectorAll("[data-footer-custom-order]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      trackEvent("custom_order_click", { source: "footer" });
+      const message = "Olá! Gostaria de solicitar um orçamento para uma encomenda personalizada da Luz Mariana.";
+      window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
     });
   });
   document.querySelectorAll("[data-carousel-prev]").forEach((btn) => {
@@ -2635,8 +2898,10 @@ function renderCheckout() {
       captureCheckoutDraft();
       const key = btn.dataset.checkoutQtyMinus;
       const next = (state.cart[key] || 0) - 1;
-      if (next <= 0) delete state.cart[key];
-      else state.cart[key] = next;
+      if (next <= 0) {
+        if (!window.confirm("Remover este item do pedido?")) return;
+        delete state.cart[key];
+      } else state.cart[key] = next;
       saveCartToStorage();
       if (cartCount() === 0) {
         state.screen = "catalog";
@@ -2663,6 +2928,7 @@ function renderCheckout() {
   document.querySelectorAll("[data-checkout-remove]").forEach((btn) => {
     btn.addEventListener("click", () => {
       captureCheckoutDraft();
+      if (!window.confirm("Remover este item do pedido?")) return;
       delete state.cart[btn.dataset.checkoutRemove];
       saveCartToStorage();
       if (cartCount() === 0) {
@@ -3373,6 +3639,11 @@ app.addEventListener("click", (e) => {
     toggleFontSizePreference();
     return;
   }
+  const contrastBtn = e.target.closest("[data-contrast-toggle]");
+  if (contrastBtn) {
+    toggleContrastPreference();
+    return;
+  }
   const policyBtn = e.target.closest("[data-open-policy]");
   if (policyBtn) {
     state.screen = "policy";
@@ -3430,6 +3701,7 @@ document.getElementById("welcome-order-close-x")?.addEventListener("click", () =
 document.getElementById("welcome-order-close-btn")?.addEventListener("click", () => closeWelcomeOrder(true));
 document.getElementById("welcome-order-whatsapp")?.addEventListener("click", () => {
   closeWelcomeOrder(true);
+  trackEvent("custom_order_click", { source: "inactivity_popup" });
   const message = "Olá! Não encontrei exatamente o produto/modelo que procuro no catálogo da Luz Mariana e gostaria de solicitar um orçamento para uma encomenda personalizada.";
   window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
 });
@@ -3442,6 +3714,21 @@ document.getElementById("welcome-order-overlay")?.addEventListener("click", (e) 
     if (document.getElementById("welcome-order-overlay")?.classList.contains("is-open")) return;
     scheduleWelcomeOrderAfterInactivity();
   }, { passive: true });
+});
+
+window.addEventListener("popstate", () => {
+  if (state.loading) return;
+  const productId = new URL(window.location.href).searchParams.get("produto");
+  if (productId && state.products.some((p) => String(p.id) === String(productId))) {
+    state.screen = "product";
+    state.detailProductId = productId;
+    state.detailGalleryIndex = 0;
+  } else {
+    state.screen = "catalog";
+    state.detailProductId = null;
+  }
+  render();
+  window.scrollTo({ top: 0, behavior: "auto" });
 });
 
 window.addEventListener("beforeunload", (e) => {
@@ -3464,5 +3751,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
+<!-- A compressão/redimensionamento/validação do arquivo ANTES do upload depende do Painel Admin.
+     O catálogo público já usa lazy-loading, object-fit e decoding assíncrono na exibição. -->
 </body>
 </html>
