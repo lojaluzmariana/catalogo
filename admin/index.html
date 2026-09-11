@@ -7325,7 +7325,7 @@ function renderEditOrderOverlay() {
               <div class="mt-3 flex flex-col gap-1">
                 ${editOrderState.items.length === 0 ? `<p class="text-xs text-navy-400">Nenhum item — adicione ao menos um produto antes de salvar.</p>` : editOrderState.items.map((it, idx) => `
                   <div class="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-sm shadow-sm">
-                    <span>${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""}</span>
+                    <span>${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name ? ` <span class="text-navy-400">(${escapeHtml(it.variant_name)})</span>` : ""}${it.product_id ? "" : ` <span class="ml-1 rounded bg-navy-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500">item manual</span>`}</span>
                     <span class="flex items-center gap-3">
                       <b class="text-navy-900">${formatBRL(it.unit_price * it.quantity)}</b>
                       <button type="button" data-remove-item-idx="${idx}" class="edit-order-remove-item text-red-600 hover:underline">remover</button>
@@ -7580,6 +7580,7 @@ let vendaManualState = {
   customerName: "", customerWhatsapp: "", customerInstagram: "", notes: "",
   payment: "pix",
   couponCode: "", appliedCoupon: null, // { id, code, discount_type, discount_value, max_discount_amount }
+  sourceOrcamentoId: null, sourceOrcamentoNumero: null,
   _selectedProductId: null, _selectedVariantId: null, _qty: "1",
 };
 
@@ -8558,6 +8559,7 @@ function closeVendaManualOverlay() {
     open: false, items: [],
     customerName: "", customerWhatsapp: "", customerInstagram: "", notes: "",
     payment: "pix", couponCode: "", appliedCoupon: null,
+    sourceOrcamentoId: null, sourceOrcamentoNumero: null,
     _selectedProductId: null, _selectedVariantId: null, _qty: "1",
   };
   renderVendaManualOverlay();
@@ -8567,7 +8569,23 @@ function vendaManualResolvedItems() {
   return vendaManualState.items.map((it) => {
     const product = state.products.find((p) => p.id === it.product_id);
     const variant = it.variant_id ? (product?.product_variants ?? []).find((v) => v.id === it.variant_id) : null;
-    const unitPrice = salePriceFor(product, vendaManualState.payment, variant);
+
+    // Itens trazidos de um orçamento guardam os preços daquele orçamento.
+    // Assim, se o preço do cadastro mudar depois, lançar o pedido continua
+    // respeitando exatamente o valor que foi passado ao cliente. Também
+    // permite levar para o pedido itens manuais, que não têm product_id.
+    const fixedPix = it.fixed_unit_price_pix != null ? Number(it.fixed_unit_price_pix) : null;
+    const fixedCredit = it.fixed_unit_price_credit != null ? Number(it.fixed_unit_price_credit) : null;
+    const hasFixed = Number.isFinite(fixedPix) || Number.isFinite(fixedCredit);
+    let unitPrice;
+    if (hasFixed) {
+      unitPrice = vendaManualState.payment === "credito"
+        ? (Number.isFinite(fixedCredit) ? fixedCredit : fixedPix)
+        : (Number.isFinite(fixedPix) ? fixedPix : fixedCredit);
+    } else {
+      unitPrice = salePriceFor(product, vendaManualState.payment, variant);
+    }
+    unitPrice = Number(unitPrice || 0);
     return { ...it, unitPrice, lineTotal: round2(unitPrice * it.quantity) };
   });
 }
@@ -8607,6 +8625,7 @@ function renderVendaManualOverlay() {
           <div>
             <h2 class="text-lg font-semibold text-navy-900">🧾 Venda manual</h2>
             <p class="text-xs text-navy-500">Monta o pedido pro cliente — vira um pedido de verdade em "Pedidos", com as mesmas regras de cupom do Catálogo. Depois é só seguir o fluxo normal por lá (Aceitar, Iniciar venda quando receber o pagamento etc.).</p>
+            ${vendaManualState.sourceOrcamentoNumero ? `<p class="mt-1 text-xs font-semibold text-gold-700">Pré-preenchido a partir do orçamento nº ${escapeHtml(orcNumeroFormatado(vendaManualState.sourceOrcamentoNumero))}. Os preços do orçamento são preservados.</p>` : ""}
           </div>
           <button id="vm-close-btn" type="button" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-100">✕</button>
         </div>
@@ -8820,6 +8839,7 @@ async function submeterVendaManual(e) {
 
   const { resolved, discount, total } = vendaManualTotals();
   const coupon = vendaManualState.appliedCoupon;
+  const veioDoOrcamento = !!vendaManualState.sourceOrcamentoId;
   const orderId = crypto.randomUUID();
 
   const { error: orderError } = await supabaseClient.from("orders").insert({
@@ -8875,6 +8895,7 @@ async function submeterVendaManual(e) {
   closeVendaManualOverlay();
   pedidosState.tab = "novo";
   await loadOrders();
+  if (veioDoOrcamento) state.tab = "pedidos";
   renderApp();
 }
 
@@ -9097,6 +9118,7 @@ function renderOrcamentos(container) {
 
         <div class="orc-no-print mt-6 flex flex-wrap gap-2">
           <button id="orc-save-btn" type="button" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">${editingRow ? "Salvar alterações" : "Gerar e salvar orçamento"}</button>
+          ${editingRow ? `<button id="orc-launch-order-btn" type="button" class="rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">🧾 Lançar pedido (venda manual)</button>` : ""}
           <button id="orc-new-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-4 py-3 text-sm font-medium text-navy-700 transition hover:bg-navy-50">Novo</button>
           <button id="orc-print-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-4 py-3 text-sm font-medium text-navy-700 transition hover:bg-navy-50">Imprimir</button>
         </div>
@@ -9136,6 +9158,8 @@ function renderOrcamentos(container) {
   document.getElementById("orc-prazo").addEventListener("input", () => atualizarDatasOrcamento(true));
   document.getElementById("orc-pagamento").addEventListener("change", calcularOrcamento);
   document.getElementById("orc-save-btn").addEventListener("click", salvarOrcamentoSupabase);
+  const launchOrderBtn = document.getElementById("orc-launch-order-btn");
+  if (launchOrderBtn) launchOrderBtn.addEventListener("click", lancarPedidoDoOrcamentoAberto);
   document.getElementById("orc-new-btn").addEventListener("click", novoOrcamentoPainel);
   document.getElementById("orc-print-btn").addEventListener("click", () => window.print());
 
@@ -9795,6 +9819,83 @@ function abrirOrcamento(id) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function montarItemVendaManualDoOrcamento(item, pagamento) {
+  const source = item.source || item.origem || (item.productId || item.product_id ? "catalogo" : "manual");
+  const productId = item.productId || item.product_id || null;
+  const variantId = item.variantId || item.variant_id || null;
+  const product = productId ? state.products.find((p) => String(p.id) === String(productId)) : null;
+  const variant = variantId && product
+    ? (product.product_variants ?? []).find((v) => String(v.id) === String(variantId))
+    : null;
+
+  // Se o produto foi apagado/desativado depois do orçamento, ele ainda
+  // pode virar item manual no pedido, preservando descrição e preço.
+  const catalogoValido = source === "catalogo" && !!product;
+  const nome = catalogoValido ? product.name : (item.pedido || item.product_name || "Item do orçamento");
+  let variantName = catalogoValido && variant ? variant.name : null;
+  // Orçamentos antigos podem não ter variantId salvo. Nesse caso a
+  // descrição já contém o texto que foi apresentado ao cliente e é
+  // mantida como nome do item em vez de tentar adivinhar uma variação.
+  if (catalogoValido && !variant && item.variantName) variantName = item.variantName;
+
+  const pix = Number(item.unitarioPix ?? item.unitario ?? 0);
+  const credito = Number(item.unitarioCredito ?? (pix > 0 ? orcPrecoCreditoAPartirDoPix(pix) : 0));
+  return {
+    product_id: catalogoValido ? product.id : null,
+    product_name: catalogoValido && variantName ? product.name : nome,
+    variant_id: catalogoValido && variant ? variant.id : null,
+    variant_name: catalogoValido ? variantName : null,
+    quantity: Math.max(1, Math.trunc(Number(item.quantidade ?? item.quantity ?? 1) || 1)),
+    fixed_unit_price_pix: pix,
+    fixed_unit_price_credit: credito,
+    from_orcamento: true,
+  };
+}
+
+function lancarPedidoDoOrcamentoAberto() {
+  const row = orcamentoState.editingId
+    ? state.orcamentos.find((o) => String(o.id) === String(orcamentoState.editingId))
+    : null;
+  if (!row) {
+    alert("Abra um orçamento salvo antes de lançar o pedido.");
+    return;
+  }
+
+  // Usa os valores que estão na tela neste momento. Assim, se a pessoa
+  // fez um pequeno ajuste antes de lançar, a Venda manual abre igual ao
+  // que ela está vendo. Salvar o orçamento continua sendo uma ação
+  // separada — este botão não altera o orçamento automaticamente.
+  const d = obterDadosOrcamento();
+  if (!d.nome) { alert("Informe o nome do cliente antes de lançar o pedido."); return; }
+  if (!d.itens.length) { alert("O orçamento precisa ter pelo menos um item."); return; }
+
+  const phoneKey = orcTelefoneChave(d.telefone);
+  const customer = state.customers.find((c) => phoneKey && orcTelefoneChave(c.whatsapp) === phoneKey)
+    || state.customers.find((c) => orcNormalizarBusca(c.name) === orcNormalizarBusca(d.nome));
+
+  vendaManualState = {
+    open: true,
+    items: d.itens.map((it) => montarItemVendaManualDoOrcamento(it, d.pagamento)),
+    customerName: d.nome,
+    customerWhatsapp: d.telefone || customer?.whatsapp || "",
+    customerInstagram: customer?.instagram || "",
+    notes: `Originado do orçamento nº ${orcNumeroFormatado(row.numero)}.`,
+    payment: d.pagamento === "credito" ? "credito" : "pix",
+    couponCode: "",
+    appliedCoupon: null,
+    sourceOrcamentoId: row.id,
+    sourceOrcamentoNumero: row.numero,
+    _selectedProductId: null,
+    _selectedVariantId: null,
+    _qty: "1",
+  };
+
+  // A Venda manual já vive na área Caixa. Mudamos para essa aba e o
+  // próprio renderCaixa abre o overlay preenchido acima.
+  state.tab = "caixa";
+  renderApp();
+}
+
 function copiarTextoOrcamento(texto) {
   if (!texto) return;
   navigator.clipboard.writeText(texto).then(() => alert("Texto copiado!")).catch(() => prompt("Copie o texto:", texto));
@@ -10043,6 +10144,7 @@ function renderCaixa(container) {
       open: true, items: [],
       customerName: "", customerWhatsapp: "", customerInstagram: "", notes: "",
       payment: "pix", couponCode: "", appliedCoupon: null,
+      sourceOrcamentoId: null, sourceOrcamentoNumero: null,
       _selectedProductId: null, _selectedVariantId: null, _qty: "1",
     };
     renderVendaManualOverlay();
