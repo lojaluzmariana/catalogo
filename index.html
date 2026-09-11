@@ -636,6 +636,43 @@ function currentVariant(product) {
   return variants.find((v) => v.id === selectedId) || null;
 }
 
+function variantUnitsSold(variant) {
+  return Number(
+    variant?.units_sold
+    ?? variant?.unitsSold
+    ?? variant?.sales_count
+    ?? variant?.sold_count
+    ?? variant?.total_sold
+    ?? 0
+  ) || 0;
+}
+
+function bestSellingVariant(productId) {
+  const variants = variantsFor(productId);
+  if (variants.length === 0) return null;
+  const withScore = [...variants].sort((a, b) => {
+    const soldDiff = variantUnitsSold(b) - variantUnitsSold(a);
+    if (soldDiff !== 0) return soldDiff;
+    const photoDiff = Number(!!b.photo_url) - Number(!!a.photo_url);
+    if (photoDiff !== 0) return photoDiff;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
+  });
+  return withScore[0] || null;
+}
+
+function previewVariantForDetail(product) {
+  const selected = currentVariant(product);
+  if (selected) return selected;
+  const variants = variantsFor(product.id);
+  if (!product.photo_url && variants.length > 1) return bestSellingVariant(product.id);
+  return null;
+}
+
+function isBestSellingVariant(productId, variantId) {
+  const best = bestSellingVariant(productId);
+  return !!best && best.id === variantId;
+}
+
 /* Produto totalmente esgotado (não dá pra comprar de jeito nenhum agora):
    com modelos, só quando TODOS os modelos estão esgotados — se sobrar
    pelo menos um modelo disponível, o produto continua comprável e não
@@ -664,7 +701,16 @@ function parseCartKey(key) {
 function carouselFrames(product) {
   const variants = variantsFor(product.id);
   if (variants.length <= 1) return [];
-  const frames = variants.map((v) => v.photo_url || product.photo_url).filter(Boolean);
+  const orderedVariants = !product.photo_url && variants.length > 1
+    ? [...variants].sort((a, b) => {
+        const soldDiff = variantUnitsSold(b) - variantUnitsSold(a);
+        if (soldDiff !== 0) return soldDiff;
+        const photoDiff = Number(!!b.photo_url) - Number(!!a.photo_url);
+        if (photoDiff !== 0) return photoDiff;
+        return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
+      })
+    : variants;
+  const frames = orderedVariants.map((v) => v.photo_url || product.photo_url).filter(Boolean);
   return frames.length > 1 ? frames : [];
 }
 
@@ -1115,6 +1161,8 @@ function renderCatalog() {
 function renderProductCard(p, opts = {}) {
   const variants = variantsFor(p.id);
   const frames = carouselFrames(p);
+  const cardPreviewVariant = !p.photo_url && variants.length > 1 ? bestSellingVariant(p.id) : null;
+  const showCardBestSellerTag = !!cardPreviewVariant && isBestSellingVariant(p.id, cardPreviewVariant.id);
   const isFav = !!state.favorites[p.id];
   const favoriteBtn = `
     <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
@@ -1128,13 +1176,14 @@ function renderProductCard(p, opts = {}) {
         <button type="button" data-view-product="${p.id}" class="product-image-btn block h-full w-full border-0 p-0 transition hover:opacity-90">
           <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />
         </button>
+        ${showCardBestSellerTag ? `<span class="absolute left-2 top-2 z-10 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-navy-700 shadow-sm ring-1 ring-navy-100">Mais vendido</span>` : ""}
         <button type="button" data-carousel-prev="${p.id}" aria-label="Foto anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">‹</button>
         <button type="button" data-carousel-next="${p.id}" aria-label="Próxima foto" class="carousel-nav-btn absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">›</button>
         ${favoriteBtn}
       </div>
     `;
   } else {
-    const photoUrl = variants[0]?.photo_url || p.photo_url;
+    const photoUrl = cardPreviewVariant?.photo_url || variants[0]?.photo_url || p.photo_url;
     photoBlock = `
       <div class="relative overflow-hidden">
         <button type="button" data-view-product="${p.id}" class="product-image-btn block aspect-square w-full border-0 bg-cream-100 p-0 transition hover:opacity-90">
@@ -1142,6 +1191,7 @@ function renderProductCard(p, opts = {}) {
             ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
             : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-10 w-10 opacity-40" /></div>`}
         </button>
+        ${showCardBestSellerTag ? `<span class="absolute left-2 top-2 z-10 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-navy-700 shadow-sm ring-1 ring-navy-100">Mais vendido</span>` : ""}
         ${favoriteBtn}
       </div>
     `;
@@ -1289,12 +1339,15 @@ function renderProductDetail() {
 
   const variants = variantsFor(product.id);
   const variant = currentVariant(product);
+  const previewVariant = previewVariantForDetail(product);
+  const bestSelling = bestSellingVariant(product.id);
+  const showingBestSellerPreview = !variant && !!previewVariant && !!bestSelling && previewVariant.id === bestSelling.id;
   const detailPricing = variant ? effectivePricing(product, variant) : pricingSummary(product);
   const key = variant ? cartKey(product.id, variant.id) : null;
   const qty = key ? (state.cart[key] ?? 0) : 0;
   const isInStock = variant ? variant.in_stock : product.in_stock;
   const isEsgotado = variant ? !!variant.esgotado : !!product.esgotado;
-  const galleryPhotos = productGalleryPhotos(product, variant);
+  const galleryPhotos = productGalleryPhotos(product, previewVariant);
   const galleryIndex = Math.min(state.detailGalleryIndex, Math.max(0, galleryPhotos.length - 1));
   const photoUrl = galleryPhotos[galleryIndex] ?? null;
   const categoryLabel = product.category && product.category.trim() ? product.category.trim() : "Outros";
@@ -1314,6 +1367,7 @@ function renderProductDetail() {
             ${photoUrl
               ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-cover" />`
               : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-16 w-16 opacity-40" /></div>`}
+            ${showingBestSellerPreview ? `<span class="absolute left-2 top-2 z-10 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-navy-700 shadow-sm ring-1 ring-navy-100">Mais vendido</span>` : ""}
             <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
           </div>
           ${galleryPhotos.length > 1 ? `
@@ -1353,14 +1407,21 @@ function renderProductDetail() {
                     class="variant-choice-card ${variant?.id === v.id ? "is-selected" : ""} ${v.esgotado ? "is-sold-out" : ""}">
                     ${v.photo_url ? `<img src="${v.photo_url}" alt="" class="variant-choice-photo" />` : `<span class="variant-choice-photo flex items-center justify-center text-lg">◻</span>`}
                     <span class="min-w-0 flex-1">
-                      <span class="block text-sm font-semibold">${escapeHtml(v.name)}</span>
+                      <span class="flex flex-wrap items-center gap-1">
+                        <span class="block text-sm font-semibold">${escapeHtml(v.name)}</span>
+                        ${isBestSellingVariant(product.id, v.id) ? `<span class="rounded-full bg-gold-50 px-2 py-0.5 text-[10px] font-semibold text-gold-800 ring-1 ring-gold-200">Mais vendido</span>` : ""}
+                      </span>
                       <span class="mt-0.5 block text-xs ${v.esgotado ? "text-red-600" : v.in_stock ? "text-emerald-800" : "text-gold-700"}">${v.esgotado ? "Esgotado" : v.in_stock ? "Pronta entrega" : "Sob encomenda"}</span>
                     </span>
                     ${variant?.id === v.id ? `<span aria-hidden="true" class="text-lg">✓</span>` : ""}
                   </button>
                 `).join("")}
               </div>
-              ${variant ? `<p class="mt-3 rounded-lg bg-white px-3 py-2 text-sm text-navy-700">Selecionado: <b>${escapeHtml(variant.name)}</b></p>` : `<p class="mt-3 rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800">Escolha um modelo acima para continuar.</p>`}
+              ${variant
+                ? `<p class="mt-3 rounded-lg bg-white px-3 py-2 text-sm text-navy-700">Selecionado: <b>${escapeHtml(variant.name)}</b></p>`
+                : showingBestSellerPreview
+                  ? `<p class="mt-3 rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800">Foto ilustrativa do modelo mais vendido. Escolha um modelo acima para continuar.</p>`
+                  : `<p class="mt-3 rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800">Escolha um modelo acima para continuar.</p>`}
             </section>
           ` : ""}
 
@@ -2488,7 +2549,7 @@ document.getElementById("help-guide-close").addEventListener("click", closeHelpG
 document.getElementById("help-guide-done").addEventListener("click", closeHelpGuide);
 helpGuideOverlay.addEventListener("click", (e) => { if (e.target === helpGuideOverlay) closeHelpGuide(); });
 document.getElementById("help-guide-whatsapp").addEventListener("click", () => {
-  const message = "Oi! Estou tentando fazer um pedido pelo catálogo da Luz Mariana e preciso de ajuda para concluir.";
+  const message = "Oi! Estou tentando fazer um pedido pelo catálogo da Luz Mariana e preciso de ajuda para concluir 🙏";
   window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
 });
 document.addEventListener("keydown", (e) => {
