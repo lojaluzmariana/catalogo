@@ -409,6 +409,26 @@
   .checkout-review-photo {
     width: 54px; height: 54px; border-radius: 10px; object-fit: contain; background: #f8f6ef;
   }
+  .shipping-method-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .shipping-method-btn {
+    min-height:54px; border:1px solid #ccd2e2; border-radius:12px; background:#fff;
+    color:#33436f; padding:8px 10px; font-size:13px; font-weight:700;
+  }
+  .shipping-method-btn.is-selected {
+    border-color:#d5aa3e; background:#fff8e6; color:#001868;
+    box-shadow:0 0 0 2px rgba(213,170,62,.13);
+  }
+  .shipping-quote-box {
+    border:1px solid #dfe3ec; border-radius:12px; background:#f8fafc;
+    padding:12px; font-size:13px; line-height:1.5;
+  }
+  .shipping-quote-box.is-ready { border-color:#a7d8b4; background:#f0fbf3; }
+  .shipping-quote-box.is-pac { border-color:#cbd5e1; background:#f8fafc; }
+  .shipping-quote-box.is-error { border-color:#fecaca; background:#fff7f7; color:#991b1b; }
+  .shipping-address-summary {
+    margin-top:8px; border-radius:10px; background:#fff; padding:9px 10px;
+    color:#52618a; font-size:12px;
+  }
   .product-description-box summary { cursor: pointer; font-weight: 700; color: #001868; padding: 8px 0; }
   @media (min-width: 640px) { .product-description-box summary { display: none; } }
   .large-touch-action { min-height: 48px; font-size: 15px !important; }
@@ -757,6 +777,12 @@ const SUPABASE_URL = "https://xgcsdpqaqxstcfwgwaxw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnY3NkcHFhcXhzdGNmd2d3YXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4MDE3MTQsImV4cCI6MjEwMjM3NzcxNH0.WFYm2q4ljkQMRiaQzhJ-yf01wj80xsO0ykmH7jhtUoo";
 const STORE_WHATSAPP_NUMBER = "5584991263907";
 const STORE_CNPJ = "68.615.746/0001-43";
+const STORE_ORIGIN_CEP = "59280670";
+const STORE_ORIGIN_ADDRESS = "Rua Alice Medeiros, São José, Macaíba-RN";
+const LOCAL_DELIVERY_RADIUS_KM = 15;
+const REDUCED_DELIVERY_RADIUS_KM = 5;
+const REDUCED_DELIVERY_RATE_PER_KM = 1.50;
+const STANDARD_DELIVERY_RATE_PER_KM = 1.80;
 
 // Mostrado nos produtos que não estão marcados como "Em estoque" no
 // painel admin (a maioria — são feitos sob encomenda). Cada produto pode
@@ -1145,7 +1171,12 @@ const state = {
   giftWrapQuantities: {}, // { [material_id]: quantidade } — dá pra escolher mais de uma embalagem (ou mais de uma unidade da mesma)
   couponCode: "", // último código de cupom digitado (só pra manter o campo preenchido entre re-renders)
   appliedCoupon: null, // { id, code, discount_type, discount_value, max_discount_amount, validatedWhatsappDigits } — null se nenhum cupom aplicado
-  checkoutDraft: { name: "", whatsapp: "", instagram: "", notes: "" }, // preserva o que a pessoa já digitou se a tela precisar ser redesenhada
+  checkoutDraft: {
+    name: "", whatsapp: "", instagram: "", notes: "",
+    shippingCep: "", shippingNumber: "", shippingComplement: ""
+  },
+  shippingMethod: "pickup",
+  shippingQuote: null,
   catalogScrollY: 0,
   variantScrollLeft: {},
 };
@@ -1613,6 +1644,142 @@ function giftWrapTotalPrice() {
   return selectedGiftWraps().reduce((sum, g) => sum + g.lineTotal, 0);
 }
 
+function normalizeCep(value) {
+  return String(value || "").replace(/\D/g, "").slice(0, 8);
+}
+function formatCep(value) {
+  const d = normalizeCep(value);
+  return d.length > 5 ? `${d.slice(0,5)}-${d.slice(5)}` : d;
+}
+function haversineDistanceKm(lat1, lon1, lat2, lon2) {
+  const toRad = (n) => n * Math.PI / 180;
+  const R = 6371;
+  const dLat = toRad(Number(lat2) - Number(lat1));
+  const dLon = toRad(Number(lon2) - Number(lon1));
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(toRad(Number(lat1))) * Math.cos(toRad(Number(lat2))) *
+    Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function shippingFeeAmount() {
+  return state.shippingMethod === "delivery" && state.shippingQuote?.type === "motoboy"
+    ? Number(state.shippingQuote.fee || 0) : 0;
+}
+function shippingSummaryText() {
+  if (state.shippingMethod === "pickup") return "Retirada a combinar";
+  if (!state.shippingQuote) return "Entrega ainda não calculada";
+  if (state.shippingQuote.type === "motoboy") {
+    return `Motoboy · ${state.shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km`;
+  }
+  if (state.shippingQuote.type === "pac") return "Correios PAC";
+  return "Entrega a confirmar";
+}
+function coordinateFromBrasilApi(data) {
+  const c = data?.location?.coordinates;
+  if (!c) return null;
+  const lat = Number(c.latitude), lon = Number(c.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+}
+async function fetchCepData(cep) {
+  const clean = normalizeCep(cep);
+  if (clean.length !== 8) throw new Error("CEP inválido.");
+  const r = await fetch(`https://brasilapi.com.br/api/cep/v2/${clean}`);
+  if (!r.ok) throw new Error("CEP não encontrado.");
+  return r.json();
+}
+async function geocodeAddressFallback(addressText) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(addressText)}`);
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (!Array.isArray(data) || !data[0]) return null;
+    const lat = Number(data[0].lat), lon = Number(data[0].lon);
+    return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+  } catch (_err) { return null; }
+}
+async function coordinateForCepData(data, number = "") {
+  const direct = coordinateFromBrasilApi(data);
+  if (direct) return direct;
+  const full = [data?.street, number, data?.neighborhood, data?.city, data?.state, data?.cep, "Brasil"].filter(Boolean).join(", ");
+  return geocodeAddressFallback(full);
+}
+async function calculateShippingQuote() {
+  const cepInput = document.getElementById("ck-shipping-cep");
+  const numberInput = document.getElementById("ck-shipping-number");
+  const quoteBox = document.getElementById("ck-shipping-quote");
+  if (!cepInput || !quoteBox) return;
+
+  const destinationCep = normalizeCep(cepInput.value);
+  const number = numberInput?.value.trim() || "";
+  state.checkoutDraft.shippingCep = formatCep(destinationCep);
+  state.checkoutDraft.shippingNumber = number;
+  state.checkoutDraft.shippingComplement = document.getElementById("ck-shipping-complement")?.value.trim() || "";
+
+  if (destinationCep.length !== 8) {
+    state.shippingQuote = null;
+    quoteBox.className = "shipping-quote-box is-error";
+    quoteBox.textContent = "Informe um CEP válido com 8 números.";
+    refreshCheckoutTotals();
+    return;
+  }
+
+  quoteBox.className = "shipping-quote-box";
+  quoteBox.textContent = "Calculando a melhor forma de entrega…";
+
+  try {
+    const [originData, destinationData] = await Promise.all([
+      fetchCepData(STORE_ORIGIN_CEP), fetchCepData(destinationCep)
+    ]);
+    const [originCoords, destinationCoords] = await Promise.all([
+      coordinateForCepData(originData),
+      coordinateForCepData(destinationData, number)
+    ]);
+
+    const address = [
+      destinationData.street, number, destinationData.neighborhood,
+      destinationData.city, destinationData.state, `CEP ${formatCep(destinationCep)}`
+    ].filter(Boolean).join(", ");
+
+    if (!originCoords || !destinationCoords) {
+      state.shippingQuote = { type:"manual", fee:0, cep:formatCep(destinationCep), address };
+      quoteBox.className = "shipping-quote-box is-error";
+      quoteBox.innerHTML = `<b>Não conseguimos calcular a distância automaticamente.</b><br>
+        Você ainda pode finalizar o pedido; confirmaremos a entrega pelo WhatsApp.
+        ${address ? `<div class="shipping-address-summary">${escapeHtml(address)}</div>` : ""}`;
+      refreshCheckoutTotals();
+      return;
+    }
+
+    const distanceKm = haversineDistanceKm(originCoords.lat, originCoords.lon, destinationCoords.lat, destinationCoords.lon);
+
+    if (distanceKm <= LOCAL_DELIVERY_RADIUS_KM) {
+      const rate = distanceKm <= REDUCED_DELIVERY_RADIUS_KM
+        ? REDUCED_DELIVERY_RATE_PER_KM : STANDARD_DELIVERY_RATE_PER_KM;
+      const fee = Math.round(distanceKm * rate * 100) / 100;
+      state.shippingQuote = { type:"motoboy", fee, rate, distanceKm, cep:formatCep(destinationCep), address };
+      quoteBox.className = "shipping-quote-box is-ready";
+      quoteBox.innerHTML = `<b>Entrega por motoboy disponível</b><br>
+        Distância estimada: <b>${distanceKm.toFixed(1).replace(".", ",")} km</b><br>
+        Taxa: ${formatBRL(rate)} por km · <b>Entrega ${formatBRL(fee)}</b>
+        <div class="shipping-address-summary">${escapeHtml(address)}</div>
+        <p class="mt-2 text-[11px] text-navy-500">Estimativa baseada na localização do CEP. A loja confirma os dados antes do envio.</p>`;
+    } else {
+      state.shippingQuote = { type:"pac", fee:0, distanceKm, cep:formatCep(destinationCep), address };
+      quoteBox.className = "shipping-quote-box is-pac";
+      quoteBox.innerHTML = `<b>Envio pelos Correios — PAC</b><br>
+        O endereço fica fora do raio de ${LOCAL_DELIVERY_RADIUS_KM} km para motoboy.
+        O valor do PAC será calculado conforme CEP, peso e dimensões do pedido e confirmado pelo WhatsApp.
+        <div class="shipping-address-summary">${escapeHtml(address)}</div>`;
+    }
+    refreshCheckoutTotals();
+  } catch (err) {
+    state.shippingQuote = null;
+    quoteBox.className = "shipping-quote-box is-error";
+    quoteBox.innerHTML = `<b>Não foi possível consultar esse CEP agora.</b><br>${escapeHtml(err?.message || "Tente novamente.")}`;
+    refreshCheckoutTotals();
+  }
+}
+
 /* Soma antes de aplicar o cupom (itens do carrinho + embalagens de presente). */
 function subtotalBeforeDiscount() {
   return cartTotal() + giftWrapTotalPrice();
@@ -1633,9 +1800,10 @@ function discountAmount() {
   return Math.max(0, raw);
 }
 
-/* Total do pedido = itens do carrinho + embalagens de presente (se pedidas) − desconto do cupom aplicado. */
+/* Total = itens + embalagens − desconto + motoboy.
+   O PAC fica fora do total até a cotação oficial. */
 function orderTotal() {
-  return Math.max(0, subtotalBeforeDiscount() - discountAmount());
+  return Math.max(0, subtotalBeforeDiscount() - discountAmount() + shippingFeeAmount());
 }
 
 function setQty(productId, qty) {
@@ -2893,10 +3061,16 @@ function captureCheckoutDraft() {
   const whatsappEl = document.getElementById("ck-whatsapp");
   const instagramEl = document.getElementById("ck-instagram");
   const notesEl = document.getElementById("ck-notes");
+  const shippingCepEl = document.getElementById("ck-shipping-cep");
+  const shippingNumberEl = document.getElementById("ck-shipping-number");
+  const shippingComplementEl = document.getElementById("ck-shipping-complement");
   if (nameEl) state.checkoutDraft.name = nameEl.value;
   if (whatsappEl) state.checkoutDraft.whatsapp = whatsappEl.value;
   if (instagramEl) state.checkoutDraft.instagram = instagramEl.value;
   if (notesEl) state.checkoutDraft.notes = notesEl.value;
+  if (shippingCepEl) state.checkoutDraft.shippingCep = shippingCepEl.value;
+  if (shippingNumberEl) state.checkoutDraft.shippingNumber = shippingNumberEl.value;
+  if (shippingComplementEl) state.checkoutDraft.shippingComplement = shippingComplementEl.value;
 }
 
 function renderCheckout() {
@@ -2911,8 +3085,9 @@ function renderCheckout() {
       <div class="mb-4 flex items-center gap-1 overflow-x-auto pb-1 text-[11px] font-medium text-navy-500">
         <span class="whitespace-nowrap rounded-full bg-navy-900 px-3 py-1.5 text-white">1 Revisar</span><span>›</span>
         <span class="whitespace-nowrap rounded-full bg-gold-500 px-3 py-1.5 text-navy-900">2 Dados</span><span>›</span>
-        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">3 Pagamento</span><span>›</span>
-        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">4 WhatsApp</span>
+        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">3 Entrega</span><span>›</span>
+        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">4 Pagamento</span><span>›</span>
+        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">5 WhatsApp</span>
       </div>
 
       <div class="checkout-sticky-summary" aria-live="polite">
@@ -2961,6 +3136,10 @@ function renderCheckout() {
           <span>Desconto (<span id="ck-discount-code">${state.appliedCoupon ? escapeHtml(state.appliedCoupon.code) : ""}</span>)</span>
           <span id="ck-discount-value">−${formatBRL(discountAmount())}</span>
         </div>
+        <div id="ck-shipping-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-navy-700">
+          <span id="ck-shipping-label">${escapeHtml(shippingSummaryText())}</span>
+          <span id="ck-shipping-value">${state.shippingMethod === "delivery" && state.shippingQuote?.type === "motoboy" ? formatBRL(shippingFeeAmount()) : state.shippingMethod === "pickup" ? "R$ 0,00" : "A calcular"}</span>
+        </div>
         <div class="mt-2 flex items-center justify-between border-t border-navy-100 pt-2 text-base font-semibold text-navy-900">
           <span>Total</span>
           <span id="ck-total-value">${formatBRL(orderTotal())}</span>
@@ -2982,8 +3161,52 @@ function renderCheckout() {
           <input id="ck-whatsapp" required inputmode="tel" autocomplete="tel" value="${escapeHtml(state.checkoutDraft.whatsapp)}" class="w-full rounded-lg border border-navy-200 px-3 py-3 text-base outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex.: (84) 99999-9999" />
           <p id="ck-whatsapp-msg" class="mt-1 text-xs text-navy-400">É pra esse número que vamos confirmar seu pedido.</p>
         </div>
+        <div class="rounded-xl border border-navy-100 bg-cream-50 p-3">
+          <label class="mb-2 block text-base font-semibold text-navy-900"><span class="checkout-step-badge">3</span>Entrega ou retirada</label>
+          <p class="mb-3 text-xs text-navy-500">Escolha como deseja receber o pedido.</p>
+
+          <div class="shipping-method-grid">
+            <button type="button" data-shipping-method="pickup" class="shipping-method-btn ${state.shippingMethod === "pickup" ? "is-selected" : ""}">Retirada a combinar</button>
+            <button type="button" data-shipping-method="delivery" class="shipping-method-btn ${state.shippingMethod === "delivery" ? "is-selected" : ""}">Quero receber</button>
+          </div>
+
+          <div id="ck-shipping-fields" class="mt-3 ${state.shippingMethod === "delivery" ? "" : "hidden"}">
+            <p class="mb-2 rounded-lg bg-white px-3 py-2 text-xs text-navy-600">
+              Até 5 km: <b>R$ 1,50/km</b> · de 5 a 15 km: <b>R$ 1,80/km</b> · acima de 15 km: <b>Correios PAC</b>.
+            </p>
+            <div class="grid gap-2 sm:grid-cols-[1fr_110px]">
+              <div>
+                <label for="ck-shipping-cep" class="mb-1 block text-xs font-semibold text-navy-700">CEP da entrega</label>
+                <input id="ck-shipping-cep" inputmode="numeric" autocomplete="postal-code" value="${escapeHtml(state.checkoutDraft.shippingCep)}"
+                  class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="00000-000" />
+              </div>
+              <div>
+                <label for="ck-shipping-number" class="mb-1 block text-xs font-semibold text-navy-700">Número</label>
+                <input id="ck-shipping-number" inputmode="numeric" value="${escapeHtml(state.checkoutDraft.shippingNumber)}"
+                  class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Nº" />
+              </div>
+            </div>
+            <div class="mt-2">
+              <label for="ck-shipping-complement" class="mb-1 block text-xs font-semibold text-navy-700">Complemento (opcional)</label>
+              <input id="ck-shipping-complement" value="${escapeHtml(state.checkoutDraft.shippingComplement)}"
+                class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Apartamento, bloco, referência..." />
+            </div>
+            <button type="button" id="ck-calculate-shipping" class="mt-3 large-touch-action w-full rounded-lg bg-navy-900 px-4 py-2.5 font-semibold text-white">Calcular entrega</button>
+            <div id="ck-shipping-quote" class="shipping-quote-box mt-3 ${state.shippingQuote?.type === "motoboy" ? "is-ready" : state.shippingQuote?.type === "pac" ? "is-pac" : ""}">
+              ${state.shippingQuote
+                ? state.shippingQuote.type === "motoboy"
+                  ? `<b>Motoboy disponível</b><br>${state.shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km · <b>${formatBRL(state.shippingQuote.fee)}</b>${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}`
+                  : state.shippingQuote.type === "pac"
+                    ? `<b>Correios PAC</b><br>Valor a calcular e confirmar pelo WhatsApp.${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}`
+                    : `Entrega a confirmar pelo WhatsApp.`
+                : `Informe o CEP para calcular a forma de entrega.`}
+            </div>
+            <p class="mt-2 text-[11px] text-navy-500">Ponto de saída: ${STORE_ORIGIN_ADDRESS} · CEP ${formatCep(STORE_ORIGIN_CEP)}.</p>
+          </div>
+        </div>
+
         <div>
-          <label class="mb-2 block text-base font-semibold text-navy-900"><span class="checkout-step-badge">3</span>Forma de pagamento</label>
+          <label class="mb-2 block text-base font-semibold text-navy-900"><span class="checkout-step-badge">4</span>Forma de pagamento</label>
           <div class="flex gap-1 rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
             <button type="button" data-payment="pix" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / à vista</button>
             <button type="button" data-payment="credito" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
@@ -3044,7 +3267,7 @@ function renderCheckout() {
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-navy-800">Observações</label>
-              <textarea id="ck-notes" rows="2" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Endereço de entrega, alguma personalização, etc.">${escapeHtml(state.checkoutDraft.notes)}</textarea>
+              <textarea id="ck-notes" rows="2" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Personalização, recado ou alguma observação...">${escapeHtml(state.checkoutDraft.notes)}</textarea>
             </div>
           </div>
         </details>
@@ -3120,6 +3343,35 @@ function renderCheckout() {
       }
     });
   });
+  document.querySelectorAll("[data-shipping-method]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      captureCheckoutDraft();
+      state.shippingMethod = btn.dataset.shippingMethod;
+      if (state.shippingMethod === "pickup") state.shippingQuote = null;
+      render();
+    });
+  });
+
+  const shippingCepInput = document.getElementById("ck-shipping-cep");
+  shippingCepInput?.addEventListener("input", () => {
+    shippingCepInput.value = formatCep(shippingCepInput.value);
+    state.checkoutDraft.shippingCep = shippingCepInput.value;
+    state.shippingQuote = null;
+  });
+  document.getElementById("ck-shipping-number")?.addEventListener("input", (e) => {
+    state.checkoutDraft.shippingNumber = e.target.value;
+    state.shippingQuote = null;
+  });
+  document.getElementById("ck-shipping-complement")?.addEventListener("input", (e) => {
+    state.checkoutDraft.shippingComplement = e.target.value;
+  });
+  document.getElementById("ck-calculate-shipping")?.addEventListener("click", calculateShippingQuote);
+  shippingCepInput?.addEventListener("blur", () => {
+    if (state.shippingMethod === "delivery" && normalizeCep(shippingCepInput.value).length === 8 && !state.shippingQuote) {
+      calculateShippingQuote();
+    }
+  });
+
   document.querySelectorAll(".checkout-payment-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       captureCheckoutDraft();
@@ -3217,6 +3469,16 @@ function updateCheckoutTotals() {
   if (stickyDepositEl) stickyDepositEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
   const depositNoteEl = document.getElementById("ck-deposit-note-value");
   if (depositNoteEl) depositNoteEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
+  const shippingLabelEl = document.getElementById("ck-shipping-label");
+  const shippingValueEl = document.getElementById("ck-shipping-value");
+  if (shippingLabelEl) shippingLabelEl.textContent = shippingSummaryText();
+  if (shippingValueEl) {
+    shippingValueEl.textContent = state.shippingMethod === "pickup"
+      ? "R$ 0,00"
+      : state.shippingQuote?.type === "motoboy"
+        ? formatBRL(shippingFeeAmount())
+        : "A calcular";
+  }
 
   state.giftWrapOptions.forEach((g) => {
     const qtyDisplay = document.querySelector(`[data-giftwrap-qty-display="${g.id}"]`);
@@ -3452,6 +3714,24 @@ async function onSubmitOrder(e) {
     return;
   }
 
+  if (state.shippingMethod === "delivery") {
+    const shippingCep = normalizeCep(document.getElementById("ck-shipping-cep")?.value || "");
+    const shippingNumber = document.getElementById("ck-shipping-number")?.value.trim() || "";
+    if (shippingCep.length !== 8) {
+      showCheckoutFieldError("Informe o CEP da entrega.", "ck-shipping-cep");
+      return;
+    }
+    if (!shippingNumber) {
+      showCheckoutFieldError("Informe o número do endereço de entrega.", "ck-shipping-number");
+      return;
+    }
+    if (!state.shippingQuote) await calculateShippingQuote();
+    if (!state.shippingQuote) {
+      showCheckoutFieldError("Não foi possível calcular a entrega. Tente novamente ou escolha retirada.", "ck-shipping-cep");
+      return;
+    }
+  }
+
   errorEl.textContent = "";
   submitBtn.disabled = true;
   submitBtn.textContent = "Enviando pedido...";
@@ -3463,8 +3743,18 @@ async function onSubmitOrder(e) {
   const orderId = crypto.randomUUID();
   const subtotal = cartTotal() + giftWraps.reduce((sum, g) => sum + g.lineTotal, 0);
   const discount = discountAmount();
-  const total = Math.max(0, subtotal - discount);
+  const shippingFee = shippingFeeAmount();
+  const total = Math.max(0, subtotal - discount + shippingFee);
   const coupon = state.appliedCoupon;
+
+  const shippingNote = state.shippingMethod === "pickup"
+    ? "Retirada a combinar"
+    : state.shippingQuote?.type === "motoboy"
+      ? `Entrega por motoboy: ${state.shippingQuote.distanceKm.toFixed(1)} km, taxa ${formatBRL(state.shippingQuote.fee)}. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
+      : state.shippingQuote?.type === "pac"
+        ? `Envio Correios PAC, valor a calcular. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
+        : `Entrega a confirmar. CEP ${state.checkoutDraft.shippingCep || ""}.`;
+  const orderNotes = [notes, shippingNote].filter(Boolean).join(" | ");
 
   const { error: orderError } = await supabaseClient.from("orders").insert({
     id: orderId,
@@ -3472,7 +3762,7 @@ async function onSubmitOrder(e) {
     customer_whatsapp: whatsapp,
     customer_instagram: instagram || null,
     payment_method: state.payment,
-    notes: notes || null,
+    notes: orderNotes || null,
     total,
     coupon_id: coupon ? coupon.id : null,
     coupon_code: coupon ? coupon.code : null,
@@ -3558,7 +3848,12 @@ async function onSubmitOrder(e) {
     }
   }
 
-  const message = buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, subtotal, discount, couponCode: coupon ? coupon.code : null, total, payment: state.payment, giftWraps });
+  const message = buildWhatsAppMessage({
+    name, whatsapp, instagram, notes, items, subtotal, discount,
+    couponCode: coupon ? coupon.code : null, total, payment: state.payment, giftWraps,
+    shippingMethod: state.shippingMethod, shippingQuote: state.shippingQuote,
+    shippingComplement: state.checkoutDraft.shippingComplement
+  });
   const waUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
   if (waWindow) waWindow.location.href = waUrl;
   else window.open(waUrl, "_blank");
@@ -3569,14 +3864,22 @@ async function onSubmitOrder(e) {
   state.giftWrapQuantities = {};
   state.couponCode = "";
   state.appliedCoupon = null;
-  state.checkoutDraft = { name: "", whatsapp: "", instagram: "", notes: "" };
+  state.checkoutDraft = {
+    name: "", whatsapp: "", instagram: "", notes: "",
+    shippingCep: "", shippingNumber: "", shippingComplement: ""
+  };
+  state.shippingMethod = "pickup";
+  state.shippingQuote = null;
   state.lastOrderNumber = orderNumber;
   state.lastOrderWhatsapp = whatsapp;
   state.screen = "success";
   render();
 }
 
-function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, subtotal, discount, couponCode, total, payment, giftWraps }) {
+function buildWhatsAppMessage({
+  name, whatsapp, instagram, notes, items, subtotal, discount, couponCode,
+  total, payment, giftWraps, shippingMethod, shippingQuote, shippingComplement
+}) {
   const lines = [];
   lines.push(`Olá! Gostaria de fazer um pedido pelo Catálogo Luz Mariana:`);
   lines.push("");
@@ -3592,7 +3895,20 @@ function buildWhatsAppMessage({ name, whatsapp, instagram, notes, items, subtota
     lines.push(`Subtotal: ${formatBRL(subtotal)}`);
     lines.push(`Cupom ${couponCode}: −${formatBRL(discount)}`);
   }
-  lines.push(`Total: ${formatBRL(total)}`);
+
+  if (shippingMethod === "pickup") {
+    lines.push(`Entrega/retirada: Retirada a combinar`);
+  } else if (shippingQuote?.type === "motoboy") {
+    lines.push(`Entrega: Motoboy — ${shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km — ${formatBRL(shippingQuote.fee)}`);
+    lines.push(`Endereço: ${shippingQuote.address}${shippingComplement ? `, ${shippingComplement}` : ""}`);
+  } else if (shippingQuote?.type === "pac") {
+    lines.push(`Entrega: Correios PAC — frete a calcular`);
+    lines.push(`Endereço: ${shippingQuote.address}${shippingComplement ? `, ${shippingComplement}` : ""}`);
+  } else {
+    lines.push(`Entrega: A confirmar pelo WhatsApp`);
+  }
+
+  lines.push(`Total${shippingQuote?.type === "pac" ? " parcial (sem PAC)" : ""}: ${formatBRL(total)}`);
   lines.push(`Sinal para confirmar o pedido (${Math.round(DEPOSIT_RATE * 100)}%): ${formatBRL(total * DEPOSIT_RATE)}`);
   lines.push(`Pagamento: ${payment === "credito" ? "Cartão de crédito" : "Pix / à vista"}`);
   if (payment === "pix") {
