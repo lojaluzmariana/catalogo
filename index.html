@@ -1148,6 +1148,14 @@ function setQty(productId, qty) {
    RENDER
    ===================================================================== */
 function render() {
+  const helpBtn = document.getElementById("help-guide-btn");
+  const helpOverlay = document.getElementById("help-guide-overlay");
+  if (helpBtn) helpBtn.style.display = state.screen === "catalog" ? "flex" : "none";
+  if (state.screen !== "catalog" && helpOverlay) {
+    helpOverlay.classList.remove("is-open");
+    document.body.style.overflow = "";
+  }
+
   if (state.loading) {
     app.innerHTML = `<main class="flex min-h-screen items-center justify-center"><p class="text-navy-400">Carregando catálogo...</p></main>`;
     return;
@@ -2085,12 +2093,26 @@ function renderCheckout() {
           return `<div class="checkout-review-item">
             ${photo ? `<img src="${photo}" alt="" class="checkout-review-photo" />` : `<div class="checkout-review-photo flex items-center justify-center">✦</div>`}
             <div class="min-w-0">
-              <p class="text-sm font-semibold text-navy-900">${it.quantity}× ${escapeHtml(it.product.name)}</p>
+              <p class="text-sm font-semibold text-navy-900">${escapeHtml(it.product.name)}</p>
               ${it.variant ? `<p class="mt-0.5 text-xs font-medium text-gold-700">Modelo: ${escapeHtml(it.variant.name)}</p>` : ""}
+              <div class="mt-2 flex flex-wrap items-center gap-2">
+                <div class="inline-flex items-center rounded-lg border border-navy-200 bg-white">
+                  <button type="button" data-checkout-qty-minus="${it.key}" aria-label="Diminuir quantidade de ${escapeHtml(it.product.name)}" class="px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
+                  <span class="min-w-[28px] text-center text-sm font-semibold text-navy-900">${it.quantity}</span>
+                  <button type="button" data-checkout-qty-plus="${it.key}" aria-label="Aumentar quantidade de ${escapeHtml(it.product.name)}" class="px-3 py-1.5 text-lg font-semibold text-navy-700">+</button>
+                </div>
+                <button type="button" data-checkout-remove="${it.key}" class="rounded-lg px-2 py-1.5 text-xs font-semibold text-red-600 underline">Remover</button>
+              </div>
             </div>
-            <span class="text-sm font-semibold text-navy-900">${formatBRL(priceFor(it.product, it.variant) * it.quantity)}</span>
+            <span class="self-start text-sm font-semibold text-navy-900">${formatBRL(priceFor(it.product, it.variant) * it.quantity)}</span>
           </div>`;
         }).join("")}
+        <div class="mt-3 border-t border-navy-100 pt-3">
+          <button type="button" id="checkout-add-more-items"
+            class="w-full rounded-lg border border-navy-200 bg-cream-50 px-4 py-2.5 text-sm font-semibold text-navy-700 transition hover:bg-navy-50">
+            + Esqueci algo — adicionar mais itens
+          </button>
+        </div>
         <div id="ck-giftwrap-lines">
           ${selectedGiftWraps().map((g) => `
             <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm" data-giftwrap-line="${g.id}">
@@ -2170,7 +2192,7 @@ function renderCheckout() {
         ` : ""}
 
         <details class="rounded-lg border border-navy-100 bg-cream-50 px-3 py-2 open:pb-3" ${state.appliedCoupon ? "open" : ""}>
-          <summary class="cursor-pointer select-none py-1 text-sm font-medium text-navy-700">Cupom, Instagram ou alguma observação? (opcional)</summary>
+          <summary class="cursor-pointer select-none py-1 text-sm font-medium text-navy-700">Adicionar cupom de desconto ou observação</summary>
           <div class="mt-3 flex flex-col gap-4">
             <div>
               <label class="mb-1 block text-sm font-medium text-navy-800">Cupom de desconto</label>
@@ -2182,10 +2204,6 @@ function renderCheckout() {
                 <button type="button" id="ck-coupon-remove" class="flex-shrink-0 rounded-lg border border-navy-300 bg-white px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100 ${state.appliedCoupon ? "" : "hidden"}">Remover</button>
               </div>
               <p id="ck-coupon-msg" class="mt-1 text-xs"></p>
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-navy-800">Instagram</label>
-              <input id="ck-instagram" value="${escapeHtml(state.checkoutDraft.instagram)}" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="@usuario" />
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-navy-800">Observações</label>
@@ -2203,9 +2221,63 @@ function renderCheckout() {
   `;
 
   document.getElementById("back-to-catalog-btn").addEventListener("click", () => {
+    captureCheckoutDraft();
     state.screen = "catalog";
     render();
     requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+  });
+
+  document.getElementById("checkout-add-more-items")?.addEventListener("click", () => {
+    captureCheckoutDraft();
+    state.screen = "catalog";
+    render();
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+  });
+
+  document.querySelectorAll("[data-checkout-qty-minus]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      captureCheckoutDraft();
+      const key = btn.dataset.checkoutQtyMinus;
+      const next = (state.cart[key] || 0) - 1;
+      if (next <= 0) delete state.cart[key];
+      else state.cart[key] = next;
+      saveCartToStorage();
+      if (cartCount() === 0) {
+        state.screen = "catalog";
+        render();
+        requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+      } else {
+        render();
+        requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-checkout-qty-plus]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      captureCheckoutDraft();
+      const key = btn.dataset.checkoutQtyPlus;
+      state.cart[key] = (state.cart[key] || 0) + 1;
+      saveCartToStorage();
+      render();
+      requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+    });
+  });
+
+  document.querySelectorAll("[data-checkout-remove]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      captureCheckoutDraft();
+      delete state.cart[btn.dataset.checkoutRemove];
+      saveCartToStorage();
+      if (cartCount() === 0) {
+        state.screen = "catalog";
+        render();
+        requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+      } else {
+        render();
+        requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+      }
+    });
   });
   document.querySelectorAll(".checkout-payment-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2495,8 +2567,8 @@ async function onSubmitOrder(e) {
   // Garante o +55 na frente mesmo que a pessoa tenha enviado o formulário
   // sem sair do campo de WhatsApp (o que dispararia a formatação sozinha).
   const whatsapp = formatWhatsappBR(document.getElementById("ck-whatsapp").value.trim()) || document.getElementById("ck-whatsapp").value.trim();
-  const instagram = document.getElementById("ck-instagram").value.trim().replace(/^@/, "");
-  const notes = document.getElementById("ck-notes").value.trim();
+  const instagram = "";
+  const notes = document.getElementById("ck-notes")?.value.trim() || "";
 
   if (!name) { errorEl.textContent = "Informe seu nome."; return; }
   if (!whatsapp) { errorEl.textContent = "Informe seu WhatsApp."; return; }
