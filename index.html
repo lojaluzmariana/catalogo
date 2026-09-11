@@ -1868,7 +1868,7 @@ async function calculateShippingQuote() {
     ].filter(Boolean).join(", ");
 
     if (!originCoords || !destinationCoords) {
-      state.shippingQuote = { type:"manual", fee:0, cep:formatCep(destinationCep), address };
+      state.shippingQuote = { type:"manual", fee:0, cep:formatCep(fields.cep), address };
       quoteBox.className = "shipping-quote-box is-error";
       quoteBox.innerHTML = `<b>Não conseguimos calcular a distância automaticamente.</b><br>
         Você ainda pode finalizar o pedido; confirmaremos a entrega pelo WhatsApp.
@@ -1885,7 +1885,7 @@ async function calculateShippingQuote() {
       state.shippingQuote = {
         type: "manual",
         fee: 0,
-        cep: formatCep(destinationCep),
+        cep: formatCep(fields.cep),
         address
       };
       quoteBox.className = "shipping-quote-box is-error";
@@ -1900,7 +1900,7 @@ async function calculateShippingQuote() {
       const rate = distanceKm <= REDUCED_DELIVERY_RADIUS_KM
         ? REDUCED_DELIVERY_RATE_PER_KM : STANDARD_DELIVERY_RATE_PER_KM;
       const fee = Math.round(distanceKm * rate * 100) / 100;
-      state.shippingQuote = { type:"motoboy", fee, rate, distanceKm, cep:formatCep(destinationCep), address };
+      state.shippingQuote = { type:"motoboy", fee, rate, distanceKm, cep:formatCep(fields.cep), address };
       quoteBox.className = "shipping-quote-box is-ready";
       quoteBox.innerHTML = `<b>Entrega por motoboy disponível</b><br>
         Distância estimada do trajeto: <b>${distanceKm.toFixed(1).replace(".", ",")} km</b><br>
@@ -1908,7 +1908,7 @@ async function calculateShippingQuote() {
         <div class="shipping-address-summary">${escapeHtml(address)}</div>
         <p class="mt-2 text-[11px] text-navy-500">Estimativa baseada na localização do CEP. A loja confirma os dados antes do envio.</p>`;
     } else {
-      state.shippingQuote = { type:"pac", fee:0, distanceKm, cep:formatCep(destinationCep), address };
+      state.shippingQuote = { type:"pac", fee:0, distanceKm, cep:formatCep(fields.cep), address };
       quoteBox.className = "shipping-quote-box is-pac";
       quoteBox.innerHTML = `<b>Envio pelos Correios — PAC</b><br>
         O endereço fica fora do raio de ${LOCAL_DELIVERY_RADIUS_KM} km para motoboy.
@@ -1919,7 +1919,7 @@ async function calculateShippingQuote() {
   } catch (err) {
     state.shippingQuote = null;
     quoteBox.className = "shipping-quote-box is-error";
-    quoteBox.innerHTML = `<b>Não foi possível consultar esse CEP agora.</b><br>${escapeHtml(err?.message || "Tente novamente.")}`;
+    quoteBox.innerHTML = `<b>Não foi possível calcular a entrega agora.</b><br>${escapeHtml(err?.message || "Tente novamente.")}`;
     updateCheckoutTotals();
   }
 }
