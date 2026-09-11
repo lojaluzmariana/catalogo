@@ -201,6 +201,37 @@
   }
   .product-main-image-box {
     position: relative;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 1 / 1;
+    max-height: min(72vh, 640px);
+    min-height: 280px;
+    overflow: hidden;
+    background: #f8f6ef;
+  }
+  .product-main-image-box > img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain !important;
+    object-position: center;
+    display: block;
+  }
+  .product-image-btn img,
+  [data-carousel-img],
+  .gallery-thumb-btn img,
+  .variant-thumb-photo,
+  .variant-choice-photo,
+  #cart-drawer-panel img {
+    object-fit: contain !important;
+    object-position: center;
+  }
+  .product-image-btn,
+  [data-carousel],
+  .gallery-thumb-btn,
+  .variant-thumb-btn {
+    background: #f8f6ef;
   }
   .product-image-title-overlay {
     position: absolute;
@@ -328,6 +359,11 @@
   @media (max-width: 639px) {
     .featured-carousel-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
     .featured-carousel-track { animation: none !important; }
+    .product-main-image-box {
+      aspect-ratio: 1 / 1;
+      max-height: 68vh;
+      min-height: 0;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .featured-carousel-track { animation: none !important; }
@@ -1282,7 +1318,7 @@ function renderProductCard(p, opts = {}) {
     photoBlock = `
       <div class="relative aspect-square w-full overflow-hidden bg-cream-100" data-carousel="${p.id}">
         <button type="button" data-view-product="${p.id}" class="product-image-btn block h-full w-full border-0 p-0 transition hover:opacity-90">
-          <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />
+          <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-contain" loading="lazy" />
         </button>
         ${showCardBestSellerTag ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
         <button type="button" data-carousel-prev="${p.id}" aria-label="Foto anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">‹</button>
@@ -1296,7 +1332,7 @@ function renderProductCard(p, opts = {}) {
       <div class="relative overflow-hidden">
         <button type="button" data-view-product="${p.id}" class="product-image-btn block aspect-square w-full border-0 bg-cream-100 p-0 transition hover:opacity-90">
           ${photoUrl
-            ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />`
+            ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-contain" loading="lazy" />`
             : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-10 w-10 opacity-40" /></div>`}
         </button>
         ${showCardBestSellerTag ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
@@ -1387,7 +1423,7 @@ function renderCartDrawer() {
           ${items.length === 0 ? `<p class="py-8 text-center text-navy-400">Seu carrinho está vazio.</p>` : items.map((it) => `
             <div class="flex items-center gap-3 border-b border-navy-50 py-3 last:border-0">
               <div class="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
-                ${(it.variant?.photo_url || it.product.photo_url) ? `<img src="${it.variant?.photo_url || it.product.photo_url}" alt="${escapeHtml(it.product.name)}" class="h-full w-full object-cover" />` : ""}
+                ${(it.variant?.photo_url || it.product.photo_url) ? `<img src="${it.variant?.photo_url || it.product.photo_url}" alt="${escapeHtml(it.product.name)}" class="h-full w-full object-contain" />` : ""}
               </div>
               <div class="flex-1">
                 <p class="text-sm font-medium text-navy-900">${escapeHtml(it.product.name)}${it.variant ? ` <span class="font-normal text-navy-400">— ${escapeHtml(it.variant.name)}</span>` : ""}</p>
@@ -1478,7 +1514,7 @@ function renderProductDetail() {
         <div>
           <div id="product-main-image-box" class="product-main-image-box relative aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
             ${photoUrl
-              ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-cover" />`
+              ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-contain" />`
               : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-16 w-16 opacity-40" /></div>`}
             ${showingBestSellerPreview ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
             <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
@@ -1493,7 +1529,7 @@ function renderProductDetail() {
             <div class="mt-2 flex flex-wrap gap-1.5">
               ${galleryPhotos.map((url, idx) => `
                 <button type="button" data-gallery-index="${idx}" aria-label="Ver foto ${idx + 1}" class="gallery-thumb-btn h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg ring-2 transition ${idx === galleryIndex ? "ring-gold-500" : "ring-transparent hover:ring-navy-200"}">
-                  <img src="${url}" alt="" class="h-full w-full object-cover" loading="lazy" />
+                  <img src="${url}" alt="" class="h-full w-full object-contain" loading="lazy" />
                 </button>
               `).join("")}
             </div>
@@ -1668,7 +1704,12 @@ function wireCatalogEvents() {
   const overlay = document.getElementById("cart-overlay");
   if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) { state.cartOpen = false; render(); } });
   const checkoutBtn = document.getElementById("go-checkout-btn");
-  if (checkoutBtn) checkoutBtn.addEventListener("click", () => { state.screen = "checkout"; state.cartOpen = false; render(); });
+  if (checkoutBtn) checkoutBtn.addEventListener("click", () => {
+    state.screen = "checkout";
+    state.cartOpen = false;
+    render();
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+  });
   manageCartFocus();
   document.querySelectorAll(".category-bar-btn").forEach((btn) => {
     btn.addEventListener("click", () => { state.categoryFilter = btn.dataset.category; render(); });
@@ -1987,7 +2028,11 @@ function renderCheckout() {
     </main>
   `;
 
-  document.getElementById("back-to-catalog-btn").addEventListener("click", () => { state.screen = "catalog"; render(); });
+  document.getElementById("back-to-catalog-btn").addEventListener("click", () => {
+    state.screen = "catalog";
+    render();
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+  });
   document.querySelectorAll(".checkout-payment-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       captureCheckoutDraft();
