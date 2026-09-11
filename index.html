@@ -636,6 +636,26 @@
   .recently-viewed-card img { width:100%; aspect-ratio:1/1; object-fit:contain; background:#f8f6ef; }
   .cart-restored-note { margin-bottom:14px; border:1px solid #b7dfc2; border-radius:12px; background:#f0fbf3; padding:10px 12px; color:#166534; font-size:12px; }
   .share-product-btn { min-height:44px; border:1px solid #ccd2e2; border-radius:10px; background:#fff; color:#33436f; padding:0 12px; font-size:12px; font-weight:700; }
+
+  .share-menu-overlay {
+    position:fixed; inset:0; z-index:105; display:flex; align-items:center; justify-content:center;
+    padding:18px; background:rgba(0,12,55,.48);
+  }
+  .share-menu-card {
+    position:relative; width:100%; max-width:360px; border:1px solid #e1e3ec;
+    border-radius:18px; background:#fff; padding:18px; box-shadow:0 20px 60px rgba(0,0,0,.28);
+  }
+  .share-menu-close {
+    position:absolute; top:10px; right:10px; width:42px; height:42px;
+    border-radius:999px; background:#f5f6fa; color:#001868; font-size:22px; font-weight:700;
+  }
+  .share-menu-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+  .share-menu-option {
+    min-height:52px; border:1px solid #d9dce8; border-radius:12px; background:#fff;
+    color:#1d2857; padding:8px 10px; font-size:13px; font-weight:700; text-align:center;
+  }
+  .share-menu-option:hover { background:#f8f6ef; }
+  .share-menu-note { margin-top:10px; font-size:11px; line-height:1.4; color:#667085; }
   .footer-faq details { border-top:1px solid #e5e7ee; padding:10px 0; text-align:left; }
   .footer-faq summary { cursor:pointer; font-weight:700; color:#1d2857; }
   .footer-faq p { margin-top:6px; line-height:1.5; color:#52618a; }
@@ -880,7 +900,7 @@ function productAvailabilityFlags(product) {
 }
 function productMinPixPrice(product) { return Number(pricingSummary(product).promoPrice || 0); }
 applyFontSizePreference(loadFontSizePreference());
-applyContrastPreference(loadContrastPreference());
+applyContrastPreference("normal");
 
 function formatPhoneInputMask(raw) {
   let digits = String(raw || "").replace(/\D/g, "");
@@ -1642,14 +1662,15 @@ function render() {
 function renderHeader() {
   return `
     <header class="bg-navy-900">
-      <div class="mx-auto flex max-w-5xl items-center justify-center gap-2 px-3 py-3">
+      <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 px-3 py-3">
         <button type="button" data-go-home aria-label="Ir para a página inicial" class="flex min-w-0 items-center gap-2 border-0 bg-transparent p-0 transition hover:opacity-90">
           <img src="logo-symbol.png" alt="" class="h-9 w-9" />
           <span class="truncate text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
         </button>
-        <button type="button" data-open-track class="rounded-full border border-navy-700 px-2.5 py-1 text-[11px] font-medium text-cream-100 transition hover:border-navy-500">Rastrear pedido</button>
+        <button type="button" data-open-track class="accessibility-btn px-3" aria-label="Rastrear pedido">Rastrear pedido</button>
+        <button type="button" data-header-whatsapp class="accessibility-btn px-3" aria-label="Falar com a loja pelo WhatsApp">Falar com a loja</button>
+        <button type="button" data-header-custom-order class="accessibility-btn px-3" aria-label="Solicitar encomenda personalizada">Encomenda personalizada</button>
         <button type="button" data-font-toggle class="accessibility-btn" aria-label="Aumentar ou reduzir o tamanho do texto" title="Tamanho do texto">${document.documentElement.dataset.fontSize === "large" ? "A−" : "A+"}</button>
-        <button type="button" data-contrast-toggle class="accessibility-btn px-3" aria-label="Ativar ou desativar alto contraste" title="Alto contraste">Contraste</button>
       </div>
     </header>
   `;
@@ -1667,7 +1688,7 @@ function renderHero() {
         <source media="(max-width: 639px)" srcset="hero-banner-mobile.jpg" />
         <img src="hero-banner.jpg"
           alt="Bem-vindo(a) à Luz Mariana — Fé que inspira. Presentes que têm significado. Artigos religiosos e peças de devoção para sua casa, seu cantinho de oração ou para presentear alguém especial. Condições especiais para pagamentos via Pix ou à vista."
-          class="aspect-[4/3] w-full object-cover object-center sm:aspect-[2/1] lg:aspect-[3/1]" />
+          class="block h-auto w-full object-contain object-center" />
       </picture>
     </div>
   `;
@@ -1738,10 +1759,6 @@ function renderFooter() {
         <p class="secure-note max-w-md">Não pedimos senha nem dados de cartão neste site. O pedido é finalizado com você pelo WhatsApp.</p>
       </div>
       <div class="mb-5 w-full max-w-lg">
-        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:justify-center">
-          <button type="button" data-footer-whatsapp class="custom-order-footer-btn">Falar com a loja</button>
-          <button type="button" data-footer-custom-order class="custom-order-footer-btn">Encomenda personalizada</button>
-        </div>
         <div class="footer-faq rounded-xl border border-navy-100 bg-white px-4">
           <details><summary>Qual o prazo?</summary><p>Produtos de pronta entrega dependem apenas da combinação de retirada/entrega. Produtos sob encomenda mostram a estimativa de produção no próprio catálogo.</p></details>
           <details><summary>Como funciona a entrega ou retirada?</summary><p>Depois que você envia o pedido pelo WhatsApp, combinamos a melhor opção de retirada ou entrega conforme sua localização.</p></details>
@@ -1908,8 +1925,9 @@ function renderCatalog() {
   const visibleProducts = sortCatalogProducts(availabilityFiltered.filter(productPassesPriceFilter));
 
   app.innerHTML = `
+    ${renderHeader()}
+    ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderHero() : ""}
     <div style="position:sticky; top:0; z-index:15;">
-      ${renderHeader()}
       ${renderCategoryBar(categories)}
     </div>
     <div class="mx-auto max-w-5xl px-4 py-4">
@@ -1918,7 +1936,6 @@ function renderCatalog() {
       ${renderSearchBar()}
       ${renderCatalogFilters()}
     </div>
-    ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderHero() : ""}
     <main class="mx-auto max-w-5xl px-4 py-6">
       ${!searchActive && state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
       ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderRecentlyViewed() : ""}
@@ -2137,7 +2154,12 @@ function renderProductDetail() {
       </main>
       ${renderFooter()}
     `;
-    document.getElementById("back-to-catalog-btn").addEventListener("click", () => { state.screen = "catalog"; state.detailProductId = null; render(); });
+    document.getElementById("back-to-catalog-btn").addEventListener("click", () => {
+      state.screen = "catalog";
+      state.detailProductId = null;
+      history.replaceState({ productId: null }, "", CATALOG_BASE_URL);
+      render();
+    });
     return;
   }
 
@@ -2350,11 +2372,95 @@ function renderProductDetail() {
   document.getElementById("back-to-catalog-btn").addEventListener("click", () => {
     state.screen = "catalog";
     state.detailProductId = null;
-    syncProductUrl(null, true);
+    history.replaceState({ productId: null }, "", CATALOG_BASE_URL);
     render();
     requestAnimationFrame(() => window.scrollTo({ top: state.catalogScrollY || 0, left: 0, behavior: "auto" }));
   });
   wireCatalogEvents();
+}
+
+function openShareMenu(product) {
+  if (!product) return;
+  document.getElementById("share-menu-overlay")?.remove();
+
+  const url = productShareUrl(product.id);
+  const message = `Olha este produto da Luz Mariana: ${product.name}`;
+
+  const overlay = document.createElement("div");
+  overlay.id = "share-menu-overlay";
+  overlay.className = "share-menu-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", "Compartilhar produto");
+  overlay.innerHTML = `
+    <div class="share-menu-card" tabindex="-1">
+      <button type="button" class="share-menu-close" aria-label="Fechar compartilhamento">×</button>
+      <h2 class="pr-10 text-lg font-semibold text-navy-900">Compartilhar produto</h2>
+      <p class="mt-1 text-sm text-navy-500">${escapeHtml(product.name)}</p>
+
+      <div class="share-menu-grid">
+        <button type="button" class="share-menu-option" data-share-whatsapp>WhatsApp</button>
+        <button type="button" class="share-menu-option" data-share-instagram>Instagram</button>
+        <button type="button" class="share-menu-option" data-share-email>E-mail</button>
+        <button type="button" class="share-menu-option" data-share-copy>Copiar link</button>
+      </div>
+
+      ${navigator.share ? `<button type="button" class="share-menu-option mt-3 w-full" data-share-native>Mais opções de compartilhamento</button>` : ""}
+      <p class="share-menu-note">No Instagram, o link é copiado e o Instagram é aberto para você colar onde preferir.</p>
+    </div>`;
+
+  const close = () => overlay.remove();
+  document.body.appendChild(overlay);
+
+  overlay.querySelector(".share-menu-close")?.addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+
+  overlay.querySelector("[data-share-whatsapp]")?.addEventListener("click", () => {
+    trackEvent("share_product", { item_id: String(product.id), method: "whatsapp" });
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${message}\n${url}`)}`, "_blank");
+    close();
+  });
+
+  overlay.querySelector("[data-share-email]")?.addEventListener("click", () => {
+    trackEvent("share_product", { item_id: String(product.id), method: "email" });
+    window.location.href = `mailto:?subject=${encodeURIComponent(product.name + " — Luz Mariana")}&body=${encodeURIComponent(`${message}\n\n${url}`)}`;
+    close();
+  });
+
+  overlay.querySelector("[data-share-copy]")?.addEventListener("click", async () => {
+    trackEvent("share_product", { item_id: String(product.id), method: "copy_link" });
+    try {
+      await navigator.clipboard.writeText(url);
+      alert("Link do produto copiado.");
+    } catch (_err) {
+      window.prompt("Copie o link do produto:", url);
+    }
+    close();
+  });
+
+  overlay.querySelector("[data-share-instagram]")?.addEventListener("click", async () => {
+    trackEvent("share_product", { item_id: String(product.id), method: "instagram" });
+    try { await navigator.clipboard.writeText(`${message}\n${url}`); } catch (_err) {}
+    window.open("https://www.instagram.com/", "_blank");
+    close();
+  });
+
+  overlay.querySelector("[data-share-native]")?.addEventListener("click", async () => {
+    try {
+      await navigator.share({ title: product.name, text: message, url });
+      trackEvent("share_product", { item_id: String(product.id), method: "native" });
+    } catch (_err) {}
+    close();
+  });
+
+  const esc = (e) => {
+    if (e.key === "Escape") {
+      close();
+      document.removeEventListener("keydown", esc);
+    }
+  };
+  document.addEventListener("keydown", esc);
+  overlay.querySelector(".share-menu-card")?.focus();
 }
 
 function openPhotoZoom(src, alt) {
@@ -2604,15 +2710,9 @@ function wireCatalogEvents() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
-  document.getElementById("share-product-btn")?.addEventListener("click", async () => {
+  document.getElementById("share-product-btn")?.addEventListener("click", () => {
     const product = state.products.find((p) => String(p.id) === String(state.detailProductId));
-    if (!product) return;
-    const url = productShareUrl(product.id);
-    trackEvent("share_product", { item_id: String(product.id) });
-    try {
-      if (navigator.share) await navigator.share({ title: product.name, text: `Olha este produto da Luz Mariana: ${product.name}`, url });
-      else { await navigator.clipboard.writeText(url); alert("Link do produto copiado."); }
-    } catch (_err) {}
+    openShareMenu(product);
   });
   document.querySelectorAll("[data-zoom-image]").forEach((btn) => {
     btn.addEventListener("click", () => openPhotoZoom(btn.dataset.zoomImage, btn.dataset.zoomAlt || "Foto do produto"));
@@ -2673,20 +2773,6 @@ function wireCatalogEvents() {
       const promoEl = card.querySelector("[data-price-promo]");
       if (creditEl && opt) creditEl.textContent = formatBRL(Number(opt.dataset.creditPrice));
       if (promoEl && opt) promoEl.textContent = formatBRL(Number(opt.dataset.promoPrice));
-    });
-  });
-  document.querySelectorAll("[data-footer-whatsapp]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      trackEvent("contact_store");
-      const message = "Olá! Vim pelo catálogo da Luz Mariana e gostaria de falar com a loja.";
-      window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
-    });
-  });
-  document.querySelectorAll("[data-footer-custom-order]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      trackEvent("custom_order_click", { source: "footer" });
-      const message = "Olá! Gostaria de solicitar um orçamento para uma encomenda personalizada da Luz Mariana.";
-      window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
     });
   });
   document.querySelectorAll("[data-carousel-prev]").forEach((btn) => {
@@ -3630,6 +3716,7 @@ app.addEventListener("click", (e) => {
     state.categoryFilter = "all";
     state.searchQuery = "";
     state.cartOpen = false;
+    history.replaceState({ productId: null }, "", CATALOG_BASE_URL);
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
@@ -3639,11 +3726,22 @@ app.addEventListener("click", (e) => {
     toggleFontSizePreference();
     return;
   }
-  const contrastBtn = e.target.closest("[data-contrast-toggle]");
-  if (contrastBtn) {
-    toggleContrastPreference();
+  const headerWhatsappBtn = e.target.closest("[data-header-whatsapp]");
+  if (headerWhatsappBtn) {
+    trackEvent("contact_store", { source: "header" });
+    const message = "Olá! Vim pelo catálogo da Luz Mariana e gostaria de falar com a loja.";
+    window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
     return;
   }
+
+  const headerCustomOrderBtn = e.target.closest("[data-header-custom-order]");
+  if (headerCustomOrderBtn) {
+    trackEvent("custom_order_click", { source: "header" });
+    const message = "Olá! Gostaria de solicitar um orçamento para uma encomenda personalizada da Luz Mariana.";
+    window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
+    return;
+  }
+
   const policyBtn = e.target.closest("[data-open-policy]");
   if (policyBtn) {
     state.screen = "policy";
