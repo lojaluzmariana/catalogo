@@ -1690,9 +1690,22 @@ async function fetchCepData(cep) {
   if (!r.ok) throw new Error("CEP não encontrado.");
   return r.json();
 }
-async function geocodeAddressFallback(addressText) {
+async function geocodeWithNominatim({ street = "", number = "", neighborhood = "", city = "", stateUf = "", cep = "" } = {}) {
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(addressText)}`);
+    const params = new URLSearchParams({
+      format: "jsonv2",
+      limit: "1",
+      country: "Brazil",
+      addressdetails: "1",
+    });
+    if (street) params.set("street", `${number ? number + " " : ""}${street}`.trim());
+    if (city) params.set("city", city);
+    if (stateUf) params.set("state", stateUf);
+    if (cep) params.set("postalcode", normalizeCep(cep));
+
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      headers: { "Accept": "application/json" }
+    });
     if (!r.ok) return null;
     const data = await r.json();
     if (!Array.isArray(data) || !data[0]) return null;
@@ -1700,18 +1713,53 @@ async function geocodeAddressFallback(addressText) {
     return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
   } catch (_err) { return null; }
 }
-async function coordinateForCepData(data, number = "", explicitAddress = "") {
-  const full = explicitAddress || [
-    data?.street, number, data?.neighborhood, data?.city, data?.state, data?.cep, "Brasil"
-  ].filter(Boolean).join(", ");
 
-  // Primeiro tenta localizar o endereço real. Alguns CEPs retornam apenas o
-  // centroide do município, o que pode fazer dois endereços diferentes
-  // aparecerem com distância 0 km.
-  const geocoded = await geocodeAddressFallback(full);
+async function geocodeWithPhoton(addressText) {
+  try {
+    const r = await fetch(`https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(addressText)}`);
+    if (!r.ok) return null;
+    const data = await r.json();
+    const coords = data?.features?.[0]?.geometry?.coordinates;
+    if (!Array.isArray(coords) || coords.length < 2) return null;
+    const lon = Number(coords[0]), lat = Number(coords[1]);
+    return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+  } catch (_err) { return null; }
+}
+
+async function geocodeAddressRobust({ street = "", number = "", neighborhood = "", city = "", stateUf = "", cep = "" } = {}) {
+  let coords = await geocodeWithNominatim({ street, number, neighborhood, city, stateUf, cep });
+  if (coords) return coords;
+
+  const full = [street, number, neighborhood, city, stateUf, cep ? `CEP ${formatCep(cep)}` : "", "Brasil"]
+    .filter(Boolean).join(", ");
+  coords = await geocodeWithPhoton(full);
+  if (coords) return coords;
+
+  const withoutNumber = [street, neighborhood, city, stateUf, "Brasil"].filter(Boolean).join(", ");
+  coords = await geocodeWithPhoton(withoutNumber);
+  if (coords) return coords;
+
+  return geocodeWithNominatim({ street, city, stateUf });
+}
+
+async function coordinateForCepData(data, number = "", explicitAddress = "") {
+  const structured = {
+    street: data?.street || "",
+    number,
+    neighborhood: data?.neighborhood || "",
+    city: data?.city || "",
+    stateUf: data?.state || "",
+    cep: data?.cep || "",
+  };
+
+  if (explicitAddress) {
+    const photon = await geocodeWithPhoton(explicitAddress);
+    if (photon) return photon;
+  }
+
+  const geocoded = await geocodeAddressRobust(structured);
   if (geocoded) return geocoded;
 
-  // Fallback: coordenadas fornecidas pela BrasilAPI.
   return coordinateFromBrasilApi(data);
 }
 
@@ -1858,9 +1906,20 @@ async function calculateShippingQuote() {
       fields.city, fields.stateUf, fields.cep ? `CEP ${formatCep(fields.cep)}` : "", "Brasil"
     ].filter(Boolean).join(", ");
 
-    const destinationCoords = await coordinateForCepData(
-      destinationData, fields.number, destinationAddressText
-    );
+    let destinationCoords = await geocodeAddressRobust({
+      street: fields.street,
+      number: fields.number,
+      neighborhood: fields.neighborhood,
+      city: fields.city,
+      stateUf: fields.stateUf,
+      cep: fields.cep,
+    });
+
+    if (!destinationCoords) {
+      destinationCoords = await coordinateForCepData(
+        destinationData, fields.number, destinationAddressText
+      );
+    }
 
     const address = [
       fields.street, fields.number, fields.neighborhood,
@@ -1879,7 +1938,27 @@ async function calculateShippingQuote() {
 
     const roadDistance = await drivingDistanceKm(originCoords, destinationCoords);
     const straightDistance = haversineDistanceKm(originCoords.lat, originCoords.lon, destinationCoords.lat, destinationCoords.lon);
-    const distanceKm = roadDistance ?? straightDistance;
+    let distanceKm = roadDistance ?? straightDistance;
+
+    if (!Number.isFinite(distanceKm) || distanceKm < 0.05) {
+      const retryOrigin = await geocodeWithPhoton(`${STORE_ORIGIN_ADDRESS}, Macaíba, RN, Brasil`);
+      const retryDestination = await geocodeWithPhoton(
+        [fields.street, fields.number, fields.neighborhood, fields.city, fields.stateUf, "Brasil"]
+          .filter(Boolean).join(", ")
+      );
+
+      if (retryOrigin && retryDestination) {
+        const retryRoad = await drivingDistanceKm(retryOrigin, retryDestination);
+        const retryStraight = haversineDistanceKm(
+          retryOrigin.lat, retryOrigin.lon,
+          retryDestination.lat, retryDestination.lon
+        );
+        const retryDistance = retryRoad ?? retryStraight;
+        if (Number.isFinite(retryDistance) && retryDistance >= 0.05) {
+          distanceKm = retryDistance;
+        }
+      }
+    }
 
     if (!Number.isFinite(distanceKm) || distanceKm < 0.05) {
       state.shippingQuote = {
