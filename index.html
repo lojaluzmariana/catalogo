@@ -374,6 +374,44 @@
     border-radius: 14px;
     padding: 14px;
   }
+  .variant-thumb-price {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #001868;
+    line-height: 1.2;
+  }
+  .quick-model-add { margin-top: 12px; width: 100%; }
+  .catalog-search-suggestions {
+    position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 35;
+    overflow: hidden; border: 1px solid #e0e2ec; border-radius: 14px; background: #fff;
+    box-shadow: 0 10px 30px rgba(0,0,0,.12);
+  }
+  .catalog-search-suggestion {
+    display: flex; width: 100%; align-items: center; gap: 10px; padding: 10px 12px;
+    border: 0; border-bottom: 1px solid #f0f0f4; background: #fff; text-align: left; color: #1d2857;
+  }
+  .catalog-search-suggestion:last-child { border-bottom: 0; }
+  .catalog-search-suggestion:active { background: #f8f6ef; }
+  .catalog-search-suggestion img {
+    width: 42px; height: 42px; flex: 0 0 42px; border-radius: 8px; object-fit: contain; background: #f8f6ef;
+  }
+  .catalog-add-toast {
+    position: fixed; left: 50%; bottom: 92px; z-index: 80; width: calc(100% - 28px); max-width: 430px;
+    transform: translateX(-50%); border-radius: 14px; background: #001868; color: #fff; padding: 12px 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.28); font-size: 14px; line-height: 1.35;
+  }
+  .checkout-review-item {
+    display: grid; grid-template-columns: 54px minmax(0,1fr) auto; gap: 10px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid #f0f0f4;
+  }
+  .checkout-review-item:last-child { border-bottom: 0; }
+  .checkout-review-photo {
+    width: 54px; height: 54px; border-radius: 10px; object-fit: contain; background: #f8f6ef;
+  }
+  .product-description-box summary { cursor: pointer; font-weight: 700; color: #001868; padding: 8px 0; }
+  @media (min-width: 640px) { .product-description-box summary { display: none; } }
   .large-touch-action { min-height: 48px; font-size: 15px !important; }
   .checkout-step-badge {
     display: inline-flex;
@@ -410,7 +448,7 @@
 <body class="bg-cream-50 text-navy-900 min-h-screen pb-24">
 <div id="app"></div>
 <button id="help-guide-btn" class="help-guide-btn" type="button" aria-haspopup="dialog" aria-controls="help-guide-overlay">
-  <span aria-hidden="true">?</span> Como comprar?
+  Como comprar?
 </button>
 <div id="help-guide-overlay" class="help-guide-overlay" role="dialog" aria-modal="true" aria-labelledby="help-guide-title">
   <div class="help-guide-dialog" tabindex="-1">
@@ -632,6 +670,8 @@ const state = {
   couponCode: "", // último código de cupom digitado (só pra manter o campo preenchido entre re-renders)
   appliedCoupon: null, // { id, code, discount_type, discount_value, max_discount_amount, validatedWhatsappDigits } — null se nenhum cupom aplicado
   checkoutDraft: { name: "", whatsapp: "", instagram: "", notes: "" }, // preserva o que a pessoa já digitou se a tela precisar ser redesenhada
+  catalogScrollY: 0,
+  variantScrollLeft: {},
 };
 
 /* ---------------------------------------------------------------------
@@ -949,6 +989,8 @@ function productMatchesSearch(product, query) {
 }
 
 function renderSearchBar() {
+  const q = normalizeSearch(state.searchQuery);
+  const suggestions = q ? state.products.filter((p) => productMatchesSearch(p, state.searchQuery)).slice(0, 5) : [];
   return `
     <div class="mb-5">
       <div class="relative">
@@ -962,6 +1004,21 @@ function renderSearchBar() {
           <button type="button" id="catalog-search-clear" aria-label="Limpar busca" class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-navy-300 hover:text-navy-600">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
+        ` : ""}
+        ${suggestions.length > 0 ? `
+          <div class="catalog-search-suggestions">
+            ${suggestions.map((p) => {
+              const v = bestSellingVariant(p.id);
+              const photo = p.photo_url || v?.photo_url || "";
+              return `<button type="button" class="catalog-search-suggestion" data-search-suggestion="${p.id}">
+                ${photo ? `<img src="${photo}" alt="" />` : `<span class="flex h-[42px] w-[42px] items-center justify-center rounded-lg bg-cream-50">✦</span>`}
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-semibold">${escapeHtml(p.name)}</span>
+                  <span class="block text-xs text-navy-400">${escapeHtml(p.category || "Produto")}</span>
+                </span>
+              </button>`;
+            }).join("")}
+          </div>
         ` : ""}
       </div>
     </div>
@@ -1139,6 +1196,19 @@ function renderHero() {
   `;
 }
 
+function categoryIcon(category) {
+  const c = normalizeSearch(category);
+  if (c === "all") return "✨";
+  if (c.includes("terco")) return "📿";
+  if (c.includes("imagem") || c.includes("estatu") || c.includes("santo")) return "🙏";
+  if (c.includes("chaveiro")) return "🔑";
+  if (c.includes("marca") || c.includes("clip")) return "📖";
+  if (c.includes("decor")) return "🏠";
+  if (c.includes("conjunto")) return "🎁";
+  if (c.includes("abajur") || c.includes("lumin")) return "💡";
+  return "✦";
+}
+
 function renderCategoryBar(categories) {
   if (categories.length === 0) return "";
   const items = [{ value: "all", label: "Todos os produtos" }, ...categories.map((c) => ({ value: c, label: c }))];
@@ -1147,7 +1217,7 @@ function renderCategoryBar(categories) {
     <div class="border-b border-navy-800 bg-navy-900">
       <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 py-2 text-sm">
         ${items.map((it) => `
-          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
+          <button data-category="${escapeHtml(it.value)}" class="category-bar-btn whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${categoryIcon(it.value)} ${escapeHtml(it.label)}</button>
         `).join("")}
         ${favoriteCount > 0 ? `
           <button id="favorites-filter-btn" class="whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.favoritesOnly ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">❤ Favoritos (${favoriteCount})</button>
@@ -1433,9 +1503,12 @@ function renderCartBar() {
   if (count === 0) return "";
   return `
     <div class="fixed inset-x-0 bottom-0 z-20 border-t border-navy-100 bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
-      <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <span class="text-sm text-navy-600"><b class="text-navy-900">${count} ${count === 1 ? "item" : "itens"}</b> · ${formatBRL(cartTotal())}</span>
-        <button id="open-cart-btn" class="large-touch-action rounded-lg bg-navy-900 px-4 py-2 font-semibold text-white transition hover:bg-navy-800">Ver meu pedido</button>
+      <div class="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+        <span class="min-w-0 text-sm text-navy-600">
+          <b class="block text-navy-900">Meu pedido · ${count} ${count === 1 ? "item" : "itens"}</b>
+          <span>${formatBRL(cartTotal())}</span>
+        </span>
+        <button id="open-cart-btn" class="large-touch-action flex-shrink-0 rounded-lg bg-navy-900 px-5 py-2 font-semibold text-white transition hover:bg-navy-800">Continuar</button>
       </div>
     </div>
   `;
@@ -1453,12 +1526,13 @@ function renderCartDrawer() {
         <div class="flex-1 overflow-y-auto px-4 py-3">
           ${items.length === 0 ? `<p class="py-8 text-center text-navy-400">Seu carrinho está vazio.</p>` : items.map((it) => `
             <div class="flex items-center gap-3 border-b border-navy-50 py-3 last:border-0">
-              <div class="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
+              <div class="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
                 ${(it.variant?.photo_url || it.product.photo_url) ? `<img src="${it.variant?.photo_url || it.product.photo_url}" alt="${escapeHtml(it.product.name)}" class="h-full w-full object-contain" />` : ""}
               </div>
-              <div class="flex-1">
-                <p class="text-sm font-medium text-navy-900">${escapeHtml(it.product.name)}${it.variant ? ` <span class="font-normal text-navy-400">— ${escapeHtml(it.variant.name)}</span>` : ""}</p>
-                <p class="text-xs text-navy-500">${formatBRL(priceFor(it.product, it.variant))} cada</p>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-navy-900">${escapeHtml(it.product.name)}</p>
+                ${it.variant ? `<p class="mt-0.5 text-xs font-medium text-gold-700">Modelo: ${escapeHtml(it.variant.name)}</p>` : ""}
+                <p class="mt-0.5 text-xs text-navy-500">${formatBRL(priceFor(it.product, it.variant))} cada</p>
               </div>
               <div class="flex items-center gap-2">
                 <button data-qty-minus="${it.key}" aria-label="Diminuir quantidade de ${escapeHtml(it.product.name)}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
@@ -1576,10 +1650,17 @@ function renderProductDetail() {
                     ${v.photo_url ? `<img src="${v.photo_url}" alt="${escapeHtml(v.name)}" class="variant-thumb-photo" />` : `<span class="variant-thumb-photo flex items-center justify-center text-lg">◻</span>`}
                     <span class="variant-thumb-name">${escapeHtml(v.name)}</span>
                     ${isBestSellingVariant(product.id, v.id) ? `<span class="best-seller-badge" style="margin-top:4px;">Mais vendido</span>` : ""}
+                    <span class="variant-thumb-price">${formatBRL(effectivePricing(product, v).promoPrice)} no Pix</span>
                     <span class="variant-thumb-status ${v.esgotado ? "text-red-600" : v.in_stock ? "text-emerald-800" : "text-gold-700"}">${v.esgotado ? "Esgotado" : v.in_stock ? "Pronta entrega" : "Sob encomenda"}</span>
                   </button>
                 `).join("")}
               </div>
+              ${variant ? `
+                <button type="button" data-quick-add="${cartKey(product.id, variant.id)}" ${variant.esgotado ? "disabled" : ""}
+                  class="quick-model-add large-touch-action rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900 disabled:cursor-not-allowed disabled:opacity-50">
+                  ${variant.esgotado ? "Modelo esgotado" : `Comprar este modelo · ${formatBRL(effectivePricing(product, variant).promoPrice)} no Pix`}
+                </button>
+              ` : `<button type="button" disabled class="quick-model-add large-touch-action rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">Selecione um modelo</button>`}
             </section>
           ` : ""}
         </div>
@@ -1598,7 +1679,12 @@ function renderProductDetail() {
             ` : ""}
           </div>
 
-          ${hasDescription ? `<p class="text-justify text-sm leading-relaxed text-navy-600">${escapeHtml(product.description).replace(/\n/g, "<br>")}</p>` : ""}
+          ${hasDescription ? `
+            <details class="product-description-box rounded-xl border border-navy-100 bg-white px-3 py-1" ${window.innerWidth >= 640 ? "open" : ""}>
+              <summary>${window.innerWidth >= 640 ? "Descrição" : "Ver descrição completa"}</summary>
+              <div class="pb-3 text-justify text-sm leading-relaxed text-navy-600">${escapeHtml(product.description).replace(/\n/g, "<br>")}</div>
+            </details>
+          ` : ""}
 
           ${variants.length > 0 ? `
             <section class="selected-model-summary" aria-label="Resumo do modelo escolhido">
@@ -1693,8 +1779,27 @@ function renderProductDetail() {
     ${renderCartBar()}
     ${state.cartOpen ? renderCartDrawer() : ""}
   `;
-  document.getElementById("back-to-catalog-btn").addEventListener("click", () => { state.screen = "catalog"; state.detailProductId = null; render(); });
+  document.getElementById("back-to-catalog-btn").addEventListener("click", () => {
+    state.screen = "catalog";
+    state.detailProductId = null;
+    render();
+    requestAnimationFrame(() => window.scrollTo({ top: state.catalogScrollY || 0, left: 0, behavior: "auto" }));
+  });
   wireCatalogEvents();
+}
+
+function showAddToast(key) {
+  document.getElementById("catalog-add-toast")?.remove();
+  const { productId, variantId } = parseCartKey(key);
+  const product = state.products.find((p) => p.id === productId);
+  const variant = variantId ? variantsFor(productId).find((v) => v.id === variantId) : null;
+  if (!product) return;
+  const toast = document.createElement("div");
+  toast.id = "catalog-add-toast";
+  toast.className = "catalog-add-toast";
+  toast.innerHTML = `<b>✓ Adicionado ao pedido</b><br><span style="opacity:.9">${escapeHtml(product.name)}${variant ? ` · ${escapeHtml(variant.name)}` : ""}</span>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2200);
 }
 
 function wireCatalogEvents() {
@@ -1720,7 +1825,11 @@ function wireCatalogEvents() {
     });
   }
   document.querySelectorAll(".add-to-cart-btn").forEach((btn) => {
-    btn.addEventListener("click", () => setQty(btn.dataset.add, 1));
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.add;
+      setQty(key, (state.cart[key] ?? 0) + 1);
+      showAddToast(key);
+    });
   });
   document.querySelectorAll("[data-qty-plus]").forEach((btn) => {
     btn.addEventListener("click", () => setQty(btn.dataset.qtyPlus, (state.cart[btn.dataset.qtyPlus] ?? 0) + 1));
@@ -1742,6 +1851,17 @@ function wireCatalogEvents() {
     requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
   });
   manageCartFocus();
+  document.querySelectorAll("[data-search-suggestion]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.catalogScrollY = window.scrollY;
+      state.screen = "product";
+      state.detailProductId = btn.dataset.searchSuggestion;
+      state.searchQuery = "";
+      state.detailGalleryIndex = 0;
+      render();
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
+  });
   document.querySelectorAll(".category-bar-btn").forEach((btn) => {
     btn.addEventListener("click", () => { state.categoryFilter = btn.dataset.category; render(); });
   });
@@ -1834,22 +1954,38 @@ function wireCatalogEvents() {
   });
   document.querySelectorAll("[data-variant-select]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.selectedVariant[btn.dataset.variantSelect] = btn.dataset.variantId;
+      const productId = btn.dataset.variantSelect;
+      const row = btn.closest(".variant-thumb-row");
+      state.variantScrollLeft[productId] = row ? row.scrollLeft : 0;
+      state.selectedVariant[productId] = btn.dataset.variantId;
       state.detailGalleryIndex = 0;
       render();
-      if (window.innerWidth < 768) {
-        document.getElementById("product-main-image-box")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      requestAnimationFrame(() => {
+        const freshRow = document.querySelector(".variant-thumb-row");
+        if (freshRow) freshRow.scrollLeft = state.variantScrollLeft[productId] || 0;
+        if (window.innerWidth < 768) {
+          document.getElementById("product-main-image-box")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
     });
   });
   document.querySelectorAll("[data-view-product]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      state.catalogScrollY = window.scrollY;
       state.screen = "product";
       state.detailProductId = btn.dataset.viewProduct;
       state.detailGalleryIndex = 0;
       state.reviewForm = { rating: 0, name: "", comment: "", submitting: false, submitted: false, error: null };
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+  document.querySelectorAll("[data-quick-add]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return;
+      const key = btn.dataset.quickAdd;
+      setQty(key, (state.cart[key] ?? 0) + 1);
+      showAddToast(key);
     });
   });
   document.querySelectorAll(".add-variant-btn").forEach((btn) => {
@@ -1863,6 +1999,7 @@ function wireCatalogEvents() {
       const variantId = select.value;
       const key = cartKey(productId, variantId);
       setQty(key, (state.cart[key] ?? 0) + 1);
+      showAddToast(key);
     });
   });
   // Cada modelo tem seu próprio "pronta entrega / sob encomenda" e
@@ -1934,20 +2071,26 @@ function renderCheckout() {
       <h1 class="text-xl font-semibold text-navy-900">Finalizar pedido</h1>
       <p class="mt-1 mb-4 text-sm text-navy-500">Falta pouco. Confira o pedido, preencha seus dados e nós abriremos o WhatsApp com a mensagem pronta.</p>
 
-      <div class="mb-4 flex items-center justify-center gap-2 text-xs font-medium text-navy-500">
-        <span class="rounded-full bg-navy-900 px-3 py-1.5 text-white">1 Pedido</span><span>›</span>
-        <span class="rounded-full bg-gold-500 px-3 py-1.5 text-navy-900">2 Seus dados</span><span>›</span>
-        <span class="rounded-full bg-navy-50 px-3 py-1.5">3 WhatsApp</span>
+      <div class="mb-4 flex items-center gap-1 overflow-x-auto pb-1 text-[11px] font-medium text-navy-500">
+        <span class="whitespace-nowrap rounded-full bg-navy-900 px-3 py-1.5 text-white">1 Revisar</span><span>›</span>
+        <span class="whitespace-nowrap rounded-full bg-gold-500 px-3 py-1.5 text-navy-900">2 Dados</span><span>›</span>
+        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">3 Pagamento</span><span>›</span>
+        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">4 WhatsApp</span>
       </div>
 
       <div class="mb-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
         <p class="mb-2 text-sm font-semibold text-navy-800">Revise seu pedido</p>
-        ${items.map((it) => `
-          <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm last:border-0">
-            <span>${it.quantity}× ${escapeHtml(it.product.name)}${it.variant ? ` <span class="text-navy-400">(${escapeHtml(it.variant.name)})</span>` : ""}</span>
-            <span class="font-medium text-navy-900">${formatBRL(priceFor(it.product, it.variant) * it.quantity)}</span>
-          </div>
-        `).join("")}
+        ${items.map((it) => {
+          const photo = it.variant?.photo_url || it.product.photo_url || "";
+          return `<div class="checkout-review-item">
+            ${photo ? `<img src="${photo}" alt="" class="checkout-review-photo" />` : `<div class="checkout-review-photo flex items-center justify-center">✦</div>`}
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-navy-900">${it.quantity}× ${escapeHtml(it.product.name)}</p>
+              ${it.variant ? `<p class="mt-0.5 text-xs font-medium text-gold-700">Modelo: ${escapeHtml(it.variant.name)}</p>` : ""}
+            </div>
+            <span class="text-sm font-semibold text-navy-900">${formatBRL(priceFor(it.product, it.variant) * it.quantity)}</span>
+          </div>`;
+        }).join("")}
         <div id="ck-giftwrap-lines">
           ${selectedGiftWraps().map((g) => `
             <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm" data-giftwrap-line="${g.id}">
