@@ -70,13 +70,193 @@
   .featured-carousel-wrap:hover .featured-carousel-track {
     animation-play-state: paused;
   }
+
+  /* Compra guiada: foco em celular, botões grandes e leitura simples. */
+  .shopping-guide-card {
+    border: 1px solid #d8d9e4;
+    background: #fff;
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  .shopping-guide-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .shopping-guide-step {
+    background: #f8f6ef;
+    border-radius: 12px;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.3;
+    color: #27305b;
+  }
+  .shopping-guide-number {
+    display: flex;
+    width: 28px;
+    height: 28px;
+    margin: 0 auto 5px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #d5aa3e;
+    color: #07164d;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .help-guide-btn {
+    position: fixed;
+    right: 14px;
+    bottom: 86px;
+    z-index: 26;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 48px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 999px;
+    background: #001868;
+    color: #fff;
+    box-shadow: 0 5px 18px rgba(0,0,0,.28);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .help-guide-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(0, 12, 55, .55);
+    padding: 12px;
+  }
+  .help-guide-overlay.is-open { display: flex; }
+  .help-guide-dialog {
+    width: 100%;
+    max-width: 520px;
+    max-height: 88vh;
+    overflow-y: auto;
+    border-radius: 20px 20px 14px 14px;
+    background: #fff;
+    padding: 20px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.25);
+  }
+  .help-step-row {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #ececf2;
+  }
+  .help-step-row:last-child { border-bottom: 0; }
+  .help-step-icon {
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: #f7edcf;
+    color: #07164d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+  }
+  .variant-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .variant-choice-card {
+    position: relative;
+    display: flex;
+    min-height: 64px;
+    align-items: center;
+    gap: 9px;
+    border: 2px solid #e0e2ec;
+    background: #fff;
+    border-radius: 12px;
+    padding: 9px;
+    text-align: left;
+    color: #1d2857;
+    cursor: pointer;
+  }
+  .variant-choice-card.is-selected {
+    border-color: #d5aa3e;
+    background: #fffaf0;
+    box-shadow: 0 0 0 2px rgba(213,170,62,.16);
+  }
+  .variant-choice-card.is-sold-out { opacity: .62; }
+  .variant-choice-photo {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    border-radius: 9px;
+    object-fit: cover;
+    background: #f8f6ef;
+  }
+  .large-touch-action { min-height: 48px; font-size: 15px !important; }
+  .checkout-step-badge {
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #001868;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    margin-right: 7px;
+  }
+  @media (min-width: 640px) {
+    .help-guide-overlay { align-items: center; }
+    .help-guide-dialog { border-radius: 18px; }
+  }
+  @media (max-width: 639px) {
+    .featured-carousel-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+    .featured-carousel-track { animation: none !important; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .featured-carousel-track { animation: none !important; }
+  }
+  @media (max-width: 420px) {
+    .shopping-guide-steps { grid-template-columns: 1fr; }
+    .shopping-guide-step { display: flex; align-items: center; gap: 9px; text-align: left; }
+    .shopping-guide-number { margin: 0; flex: 0 0 28px; }
+    .variant-choice-grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen pb-24">
 <div id="app"></div>
-<a id="help-whatsapp-btn" href="#" aria-label="Precisa de ajuda? Fale com a gente no WhatsApp"
-   style="position:fixed; right:16px; bottom:104px; z-index:25; background-color:#25D366; box-shadow:0 4px 14px rgba(0,0,0,0.3); font-size:28px; line-height:1;"
-   class="flex h-14 w-14 items-center justify-center rounded-full text-white transition hover:opacity-90">💬</a>
+<button id="help-guide-btn" class="help-guide-btn" type="button" aria-haspopup="dialog" aria-controls="help-guide-overlay">
+  <span aria-hidden="true">?</span> Como comprar?
+</button>
+<div id="help-guide-overlay" class="help-guide-overlay" role="dialog" aria-modal="true" aria-labelledby="help-guide-title">
+  <div class="help-guide-dialog" tabindex="-1">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h2 id="help-guide-title" class="text-xl font-semibold text-navy-900">Como comprar na Luz Mariana</h2>
+        <p class="mt-1 text-sm text-navy-500">É simples. Você monta o pedido aqui e, no final, nós abrimos o WhatsApp com tudo pronto.</p>
+      </div>
+      <button id="help-guide-close" type="button" aria-label="Fechar ajuda" class="rounded-lg px-3 py-2 text-xl text-navy-500">✕</button>
+    </div>
+    <div class="mt-3">
+      <div class="help-step-row"><span class="help-step-icon">1</span><div><p class="font-semibold text-navy-900">Encontre o produto</p><p class="mt-0.5 text-sm text-navy-500">Use a busca ou as categorias. Toque na foto do produto para ver os detalhes.</p></div></div>
+      <div class="help-step-row"><span class="help-step-icon">2</span><div><p class="font-semibold text-navy-900">Escolha o modelo</p><p class="mt-0.5 text-sm text-navy-500">Quando houver cores ou modelos, eles aparecem em botões grandes com foto e nome.</p></div></div>
+      <div class="help-step-row"><span class="help-step-icon">3</span><div><p class="font-semibold text-navy-900">Adicione ao pedido</p><p class="mt-0.5 text-sm text-navy-500">Toque em “Adicionar ao pedido”. A barra na parte de baixo mostra quantos itens você escolheu.</p></div></div>
+      <div class="help-step-row"><span class="help-step-icon">4</span><div><p class="font-semibold text-navy-900">Revise e continue</p><p class="mt-0.5 text-sm text-navy-500">Abra “Ver meu pedido”, confira os itens e toque em “Continuar”.</p></div></div>
+      <div class="help-step-row"><span class="help-step-icon">5</span><div><p class="font-semibold text-navy-900">Envie pelo WhatsApp</p><p class="mt-0.5 text-sm text-navy-500">Preencha seu nome e WhatsApp. No final, o WhatsApp abre com a mensagem do pedido pronta — basta apertar “Enviar”.</p></div></div>
+    </div>
+    <button id="help-guide-done" type="button" class="large-touch-action mt-3 w-full rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900">Entendi, quero comprar</button>
+    <button id="help-guide-whatsapp" type="button" class="large-touch-action mt-2 w-full rounded-lg border border-navy-200 bg-white px-4 py-3 font-semibold text-navy-700">Ainda preciso de ajuda pelo WhatsApp</button>
+  </div>
+</div>
 
 <script>
 /* =====================================================================
@@ -276,6 +456,7 @@ const state = {
   giftWrapQuantities: {}, // { [material_id]: quantidade } — dá pra escolher mais de uma embalagem (ou mais de uma unidade da mesma)
   couponCode: "", // último código de cupom digitado (só pra manter o campo preenchido entre re-renders)
   appliedCoupon: null, // { id, code, discount_type, discount_value, max_discount_amount, validatedWhatsappDigits } — null se nenhum cupom aplicado
+  checkoutDraft: { name: "", whatsapp: "", instagram: "", notes: "" }, // preserva o que a pessoa já digitou se a tela precisar ser redesenhada
 };
 
 /* ---------------------------------------------------------------------
@@ -452,7 +633,7 @@ function currentVariant(product) {
   const variants = variantsFor(product.id);
   if (variants.length === 0) return null;
   const selectedId = state.selectedVariant[product.id];
-  return variants.find((v) => v.id === selectedId) || variants[0];
+  return variants.find((v) => v.id === selectedId) || null;
 }
 
 /* Produto totalmente esgotado (não dá pra comprar de jeito nenhum agora):
@@ -518,17 +699,9 @@ function stopCarouselTimer(productId) {
    (grid + carrossel de destaques), e pausa enquanto o dedo/mouse está
    em cima (pra não trocar a foto bem na hora que a pessoa for decidir). */
 function setupCarousels() {
+  // Para deixar a vitrine mais tranquila e previsível no celular, as fotos
+  // não trocam sozinhas. O cliente usa as setas quando quiser ver os modelos.
   Object.keys(carouselTimers).forEach(stopCarouselTimer);
-  const started = new Set();
-  document.querySelectorAll("[data-carousel]").forEach((el) => {
-    const productId = el.dataset.carousel;
-    if (!started.has(productId)) {
-      started.add(productId);
-      startCarouselTimer(productId);
-    }
-    el.addEventListener("mouseenter", () => stopCarouselTimer(productId));
-    el.addEventListener("mouseleave", () => startCarouselTimer(productId));
-  });
 }
 
 /* Normaliza texto pra comparação de busca: minúsculo + sem acento, pra
@@ -561,9 +734,9 @@ function renderSearchBar() {
         <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m0 0a7.5 7.5 0 10-10.6 0 7.5 7.5 0 0010.6 0z" /></svg>
         <input id="catalog-search-input" type="text" inputmode="search" autocomplete="off"
           value="${escapeHtml(state.searchQuery)}"
-          placeholder="Buscar produto..."
+          placeholder="O que você procura? Ex.: São Miguel, terço..."
           aria-label="Buscar produto no catálogo"
-          class="w-full rounded-full border border-navy-200 bg-white py-2.5 pl-9 pr-9 text-sm text-navy-900 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+          class="w-full rounded-full border border-navy-200 bg-white py-3 pl-9 pr-9 text-base text-navy-900 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
         ${state.searchQuery ? `
           <button type="button" id="catalog-search-clear" aria-label="Limpar busca" class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-navy-300 hover:text-navy-600">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -599,6 +772,27 @@ function effectivePricing(product, variant) {
     return { creditPrice: Number(variant.credit_price), promoPrice: Number(variant.promo_price) };
   }
   return { creditPrice: Number(product.credit_price), promoPrice: Number(product.promo_price) };
+}
+
+// Resumo de preços para produtos com modelos. No card mostramos “a partir de”
+// quando os modelos têm valores diferentes, evitando que a pessoa pense que
+// todos custam exatamente o valor do primeiro modelo da lista.
+function pricingSummary(product) {
+  const variants = variantsFor(product.id);
+  if (variants.length === 0) {
+    const p = effectivePricing(product, null);
+    return { ...p, variable: false };
+  }
+  const available = variants.filter((v) => !v.esgotado);
+  const source = available.length > 0 ? available : variants;
+  const prices = source.map((v) => effectivePricing(product, v));
+  const creditValues = prices.map((x) => x.creditPrice);
+  const promoValues = prices.map((x) => x.promoPrice);
+  return {
+    creditPrice: Math.min(...creditValues),
+    promoPrice: Math.min(...promoValues),
+    variable: new Set(creditValues).size > 1 || new Set(promoValues).size > 1,
+  };
 }
 
 function priceFor(product, variant) {
@@ -848,6 +1042,25 @@ function renderPolicy() {
   `;
 }
 
+function renderShoppingGuide() {
+  return `
+    <section class="shopping-guide-card mb-5" aria-label="Como comprar">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="font-semibold text-navy-900">Comprar aqui é simples</p>
+          <p class="mt-0.5 text-sm text-navy-500">Monte seu pedido e finalize pelo WhatsApp.</p>
+        </div>
+        <button type="button" data-open-help-guide class="rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm font-semibold text-navy-700">Ver ajuda</button>
+      </div>
+      <div class="shopping-guide-steps">
+        <div class="shopping-guide-step"><span class="shopping-guide-number">1</span><span><b>Escolha</b><br>um produto</span></div>
+        <div class="shopping-guide-step"><span class="shopping-guide-number">2</span><span><b>Adicione</b><br>ao pedido</span></div>
+        <div class="shopping-guide-step"><span class="shopping-guide-number">3</span><span><b>Finalize</b><br>no WhatsApp</span></div>
+      </div>
+    </section>
+  `;
+}
+
 function renderCatalog() {
   const grouped = groupByCategory(state.products);
   const categories = grouped.map((g) => g.category);
@@ -868,10 +1081,11 @@ function renderCatalog() {
       ${renderHeader()}
       ${renderCategoryBar(categories)}
     </div>
-    <div class="mx-auto max-w-5xl px-4 pt-4">
+    <div class="mx-auto max-w-5xl px-4 py-4">
+      ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderShoppingGuide() : ""}
       ${renderSearchBar()}
     </div>
-    ${renderHero()}
+    ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderHero() : ""}
     <main class="mx-auto max-w-5xl px-4 py-6">
       ${!searchActive && state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
 
@@ -903,27 +1117,19 @@ function renderProductCard(p, opts = {}) {
   const frames = carouselFrames(p);
   const isFav = !!state.favorites[p.id];
   const favoriteBtn = `
-    <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/85 text-base shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
+    <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
   `;
-
-  // Modelo (ou produto, se não tiver modelo) atualmente exibido no card —
-  // começa no primeiro da lista já ordenada (esgotados por último, ver
-  // variantsFor), e atualiza ao vivo se o cliente trocar de modelo no
-  // dropdown (ver wireCatalogEvents).
-  const initialEsgotado = variants.length > 0 ? !!variants[0].esgotado : !!p.esgotado;
 
   let photoBlock;
   if (frames.length > 1) {
-    // Mais de um modelo com fotos diferentes: mostra em carrossel
-    // automático, com setinhas pra passar manualmente.
     const idx = (state.cardPhotoIndex[p.id] ?? 0) % frames.length;
     photoBlock = `
       <div class="relative aspect-square w-full overflow-hidden bg-cream-100" data-carousel="${p.id}">
         <button type="button" data-view-product="${p.id}" class="product-image-btn block h-full w-full border-0 p-0 transition hover:opacity-90">
           <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-cover" loading="lazy" />
         </button>
-        <button type="button" data-carousel-prev="${p.id}" aria-label="Modelo anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">‹</button>
-        <button type="button" data-carousel-next="${p.id}" aria-label="Próximo modelo" class="carousel-nav-btn absolute right-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-lg font-semibold text-navy-900 shadow transition hover:bg-white">›</button>
+        <button type="button" data-carousel-prev="${p.id}" aria-label="Foto anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">‹</button>
+        <button type="button" data-carousel-next="${p.id}" aria-label="Próxima foto" class="carousel-nav-btn absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">›</button>
         ${favoriteBtn}
       </div>
     `;
@@ -941,51 +1147,33 @@ function renderProductCard(p, opts = {}) {
     `;
   }
 
-  // Produto com modelo cadastrado: o "pronta entrega / sob encomenda" e o
-  // "esgotado" são por modelo agora, não pelo produto inteiro — começa
-  // mostrando o do primeiro modelo da lista (o que já vem selecionado no
-  // <select>) e atualiza ao vivo se o cliente trocar de modelo (ver
-  // wireCatalogEvents).
-  const initialInStock = variants.length > 0 ? !!variants[0].in_stock : !!p.in_stock;
-
-  // Preço mostrado no card: o do primeiro modelo da lista (que já vem
-  // selecionado no <select>), ou o do produto quando não há modelos —
-  // atualiza ao vivo se o cliente trocar de modelo (ver wireCatalogEvents).
-  const initialPricing = effectivePricing(p, variants[0] ?? null);
-
-  // Produto/modelo esgotado continua aparecendo no Catálogo, só não dá
-  // pra comprar agora — some o botão/contador e aparece esse aviso no
-  // lugar (bem diferente de "sob encomenda", que ainda pode ser comprado).
-  const esgotadoTag = `<span class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-sm font-semibold text-red-700">Esgotado</span>`;
+  const summary = pricingSummary(p);
+  const allVariantsSoldOut = variants.length > 0 && variants.every((v) => v.esgotado);
+  const availableVariantCount = variants.filter((v) => !v.esgotado).length;
+  const esgotadoTag = `<span class="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-center text-sm font-semibold text-red-700">Esgotado</span>`;
 
   let addBlock;
   if (variants.length > 0) {
-    // Produto com modelos: escolhe o modelo aqui mesmo, na hora de
-    // adicionar (a seleção "fixa" fica na página do produto).
-    addBlock = `
-      <div class="mt-auto flex flex-col gap-1.5" data-variant-add-group="${p.id}">
-        <select class="variant-add-select w-full rounded-lg border border-navy-200 px-2 py-2 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
-          ${variants.map((v) => {
-            const vPricing = effectivePricing(p, v);
-            return `<option value="${v.id}" data-in-stock="${v.in_stock ? "1" : "0"}" data-esgotado="${v.esgotado ? "1" : "0"}" data-credit-price="${vPricing.creditPrice}" data-promo-price="${vPricing.promoPrice}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`;
-          }).join("")}
-        </select>
-        <button type="button" class="add-variant-btn w-full rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 ${initialEsgotado ? "hidden" : ""}">Adicionar</button>
-        <span data-variant-esgotado-tag="${p.id}" class="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-semibold text-red-700 ${initialEsgotado ? "" : "hidden"}">Esgotado</span>
-      </div>
-    `;
+    addBlock = allVariantsSoldOut
+      ? `<div class="mt-auto">${esgotadoTag}</div>`
+      : `
+        <div class="mt-auto">
+          <p class="mb-2 text-xs font-medium text-navy-500">${availableVariantCount} ${availableVariantCount === 1 ? "modelo disponível" : "modelos disponíveis"}</p>
+          <button type="button" data-view-product="${p.id}" class="large-touch-action view-options-btn w-full rounded-lg bg-gold-500 px-3 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Ver modelos e comprar</button>
+        </div>
+      `;
   } else if (p.esgotado) {
     addBlock = `<div class="mt-auto">${esgotadoTag}</div>`;
   } else {
     const key = cartKey(p.id, null);
     const qty = state.cart[key] ?? 0;
     addBlock = qty === 0
-      ? `<button data-add="${key}" class="add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar</button>`
+      ? `<button data-add="${key}" class="large-touch-action add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar ao pedido</button>`
       : `
-        <div class="mt-auto flex items-center justify-between rounded-lg border border-navy-200">
-          <button data-qty-minus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
-          <span class="text-sm font-semibold text-navy-900">${qty}</span>
-          <button data-qty-plus="${key}" class="qty-btn px-3 py-1.5 text-lg font-semibold text-navy-700">+</button>
+        <div class="mt-auto flex items-center justify-between rounded-lg border border-navy-200" style="min-height:48px">
+          <button data-qty-minus="${key}" aria-label="Diminuir quantidade" class="qty-btn px-4 py-2 text-xl font-semibold text-navy-700">−</button>
+          <span class="text-sm font-semibold text-navy-900">${qty} no pedido</span>
+          <button data-qty-plus="${key}" aria-label="Aumentar quantidade" class="qty-btn px-4 py-2 text-xl font-semibold text-navy-700">+</button>
         </div>
       `;
   }
@@ -993,22 +1181,22 @@ function renderProductCard(p, opts = {}) {
   return `
     <div data-product-card="${p.id}" class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
       ${photoBlock}
-      <div class="flex flex-1 flex-col gap-2 p-3">
+      <div class="flex flex-1 flex-col gap-2 p-4">
         <div>
-          <p class="text-sm font-medium leading-snug text-navy-900">${escapeHtml(p.name)}</p>
-          <div class="mt-0.5 flex flex-wrap items-center gap-1.5">
-            <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn text-[11px] text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
-            ${p.material_tag ? `<span class="rounded-full bg-navy-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
+          <button type="button" data-view-product="${p.id}" class="block w-full" style="text-align:left">
+            <p class="text-base font-semibold leading-snug text-navy-900">${escapeHtml(p.name)}</p>
+          </button>
+          <div class="mt-1 flex flex-wrap items-center gap-1.5">
+            <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn text-xs text-navy-400 hover:text-gold-600 hover:underline">🏷️ ${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
+            ${p.material_tag ? `<span class="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
           </div>
         </div>
 
         <div class="leading-tight" data-price-block="${p.id}">
-          <p><span data-price-credit class="text-base font-semibold text-navy-900">${formatBRL(initialPricing.creditPrice)}</span> <span class="text-[10px] font-normal text-navy-400">Em até 3x no crédito</span></p>
-          <p class="text-xs text-navy-400">ou <span data-price-promo>${formatBRL(initialPricing.promoPrice)}</span> em pagamentos à vista (Pix ou espécie)</p>
+          <p>${summary.variable ? `<span class="text-xs font-medium text-navy-500">A partir de </span>` : ""}<span class="text-lg font-semibold text-navy-900">${formatBRL(summary.creditPrice)}</span> <span class="text-[11px] font-normal text-navy-400">em até 3x no crédito</span></p>
+          <p class="mt-1 text-sm text-navy-500">ou ${summary.variable ? "a partir de " : ""}<b>${formatBRL(summary.promoPrice)}</b> à vista (Pix ou espécie)</p>
         </div>
-        ${variants.length > 0
-          ? `<p data-stock-note="${p.id}" class="text-[10px] font-medium text-gold-700 ${initialInStock || initialEsgotado ? "hidden" : ""}">🕑 ${madeToOrderText(p)}</p>`
-          : !initialInStock && !p.esgotado ? `<p class="text-[10px] font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
+        ${variants.length === 0 && !p.in_stock && !p.esgotado ? `<p class="text-xs font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
         ${addBlock}
       </div>
     </div>
@@ -1021,8 +1209,8 @@ function renderCartBar() {
   return `
     <div class="fixed inset-x-0 bottom-0 z-20 border-t border-navy-100 bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
       <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <span class="text-sm text-navy-600">${count} ${count === 1 ? "item" : "itens"} · <b class="text-navy-900">${formatBRL(cartTotal())}</b></span>
-        <button id="open-cart-btn" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">Ver carrinho</button>
+        <span class="text-sm text-navy-600"><b class="text-navy-900">${count} ${count === 1 ? "item" : "itens"}</b> · ${formatBRL(cartTotal())}</span>
+        <button id="open-cart-btn" class="large-touch-action rounded-lg bg-navy-900 px-4 py-2 font-semibold text-white transition hover:bg-navy-800">Ver meu pedido</button>
       </div>
     </div>
   `;
@@ -1034,7 +1222,7 @@ function renderCartDrawer() {
     <div id="cart-overlay" class="fixed inset-0 z-30 bg-navy-950/40">
       <div id="cart-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="cart-drawer-title" tabindex="-1" class="ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-xl outline-none">
         <div class="flex items-center justify-between border-b border-navy-100 px-4 py-3">
-          <h2 id="cart-drawer-title" class="text-lg font-semibold text-navy-900">Seu carrinho</h2>
+          <h2 id="cart-drawer-title" class="text-lg font-semibold text-navy-900">Meu pedido</h2>
           <button id="close-cart-btn" aria-label="Fechar carrinho" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-50">✕</button>
         </div>
         <div class="flex-1 overflow-y-auto px-4 py-3">
@@ -1060,7 +1248,7 @@ function renderCartDrawer() {
             <span class="text-navy-600">Total (${state.payment === "credito" ? "cartão de crédito" : "pix / à vista"})</span>
             <span class="text-lg font-semibold text-navy-900">${formatBRL(cartTotal())}</span>
           </div>
-          <button id="go-checkout-btn" ${items.length === 0 ? "disabled" : ""} class="w-full rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-50">Continuar pedido</button>
+          <button id="go-checkout-btn" ${items.length === 0 ? "disabled" : ""} class="w-full rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-50">Continuar para finalizar</button>
         </div>
       </div>
     </div>
@@ -1101,9 +1289,9 @@ function renderProductDetail() {
 
   const variants = variantsFor(product.id);
   const variant = currentVariant(product);
-  const detailPricing = effectivePricing(product, variant);
-  const key = cartKey(product.id, variant?.id);
-  const qty = state.cart[key] ?? 0;
+  const detailPricing = variant ? effectivePricing(product, variant) : pricingSummary(product);
+  const key = variant ? cartKey(product.id, variant.id) : null;
+  const qty = key ? (state.cart[key] ?? 0) : 0;
   const isInStock = variant ? variant.in_stock : product.in_stock;
   const isEsgotado = variant ? !!variant.esgotado : !!product.esgotado;
   const galleryPhotos = productGalleryPhotos(product, variant);
@@ -1137,17 +1325,6 @@ function renderProductDetail() {
               `).join("")}
             </div>
           ` : ""}
-          ${variants.length > 0 ? `
-            <div class="mt-3 flex flex-wrap gap-1.5">
-              ${variants.map((v) => `
-                <button data-variant-select="${product.id}" data-variant-id="${v.id}"
-                  class="variant-swatch-btn flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs font-medium transition ${variant?.id === v.id ? "border-gold-500 bg-gold-50 text-navy-900" : "border-navy-200 text-navy-500 hover:border-navy-300"}">
-                  ${v.photo_url ? `<img src="${v.photo_url}" alt="" class="h-5 w-5 rounded-full object-cover" />` : ""}
-                  ${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}
-                </button>
-              `).join("")}
-            </div>
-          ` : ""}
         </div>
         <div class="flex flex-col gap-3">
           <div>
@@ -1166,22 +1343,45 @@ function renderProductDetail() {
 
           ${hasDescription ? `<p class="text-justify text-sm leading-relaxed text-navy-600">${escapeHtml(product.description).replace(/\n/g, "<br>")}</p>` : ""}
 
+          ${variants.length > 0 ? `
+            <section class="rounded-xl border border-navy-100 bg-cream-50 p-3" aria-label="Escolha do modelo">
+              <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">1</span>Escolha o modelo</p>
+              <p class="mt-1 text-sm text-navy-500">Toque na opção que você deseja. A foto e o preço serão atualizados.</p>
+              <div class="variant-choice-grid mt-3">
+                ${variants.map((v) => `
+                  <button type="button" data-variant-select="${product.id}" data-variant-id="${v.id}" aria-pressed="${variant?.id === v.id ? "true" : "false"}"
+                    class="variant-choice-card ${variant?.id === v.id ? "is-selected" : ""} ${v.esgotado ? "is-sold-out" : ""}">
+                    ${v.photo_url ? `<img src="${v.photo_url}" alt="" class="variant-choice-photo" />` : `<span class="variant-choice-photo flex items-center justify-center text-lg">◻</span>`}
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-sm font-semibold">${escapeHtml(v.name)}</span>
+                      <span class="mt-0.5 block text-xs ${v.esgotado ? "text-red-600" : v.in_stock ? "text-emerald-800" : "text-gold-700"}">${v.esgotado ? "Esgotado" : v.in_stock ? "Pronta entrega" : "Sob encomenda"}</span>
+                    </span>
+                    ${variant?.id === v.id ? `<span aria-hidden="true" class="text-lg">✓</span>` : ""}
+                  </button>
+                `).join("")}
+              </div>
+              ${variant ? `<p class="mt-3 rounded-lg bg-white px-3 py-2 text-sm text-navy-700">Selecionado: <b>${escapeHtml(variant.name)}</b></p>` : `<p class="mt-3 rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800">Escolha um modelo acima para continuar.</p>`}
+            </section>
+          ` : ""}
+
           <div class="leading-tight">
-            <p class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.creditPrice)} <span class="text-xs font-normal text-navy-400">Em até 3x no crédito</span></p>
-            <p class="text-sm text-navy-400">ou ${formatBRL(detailPricing.promoPrice)} em pagamentos à vista (Pix ou espécie)</p>
+            <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.creditPrice)}</span> <span class="text-xs font-normal text-navy-400">em até 3x no crédito</span></p>
+            <p class="mt-1 text-sm text-navy-500">ou ${variants.length > 0 && !variant && detailPricing.variable ? "a partir de " : ""}<b>${formatBRL(detailPricing.promoPrice)}</b> à vista (Pix ou espécie)</p>
           </div>
 
-          ${!isInStock && !isEsgotado ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-xs font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : ""}
+          ${variant && !isInStock && !isEsgotado ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : variants.length === 0 && !isInStock && !isEsgotado ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : ""}
 
-          ${isEsgotado ? `
+          ${variants.length > 0 && !variant ? `
+            <button type="button" disabled class="large-touch-action mt-2 w-full disabled:cursor-not-allowed rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">Escolha um modelo para adicionar</button>
+          ` : isEsgotado ? `
             <span class="mt-2 inline-block w-fit rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">Esgotado</span>
           ` : qty === 0 ? `
-            <button data-add="${key}" class="add-to-cart-btn mt-2 w-full rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400 sm:w-auto">Adicionar</button>
+            <button data-add="${key}" class="large-touch-action add-to-cart-btn mt-2 w-full rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar ao pedido</button>
           ` : `
-            <div class="mt-2 flex w-full max-w-[180px] items-center justify-between rounded-lg border border-navy-200">
-              <button data-qty-minus="${key}" class="qty-btn px-4 py-2.5 text-lg font-semibold text-navy-700">−</button>
-              <span class="text-sm font-semibold text-navy-900">${qty}</span>
-              <button data-qty-plus="${key}" class="qty-btn px-4 py-2.5 text-lg font-semibold text-navy-700">+</button>
+            <div class="mt-2 flex w-full items-center justify-between rounded-lg border border-navy-200" style="min-height:50px;max-width:230px">
+              <button data-qty-minus="${key}" class="qty-btn px-4 py-2.5 text-xl font-semibold text-navy-700">−</button>
+              <span class="text-sm font-semibold text-navy-900">${qty} no pedido</span>
+              <button data-qty-plus="${key}" class="qty-btn px-4 py-2.5 text-xl font-semibold text-navy-700">+</button>
             </div>
           `}
         </div>
@@ -1371,14 +1571,14 @@ function wireCatalogEvents() {
       render();
     });
   });
-  document.querySelectorAll(".variant-swatch-btn").forEach((btn) => {
+  document.querySelectorAll("[data-variant-select]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.selectedVariant[btn.dataset.variantSelect] = btn.dataset.variantId;
       state.detailGalleryIndex = 0;
       render();
     });
   });
-  document.querySelectorAll(".product-image-btn").forEach((btn) => {
+  document.querySelectorAll("[data-view-product]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.screen = "product";
       state.detailProductId = btn.dataset.viewProduct;
@@ -1435,7 +1635,6 @@ function wireCatalogEvents() {
       e.stopPropagation();
       const productId = btn.dataset.carouselPrev;
       stepCarousel(productId, -1);
-      startCarouselTimer(productId);
     });
   });
   document.querySelectorAll("[data-carousel-next]").forEach((btn) => {
@@ -1443,7 +1642,6 @@ function wireCatalogEvents() {
       e.stopPropagation();
       const productId = btn.dataset.carouselNext;
       stepCarousel(productId, 1);
-      startCarouselTimer(productId);
     });
   });
   setupCarousels();
@@ -1452,15 +1650,34 @@ function wireCatalogEvents() {
 /* =====================================================================
    CHECKOUT
    ===================================================================== */
+function captureCheckoutDraft() {
+  const nameEl = document.getElementById("ck-name");
+  const whatsappEl = document.getElementById("ck-whatsapp");
+  const instagramEl = document.getElementById("ck-instagram");
+  const notesEl = document.getElementById("ck-notes");
+  if (nameEl) state.checkoutDraft.name = nameEl.value;
+  if (whatsappEl) state.checkoutDraft.whatsapp = whatsappEl.value;
+  if (instagramEl) state.checkoutDraft.instagram = instagramEl.value;
+  if (notesEl) state.checkoutDraft.notes = notesEl.value;
+}
+
 function renderCheckout() {
   const items = cartItems();
   app.innerHTML = `
     ${renderHeader()}
     <main class="mx-auto max-w-lg px-4 py-6">
-      <button id="back-to-catalog-btn" class="mb-4 text-sm text-navy-600 hover:underline">&larr; Voltar ao catálogo</button>
-      <h1 class="mb-4 text-xl font-semibold text-navy-900">Finalizar pedido</h1>
+      <button id="back-to-catalog-btn" class="mb-4 text-sm font-medium text-navy-600 hover:underline">&larr; Voltar e alterar produtos</button>
+      <h1 class="text-xl font-semibold text-navy-900">Finalizar pedido</h1>
+      <p class="mt-1 mb-4 text-sm text-navy-500">Falta pouco. Confira o pedido, preencha seus dados e nós abriremos o WhatsApp com a mensagem pronta.</p>
+
+      <div class="mb-4 flex items-center justify-center gap-2 text-xs font-medium text-navy-500">
+        <span class="rounded-full bg-navy-900 px-3 py-1.5 text-white">1 Pedido</span><span>›</span>
+        <span class="rounded-full bg-gold-500 px-3 py-1.5 text-navy-900">2 Seus dados</span><span>›</span>
+        <span class="rounded-full bg-navy-50 px-3 py-1.5">3 WhatsApp</span>
+      </div>
 
       <div class="mb-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+        <p class="mb-2 text-sm font-semibold text-navy-800">Revise seu pedido</p>
         ${items.map((it) => `
           <div class="flex items-center justify-between border-b border-navy-50 py-2 text-sm last:border-0">
             <span>${it.quantity}× ${escapeHtml(it.product.name)}${it.variant ? ` <span class="text-navy-400">(${escapeHtml(it.variant.name)})</span>` : ""}</span>
@@ -1475,7 +1692,7 @@ function renderCheckout() {
             </div>
           `).join("")}
         </div>
-        <div id="ck-discount-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-emerald-700 ${state.appliedCoupon ? "" : "hidden"}">
+        <div id="ck-discount-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-emerald-800 ${state.appliedCoupon ? "" : "hidden"}">
           <span>Desconto (<span id="ck-discount-code">${state.appliedCoupon ? escapeHtml(state.appliedCoupon.code) : ""}</span>)</span>
           <span id="ck-discount-value">−${formatBRL(discountAmount())}</span>
         </div>
@@ -1490,17 +1707,18 @@ function renderCheckout() {
       </div>
 
       <form id="checkout-form" class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
+        <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">2</span>Seus dados</p>
         <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">Seu nome</label>
-          <input id="ck-name" required class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Seu nome" />
+          <label class="mb-1 block text-sm font-semibold text-navy-800">Seu nome <span class="text-red-600">*</span></label>
+          <input id="ck-name" required autocomplete="name" value="${escapeHtml(state.checkoutDraft.name)}" class="w-full rounded-lg border border-navy-200 px-3 py-3 text-base outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Digite seu nome" />
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">Seu WhatsApp</label>
-          <input id="ck-whatsapp" required inputmode="tel" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(11) 91234-5678" />
+          <label class="mb-1 block text-sm font-semibold text-navy-800">Seu WhatsApp <span class="text-red-600">*</span></label>
+          <input id="ck-whatsapp" required inputmode="tel" autocomplete="tel" value="${escapeHtml(state.checkoutDraft.whatsapp)}" class="w-full rounded-lg border border-navy-200 px-3 py-3 text-base outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Ex.: (84) 99999-9999" />
           <p id="ck-whatsapp-msg" class="mt-1 text-xs text-navy-400">É pra esse número que vamos confirmar seu pedido.</p>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-navy-800">Forma de pagamento</label>
+          <label class="mb-2 block text-base font-semibold text-navy-900"><span class="checkout-step-badge">3</span>Forma de pagamento</label>
           <div class="flex gap-1 rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
             <button type="button" data-payment="pix" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / à vista</button>
             <button type="button" data-payment="credito" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
@@ -1508,15 +1726,12 @@ function renderCheckout() {
           <div class="mt-2 rounded-lg bg-cream-50 p-3 text-xs text-navy-600">
             <p class="mb-1">É necessário um sinal de ${Math.round(DEPOSIT_RATE * 100)}% do valor (<span id="ck-deposit-note-value">${formatBRL(orderTotal() * DEPOSIT_RATE)}</span>) para confirmar o pedido e iniciar a produção. O restante é combinado na entrega/retirada.</p>
             ${state.payment === "pix" ? `
-              <div class="mt-2 flex flex-col items-center gap-1">
-                <img src="pix-qrcode.png" alt="QR Code Pix da Luz Mariana" class="h-32 w-32 rounded-lg border border-navy-200 bg-white p-1" />
-                <p class="text-[11px] text-navy-400">Prefere escanear? Aponte a câmera do banco pro QR Code acima.</p>
-              </div>
+              <p class="mt-2 text-sm text-navy-600">No celular, toque em <b>Copiar chave Pix</b> e cole no aplicativo do seu banco quando for fazer o sinal.</p>
               <div class="mt-2 flex items-center gap-2">
-                <input id="ck-pix-key" readonly value="${STORE_CNPJ}" class="min-w-0 flex-1 rounded-lg border border-navy-200 bg-white px-2 py-1.5 text-xs text-navy-900" />
-                <button type="button" id="ck-copy-pix" class="flex-shrink-0 rounded-lg border border-navy-300 px-2 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-100">Copiar chave Pix</button>
+                <input id="ck-pix-key" readonly value="${STORE_CNPJ}" class="min-w-0 flex-1 rounded-lg border border-navy-200 bg-white px-3 py-2.5 text-sm text-navy-900" />
+                <button type="button" id="ck-copy-pix" class="large-touch-action flex-shrink-0 rounded-lg border border-navy-300 bg-white px-3 py-2 font-medium text-navy-700 hover:bg-navy-100">Copiar</button>
               </div>
-              <p class="mt-1 text-[11px] text-navy-400">Ou, se preferir, cole a chave Pix (CNPJ) acima manualmente.</p>
+              <p class="mt-1 text-xs text-navy-400">Chave Pix: CNPJ da Luz Mariana.</p>
             ` : `
               <p class="mt-1 text-[11px] text-navy-400">Pagamento via link de pagamento ou maquineta — combinamos o melhor jeito com você pelo WhatsApp.</p>
             `}
@@ -1563,18 +1778,18 @@ function renderCheckout() {
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-navy-800">Instagram</label>
-              <input id="ck-instagram" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="@usuario" />
+              <input id="ck-instagram" value="${escapeHtml(state.checkoutDraft.instagram)}" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="@usuario" />
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-navy-800">Observações</label>
-              <textarea id="ck-notes" rows="2" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Endereço de entrega, alguma personalização, etc."></textarea>
+              <textarea id="ck-notes" rows="2" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Endereço de entrega, alguma personalização, etc.">${escapeHtml(state.checkoutDraft.notes)}</textarea>
             </div>
           </div>
         </details>
 
         <div id="ck-error" class="text-sm text-red-600"></div>
-        <button type="submit" id="ck-submit" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">Confirmar pedido e abrir WhatsApp</button>
-        <p class="text-center text-xs text-navy-400">Ao confirmar, o WhatsApp abre com seu pedido pronto — é só apertar enviar.</p>
+        <button type="submit" id="ck-submit" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-navy-800 disabled:opacity-50">Enviar pedido pelo WhatsApp</button>
+        <p class="text-center text-xs text-navy-400">O WhatsApp abrirá com seu pedido preenchido. Você só precisa tocar em “Enviar”.</p>
         <p class="text-center text-xs text-navy-400">Ao confirmar, você concorda com a <button type="button" data-open-policy="privacidade" class="underline hover:text-navy-600">Política de Privacidade</button> e os <button type="button" data-open-policy="termos" class="underline hover:text-navy-600">Termos de Uso</button>.</p>
       </form>
     </main>
@@ -1582,7 +1797,11 @@ function renderCheckout() {
 
   document.getElementById("back-to-catalog-btn").addEventListener("click", () => { state.screen = "catalog"; render(); });
   document.querySelectorAll(".checkout-payment-btn").forEach((btn) => {
-    btn.addEventListener("click", () => { state.payment = btn.dataset.payment; render(); });
+    btn.addEventListener("click", () => {
+      captureCheckoutDraft();
+      state.payment = btn.dataset.payment;
+      render();
+    });
   });
   document.getElementById("checkout-form").addEventListener("submit", onSubmitOrder);
   document.getElementById("ck-whatsapp").addEventListener("blur", onWhatsappBlur);
@@ -1858,6 +2077,7 @@ async function onWhatsappBlur() {
 
 async function onSubmitOrder(e) {
   e.preventDefault();
+  captureCheckoutDraft();
   const errorEl = document.getElementById("ck-error");
   const submitBtn = document.getElementById("ck-submit");
   const name = document.getElementById("ck-name").value.trim();
@@ -1910,7 +2130,7 @@ async function onSubmitOrder(e) {
     if (waWindow) waWindow.close();
     errorEl.textContent = "Não foi possível registrar o pedido: " + orderError.message;
     submitBtn.disabled = false;
-    submitBtn.textContent = "Confirmar pedido e abrir WhatsApp";
+    submitBtn.textContent = "Enviar pedido pelo WhatsApp";
     return;
   }
 
@@ -1991,6 +2211,7 @@ async function onSubmitOrder(e) {
   state.giftWrapQuantities = {};
   state.couponCode = "";
   state.appliedCoupon = null;
+  state.checkoutDraft = { name: "", whatsapp: "", instagram: "", notes: "" };
   state.lastOrderNumber = orderNumber;
   state.lastOrderWhatsapp = whatsapp;
   state.screen = "success";
@@ -2229,6 +2450,11 @@ app.addEventListener("click", (e) => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
+  const helpBtn = e.target.closest("[data-open-help-guide]");
+  if (helpBtn) {
+    openHelpGuide();
+    return;
+  }
   const policyTabBtn = e.target.closest("[data-policy-tab]");
   if (policyTabBtn) {
     state.policyTab = policyTabBtn.getAttribute("data-policy-tab");
@@ -2243,16 +2469,30 @@ app.addEventListener("click", (e) => {
   }
 });
 
-// Botão flutuante "Precisa de ajuda?" — fica FORA do #app de propósito
-// (não é redesenhado a cada tela, sempre visível não importa em que
-// passo do pedido a pessoa está travou). Abre o WhatsApp da loja com uma
-// mensagem já pronta pedindo ajuda — pra quem não é tão íntimo de
-// compras online conseguir terminar o pedido com uma pessoa de verdade,
-// em vez de desistir no meio do caminho.
-document.getElementById("help-whatsapp-btn").addEventListener("click", (e) => {
-  e.preventDefault();
-  const message = "Oi! Estou tentando fazer um pedido pelo catálogo e preciso de uma ajudinha 🙏";
+// Ajuda guiada: primeiro explica o passo a passo dentro do próprio site.
+// Se a pessoa ainda precisar, há um botão para falar com a loja no WhatsApp.
+const helpGuideOverlay = document.getElementById("help-guide-overlay");
+const helpGuideDialog = helpGuideOverlay.querySelector(".help-guide-dialog");
+function openHelpGuide() {
+  helpGuideOverlay.classList.add("is-open");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => helpGuideDialog.focus(), 0);
+}
+function closeHelpGuide() {
+  helpGuideOverlay.classList.remove("is-open");
+  document.body.style.overflow = "";
+  document.getElementById("help-guide-btn")?.focus();
+}
+document.getElementById("help-guide-btn").addEventListener("click", openHelpGuide);
+document.getElementById("help-guide-close").addEventListener("click", closeHelpGuide);
+document.getElementById("help-guide-done").addEventListener("click", closeHelpGuide);
+helpGuideOverlay.addEventListener("click", (e) => { if (e.target === helpGuideOverlay) closeHelpGuide(); });
+document.getElementById("help-guide-whatsapp").addEventListener("click", () => {
+  const message = "Oi! Estou tentando fazer um pedido pelo catálogo da Luz Mariana e preciso de ajuda para concluir.";
   window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && helpGuideOverlay.classList.contains("is-open")) closeHelpGuide();
 });
 
 loadCatalog();
