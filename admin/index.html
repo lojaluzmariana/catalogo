@@ -1029,6 +1029,11 @@ function noteLoadResult(label, error) {
 // não apagar o que a pessoa está digitando (o botão "Atualizar" manual
 // continua funcionando normalmente, já que aí é a própria pessoa que pediu).
 function isAnyFormOpen() {
+  // A tela de orçamento funciona como um formulário contínuo. Enquanto ela
+  // estiver aberta, a atualização automática de 60s não pode chamar render(),
+  // porque isso reconstruiria os campos e apagaria o orçamento que está sendo digitado.
+  if (state.tab === "orcamentos") return true;
+
   return !!(precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen || clientesState.formOpen || cuponsState.formOpen || caixaState.formOpen || estoqueState.stockDebtOpen || couponPhonesState.open || brindeState.open || stockPurchaseState.open || stockEntryEditState.open || pedidoState.open);
 }
 
@@ -8920,9 +8925,25 @@ function orcNumeroFormatado(n) {
 }
 
 function orcNumero(v) {
-  if (typeof v === "number") return v;
-  const s = String(v || "").replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".");
-  return parseFloat(s) || 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+
+  // Os campos type="number" do navegador sempre entregam decimais com
+  // ponto (ex.: 1.5), mesmo quando a interface mostra 1,5 em pt-BR.
+  // A lógica antiga removia TODO ponto por tratá-lo como separador de
+  // milhar, transformando 1.5 em 15 e fazendo 12 × 1,50 virar R$ 180,00.
+  // Aqui aceitamos tanto o formato do navegador (1.5) quanto o formato
+  // brasileiro digitado/formatado (1,5 ou 1.500,50).
+  let s = String(v ?? "").trim().replace(/[^0-9,.-]/g, "");
+  if (!s) return 0;
+
+  if (s.includes(",")) {
+    // Havendo vírgula, ela é o separador decimal brasileiro; pontos antes
+    // dela são tratados como separadores de milhar.
+    s = s.replace(/\./g, "").replace(",", ".");
+  }
+  // Sem vírgula, preserva o ponto como separador decimal (type="number").
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function orcPrecoCreditoAPartirDoPix(valorPix) {
@@ -9013,13 +9034,18 @@ function renderOrcamentos(container) {
         </div>
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label class="block">
-            <span class="mb-1.5 block text-sm font-medium text-navy-800">Nome do cliente</span>
-            <input id="orc-nome" value="${escapeHtml(d.nome)}" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Nome completo" />
-          </label>
+          <div class="relative">
+            <label class="block">
+              <span class="mb-1.5 block text-sm font-medium text-navy-800">Nome do cliente</span>
+              <input id="orc-nome" autocomplete="off" value="${escapeHtml(d.nome)}" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Comece a digitar o nome" />
+            </label>
+            <div id="orc-cliente-sugestoes" class="absolute left-0 right-0 z-30 mt-1 hidden max-h-64 overflow-auto rounded-xl border border-navy-100 bg-white p-1 shadow-lg"></div>
+            <div id="orc-cliente-meta" class="mt-1 min-h-[18px] text-xs text-navy-400"></div>
+          </div>
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-navy-800">Telefone</span>
             <input id="orc-telefone" type="tel" value="${escapeHtml(d.telefone)}" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="(84) 99999-9999" />
+            <span class="mt-1 block text-xs text-navy-400">Cliente novo será cadastrado automaticamente ao salvar o primeiro orçamento.</span>
           </label>
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-navy-800">Data do orçamento</span>
@@ -9103,6 +9129,7 @@ function renderOrcamentos(container) {
   itens.forEach((item) => adicionarItemOrcamento(item));
   calcularOrcamento();
   atualizarDatasOrcamento(false);
+  orcInicializarClienteOrcamento(d);
 
   document.getElementById("orc-add-item").addEventListener("click", () => adicionarItemOrcamento());
   document.getElementById("orc-data").addEventListener("change", () => atualizarDatasOrcamento(true));
@@ -9111,12 +9138,24 @@ function renderOrcamentos(container) {
   document.getElementById("orc-save-btn").addEventListener("click", salvarOrcamentoSupabase);
   document.getElementById("orc-new-btn").addEventListener("click", novoOrcamentoPainel);
   document.getElementById("orc-print-btn").addEventListener("click", () => window.print());
-  document.getElementById("orc-telefone").addEventListener("input", (e) => {
-    let v = e.target.value.replace(/\D/g, "").slice(0, 11);
-    if (v.length > 10) v = v.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
-    else if (v.length > 6) v = v.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
-    else if (v.length > 2) v = v.replace(/(\d{2})(\d+)/, "($1) $2");
-    e.target.value = v;
+
+  const orcNome = document.getElementById("orc-nome");
+  const orcTelefone = document.getElementById("orc-telefone");
+  const orcSugestoes = document.getElementById("orc-cliente-sugestoes");
+
+  orcNome.addEventListener("input", () => {
+    orcLimparVinculoCliente(true);
+    orcRenderSugestoesCliente();
+  });
+  orcNome.addEventListener("focus", orcRenderSugestoesCliente);
+  orcNome.addEventListener("blur", () => setTimeout(() => orcSugestoes.classList.add("hidden"), 180));
+
+  orcTelefone.addEventListener("input", (e) => {
+    e.target.value = orcFormatarTelefone(e.target.value);
+    // Se o cliente já foi escolhido na lista, mudar somente o telefone do
+    // orçamento não desfaz o vínculo nem cria um cliente duplicado. Se ainda
+    // não há cliente escolhido, tenta reconhecer pelo número digitado.
+    if (!orcNome.dataset.customerId) orcTentarVincularClientePorTelefone();
   });
   const copy = document.getElementById("orc-copy-btn");
   if (copy) copy.addEventListener("click", () => copiarTextoOrcamento(orcamentoState.generatedText));
@@ -9157,6 +9196,175 @@ function orcNormalizarBusca(texto) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+// ---------------------------------------------------------------------
+// CLIENTES NO ORÇAMENTO
+// Ao digitar o nome, consulta state.customers e permite escolher um cliente
+// já cadastrado. Ao salvar, se não houver correspondência por telefone (ou
+// por nome único quando não há telefone), cria o cliente automaticamente.
+// ---------------------------------------------------------------------
+function orcTelefoneChave(phone) {
+  let digits = String(phone ?? "").replace(/\D/g, "");
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) digits = digits.slice(2);
+  return digits;
+}
+
+function orcFormatarTelefone(phone) {
+  let v = orcTelefoneChave(phone).slice(0, 11);
+  if (v.length > 10) return v.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  if (v.length > 6) return v.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
+  if (v.length > 2) return v.replace(/(\d{2})(\d+)/, "($1) $2");
+  return v;
+}
+
+function orcBuscarClientes(termo, limite = 8) {
+  const q = orcNormalizarBusca(termo);
+  const digits = String(termo || "").replace(/\D/g, "");
+  if (!q && !digits) return [];
+  return [...state.customers]
+    .filter((c) => {
+      const nome = orcNormalizarBusca(c.name || "");
+      const telefone = orcTelefoneChave(c.whatsapp || "");
+      return (q && nome.includes(q)) || (digits && telefone.includes(orcTelefoneChave(digits)));
+    })
+    .sort((a, b) => {
+      if (!!a.active !== !!b.active) return a.active ? -1 : 1;
+      return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR");
+    })
+    .slice(0, limite);
+}
+
+function orcAtualizarMetaCliente(texto = "") {
+  const meta = document.getElementById("orc-cliente-meta");
+  if (meta) meta.innerHTML = texto;
+}
+
+function orcLimparVinculoCliente(mostrarNovo = true) {
+  const nome = document.getElementById("orc-nome");
+  if (!nome) return;
+  delete nome.dataset.customerId;
+  if (mostrarNovo && nome.value.trim()) {
+    orcAtualizarMetaCliente('<span class="text-navy-400">Cliente novo — será cadastrado automaticamente ao salvar.</span>');
+  } else if (!nome.value.trim()) {
+    orcAtualizarMetaCliente("");
+  }
+}
+
+function orcVincularCliente(cliente, preencherCampos = true) {
+  if (!cliente) return;
+  const nome = document.getElementById("orc-nome");
+  const telefone = document.getElementById("orc-telefone");
+  if (!nome || !telefone) return;
+  nome.dataset.customerId = String(cliente.id);
+  if (preencherCampos) {
+    nome.value = cliente.name || "";
+    telefone.value = orcFormatarTelefone(cliente.whatsapp || "");
+  }
+  const status = cliente.active === false ? ' <span class="text-amber-700">(inativo)</span>' : "";
+  orcAtualizarMetaCliente(`<span class="font-medium text-emerald-700">Cliente cadastrado</span>${status}${cliente.whatsapp ? ` · ${escapeHtml(orcFormatarTelefone(cliente.whatsapp))}` : " · sem telefone cadastrado"}`);
+  const sugestoes = document.getElementById("orc-cliente-sugestoes");
+  if (sugestoes) sugestoes.classList.add("hidden");
+}
+
+function orcRenderSugestoesCliente() {
+  const nome = document.getElementById("orc-nome");
+  const box = document.getElementById("orc-cliente-sugestoes");
+  if (!nome || !box) return;
+  const termo = nome.value.trim();
+  if (!termo) { box.classList.add("hidden"); return; }
+  const resultados = orcBuscarClientes(termo);
+  box.innerHTML = resultados.length
+    ? resultados.map((c) => `
+        <button type="button" data-orc-customer-id="${escapeHtml(c.id)}" class="block w-full rounded-lg px-3 py-2 text-left transition hover:bg-navy-50">
+          <span class="block text-sm font-medium text-navy-900">${escapeHtml(c.name || "Cliente")}${c.active === false ? ' <span class="text-xs font-normal text-amber-700">(inativo)</span>' : ""}</span>
+          <span class="block text-xs text-navy-500">${escapeHtml(c.whatsapp ? orcFormatarTelefone(c.whatsapp) : "Sem telefone cadastrado")}</span>
+        </button>`).join("")
+    : `<div class="px-3 py-2 text-xs text-navy-500">Nenhum cliente cadastrado com esse nome. Ao salvar o orçamento, ele será cadastrado automaticamente.</div>`;
+  box.classList.remove("hidden");
+  box.querySelectorAll("[data-orc-customer-id]").forEach((btn) => {
+    btn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const cliente = state.customers.find((c) => String(c.id) === String(btn.dataset.orcCustomerId));
+      if (cliente) orcVincularCliente(cliente, true);
+    });
+  });
+}
+
+function orcEncontrarClienteExistente(nome, telefone) {
+  const phoneKey = orcTelefoneChave(telefone);
+  if (phoneKey) {
+    const porTelefone = state.customers.find((c) => orcTelefoneChave(c.whatsapp) === phoneKey);
+    if (porTelefone) return porTelefone;
+  }
+
+  // Sem telefone, um nome exato e único é suficiente para evitar duplicar
+  // o mesmo cliente. Com telefone diferente, não presumimos que seja a
+  // mesma pessoa: o usuário pode selecionar explicitamente na lista.
+  if (!phoneKey) {
+    const nomeKey = orcNormalizarBusca(nome);
+    const iguais = state.customers.filter((c) => orcNormalizarBusca(c.name || "") === nomeKey);
+    if (iguais.length === 1) return iguais[0];
+  }
+  return null;
+}
+
+function orcTentarVincularClientePorTelefone() {
+  const nome = document.getElementById("orc-nome");
+  const telefone = document.getElementById("orc-telefone");
+  if (!nome || !telefone) return;
+  const key = orcTelefoneChave(telefone.value);
+  if (key.length < 10) {
+    if (nome.value.trim()) orcAtualizarMetaCliente('<span class="text-navy-400">Cliente novo — será cadastrado automaticamente ao salvar.</span>');
+    return;
+  }
+  const cliente = state.customers.find((c) => orcTelefoneChave(c.whatsapp) === key);
+  if (cliente) orcVincularCliente(cliente, true);
+  else if (nome.value.trim()) orcAtualizarMetaCliente('<span class="text-navy-400">Cliente novo — será cadastrado automaticamente ao salvar.</span>');
+}
+
+function orcInicializarClienteOrcamento(d) {
+  const nome = document.getElementById("orc-nome");
+  if (!nome) return;
+  const existente = orcEncontrarClienteExistente(d.nome || "", d.telefone || "")
+    || (() => {
+      const nomeKey = orcNormalizarBusca(d.nome || "");
+      if (!nomeKey) return null;
+      const iguais = state.customers.filter((c) => orcNormalizarBusca(c.name || "") === nomeKey);
+      return iguais.length === 1 ? iguais[0] : null;
+    })();
+  if (existente) orcVincularCliente(existente, false);
+  else if ((d.nome || "").trim()) orcAtualizarMetaCliente('<span class="text-navy-400">Cliente não cadastrado — será cadastrado automaticamente ao salvar.</span>');
+}
+
+async function garantirClienteDoOrcamento(d) {
+  const nomeField = document.getElementById("orc-nome");
+  const selectedId = nomeField?.dataset.customerId || null;
+  if (selectedId) {
+    const selecionado = state.customers.find((c) => String(c.id) === String(selectedId));
+    if (selecionado) return selecionado;
+  }
+
+  const existente = orcEncontrarClienteExistente(d.nome, d.telefone);
+  if (existente) {
+    if (nomeField) nomeField.dataset.customerId = String(existente.id);
+    return existente;
+  }
+
+  const payload = {
+    name: d.nome.trim(),
+    whatsapp: d.telefone.trim() || null,
+    instagram: null,
+    created_by: state.currentUser?.id || null,
+    updated_by: state.currentUser?.id || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabaseClient.from("customers").insert(payload).select("*").single();
+  if (error) throw new Error("Não foi possível cadastrar o novo cliente: " + error.message);
+  state.customers.push(data);
+  state.customers.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+  if (nomeField) nomeField.dataset.customerId = String(data.id);
+  return data;
 }
 
 function orcCatalogoPesquisavel() {
@@ -9512,6 +9720,10 @@ async function salvarOrcamentoSupabase() {
   if (btn) { btn.disabled = true; btn.textContent = "Salvando..."; }
 
   try {
+    // Cliente do orçamento: se já existir no cadastro, reutiliza. Se for
+    // novo, cadastra automaticamente antes de salvar o primeiro orçamento.
+    await garantirClienteDoOrcamento(d);
+
     let saved;
     if (orcamentoState.editingId) {
       const numeroAtual = Number(state.orcamentos.find((o) => o.id === orcamentoState.editingId)?.numero || d.numero);
