@@ -145,7 +145,7 @@
     overflow-y: auto;
     border-radius: 20px 20px 14px 14px;
     background: #fff;
-    padding: 20px;
+    padding: 16px;
     box-shadow: 0 20px 50px rgba(0,0,0,.25);
   }
   .help-step-row {
@@ -397,7 +397,7 @@
     width: 42px; height: 42px; flex: 0 0 42px; border-radius: 8px; object-fit: contain; background: #f8f6ef;
   }
   .catalog-add-toast {
-    position: fixed; left: 50%; bottom: 92px; z-index: 80; width: calc(100% - 28px); max-width: 430px;
+    position: fixed; left: 50%; bottom: 92px; z-index: 80; width: calc(100% - 28px); max-width: 360px;
     transform: translateX(-50%); border-radius: 14px; background: #001868; color: #fff; padding: 12px 14px;
     box-shadow: 0 10px 30px rgba(0,0,0,.28); font-size: 14px; line-height: 1.35;
   }
@@ -661,7 +661,7 @@
     <span class="welcome-order-kicker">Pedidos personalizados</span>
     <h2 id="welcome-order-title" class="mt-3 pr-10 text-xl font-semibold text-navy-900">Não encontrou o que procura?</h2>
     <p id="welcome-order-text" class="mt-2 text-sm leading-relaxed text-navy-600">
-      Além dos produtos disponíveis no catálogo, a Luz Mariana também trabalha com encomendas e pedidos personalizados. Se você procura outro modelo, santo, cor, tamanho ou uma peça especial, fale conosco para solicitar um orçamento.
+      Não encontrou o que queria? A Luz Mariana também faz encomendas e pedidos personalizados. Se procura outro modelo, santo, cor, tamanho ou uma peça especial, fale conosco e solicite um orçamento.
     </p>
     <div class="welcome-order-actions">
       <button id="welcome-order-whatsapp" type="button" class="welcome-order-primary">Solicitar orçamento pelo WhatsApp</button>
@@ -1430,13 +1430,9 @@ function setQty(productId, qty) {
    ===================================================================== */
 const WELCOME_ORDER_SESSION_KEY = "luzmariana_welcome_order_seen_v1";
 let welcomeOrderTimer = null;
-
-function estimatedReadingMs(text) {
-  const words = String(text || "").trim().split(/\s+/).filter(Boolean).length;
-  const wordsPerMinute = 170;
-  const ms = Math.ceil((words / wordsPerMinute) * 60 * 1000);
-  return Math.max(9000, Math.min(18000, ms + 3500));
-}
+let welcomeOrderInactivityTimer = null;
+const WELCOME_ORDER_INACTIVITY_MS = 30000;
+const WELCOME_ORDER_VISIBLE_MS = 5000;
 
 function closeWelcomeOrder(markSeen = true) {
   const overlay = document.getElementById("welcome-order-overlay");
@@ -1451,34 +1447,53 @@ function closeWelcomeOrder(markSeen = true) {
   }
 }
 
-function maybeShowWelcomeOrder() {
+function userHasChosenSomething() {
+  return cartCount() > 0
+    || !!state.detailProductId
+    || !!state.searchQuery
+    || state.categoryFilter !== "all"
+    || state.favoritesOnly;
+}
+
+function scheduleWelcomeOrderAfterInactivity() {
+  if (welcomeOrderInactivityTimer) {
+    clearTimeout(welcomeOrderInactivityTimer);
+    welcomeOrderInactivityTimer = null;
+  }
   if (state.screen !== "catalog") return;
+
   let alreadySeen = false;
   try { alreadySeen = sessionStorage.getItem(WELCOME_ORDER_SESSION_KEY) === "1"; } catch (_err) {}
-  if (alreadySeen) return;
+  if (alreadySeen || userHasChosenSomething()) return;
 
+  welcomeOrderInactivityTimer = setTimeout(() => {
+    if (state.screen === "catalog" && !userHasChosenSomething()) {
+      showWelcomeOrder();
+    }
+  }, WELCOME_ORDER_INACTIVITY_MS);
+}
+
+function showWelcomeOrder() {
   const overlay = document.getElementById("welcome-order-overlay");
   const card = overlay?.querySelector(".welcome-order-card");
-  const textEl = document.getElementById("welcome-order-text");
   const progress = document.getElementById("welcome-order-progress-bar");
-  if (!overlay || !card || !textEl) return;
+  if (!overlay || !card) return;
 
   overlay.classList.add("is-open");
   card.focus();
 
-  const duration = estimatedReadingMs(textEl.textContent);
   if (progress) {
     progress.style.transition = "none";
     progress.style.transform = "scaleX(1)";
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        progress.style.transition = `transform ${duration}ms linear`;
+        progress.style.transition = `transform ${WELCOME_ORDER_VISIBLE_MS}ms linear`;
         progress.style.transform = "scaleX(0)";
       });
     });
   }
 
-  welcomeOrderTimer = setTimeout(() => closeWelcomeOrder(true), duration);
+  welcomeOrderTimer = setTimeout(() => closeWelcomeOrder(true), WELCOME_ORDER_VISIBLE_MS);
 }
 
 function render() {
@@ -3422,6 +3437,13 @@ document.getElementById("welcome-order-overlay")?.addEventListener("click", (e) 
   if (e.target.id === "welcome-order-overlay") closeWelcomeOrder(true);
 });
 
+["click", "touchstart", "keydown", "input", "scroll"].forEach((eventName) => {
+  window.addEventListener(eventName, () => {
+    if (document.getElementById("welcome-order-overlay")?.classList.contains("is-open")) return;
+    scheduleWelcomeOrderAfterInactivity();
+  }, { passive: true });
+});
+
 window.addEventListener("beforeunload", (e) => {
   if (cartCount() > 0 && state.screen !== "success") {
     e.preventDefault();
@@ -3429,7 +3451,7 @@ window.addEventListener("beforeunload", (e) => {
   }
 });
 
-loadCatalog().then(() => requestAnimationFrame(() => maybeShowWelcomeOrder()));
+loadCatalog().then(() => requestAnimationFrame(() => scheduleWelcomeOrderAfterInactivity()));
 
 // Registra o service worker só pra habilitar "Adicionar à tela inicial"
 // (ver comentário em sw.js — não guarda nada em cache). Silenciosamente
