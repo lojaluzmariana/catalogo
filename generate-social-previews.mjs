@@ -23,6 +23,15 @@ function escapeHtml(value = "") {
     .replaceAll("'", "&#039;");
 }
 
+function slugify(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 async function fetchJson(table) {
   const url = `${SUPABASE_URL}/rest/v1/${table}?select=*`;
   const res = await fetch(url, { headers });
@@ -137,15 +146,15 @@ function previewHtml({ product, variant, imageUrl, redirectUrl }) {
 }
 
 async function writePreview(product, variant, imageUrl) {
-  const productId = String(product.id);
-  const variantId = variant?.id ? String(variant.id) : null;
+  const productSlug = slugify(product.name) || String(product.id);
+  const variantSlug = variant?.name ? (slugify(variant.name) || String(variant.id)) : null;
   const redirect = new URL(BASE_URL);
-  redirect.searchParams.set("produto", productId);
-  if (variantId) redirect.searchParams.set("modelo", variantId);
+  redirect.searchParams.set("produto", productSlug);
+  if (variantSlug) redirect.searchParams.set("modelo", variantSlug);
 
-  const dir = variantId
-    ? path.join(SHARE_DIR, productId, variantId)
-    : path.join(SHARE_DIR, productId);
+  const dir = variantSlug
+    ? path.join(SHARE_DIR, productSlug, variantSlug)
+    : path.join(SHARE_DIR, productSlug);
 
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(
@@ -189,7 +198,7 @@ async function main() {
     const productImageSource = productPreviewVariant?.photo_url || product.photo_url || null;
     const productImageUrl = await localizeImage(
       productImageSource,
-      `produto-${product.id}${productPreviewVariant?.id ? `-${productPreviewVariant.id}` : ""}`
+      `produto-${slugify(product.name) || product.id}${productPreviewVariant?.name ? `-${slugify(productPreviewVariant.name) || productPreviewVariant.id}` : ""}`
     );
     await writePreview(product, productPreviewVariant, productImageUrl);
     pages++;
@@ -197,7 +206,7 @@ async function main() {
     // Uma página estática por modelo, com a foto desse modelo.
     for (const variant of productVariants) {
       const imageSource = variant.photo_url || product.photo_url || productPreviewVariant?.photo_url || null;
-      const imageUrl = await localizeImage(imageSource, `modelo-${variant.id}`);
+      const imageUrl = await localizeImage(imageSource, `modelo-${slugify(product.name) || product.id}-${slugify(variant.name) || variant.id}`);
       await writePreview(product, variant, imageUrl);
       pages++;
     }
