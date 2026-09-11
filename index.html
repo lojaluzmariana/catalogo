@@ -1173,9 +1173,12 @@ const state = {
   appliedCoupon: null, // { id, code, discount_type, discount_value, max_discount_amount, validatedWhatsappDigits } — null se nenhum cupom aplicado
   checkoutDraft: {
     name: "", whatsapp: "", instagram: "", notes: "",
-    shippingCep: "", shippingNumber: "", shippingComplement: ""
+    shippingCep: "", shippingStreet: "", shippingNumber: "",
+    shippingNeighborhood: "", shippingCity: "", shippingState: "",
+    shippingComplement: ""
   },
   shippingMethod: "pickup",
+  shippingAddressMode: "cep", // cep | manual
   shippingQuote: null,
   catalogScrollY: 0,
   variantScrollLeft: {},
@@ -1697,28 +1700,125 @@ async function geocodeAddressFallback(addressText) {
     return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
   } catch (_err) { return null; }
 }
-async function coordinateForCepData(data, number = "") {
-  const direct = coordinateFromBrasilApi(data);
-  if (direct) return direct;
-  const full = [data?.street, number, data?.neighborhood, data?.city, data?.state, data?.cep, "Brasil"].filter(Boolean).join(", ");
-  return geocodeAddressFallback(full);
+async function coordinateForCepData(data, number = "", explicitAddress = "") {
+  const full = explicitAddress || [
+    data?.street, number, data?.neighborhood, data?.city, data?.state, data?.cep, "Brasil"
+  ].filter(Boolean).join(", ");
+
+  // Primeiro tenta localizar o endereço real. Alguns CEPs retornam apenas o
+  // centroide do município, o que pode fazer dois endereços diferentes
+  // aparecerem com distância 0 km.
+  const geocoded = await geocodeAddressFallback(full);
+  if (geocoded) return geocoded;
+
+  // Fallback: coordenadas fornecidas pela BrasilAPI.
+  return coordinateFromBrasilApi(data);
 }
-async function calculateShippingQuote() {
+
+async function drivingDistanceKm(origin, destination) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${origin.lon},${origin.lat};${destination.lon},${destination.lat}?overview=false`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const meters = Number(data?.routes?.[0]?.distance);
+    return Number.isFinite(meters) && meters > 0 ? meters / 1000 : null;
+  } catch (_err) {
+    return null;
+  }
+}
+function getShippingAddressFields() {
+  return {
+    cep: normalizeCep(document.getElementById("ck-shipping-cep")?.value || state.checkoutDraft.shippingCep),
+    street: (document.getElementById("ck-shipping-street")?.value || state.checkoutDraft.shippingStreet || "").trim(),
+    number: (document.getElementById("ck-shipping-number")?.value || state.checkoutDraft.shippingNumber || "").trim(),
+    neighborhood: (document.getElementById("ck-shipping-neighborhood")?.value || state.checkoutDraft.shippingNeighborhood || "").trim(),
+    city: (document.getElementById("ck-shipping-city")?.value || state.checkoutDraft.shippingCity || "").trim(),
+    stateUf: (document.getElementById("ck-shipping-state")?.value || state.checkoutDraft.shippingState || "").trim().toUpperCase(),
+    complement: (document.getElementById("ck-shipping-complement")?.value || state.checkoutDraft.shippingComplement || "").trim(),
+  };
+}
+
+function persistShippingAddressFields(fields) {
+  state.checkoutDraft.shippingCep = fields.cep ? formatCep(fields.cep) : "";
+  state.checkoutDraft.shippingStreet = fields.street || "";
+  state.checkoutDraft.shippingNumber = fields.number || "";
+  state.checkoutDraft.shippingNeighborhood = fields.neighborhood || "";
+  state.checkoutDraft.shippingCity = fields.city || "";
+  state.checkoutDraft.shippingState = fields.stateUf || "";
+  state.checkoutDraft.shippingComplement = fields.complement || "";
+}
+
+function fillShippingAddressInputs(fields) {
+  const map = {
+    "ck-shipping-cep": fields.cep ? formatCep(fields.cep) : "",
+    "ck-shipping-street": fields.street || "",
+    "ck-shipping-number": fields.number || "",
+    "ck-shipping-neighborhood": fields.neighborhood || "",
+    "ck-shipping-city": fields.city || "",
+    "ck-shipping-state": fields.stateUf || "",
+    "ck-shipping-complement": fields.complement || "",
+  };
+  Object.entries(map).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  });
+}
+
+async function autofillShippingFromCep() {
   const cepInput = document.getElementById("ck-shipping-cep");
-  const numberInput = document.getElementById("ck-shipping-number");
+  const status = document.getElementById("ck-shipping-cep-status");
+  if (!cepInput) return false;
+
+  const cep = normalizeCep(cepInput.value);
+  state.checkoutDraft.shippingCep = formatCep(cep);
+
+  if (cep.length !== 8) {
+    if (status) status.textContent = "";
+    return false;
+  }
+
+  if (status) status.textContent = "Buscando endereço…";
+
+  try {
+    const data = await fetchCepData(cep);
+    const current = getShippingAddressFields();
+    const fields = {
+      ...current,
+      cep,
+      street: data.street || current.street,
+      neighborhood: data.neighborhood || current.neighborhood,
+      city: data.city || current.city,
+      stateUf: data.state || current.stateUf,
+    };
+    persistShippingAddressFields(fields);
+    fillShippingAddressInputs(fields);
+    state.shippingQuote = null;
+    if (status) status.textContent = "Endereço preenchido. Informe apenas o número.";
+    return true;
+  } catch (_err) {
+    if (status) status.textContent = "CEP não localizado. Você pode preencher o endereço manualmente.";
+    return false;
+  }
+}
+
+async function calculateShippingQuote() {
   const quoteBox = document.getElementById("ck-shipping-quote");
-  if (!cepInput || !quoteBox) return;
+  if (!quoteBox) return;
 
-  const destinationCep = normalizeCep(cepInput.value);
-  const number = numberInput?.value.trim() || "";
-  state.checkoutDraft.shippingCep = formatCep(destinationCep);
-  state.checkoutDraft.shippingNumber = number;
-  state.checkoutDraft.shippingComplement = document.getElementById("ck-shipping-complement")?.value.trim() || "";
+  let fields = getShippingAddressFields();
+  persistShippingAddressFields(fields);
 
-  if (destinationCep.length !== 8) {
+  if (state.shippingAddressMode === "cep" && fields.cep.length === 8) {
+    await autofillShippingFromCep();
+    fields = getShippingAddressFields();
+    persistShippingAddressFields(fields);
+  }
+
+  if (!fields.street || !fields.number || !fields.neighborhood || !fields.city || !fields.stateUf) {
     state.shippingQuote = null;
     quoteBox.className = "shipping-quote-box is-error";
-    quoteBox.textContent = "Informe um CEP válido com 8 números.";
+    quoteBox.textContent = "Preencha endereço, número, bairro, cidade e UF para calcular a entrega.";
     updateCheckoutTotals();
     return;
   }
@@ -1727,17 +1827,44 @@ async function calculateShippingQuote() {
   quoteBox.textContent = "Calculando a melhor forma de entrega…";
 
   try {
-    const [originData, destinationData] = await Promise.all([
-      fetchCepData(STORE_ORIGIN_CEP), fetchCepData(destinationCep)
-    ]);
-    const [originCoords, destinationCoords] = await Promise.all([
-      coordinateForCepData(originData),
-      coordinateForCepData(destinationData, number)
-    ]);
+    const originData = await fetchCepData(STORE_ORIGIN_CEP);
+    const originCoords = await coordinateForCepData(
+      originData, "", `${STORE_ORIGIN_ADDRESS}, CEP ${formatCep(STORE_ORIGIN_CEP)}, Brasil`
+    );
+
+    let destinationData = {
+      street: fields.street,
+      neighborhood: fields.neighborhood,
+      city: fields.city,
+      state: fields.stateUf,
+      cep: fields.cep,
+    };
+
+    if (fields.cep.length === 8) {
+      try {
+        const cepData = await fetchCepData(fields.cep);
+        destinationData = {
+          ...cepData,
+          street: fields.street || cepData.street,
+          neighborhood: fields.neighborhood || cepData.neighborhood,
+          city: fields.city || cepData.city,
+          state: fields.stateUf || cepData.state,
+        };
+      } catch (_err) {}
+    }
+
+    const destinationAddressText = [
+      fields.street, fields.number, fields.neighborhood,
+      fields.city, fields.stateUf, fields.cep ? `CEP ${formatCep(fields.cep)}` : "", "Brasil"
+    ].filter(Boolean).join(", ");
+
+    const destinationCoords = await coordinateForCepData(
+      destinationData, fields.number, destinationAddressText
+    );
 
     const address = [
-      destinationData.street, number, destinationData.neighborhood,
-      destinationData.city, destinationData.state, `CEP ${formatCep(destinationCep)}`
+      fields.street, fields.number, fields.neighborhood,
+      fields.city, fields.stateUf, fields.cep ? `CEP ${formatCep(fields.cep)}` : ""
     ].filter(Boolean).join(", ");
 
     if (!originCoords || !destinationCoords) {
@@ -1750,7 +1877,24 @@ async function calculateShippingQuote() {
       return;
     }
 
-    const distanceKm = haversineDistanceKm(originCoords.lat, originCoords.lon, destinationCoords.lat, destinationCoords.lon);
+    const roadDistance = await drivingDistanceKm(originCoords, destinationCoords);
+    const straightDistance = haversineDistanceKm(originCoords.lat, originCoords.lon, destinationCoords.lat, destinationCoords.lon);
+    const distanceKm = roadDistance ?? straightDistance;
+
+    if (!Number.isFinite(distanceKm) || distanceKm < 0.05) {
+      state.shippingQuote = {
+        type: "manual",
+        fee: 0,
+        cep: formatCep(destinationCep),
+        address
+      };
+      quoteBox.className = "shipping-quote-box is-error";
+      quoteBox.innerHTML = `<b>Não conseguimos calcular a distância com segurança.</b><br>
+        A Luz Mariana confirma a taxa de entrega pelo WhatsApp antes do envio.
+        <div class="shipping-address-summary">${escapeHtml(address)}</div>`;
+      updateCheckoutTotals();
+      return;
+    }
 
     if (distanceKm <= LOCAL_DELIVERY_RADIUS_KM) {
       const rate = distanceKm <= REDUCED_DELIVERY_RADIUS_KM
@@ -1759,7 +1903,7 @@ async function calculateShippingQuote() {
       state.shippingQuote = { type:"motoboy", fee, rate, distanceKm, cep:formatCep(destinationCep), address };
       quoteBox.className = "shipping-quote-box is-ready";
       quoteBox.innerHTML = `<b>Entrega por motoboy disponível</b><br>
-        Distância estimada: <b>${distanceKm.toFixed(1).replace(".", ",")} km</b><br>
+        Distância estimada do trajeto: <b>${distanceKm.toFixed(1).replace(".", ",")} km</b><br>
         Taxa: ${formatBRL(rate)} por km · <b>Entrega ${formatBRL(fee)}</b>
         <div class="shipping-address-summary">${escapeHtml(address)}</div>
         <p class="mt-2 text-[11px] text-navy-500">Estimativa baseada na localização do CEP. A loja confirma os dados antes do envio.</p>`;
@@ -3062,14 +3206,22 @@ function captureCheckoutDraft() {
   const instagramEl = document.getElementById("ck-instagram");
   const notesEl = document.getElementById("ck-notes");
   const shippingCepEl = document.getElementById("ck-shipping-cep");
+  const shippingStreetEl = document.getElementById("ck-shipping-street");
   const shippingNumberEl = document.getElementById("ck-shipping-number");
+  const shippingNeighborhoodEl = document.getElementById("ck-shipping-neighborhood");
+  const shippingCityEl = document.getElementById("ck-shipping-city");
+  const shippingStateEl = document.getElementById("ck-shipping-state");
   const shippingComplementEl = document.getElementById("ck-shipping-complement");
   if (nameEl) state.checkoutDraft.name = nameEl.value;
   if (whatsappEl) state.checkoutDraft.whatsapp = whatsappEl.value;
   if (instagramEl) state.checkoutDraft.instagram = instagramEl.value;
   if (notesEl) state.checkoutDraft.notes = notesEl.value;
   if (shippingCepEl) state.checkoutDraft.shippingCep = shippingCepEl.value;
+  if (shippingStreetEl) state.checkoutDraft.shippingStreet = shippingStreetEl.value;
   if (shippingNumberEl) state.checkoutDraft.shippingNumber = shippingNumberEl.value;
+  if (shippingNeighborhoodEl) state.checkoutDraft.shippingNeighborhood = shippingNeighborhoodEl.value;
+  if (shippingCityEl) state.checkoutDraft.shippingCity = shippingCityEl.value;
+  if (shippingStateEl) state.checkoutDraft.shippingState = shippingStateEl.value;
   if (shippingComplementEl) state.checkoutDraft.shippingComplement = shippingComplementEl.value;
 }
 
@@ -3174,23 +3326,81 @@ function renderCheckout() {
             <p class="mb-2 rounded-lg bg-white px-3 py-2 text-xs text-navy-600">
               Até 15 km: <b>entregador/motoboy</b> · acima de 15 km: <b>Correios PAC</b>.
             </p>
+            <div class="mb-2 flex items-center justify-between gap-3">
+              <span class="text-xs font-semibold text-navy-700">
+                ${state.shippingAddressMode === "manual" ? "Preencha o endereço" : "Informe o CEP"}
+              </span>
+              <button type="button" id="ck-toggle-address-mode" class="text-xs font-semibold text-navy-700 underline">
+                ${state.shippingAddressMode === "manual" ? "Sei meu CEP" : "Não sei meu CEP"}
+              </button>
+            </div>
+
             <div class="grid gap-2 sm:grid-cols-[1fr_110px]">
               <div>
-                <label for="ck-shipping-cep" class="mb-1 block text-xs font-semibold text-navy-700">CEP da entrega</label>
-                <input id="ck-shipping-cep" inputmode="numeric" autocomplete="postal-code" value="${escapeHtml(state.checkoutDraft.shippingCep)}"
-                  class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="00000-000" />
+                <label for="ck-shipping-cep" class="mb-1 block text-xs font-semibold text-navy-700">
+                  CEP ${state.shippingAddressMode === "manual" ? "(opcional)" : "da entrega"}
+                </label>
+                <input id="ck-shipping-cep" inputmode="numeric" autocomplete="postal-code"
+                  value="${escapeHtml(state.checkoutDraft.shippingCep)}"
+                  class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+                  placeholder="00000-000" />
+                <p id="ck-shipping-cep-status" class="mt-1 text-[11px] text-navy-500"></p>
               </div>
               <div>
                 <label for="ck-shipping-number" class="mb-1 block text-xs font-semibold text-navy-700">Número</label>
-                <input id="ck-shipping-number" inputmode="numeric" value="${escapeHtml(state.checkoutDraft.shippingNumber)}"
-                  class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Nº" />
+                <input id="ck-shipping-number" inputmode="numeric"
+                  value="${escapeHtml(state.checkoutDraft.shippingNumber)}"
+                  class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+                  placeholder="Nº" />
               </div>
             </div>
+
             <div class="mt-2">
-              <label for="ck-shipping-complement" class="mb-1 block text-xs font-semibold text-navy-700">Complemento (opcional)</label>
-              <input id="ck-shipping-complement" value="${escapeHtml(state.checkoutDraft.shippingComplement)}"
-                class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Apartamento, bloco, referência..." />
+              <label for="ck-shipping-street" class="mb-1 block text-xs font-semibold text-navy-700">Endereço</label>
+              <input id="ck-shipping-street" autocomplete="address-line1"
+                value="${escapeHtml(state.checkoutDraft.shippingStreet)}"
+                ${state.shippingAddressMode === "cep" ? "readonly" : ""}
+                class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${state.shippingAddressMode === "cep" ? "bg-navy-50" : ""}"
+                placeholder="Rua, avenida..." />
             </div>
+
+            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+              <div>
+                <label for="ck-shipping-neighborhood" class="mb-1 block text-xs font-semibold text-navy-700">Bairro</label>
+                <input id="ck-shipping-neighborhood"
+                  value="${escapeHtml(state.checkoutDraft.shippingNeighborhood)}"
+                  ${state.shippingAddressMode === "cep" ? "readonly" : ""}
+                  class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${state.shippingAddressMode === "cep" ? "bg-navy-50" : ""}"
+                  placeholder="Bairro" />
+              </div>
+              <div>
+                <label for="ck-shipping-city" class="mb-1 block text-xs font-semibold text-navy-700">Cidade</label>
+                <input id="ck-shipping-city"
+                  value="${escapeHtml(state.checkoutDraft.shippingCity)}"
+                  ${state.shippingAddressMode === "cep" ? "readonly" : ""}
+                  class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${state.shippingAddressMode === "cep" ? "bg-navy-50" : ""}"
+                  placeholder="Cidade" />
+              </div>
+            </div>
+
+            <div class="mt-2 grid gap-2 sm:grid-cols-[100px_1fr]">
+              <div>
+                <label for="ck-shipping-state" class="mb-1 block text-xs font-semibold text-navy-700">UF</label>
+                <input id="ck-shipping-state" maxlength="2"
+                  value="${escapeHtml(state.checkoutDraft.shippingState)}"
+                  ${state.shippingAddressMode === "cep" ? "readonly" : ""}
+                  class="w-full uppercase rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200 ${state.shippingAddressMode === "cep" ? "bg-navy-50" : ""}"
+                  placeholder="RN" />
+              </div>
+              <div>
+                <label for="ck-shipping-complement" class="mb-1 block text-xs font-semibold text-navy-700">Complemento (opcional)</label>
+                <input id="ck-shipping-complement"
+                  value="${escapeHtml(state.checkoutDraft.shippingComplement)}"
+                  class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+                  placeholder="Apartamento, bloco, referência..." />
+              </div>
+            </div>
+
             <button type="button" id="ck-calculate-shipping" class="mt-3 large-touch-action w-full rounded-lg bg-navy-900 px-4 py-2.5 font-semibold text-white">Calcular entrega</button>
             <div id="ck-shipping-quote" class="shipping-quote-box mt-3 ${state.shippingQuote?.type === "motoboy" ? "is-ready" : state.shippingQuote?.type === "pac" ? "is-pac" : ""}">
               ${state.shippingQuote
@@ -3199,7 +3409,7 @@ function renderCheckout() {
                   : state.shippingQuote.type === "pac"
                     ? `<b>Correios PAC</b><br>Valor a calcular e confirmar pelo WhatsApp.${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}`
                     : `Entrega a confirmar pelo WhatsApp.`
-                : `Informe o CEP para calcular a forma de entrega.`}
+                : `${state.shippingAddressMode === "cep" ? "Informe o CEP. O endereço será preenchido automaticamente." : "Preencha o endereço para calcular a entrega."}`}
             </div>
             <p class="mt-2 text-[11px] text-navy-500">Ponto de saída: ${STORE_ORIGIN_ADDRESS} · CEP ${formatCep(STORE_ORIGIN_CEP)}.</p>
           </div>
@@ -3352,25 +3562,58 @@ function renderCheckout() {
     });
   });
 
+  document.getElementById("ck-toggle-address-mode")?.addEventListener("click", () => {
+    captureCheckoutDraft();
+    state.shippingAddressMode = state.shippingAddressMode === "cep" ? "manual" : "cep";
+    state.shippingQuote = null;
+    render();
+    requestAnimationFrame(() => {
+      document.getElementById("ck-shipping-cep")?.focus();
+    });
+  });
+
   const shippingCepInput = document.getElementById("ck-shipping-cep");
+  let cepLookupTimer = null;
   shippingCepInput?.addEventListener("input", () => {
     shippingCepInput.value = formatCep(shippingCepInput.value);
     state.checkoutDraft.shippingCep = shippingCepInput.value;
     state.shippingQuote = null;
-  });
-  document.getElementById("ck-shipping-number")?.addEventListener("input", (e) => {
-    state.checkoutDraft.shippingNumber = e.target.value;
-    state.shippingQuote = null;
-  });
-  document.getElementById("ck-shipping-complement")?.addEventListener("input", (e) => {
-    state.checkoutDraft.shippingComplement = e.target.value;
-  });
-  document.getElementById("ck-calculate-shipping")?.addEventListener("click", calculateShippingQuote);
-  shippingCepInput?.addEventListener("blur", () => {
-    if (state.shippingMethod === "delivery" && normalizeCep(shippingCepInput.value).length === 8 && !state.shippingQuote) {
-      calculateShippingQuote();
+
+    if (state.shippingAddressMode === "cep") {
+      clearTimeout(cepLookupTimer);
+      if (normalizeCep(shippingCepInput.value).length === 8) {
+        cepLookupTimer = setTimeout(() => autofillShippingFromCep(), 250);
+      }
     }
   });
+  shippingCepInput?.addEventListener("blur", () => {
+    if (state.shippingAddressMode === "cep" && normalizeCep(shippingCepInput.value).length === 8) {
+      autofillShippingFromCep();
+    }
+  });
+
+  ["street", "number", "neighborhood", "city", "state", "complement"].forEach((field) => {
+    const id = `ck-shipping-${field}`;
+    document.getElementById(id)?.addEventListener("input", (e) => {
+      const stateMap = {
+        street: "shippingStreet",
+        number: "shippingNumber",
+        neighborhood: "shippingNeighborhood",
+        city: "shippingCity",
+        state: "shippingState",
+        complement: "shippingComplement",
+      };
+      let value = e.target.value;
+      if (field === "state") {
+        value = value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
+        e.target.value = value;
+      }
+      state.checkoutDraft[stateMap[field]] = value;
+      state.shippingQuote = null;
+    });
+  });
+
+  document.getElementById("ck-calculate-shipping")?.addEventListener("click", calculateShippingQuote);
 
   document.querySelectorAll(".checkout-payment-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -3715,19 +3958,38 @@ async function onSubmitOrder(e) {
   }
 
   if (state.shippingMethod === "delivery") {
-    const shippingCep = normalizeCep(document.getElementById("ck-shipping-cep")?.value || "");
-    const shippingNumber = document.getElementById("ck-shipping-number")?.value.trim() || "";
-    if (shippingCep.length !== 8) {
-      showCheckoutFieldError("Informe o CEP da entrega.", "ck-shipping-cep");
+    const fields = getShippingAddressFields();
+
+    if (state.shippingAddressMode === "cep" && fields.cep.length !== 8) {
+      showCheckoutFieldError("Informe um CEP válido ou toque em “Não sei meu CEP”.", "ck-shipping-cep");
       return;
     }
-    if (!shippingNumber) {
+    if (!fields.street) {
+      showCheckoutFieldError("Informe o endereço da entrega.", "ck-shipping-street");
+      return;
+    }
+    if (!fields.number) {
       showCheckoutFieldError("Informe o número do endereço de entrega.", "ck-shipping-number");
       return;
     }
+    if (!fields.neighborhood) {
+      showCheckoutFieldError("Informe o bairro da entrega.", "ck-shipping-neighborhood");
+      return;
+    }
+    if (!fields.city) {
+      showCheckoutFieldError("Informe a cidade da entrega.", "ck-shipping-city");
+      return;
+    }
+    if (!fields.stateUf || fields.stateUf.length !== 2) {
+      showCheckoutFieldError("Informe a UF com 2 letras, por exemplo RN.", "ck-shipping-state");
+      return;
+    }
+
+    persistShippingAddressFields(fields);
+
     if (!state.shippingQuote) await calculateShippingQuote();
     if (!state.shippingQuote) {
-      showCheckoutFieldError("Não foi possível calcular a entrega. Tente novamente ou escolha retirada.", "ck-shipping-cep");
+      showCheckoutFieldError("Não foi possível calcular a entrega. Tente novamente ou escolha retirada.", "ck-shipping-street");
       return;
     }
   }
@@ -3753,7 +4015,14 @@ async function onSubmitOrder(e) {
       ? `Entrega por motoboy: ${state.shippingQuote.distanceKm.toFixed(1)} km, taxa ${formatBRL(state.shippingQuote.fee)}. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
       : state.shippingQuote?.type === "pac"
         ? `Envio Correios PAC, valor a calcular. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
-        : `Entrega a confirmar. CEP ${state.checkoutDraft.shippingCep || ""}.`;
+        : `Entrega a confirmar. Endereço: ${[
+            state.checkoutDraft.shippingStreet,
+            state.checkoutDraft.shippingNumber,
+            state.checkoutDraft.shippingNeighborhood,
+            state.checkoutDraft.shippingCity,
+            state.checkoutDraft.shippingState,
+            state.checkoutDraft.shippingCep ? `CEP ${state.checkoutDraft.shippingCep}` : ""
+          ].filter(Boolean).join(", ")}.`;
   const orderNotes = [notes, shippingNote].filter(Boolean).join(" | ");
 
   const { error: orderError } = await supabaseClient.from("orders").insert({
@@ -3866,9 +4135,12 @@ async function onSubmitOrder(e) {
   state.appliedCoupon = null;
   state.checkoutDraft = {
     name: "", whatsapp: "", instagram: "", notes: "",
-    shippingCep: "", shippingNumber: "", shippingComplement: ""
+    shippingCep: "", shippingStreet: "", shippingNumber: "",
+    shippingNeighborhood: "", shippingCity: "", shippingState: "",
+    shippingComplement: ""
   };
   state.shippingMethod = "pickup";
+  state.shippingAddressMode = "cep";
   state.shippingQuote = null;
   state.lastOrderNumber = orderNumber;
   state.lastOrderWhatsapp = whatsapp;
