@@ -1,19 +1,31 @@
-// Service worker mínimo, só pra habilitar "Adicionar à tela inicial"
-// nos navegadores que exigem um (Chrome/Android). DE PROPÓSITO não
-// guarda nada em cache: o catálogo mostra estoque e preço em tempo
-// real vindos do Supabase, então cachear a página correria o risco de
-// mostrar produto esgotado como disponível (ou vice-versa) pra quem
-// abrir pelo ícone da tela inicial. Toda requisição vai direto pra
-// rede, sempre — o app instalado se comporta exatamente igual ao site
-// aberto no navegador, só que sem a barra de endereço.
+const CACHE_NAME = "luz-mariana-shell-v1";
+const SHELL = ["./", "./manifest.json", "./logo-symbol.png"];
+
 self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) =>
+    Promise.all(SHELL.map((url) => cache.add(url).catch(() => null)))
+  ));
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
+  event.waitUntil(caches.keys().then((keys) =>
+    Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+  ));
   self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
-  event.respondWith(fetch(event.request));
+  if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+        return response;
+      })
+      .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./")))
+  );
 });
