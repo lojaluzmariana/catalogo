@@ -429,6 +429,30 @@
     margin-top:8px; border-radius:10px; background:#fff; padding:9px 10px;
     color:#52618a; font-size:12px;
   }
+  .shipping-free-badge {
+    display:inline-flex; align-items:center; gap:5px; border-radius:999px;
+    background:#ecfdf3; color:#166534; border:1px solid #bbf7d0;
+    padding:5px 9px; font-size:11px; font-weight:700;
+  }
+  .shipping-stale-note {
+    margin-top:8px; border-radius:10px; background:#fff7ed; color:#9a3412;
+    border:1px solid #fed7aa; padding:8px 10px; font-size:11px; font-weight:600;
+  }
+  .checkout-edit-btn {
+    min-height:38px; border:1px solid #d8dce8; border-radius:9px; background:#fff;
+    color:#33436f; padding:0 10px; font-size:11px; font-weight:700;
+  }
+  .checkout-section-heading {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .saved-address-box {
+    margin-top:10px; border:1px solid #dfe3ec; border-radius:11px;
+    background:#fff; padding:10px; font-size:12px; color:#52618a;
+  }
+  .field-inline-status { margin-top:4px; min-height:16px; font-size:11px; }
+  .field-inline-status.is-error { color:#b42318; }
+  .field-inline-status.is-ok { color:#166534; }
+
   .product-description-box summary { cursor: pointer; font-weight: 700; color: #001868; padding: 8px 0; }
   @media (min-width: 640px) { .product-description-box summary { display: none; } }
   .large-touch-action { min-height: 48px; font-size: 15px !important; }
@@ -841,6 +865,7 @@ const PAYMENT_PREF_KEY = "luzmariana_payment_v1";
 const CONTRAST_PREF_KEY = "luzmariana_contrast_v1";
 const RECENT_PRODUCTS_KEY = "luzmariana_recent_products_v1";
 const CART_RESTORED_SESSION_KEY = "luzmariana_cart_restored_seen_v1";
+const SAVED_ADDRESS_KEY = "luzmariana_saved_delivery_address_v1";
 
 function loadFontSizePreference() {
   try { return localStorage.getItem(FONT_SIZE_PREF_KEY) === "large" ? "large" : "normal"; }
@@ -1180,6 +1205,10 @@ const state = {
   shippingMethod: "pickup",
   shippingAddressMode: "cep", // cep | manual
   shippingQuote: null,
+  shippingQuoteStale: false,
+  saveShippingAddress: false,
+  checkoutStage: "review",
+  checkoutSubmitted: false,
   catalogScrollY: 0,
   variantScrollLeft: {},
 };
@@ -1775,6 +1804,158 @@ async function drivingDistanceKm(origin, destination) {
     return null;
   }
 }
+function loadSavedShippingAddress() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SAVED_ADDRESS_KEY) || "null");
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (_err) { return null; }
+}
+
+function saveShippingAddressLocally(fields) {
+  try {
+    localStorage.setItem(SAVED_ADDRESS_KEY, JSON.stringify({
+      cep: fields.cep || "",
+      street: fields.street || "",
+      number: fields.number || "",
+      neighborhood: fields.neighborhood || "",
+      city: fields.city || "",
+      stateUf: fields.stateUf || "",
+      complement: fields.complement || "",
+    }));
+  } catch (_err) {}
+}
+
+function clearSavedShippingAddress() {
+  try { localStorage.removeItem(SAVED_ADDRESS_KEY); } catch (_err) {}
+}
+
+function checkoutHasProgress() {
+  const d = state.checkoutDraft || {};
+  return state.screen === "checkout" && (
+    !!d.name || !!d.whatsapp || !!d.notes ||
+    !!d.shippingCep || !!d.shippingStreet || !!d.shippingNumber ||
+    state.shippingMethod === "delivery" || state.giftWrapWanted
+  );
+}
+
+function confirmCheckoutExit() {
+  if (!checkoutHasProgress()) return true;
+  return window.confirm("Você já preencheu parte do pedido. Deseja sair do checkout? Seus itens continuarão salvos no carrinho.");
+}
+
+function setCheckoutStage(stage) {
+  if (state.checkoutStage === stage) return;
+  state.checkoutStage = stage;
+  trackEvent("checkout_stage", { stage });
+}
+
+function markShippingQuoteStale(message = "Endereço alterado. Recalculando a entrega…") {
+  if (state.shippingMethod !== "delivery") return;
+  state.shippingQuoteStale = true;
+  state.shippingQuote = null;
+  updateCheckoutTotals();
+  const quoteBox = document.getElementById("ck-shipping-quote");
+  if (quoteBox) {
+    quoteBox.className = "shipping-quote-box";
+    quoteBox.innerHTML = `<div class="shipping-stale-note">${escapeHtml(message)}</div>`;
+  }
+}
+
+function setShippingInputsReadonly(readonly) {
+  ["ck-shipping-street","ck-shipping-neighborhood","ck-shipping-city","ck-shipping-state"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.readOnly = readonly;
+    el.classList.toggle("bg-navy-50", readonly);
+  });
+}
+
+async function reverseGeocodeCoordinates(lat, lon) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&addressdetails=1`, {
+      headers: { "Accept": "application/json" }
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const a = data?.address || {};
+    return {
+      cep: normalizeCep(a.postcode || ""),
+      street: a.road || a.pedestrian || a.residential || a.street || "",
+      number: a.house_number || "",
+      neighborhood: a.suburb || a.neighbourhood || a.quarter || a.city_district || "",
+      city: a.city || a.town || a.village || a.municipality || "",
+      stateUf: String(a["ISO3166-2-lvl4"] || "").split("-").pop() || "",
+      complement: "",
+    };
+  } catch (_err) { return null; }
+}
+
+async function useCurrentLocationForShipping() {
+  const status = document.getElementById("ck-shipping-location-status");
+  if (!navigator.geolocation) {
+    if (status) {
+      status.textContent = "Seu navegador não oferece localização automática.";
+      status.className = "field-inline-status is-error";
+    }
+    return;
+  }
+  if (status) {
+    status.textContent = "Obtendo sua localização…";
+    status.className = "field-inline-status";
+  }
+
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const fields = await reverseGeocodeCoordinates(pos.coords.latitude, pos.coords.longitude);
+    if (!fields || !fields.street || !fields.city) {
+      if (status) {
+        status.textContent = "Não conseguimos preencher o endereço pela localização. Você pode digitá-lo manualmente.";
+        status.className = "field-inline-status is-error";
+      }
+      state.shippingAddressMode = "manual";
+      setShippingInputsReadonly(false);
+      return;
+    }
+
+    state.shippingAddressMode = "manual";
+    const current = getShippingAddressFields();
+    const merged = { ...current, ...fields, number: current.number || fields.number || "" };
+    persistShippingAddressFields(merged);
+    fillShippingAddressInputs(merged);
+    setShippingInputsReadonly(false);
+    markShippingQuoteStale("Localização preenchida. Confira o endereço e informe o número, se necessário.");
+    if (status) {
+      status.textContent = "Localização preenchida. Confira os dados antes de calcular.";
+      status.className = "field-inline-status is-ok";
+    }
+  }, () => {
+    if (status) {
+      status.textContent = "Não foi possível acessar sua localização. Verifique a permissão do navegador.";
+      status.className = "field-inline-status is-error";
+    }
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+}
+
+async function validateAddressConsistency(fields) {
+  if (!fields.cep || fields.cep.length !== 8) return true;
+  try {
+    const data = await fetchCepData(fields.cep);
+    const cepCity = String(data.city || "").trim().toLowerCase();
+    const cepState = String(data.state || "").trim().toUpperCase();
+    const typedCity = String(fields.city || "").trim().toLowerCase();
+    const typedState = String(fields.stateUf || "").trim().toUpperCase();
+
+    const cityDiffers = cepCity && typedCity && cepCity !== typedCity;
+    const stateDiffers = cepState && typedState && cepState !== typedState;
+    if (!cityDiffers && !stateDiffers) return true;
+
+    return window.confirm(
+      `O CEP informado corresponde a ${data.city || "outra cidade"}/${data.state || ""}, mas o endereço está como ${fields.city}/${fields.stateUf}. Deseja continuar com o endereço digitado?`
+    );
+  } catch (_err) {
+    return true;
+  }
+}
+
 function getShippingAddressFields() {
   return {
     cep: normalizeCep(document.getElementById("ck-shipping-cep")?.value || state.checkoutDraft.shippingCep),
@@ -1842,7 +2023,23 @@ async function autofillShippingFromCep() {
     persistShippingAddressFields(fields);
     fillShippingAddressInputs(fields);
     state.shippingQuote = null;
-    if (status) status.textContent = "Endereço preenchido. Informe apenas o número.";
+    state.shippingQuoteStale = true;
+
+    const incomplete = !fields.street || !fields.neighborhood || !fields.city || !fields.stateUf;
+    if (incomplete) {
+      state.shippingAddressMode = "manual";
+      setShippingInputsReadonly(false);
+      if (status) {
+        status.textContent = "O CEP não trouxe todos os dados. Complete os campos que faltam.";
+        status.className = "field-inline-status is-error";
+      }
+    } else {
+      setShippingInputsReadonly(true);
+      if (status) {
+        status.textContent = "Endereço preenchido. Informe apenas o número.";
+        status.className = "field-inline-status is-ok";
+      }
+    }
     return true;
   } catch (_err) {
     if (status) status.textContent = "CEP não localizado. Você pode preencher o endereço manualmente.";
@@ -1868,6 +2065,13 @@ async function calculateShippingQuote() {
     quoteBox.className = "shipping-quote-box is-error";
     quoteBox.textContent = "Preencha endereço, número, bairro, cidade e UF para calcular a entrega.";
     updateCheckoutTotals();
+    return;
+  }
+
+  const consistent = await validateAddressConsistency(fields);
+  if (!consistent) {
+    quoteBox.className = "shipping-quote-box is-error";
+    quoteBox.textContent = "Confira o endereço antes de calcular a entrega.";
     return;
   }
 
@@ -1928,10 +2132,12 @@ async function calculateShippingQuote() {
 
     if (!originCoords || !destinationCoords) {
       state.shippingQuote = { type:"manual", fee:0, cep:formatCep(fields.cep), address };
+      state.shippingQuoteStale = false;
       quoteBox.className = "shipping-quote-box is-error";
       quoteBox.innerHTML = `<b>Não conseguimos calcular a distância automaticamente.</b><br>
-        Você ainda pode finalizar o pedido; confirmaremos a entrega pelo WhatsApp.
-        ${address ? `<div class="shipping-address-summary">${escapeHtml(address)}</div>` : ""}`;
+        Você pode continuar normalmente; a Luz Mariana confirma a forma e o valor da entrega pelo WhatsApp antes da confirmação final do pedido.
+        ${address ? `<div class="shipping-address-summary">${escapeHtml(address)}</div>` : ""}
+        <button type="button" id="ck-continue-manual-shipping" class="mt-3 large-touch-action w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">Continuar e confirmar entrega pelo WhatsApp</button>`;
       updateCheckoutTotals();
       return;
     }
@@ -1967,10 +2173,12 @@ async function calculateShippingQuote() {
         cep: formatCep(fields.cep),
         address
       };
+      state.shippingQuoteStale = false;
       quoteBox.className = "shipping-quote-box is-error";
       quoteBox.innerHTML = `<b>Não conseguimos calcular a distância com segurança.</b><br>
-        A Luz Mariana confirma a taxa de entrega pelo WhatsApp antes do envio.
-        <div class="shipping-address-summary">${escapeHtml(address)}</div>`;
+        Você pode continuar normalmente; a Luz Mariana confirma a entrega pelo WhatsApp antes da confirmação final do pedido.
+        <div class="shipping-address-summary">${escapeHtml(address)}</div>
+        <button type="button" id="ck-continue-manual-shipping" class="mt-3 large-touch-action w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">Continuar e confirmar entrega pelo WhatsApp</button>`;
       updateCheckoutTotals();
       return;
     }
@@ -1993,25 +2201,37 @@ async function calculateShippingQuote() {
         address
       };
 
+      state.shippingQuoteStale = false;
       quoteBox.className = "shipping-quote-box is-ready";
       quoteBox.innerHTML = `<b>Entrega por motoboy disponível</b><br>
         Distância estimada do trajeto: <b>${distanceKm.toFixed(1).replace(".", ",")} km</b><br>
-        <b>Valor da entrega: ${isFreeDelivery ? "Grátis" : formatBRL(fee)}</b>
+        ${isFreeDelivery ? `<span class="shipping-free-badge mt-2">Entrega grátis</span>` : `<b>Valor da entrega: ${formatBRL(fee)}</b>`}
         <div class="shipping-address-summary">${escapeHtml(address)}</div>
-        <p class="mt-2 text-[11px] text-navy-500">Estimativa baseada na localização do endereço. A loja confirma os dados antes do envio.</p>`;
+        <p class="mt-2 text-xs text-navy-600"><b>Prazo da entrega:</b> horário combinado após a finalização do pedido.</p>
+        <p class="mt-1 text-[11px] text-navy-500">Estimativa baseada na localização do endereço. A loja confirma os dados antes do envio.</p>`;
     } else {
       state.shippingQuote = { type:"pac", fee:0, distanceKm, cep:formatCep(fields.cep), address };
+      state.shippingQuoteStale = false;
       quoteBox.className = "shipping-quote-box is-pac";
       quoteBox.innerHTML = `<b>Envio pelos Correios — PAC</b><br>
         O endereço fica fora do raio de ${LOCAL_DELIVERY_RADIUS_KM} km para motoboy.
-        O valor do PAC será calculado conforme CEP, peso e dimensões do pedido e confirmado pelo WhatsApp.
-        <div class="shipping-address-summary">${escapeHtml(address)}</div>`;
+        <b>Frete e prazo do PAC serão informados antes da confirmação final do pedido.</b>
+        <div class="shipping-address-summary">${escapeHtml(address)}</div>
+        <p class="mt-2 text-xs text-navy-600"><b>Prazo da entrega:</b> contado a partir da finalização do pedido, conforme a cotação dos Correios.</p>`;
     }
     updateCheckoutTotals();
   } catch (err) {
-    state.shippingQuote = null;
+    const address = [
+      fields.street, fields.number, fields.neighborhood,
+      fields.city, fields.stateUf, fields.cep ? `CEP ${formatCep(fields.cep)}` : ""
+    ].filter(Boolean).join(", ");
+    state.shippingQuote = { type:"manual", fee:0, cep:formatCep(fields.cep), address };
+    state.shippingQuoteStale = false;
     quoteBox.className = "shipping-quote-box is-error";
-    quoteBox.innerHTML = `<b>Não foi possível calcular a entrega agora.</b><br>${escapeHtml(err?.message || "Tente novamente.")}`;
+    quoteBox.innerHTML = `<b>O serviço de mapa não respondeu agora.</b><br>
+      Você pode continuar normalmente; a entrega será confirmada pelo WhatsApp antes da confirmação final do pedido.
+      ${address ? `<div class="shipping-address-summary">${escapeHtml(address)}</div>` : ""}
+      <button type="button" id="ck-continue-manual-shipping" class="mt-3 large-touch-action w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">Continuar e confirmar entrega pelo WhatsApp</button>`;
     updateCheckoutTotals();
   }
 }
@@ -3334,13 +3554,6 @@ function renderCheckout() {
         <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">5 WhatsApp</span>
       </div>
 
-      <div class="checkout-sticky-summary" aria-live="polite">
-        <div class="flex items-center justify-between gap-3 text-sm">
-          <span><b>${cartCount()} ${cartCount() === 1 ? "item" : "itens"}</b> · <span id="ck-sticky-total">${formatBRL(orderTotal())}</span></span>
-          <span class="text-gold-700">Confirmar hoje: <b id="ck-sticky-deposit">${formatBRL(orderTotal() * DEPOSIT_RATE)}</b></span>
-        </div>
-      </div>
-
       <div class="mb-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
         <p class="mb-2 text-sm font-semibold text-navy-800">Revise seu pedido</p>
         ${items.map((it) => {
@@ -3406,7 +3619,10 @@ function renderCheckout() {
           <p id="ck-whatsapp-msg" class="mt-1 text-xs text-navy-400">É pra esse número que vamos confirmar seu pedido.</p>
         </div>
         <div class="rounded-xl border border-navy-100 bg-cream-50 p-3">
-          <label class="mb-2 block text-base font-semibold text-navy-900"><span class="checkout-step-badge">3</span>Entrega ou retirada</label>
+          <div id="checkout-shipping-section" class="checkout-section-heading mb-2">
+            <label class="block text-base font-semibold text-navy-900"><span class="checkout-step-badge">3</span>Entrega ou retirada</label>
+            <button type="button" data-scroll-checkout="checkout-shipping-section" class="checkout-edit-btn">Editar</button>
+          </div>
           <p class="mb-3 text-xs text-navy-500">Escolha como deseja receber o pedido.</p>
 
           <div class="shipping-method-grid">
@@ -3418,6 +3634,26 @@ function renderCheckout() {
             <p class="mb-2 rounded-lg bg-white px-3 py-2 text-xs text-navy-600">
               Até 15 km: <b>entregador/motoboy</b> · acima de 15 km: <b>Correios PAC</b>.
             </p>
+
+            <button type="button" id="ck-use-location" class="large-touch-action mb-2 w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">
+              Usar minha localização
+            </button>
+            <p id="ck-shipping-location-status" class="field-inline-status"></p>
+
+            ${loadSavedShippingAddress() ? `
+              <div class="saved-address-box">
+                <div class="flex items-center justify-between gap-2">
+                  <span><b>Endereço salvo neste aparelho</b><br>${escapeHtml([
+                    loadSavedShippingAddress().street,
+                    loadSavedShippingAddress().number,
+                    loadSavedShippingAddress().neighborhood,
+                    loadSavedShippingAddress().city,
+                    loadSavedShippingAddress().stateUf
+                  ].filter(Boolean).join(", "))}</span>
+                  <button type="button" id="ck-use-saved-address" class="checkout-edit-btn">Usar</button>
+                </div>
+              </div>
+            ` : ""}
             <p class="mb-2 text-[11px] leading-relaxed text-navy-500">
               Para produtos sob encomenda, o prazo de produção começa após a confirmação do pedido. O prazo da entrega começa após a finalização do pedido.
             </p>
@@ -3496,13 +3732,18 @@ function renderCheckout() {
               </div>
             </div>
 
+            <label class="mt-3 flex items-center gap-2 text-xs text-navy-600">
+              <input id="ck-save-address" type="checkbox" ${state.saveShippingAddress ? "checked" : ""} class="h-4 w-4 rounded border-navy-300" />
+              Salvar este endereço neste aparelho para a próxima compra
+            </label>
+
             <button type="button" id="ck-calculate-shipping" class="mt-3 large-touch-action w-full rounded-lg bg-navy-900 px-4 py-2.5 font-semibold text-white">Calcular entrega</button>
             <div id="ck-shipping-quote" class="shipping-quote-box mt-3 ${state.shippingQuote?.type === "motoboy" ? "is-ready" : state.shippingQuote?.type === "pac" ? "is-pac" : ""}">
               ${state.shippingQuote
                 ? state.shippingQuote.type === "motoboy"
-                  ? `<b>Motoboy disponível</b><br>${state.shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km · <b>Valor da entrega: ${state.shippingQuote.free ? "Grátis" : formatBRL(state.shippingQuote.fee)}</b>${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}`
+                  ? `<b>Motoboy disponível</b><br>${state.shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km · ${state.shippingQuote.free ? `<span class="shipping-free-badge">Entrega grátis</span>` : `<b>Valor da entrega: ${formatBRL(state.shippingQuote.fee)}</b>`}${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}<p class="mt-2 text-xs text-navy-600"><b>Prazo:</b> horário combinado após a finalização do pedido.</p>`
                   : state.shippingQuote.type === "pac"
-                    ? `<b>Correios PAC</b><br>Valor a calcular e confirmar pelo WhatsApp.${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}`
+                    ? `<b>Correios PAC</b><br><b>Frete e prazo serão informados antes da confirmação final do pedido.</b>${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}<p class="mt-2 text-xs text-navy-600"><b>Prazo:</b> contado a partir da finalização do pedido, conforme a cotação dos Correios.</p>`
                     : `Entrega a confirmar pelo WhatsApp.`
                 : `${state.shippingAddressMode === "cep" ? "Informe o CEP. O endereço será preenchido automaticamente." : "Preencha o endereço para calcular a entrega."}`}
             </div>
@@ -3510,8 +3751,17 @@ function renderCheckout() {
           </div>
         </div>
 
+        <div class="rounded-xl border border-navy-100 bg-white p-3 text-sm text-navy-600">
+          <p class="font-semibold text-navy-900">Prazos do pedido</p>
+          <p class="mt-1"><b>Produção:</b> até 2 dias úteis, contados a partir da confirmação do pedido, quando o item for sob encomenda.</p>
+          <p class="mt-1"><b>Entrega:</b> o prazo começa a partir da finalização do pedido. Motoboy tem horário combinado; PAC segue o prazo informado na cotação.</p>
+        </div>
+
         <div>
-          <label class="mb-2 block text-base font-semibold text-navy-900"><span class="checkout-step-badge">4</span>Forma de pagamento</label>
+          <div id="checkout-payment-section" class="checkout-section-heading mb-2">
+            <label class="block text-base font-semibold text-navy-900"><span class="checkout-step-badge">4</span>Forma de pagamento</label>
+            <button type="button" data-scroll-checkout="checkout-payment-section" class="checkout-edit-btn">Editar</button>
+          </div>
           <div class="flex gap-1 rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
             <button type="button" data-payment="pix" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / à vista</button>
             <button type="button" data-payment="credito" class="checkout-payment-btn flex-1 rounded-md px-3 py-1.5 font-medium transition ${state.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
@@ -3588,6 +3838,8 @@ function renderCheckout() {
 
   document.getElementById("back-to-catalog-btn").addEventListener("click", () => {
     captureCheckoutDraft();
+    if (!confirmCheckoutExit()) return;
+    trackEvent("checkout_abandonment", { stage: state.checkoutStage, reason: "back_to_catalog" });
     state.screen = "catalog";
     render();
     requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
@@ -3651,9 +3903,43 @@ function renderCheckout() {
   document.querySelectorAll("[data-shipping-method]").forEach((btn) => {
     btn.addEventListener("click", () => {
       captureCheckoutDraft();
+      setCheckoutStage("shipping");
       state.shippingMethod = btn.dataset.shippingMethod;
       if (state.shippingMethod === "pickup") state.shippingQuote = null;
       render();
+    });
+  });
+
+  document.getElementById("ck-use-location")?.addEventListener("click", () => {
+    setCheckoutStage("shipping");
+    useCurrentLocationForShipping();
+  });
+
+  document.getElementById("ck-use-saved-address")?.addEventListener("click", () => {
+    const savedAddress = loadSavedShippingAddress();
+    if (!savedAddress) return;
+    state.shippingAddressMode = "manual";
+    persistShippingAddressFields(savedAddress);
+    fillShippingAddressInputs(savedAddress);
+    setShippingInputsReadonly(false);
+    markShippingQuoteStale("Endereço salvo carregado. Recalculando a entrega…");
+    setTimeout(() => calculateShippingQuote(), 400);
+  });
+
+  document.getElementById("ck-save-address")?.addEventListener("change", (e) => {
+    state.saveShippingAddress = e.target.checked;
+  });
+
+  document.getElementById("checkout-edit-products")?.addEventListener("click", () => {
+    captureCheckoutDraft();
+    state.screen = "catalog";
+    render();
+    window.scrollTo({ top: state.catalogScrollY || 0, behavior: "auto" });
+  });
+
+  document.querySelectorAll("[data-scroll-checkout]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById(btn.dataset.scrollCheckout)?.scrollIntoView({ behavior:"smooth", block:"center" });
     });
   });
 
@@ -3670,14 +3956,21 @@ function renderCheckout() {
   const shippingCepInput = document.getElementById("ck-shipping-cep");
   let cepLookupTimer = null;
   shippingCepInput?.addEventListener("input", () => {
+    setCheckoutStage("shipping");
     shippingCepInput.value = formatCep(shippingCepInput.value);
     state.checkoutDraft.shippingCep = shippingCepInput.value;
-    state.shippingQuote = null;
+    markShippingQuoteStale("CEP alterado. Atualizando o endereço…");
 
     if (state.shippingAddressMode === "cep") {
       clearTimeout(cepLookupTimer);
       if (normalizeCep(shippingCepInput.value).length === 8) {
-        cepLookupTimer = setTimeout(() => autofillShippingFromCep(), 250);
+        cepLookupTimer = setTimeout(async () => {
+          const ok = await autofillShippingFromCep();
+          const fields = getShippingAddressFields();
+          if (ok && fields.street && fields.number && fields.neighborhood && fields.city && fields.stateUf) {
+            calculateShippingQuote();
+          }
+        }, 250);
       }
     }
   });
@@ -3686,6 +3979,17 @@ function renderCheckout() {
       autofillShippingFromCep();
     }
   });
+
+  let shippingRecalcTimer = null;
+  const scheduleShippingRecalc = () => {
+    if (state.shippingMethod !== "delivery") return;
+    clearTimeout(shippingRecalcTimer);
+    markShippingQuoteStale();
+    const fields = getShippingAddressFields();
+    if (fields.street && fields.number && fields.neighborhood && fields.city && fields.stateUf) {
+      shippingRecalcTimer = setTimeout(() => calculateShippingQuote(), 1200);
+    }
+  };
 
   ["street", "number", "neighborhood", "city", "state", "complement"].forEach((field) => {
     const id = `ck-shipping-${field}`;
@@ -3704,15 +4008,27 @@ function renderCheckout() {
         e.target.value = value;
       }
       state.checkoutDraft[stateMap[field]] = value;
-      state.shippingQuote = null;
+      if (field !== "complement") scheduleShippingRecalc();
     });
   });
 
-  document.getElementById("ck-calculate-shipping")?.addEventListener("click", calculateShippingQuote);
+  document.getElementById("ck-calculate-shipping")?.addEventListener("click", () => {
+    setCheckoutStage("shipping");
+    calculateShippingQuote();
+  });
+
+  document.addEventListener("click", (e) => {
+    if (e.target?.id === "ck-continue-manual-shipping") {
+      setCheckoutStage("shipping");
+      e.target.textContent = "Entrega será confirmada pelo WhatsApp";
+      e.target.disabled = true;
+    }
+  });
 
   document.querySelectorAll(".checkout-payment-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       captureCheckoutDraft();
+      setCheckoutStage("payment");
       state.payment = btn.dataset.payment;
       savePaymentPreference(state.payment);
       render();
@@ -3724,7 +4040,41 @@ function renderCheckout() {
     checkoutWhatsappInput.value = formatPhoneInputMask(checkoutWhatsappInput.value);
     state.checkoutDraft.whatsapp = checkoutWhatsappInput.value;
   });
-  checkoutWhatsappInput.addEventListener("blur", onWhatsappBlur);
+  const validateNameLive = () => {
+    const el = document.getElementById("ck-name");
+    const status = document.getElementById("ck-name-status");
+    if (!el || !status) return;
+    const ok = el.value.trim().length >= 2;
+    status.textContent = el.value ? (ok ? "Nome preenchido." : "Digite seu nome completo ou como prefere ser chamado.") : "";
+    status.className = `field-inline-status ${el.value ? (ok ? "is-ok" : "is-error") : ""}`;
+  };
+  document.getElementById("ck-name")?.addEventListener("input", () => {
+    setCheckoutStage("data");
+    state.checkoutDraft.name = document.getElementById("ck-name").value;
+    validateNameLive();
+  });
+
+  const validateWhatsappLive = () => {
+    const status = document.getElementById("ck-whatsapp-status");
+    if (!status) return;
+    const digits = String(checkoutWhatsappInput.value || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+    if (!digits.length) {
+      status.textContent = "";
+      status.className = "field-inline-status";
+      return;
+    }
+    const ok = digits.length === 10 || digits.length === 11;
+    status.textContent = ok ? "WhatsApp válido." : "Informe DDD + número.";
+    status.className = `field-inline-status ${ok ? "is-ok" : "is-error"}`;
+  };
+  checkoutWhatsappInput.addEventListener("input", () => {
+    setCheckoutStage("data");
+    validateWhatsappLive();
+  });
+  checkoutWhatsappInput.addEventListener("blur", () => {
+    onWhatsappBlur();
+    validateWhatsappLive();
+  });
   document.getElementById("checkout-payment-help")?.addEventListener("click", () => {
     const message = "Oi! Estou finalizando um pedido no catálogo da Luz Mariana e tenho uma dúvida sobre o pagamento.";
     window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
@@ -3801,10 +4151,6 @@ function updateCheckoutTotals() {
 
   if (totalEl) totalEl.textContent = formatBRL(orderTotal());
   if (depositEl) depositEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
-  const stickyTotalEl = document.getElementById("ck-sticky-total");
-  const stickyDepositEl = document.getElementById("ck-sticky-deposit");
-  if (stickyTotalEl) stickyTotalEl.textContent = formatBRL(orderTotal());
-  if (stickyDepositEl) stickyDepositEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
   const depositNoteEl = document.getElementById("ck-deposit-note-value");
   if (depositNoteEl) depositNoteEl.textContent = formatBRL(orderTotal() * DEPOSIT_RATE);
   const shippingLabelEl = document.getElementById("ck-shipping-label");
@@ -4081,8 +4427,9 @@ async function onSubmitOrder(e) {
     }
 
     persistShippingAddressFields(fields);
+    if (state.saveShippingAddress) saveShippingAddressLocally(fields);
 
-    if (!state.shippingQuote) await calculateShippingQuote();
+    if (!state.shippingQuote || state.shippingQuoteStale) await calculateShippingQuote();
     if (!state.shippingQuote) {
       showCheckoutFieldError("Não foi possível calcular a entrega. Tente novamente ou escolha retirada.", "ck-shipping-street");
       return;
@@ -4090,6 +4437,14 @@ async function onSubmitOrder(e) {
   }
 
   errorEl.textContent = "";
+  state.checkoutSubmitted = true;
+  setCheckoutStage("whatsapp");
+  trackEvent("checkout_submit", {
+    shipping_method: state.shippingMethod,
+    shipping_type: state.shippingQuote?.type || "pickup",
+    value: orderTotal(),
+    currency: "BRL"
+  });
   submitBtn.disabled = true;
   submitBtn.textContent = "Enviando pedido...";
 
@@ -4140,6 +4495,7 @@ async function onSubmitOrder(e) {
 
   if (orderError) {
     if (waWindow) waWindow.close();
+    state.checkoutSubmitted = false;
     errorEl.textContent = "Não foi possível registrar o pedido: " + orderError.message;
     submitBtn.disabled = false;
     submitBtn.textContent = "Enviar pedido pelo WhatsApp";
@@ -4237,6 +4593,8 @@ async function onSubmitOrder(e) {
   state.shippingMethod = "pickup";
   state.shippingAddressMode = "cep";
   state.shippingQuote = null;
+  state.shippingQuoteStale = false;
+  state.saveShippingAddress = false;
   state.lastOrderNumber = orderNumber;
   state.lastOrderWhatsapp = whatsapp;
   state.screen = "success";
@@ -4301,13 +4659,14 @@ function renderSuccess() {
       <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✓</div>
       <h1 class="mb-2 text-xl font-semibold text-navy-900">Pedido enviado!</h1>
       ${state.lastOrderNumber ? `<p class="mb-1 text-sm font-medium text-navy-800">Pedido Nº ${String(state.lastOrderNumber).padStart(6, "0")}</p>` : ""}
-      <p class="mb-4 text-sm text-navy-600">Confira a aba do WhatsApp que abriu — é só apertar "Enviar" para continuar a confirmação com a Luz Mariana.</p>
+      <p class="mb-4 text-sm text-navy-600">Confira a aba do WhatsApp que abriu e toque em "Enviar". O pedido só é considerado confirmado depois que a mensagem chegar à Luz Mariana e, quando houver sinal, após a confirmação do pagamento.</p>
       <div class="mb-6 w-full rounded-xl border border-navy-100 bg-white p-4 text-left shadow-sm">
         <p class="font-semibold text-navy-900">Próximos passos</p>
         <ol class="mt-2 space-y-2 text-sm text-navy-600">
           <li><b>1.</b> Envie a mensagem que já abrimos no WhatsApp.</li>
-          <li><b>2.</b> A loja confirma disponibilidade, prazo e o sinal do pedido.</li>
-          <li><b>3.</b> Após a confirmação, você pode acompanhar o andamento pelo número do pedido.</li>
+          <li><b>2.</b> A loja confirma disponibilidade, produção, entrega e o sinal do pedido, quando aplicável.</li>
+          <li><b>3.</b> A produção começa após a confirmação do pedido. O prazo de entrega começa após a finalização do pedido.</li>
+          <li><b>4.</b> Depois da confirmação, você pode acompanhar o andamento pelo número do pedido.</li>
         </ol>
       </div>
       <div class="flex flex-col gap-2 sm:flex-row">
@@ -4487,6 +4846,11 @@ function renderTrack() {
 // re-desenhado em toda tela: catálogo, produto, checkout, sucesso...).
 app.addEventListener("click", (e) => {
   if (e.target.closest("[data-go-home]")) {
+    if (state.screen === "checkout") {
+      captureCheckoutDraft();
+      if (!confirmCheckoutExit()) return;
+      trackEvent("checkout_abandonment", { stage: state.checkoutStage, reason: "home" });
+    }
     state.screen = "catalog";
     state.detailProductId = null;
     state.categoryFilter = "all";
@@ -4630,7 +4994,16 @@ window.addEventListener("popstate", () => {
   window.scrollTo({ top: 0, behavior: "auto" });
 });
 
+window.addEventListener("pagehide", () => {
+  if (state.screen === "checkout" && !state.checkoutSubmitted) {
+    trackEvent("checkout_abandonment", { stage: state.checkoutStage, reason: "pagehide" });
+  }
+});
+
 window.addEventListener("beforeunload", (e) => {
+  if (state.screen === "checkout" && !state.checkoutSubmitted && checkoutHasProgress()) {
+    trackEvent("checkout_abandonment", { stage: state.checkoutStage, reason: "page_exit" });
+  }
   if (cartCount() > 0 && state.screen !== "success") {
     e.preventDefault();
     e.returnValue = "";
