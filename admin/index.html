@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v7.3-mobile-audit-2026-09-12" />
+<meta name="luz-mariana-admin-version" content="professional-v7.4-pricing-mobile-2026-09-12" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1060,6 +1060,91 @@
     .orders-kpi-grid{grid-template-columns:1fr}
     .orders-toolbar-actions,.order-card-actions{grid-template-columns:1fr}
     .pro-kpi-grid{grid-template-columns:1fr!important}
+  }
+
+
+  /* =====================================================================
+     V7.4 — PRODUTOS/PRECIFICAÇÃO: leitura profissional no celular
+     A tabela completa continua no desktop; no celular vira cards, evitando
+     colunas esmagadas e mantendo todas as ações/controles existentes.
+     ===================================================================== */
+  .pricing-mobile-list { display:none; }
+  .pricing-desktop-table { display:block; }
+  .pricing-summary-grid {
+    display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px;
+  }
+  .pricing-summary-card {
+    border:1px solid #e2e6ef; border-radius:13px; background:#fff; padding:12px 13px;
+    box-shadow:0 4px 14px rgba(18,35,78,.045); min-width:0;
+  }
+  .pricing-summary-card span { display:block; color:#7b859d; font-size:10px; font-weight:750; }
+  .pricing-summary-card strong { display:block; margin-top:5px; color:#001868; font-size:20px; line-height:1.05; }
+  .pricing-mobile-card {
+    border:1px solid #dfe4ee; border-radius:16px; background:#fff; padding:14px;
+    box-shadow:0 5px 16px rgba(18,36,83,.055); min-width:0;
+  }
+  .pricing-mobile-card.is-inactive { opacity:.68; }
+  .pricing-mobile-head { display:flex; gap:11px; align-items:flex-start; min-width:0; }
+  .pricing-mobile-photo {
+    width:58px; height:58px; flex:0 0 58px; border-radius:11px; object-fit:cover;
+    border:1px solid #e4e7ef; background:#f6f7fa;
+  }
+  .pricing-mobile-photo-placeholder {
+    width:58px; height:58px; flex:0 0 58px; border-radius:11px; display:flex;
+    align-items:center; justify-content:center; background:#f1f3f8; color:#7e89a3; font-size:22px;
+  }
+  .pricing-mobile-title { min-width:0; flex:1; }
+  .pricing-mobile-title h3 { margin:0; color:#10255a; font-size:15px; line-height:1.3; font-weight:800; overflow-wrap:anywhere; }
+  .pricing-mobile-badges { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+  .pricing-mobile-grid {
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px;
+  }
+  .pricing-mobile-metric {
+    min-width:0; border:1px solid #edf0f5; border-radius:10px; background:#fafbfe; padding:9px 10px;
+  }
+  .pricing-mobile-metric span { display:block; color:#7e89a1; font-size:9px; font-weight:750; text-transform:uppercase; letter-spacing:.04em; }
+  .pricing-mobile-metric strong { display:block; margin-top:4px; color:#172c62; font-size:14px; overflow-wrap:anywhere; }
+  .pricing-mobile-metric.good strong { color:#1d7254; }
+  .pricing-mobile-stock { margin-top:12px; border:1px solid #e5e9f0; border-radius:11px; background:#fff; overflow:hidden; }
+  .pricing-mobile-stock-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 10px; background:#f7f8fb; color:#253a6d; font-size:10px; font-weight:800; }
+  .pricing-mobile-stock-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-top:1px solid #edf0f5; }
+  .pricing-mobile-stock-row:first-child { border-top:0; }
+  .pricing-mobile-stock-name { min-width:0; flex:1; color:#53617f; font-size:11px; line-height:1.3; overflow-wrap:anywhere; }
+  .pricing-mobile-stock-controls { flex:none; display:flex; align-items:center; gap:5px; }
+  .pricing-mobile-stock-controls .stock-qty-input { width:64px !important; min-height:36px; font-size:14px !important; }
+  .pricing-mobile-stock-controls .stock-activate-btn { min-height:34px; padding:6px 9px; font-size:10px; }
+  .pricing-mobile-stock-controls .stock-deactivate-btn { min-width:30px; min-height:30px; }
+  .pricing-mobile-toggles { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:11px; }
+  .pricing-mobile-toggle { display:flex; align-items:center; justify-content:space-between; gap:9px; border:1px solid #e6e9f0; border-radius:10px; padding:9px 10px; color:#53617f; font-size:11px; }
+  .pricing-mobile-actions { display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px; margin-top:11px; }
+  .pricing-mobile-actions button { min-height:40px; border-radius:9px; border:1px solid #dce2ec; background:#fff; color:#263b6e; font-size:11px; font-weight:750; }
+  .pricing-mobile-actions button.danger { color:#b92b37; }
+  .pricing-mobile-select { display:flex; align-items:center; gap:7px; margin-bottom:10px; color:#52617f; font-size:11px; }
+  html.dark .pricing-summary-card,
+  html.dark .pricing-mobile-card,
+  html.dark .pricing-mobile-stock,
+  html.dark .pricing-mobile-actions button { background:#151d30; border-color:#2c3a5e; }
+  html.dark .pricing-summary-card strong,
+  html.dark .pricing-mobile-title h3,
+  html.dark .pricing-mobile-metric strong { color:#f1f4fc; }
+  html.dark .pricing-mobile-metric,
+  html.dark .pricing-mobile-stock-head,
+  html.dark .pricing-mobile-toggle { background:#1a243a; border-color:#2c3a5e; }
+  html.dark .pricing-mobile-stock-row { border-color:#27344f; }
+  @media (max-width:900px) {
+    .pricing-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width:640px) {
+    .pricing-desktop-table { display:none !important; }
+    .pricing-mobile-list { display:flex; flex-direction:column; gap:10px; }
+    .pricing-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .pricing-summary-card { padding:10px 11px; }
+    .pricing-summary-card strong { font-size:18px; }
+    #main-content .pricing-page-head { align-items:stretch; }
+    #main-content .pricing-page-actions { width:100%; display:grid; grid-template-columns:1fr 1fr; }
+    #main-content .pricing-page-actions > button { width:100%; min-height:43px; }
+    #main-content .pricing-page-actions > details { grid-column:1 / -1; width:100%; }
+    #main-content .pricing-page-actions > details > summary { width:100%; justify-content:center; }
   }
 
 </style>
@@ -4822,6 +4907,24 @@ function renderStockQtyCell(p) {
     </div>`;
 }
 
+
+function renderPricingMobileStock(p) {
+  const variants = [...(p.product_variants ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const row = (name, productId, variantId, qty) => `
+    <div class="pricing-mobile-stock-row">
+      <span class="pricing-mobile-stock-name">${escapeHtml(name)}</span>
+      <span class="pricing-mobile-stock-controls">
+        ${qty == null
+          ? `<button type="button" data-stock-activate="${productId}" ${variantId ? `data-variant-id="${variantId}"` : ""} class="stock-activate-btn rounded border border-navy-200 font-medium text-navy-500 hover:bg-navy-100">Ativar controle</button>`
+          : `<input type="number" min="0" step="1" value="${Number(qty)}" data-stock-qty-input="${productId}" ${variantId ? `data-variant-id="${variantId}"` : ""} class="stock-qty-input rounded border border-navy-200 px-2 py-1 text-center outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-200" />
+             <button type="button" data-stock-deactivate="${productId}" ${variantId ? `data-variant-id="${variantId}"` : ""} title="Parar de controlar por quantidade" class="stock-deactivate-btn rounded px-1 text-navy-400 hover:bg-navy-100 hover:text-red-600">✕</button>`}
+      </span>
+    </div>`;
+
+  if (variants.length === 0) return row("Estoque do produto", p.id, null, p.stock_qty);
+  return variants.map((v) => row(v.name, p.id, v.id, v.stock_qty)).join("");
+}
+
 // Salva a nova quantidade em estoque (produto ou modelo), atualizando
 // junto in_stock/esgotado — usada pela edição rápida na lista de
 // produtos (renderStockQtyCell). Ativar o controle pela primeira vez
@@ -5268,15 +5371,23 @@ function renderPrecificacao(container) {
   const priceTableSelectedCount = precifState.priceTableSelected.size;
   const allVisibleSelectedForPriceTable = visible.length > 0 && visible.every((p) => precifState.priceTableSelected.has(p.id));
   const tableColCount = 14 + (precifState.priceTableOpen ? 1 : 0);
+  const activeCount = state.products.filter((p) => p.active).length;
+  const modelCount = state.products.reduce((sum, p) => sum + (p.product_variants?.length || 0), 0);
+  const lowStockCount = countLowStockProducts();
+  const madeToOrderCount = state.products.filter((p) => {
+    if (!p.active) return false;
+    const variants = p.product_variants ?? [];
+    return variants.length ? variants.every((v) => !v.in_stock) : !p.in_stock;
+  }).length;
 
   container.innerHTML = `
     <div class="flex flex-col gap-6">
-      <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="pricing-page-head flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-xl font-semibold text-navy-900">Precificação</h1>
           <p class="text-sm text-navy-500">Cadastre o custo do produto — os preços e margens são calculados automaticamente.</p>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="pricing-page-actions flex flex-wrap items-center gap-2">
           <button id="calc3d-open-btn" title="Calcula o custo de fabricação de peças impressas em 3D." class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow-sm transition hover:bg-navy-50">🖨️ Calculadora 3D</button>
           <button id="new-product-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo produto</button>
 
@@ -5293,6 +5404,13 @@ function renderPrecificacao(container) {
             </div>
           </details>
         </div>
+      </div>
+
+      <div class="pricing-summary-grid">
+        <div class="pricing-summary-card"><span>Produtos ativos</span><strong>${activeCount}</strong></div>
+        <div class="pricing-summary-card"><span>Modelos/variações</span><strong>${modelCount}</strong></div>
+        <div class="pricing-summary-card"><span>Estoque baixo</span><strong>${lowStockCount}</strong></div>
+        <div class="pricing-summary-card"><span>Sob encomenda</span><strong>${madeToOrderCount}</strong></div>
       </div>
 
       <div id="calc3d-overlay-slot"></div>
@@ -5332,7 +5450,52 @@ function renderPrecificacao(container) {
 
       <div id="product-form-slot"></div>
 
-      <div class="overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
+      <div class="pricing-mobile-list">
+        ${visible.length === 0 ? `<div class="pricing-mobile-card text-center text-navy-400">Nenhum produto encontrado.</div>` : visible.map((p) => `
+          <article class="pricing-mobile-card ${!p.active ? "is-inactive" : ""}">
+            ${precifState.priceTableOpen ? `<label class="pricing-mobile-select"><input type="checkbox" data-price-table-select="${p.id}" class="price-table-select-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" ${precifState.priceTableSelected.has(p.id) ? "checked" : ""} /> Incluir na tabela de preços</label>` : ""}
+            <div class="pricing-mobile-head">
+              ${p.photo_url ? `<img src="${p.photo_url}" alt="" class="pricing-mobile-photo" />` : `<span class="pricing-mobile-photo-placeholder">📦</span>`}
+              <div class="pricing-mobile-title">
+                <h3>${escapeHtml(p.name)}</h3>
+                <div class="pricing-mobile-badges">
+                  ${p.category ? `<span class="rounded-full bg-navy-100 px-2 py-1 text-[9px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
+                  ${p.material_tag ? `<span class="rounded-full bg-cream-100 px-2 py-1 text-[9px] font-semibold text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
+                  ${p.product_variants?.length ? `<span class="rounded-full bg-gold-100 px-2 py-1 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
+                  ${stockBadge(p)}${esgotadoBadge(p)}${lowStockBadge(p)}
+                </div>
+              </div>
+            </div>
+
+            <div class="pricing-mobile-grid">
+              <div class="pricing-mobile-metric"><span>Custo</span><strong>${formatBRL(p.cost)}</strong></div>
+              <div class="pricing-mobile-metric"><span>Promo / Pix</span><strong>${formatBRL(p.promo_price)}</strong></div>
+              <div class="pricing-mobile-metric"><span>Crédito</span><strong>${formatBRL(p.credit_price)}</strong></div>
+              <div class="pricing-mobile-metric good"><span>Lucro crédito</span><strong>${formatBRL(p.credit_profit)}</strong></div>
+              <div class="pricing-mobile-metric"><span>Margem crédito</span><strong>${formatPercent(p.credit_margin)}</strong></div>
+              <div class="pricing-mobile-metric good"><span>Lucro Pix</span><strong>${formatBRL(p.promo_profit)}</strong></div>
+            </div>
+
+            <div class="pricing-mobile-stock">
+              <div class="pricing-mobile-stock-head"><span>Estoque por ${p.product_variants?.length ? "modelo" : "produto"}</span><span>${p.product_variants?.length || 1} ${p.product_variants?.length === 1 ? "item" : p.product_variants?.length ? "modelos" : "controle"}</span></div>
+              ${renderPricingMobileStock(p)}
+            </div>
+
+            <div class="pricing-mobile-toggles">
+              <label class="pricing-mobile-toggle"><span>Visível no catálogo</span><input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" /></label>
+              <label class="pricing-mobile-toggle"><span>Destaque</span><input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" /></label>
+            </div>
+
+            <div class="pricing-mobile-actions">
+              <button data-edit="${p.id}" class="edit-product-btn">✎ Editar</button>
+              <button data-duplicate="${p.id}" class="duplicate-product-btn">⧉ Duplicar</button>
+              <button data-toggle="${p.id}" data-active="${p.active}" class="toggle-product-btn ${p.active ? "danger" : ""}">${p.active ? "✕ Desativar" : "↺ Reativar"}</button>
+            </div>
+          </article>
+        `).join("")}
+      </div>
+
+      <div class="pricing-desktop-table overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
         <table class="w-full table-auto text-[11px] sm:text-xs">
           <thead>
             <tr class="border-b border-navy-100 bg-navy-900 text-left text-[10px] uppercase tracking-wide text-cream-50 sm:text-[11px]">
