@@ -5022,6 +5022,40 @@ function orderCost(order) {
   };
 }
 
+
+// Resumo financeiro individual de um pedido.
+// "Guardar" = custo real cadastrado (produto/modelo + materiais).
+// "Lucro" = valor líquido recebido menos esse custo.
+// No crédito, desconta a taxa de cartão já adotada na regra de precificação.
+// Depois o lucro é dividido pela mesma regra configurada no Caixa.
+function orderMoneySplit(order, costInfo = null) {
+  const c = costInfo || orderCost(order);
+  const gross = Number(order?.total || 0);
+  const cardFee = order?.payment_method === "credito" ? round2(gross * CARD_FEE) : 0;
+  const netRevenue = round2(gross - cardFee);
+  const costToKeep = round2(Number(c.cost || 0));
+  const profit = round2(netRevenue - costToKeep);
+
+  const settings = caixaState?.reserveSettings || loadProfitSplitSettings();
+  const ownerPercent = Math.max(0, Math.min(100, Number(settings.ownerPercent ?? 30)));
+  const reinvestPercent = 100 - ownerPercent;
+  const positiveProfit = Math.max(0, profit);
+
+  return {
+    gross,
+    cardFee,
+    netRevenue,
+    costToKeep,
+    profit,
+    ownerPercent,
+    reinvestPercent,
+    ownerShare: round2(positiveProfit * ownerPercent / 100),
+    reinvestment: round2(positiveProfit * reinvestPercent / 100),
+    storeTotalToKeep: round2(costToKeep + positiveProfit * reinvestPercent / 100),
+    isApprox: !!c.isApprox,
+  };
+}
+
 // Produto com modelo cadastrado tem o estoque controlado por modelo (e
 // não pelo produto inteiro) — ver product_variants.in_stock. Essa função
 // resolve o estoque certo pro item de um pedido: se o produto tem
@@ -6436,7 +6470,10 @@ function renderPedidos(container) {
   // "Entrada" = o valor que o pedido gera de receita (o que o cliente
   // paga), pra comparar lado a lado com o custo dos pedidos selecionados.
   const selectedEntradaTotal = selectedIds.reduce((sum, id) => sum + Number(state.orders.find((o) => o.id === id)?.total ?? 0), 0);
-  const selectedProfitEstimate = selectedEntradaTotal - selectedCostTotal;
+  const selectedProfitEstimate = selectedOrders.reduce((sum, o) => {
+    const c = orderCosts.get(o.id) || orderCost(o);
+    return sum + orderMoneySplit(o, c).profit;
+  }, 0);
 
   // ---- Resumo geral (independe de aba/status e de qualquer seleção) ----
   // Pedidos cancelados ficam de fora das quatro contas: não viraram venda
@@ -6497,7 +6534,8 @@ function renderPedidos(container) {
     if (o.payment_method === "brinde") return;
     if (o.paid_at) {
       valoresRecebidos += Number(o.total);
-      lucroReal += Number(o.total) - c.cost;
+      const split = orderMoneySplit(o, c);
+      lucroReal += split.profit;
       if (c.isApprox) lucroRealHasApprox = true;
     } else {
       valoresAReceber += Number(o.total);
@@ -6524,7 +6562,7 @@ function renderPedidos(container) {
     <div class="flex flex-col gap-6">
       <div>
         <h1 class="text-xl font-semibold text-navy-900">Pedidos</h1>
-        <p class="text-sm text-navy-500">Pedidos feitos pelos clientes no Catálogo público.</p>
+        <p class="text-sm text-navy-500">Pedidos feitos pelos clientes no Catálogo público. Em cada pedido, o painel mostra quanto preservar de custo, o lucro e a divisão do lucro entre reinvestimento e sua retirada.</p>
       </div>
 
       <div id="edit-order-overlay-slot"></div>
@@ -6668,12 +6706,44 @@ function renderPedidos(container) {
                 </div>
               </div>
               <div class="flex items-center gap-3">
-                <div class="text-right leading-tight">
-                  <span class="block text-lg font-semibold text-navy-900">${formatBRL(o.total)}</span>
-                  <span class="block text-[11px] font-medium text-navy-400" title="${orderCosts.get(o.id).isProductApprox ? "Custo aproximado — algum produto deste pedido não está mais cadastrado" : "Custo dos produtos deste pedido"}">Produto: ${orderCosts.get(o.id).isProductApprox ? "≈ " : ""}${formatBRL(orderCosts.get(o.id).productCost)}</span>
-                  <span class="block text-[11px] font-medium text-navy-400" title="${orderCosts.get(o.id).isMaterialsApprox ? "Custo aproximado — algum material deste pedido não está mais cadastrado" : "Custo adicional de materiais (ex: embalagem de presente), fora do produto em si"}">Materiais: ${orderCosts.get(o.id).isMaterialsApprox ? "≈ " : ""}${formatBRL(orderCosts.get(o.id).materialsCost)}</span>
-                  <span class="block text-[11px] font-medium text-emerald-700" title="${orderCosts.get(o.id).isApprox ? "Lucro aproximado — algum produto ou material deste pedido não está mais cadastrado" : "Valor cobrado menos o custo (produto + materiais) deste pedido"}">Lucro: ${orderCosts.get(o.id).isApprox ? "≈ " : ""}${formatBRL(Number(o.total) - orderCosts.get(o.id).cost)}</span>
-                </div>
+                ${(() => {
+                  const split = orderMoneySplit(o, orderCosts.get(o.id));
+                  return `
+                    <div class="min-w-[185px] rounded-lg border border-navy-100 bg-cream-50 px-3 py-2 text-right leading-tight">
+                      <span class="block text-[10px] font-medium uppercase tracking-wide text-navy-400">${o.paid_at ? "Separação deste pedido" : "Previsão deste pedido"}</span>
+                      <span class="mt-1 block text-lg font-semibold text-navy-900">${formatBRL(o.total)}</span>
+
+                      <span class="mt-1 block text-[11px] font-semibold text-navy-700"
+                        title="Valor que deve ficar guardado para repor o custo dos produtos/modelos e materiais deste pedido.">
+                        Guardar (custo): ${split.isApprox ? "≈ " : ""}${formatBRL(split.costToKeep)}
+                      </span>
+
+                      ${split.cardFee > 0 ? `
+                        <span class="block text-[10px] text-navy-400" title="Taxa de cartão considerada na regra de precificação atual.">
+                          Taxa cartão: −${formatBRL(split.cardFee)}
+                        </span>
+                      ` : ""}
+
+                      <span class="block text-[11px] font-semibold ${split.profit >= 0 ? "text-emerald-700" : "text-red-600"}"
+                        title="Lucro líquido deste pedido depois do custo e, no crédito, da taxa de cartão.">
+                        Lucro: ${split.isApprox ? "≈ " : ""}${formatBRL(split.profit)}
+                      </span>
+
+                      ${o.payment_method !== "brinde" && split.profit > 0 ? `
+                        <span class="mt-1 block border-t border-navy-100 pt-1 text-[10px] text-navy-500">
+                          Reinvestir (${split.reinvestPercent.toLocaleString("pt-BR")}%): <b>${formatBRL(split.reinvestment)}</b>
+                        </span>
+                        <span class="block text-[10px] text-gold-700">
+                          Sua parte (${split.ownerPercent.toLocaleString("pt-BR")}%): <b>${formatBRL(split.ownerShare)}</b>
+                        </span>
+                      ` : ""}
+
+                      ${!o.paid_at && o.payment_method !== "brinde" ? `
+                        <span class="mt-1 block text-[9px] text-navy-400">Só vira lucro realizado quando o pedido for pago.</span>
+                      ` : ""}
+                    </div>
+                  `;
+                })()}
                 <span class="rounded-lg px-2 py-1.5 text-xs font-bold ${o.payment_method === "brinde" ? "bg-gold-100 text-gold-800" : o.paid_at ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}">${o.payment_method === "brinde" ? "🎁 Brinde" : o.paid_at ? "✓ Pago" : "❗ Não pago"}</span>
                 <span class="rounded-lg px-2 py-1.5 text-xs font-medium ${ORDER_STATUS_CLASSES[o.status]}">${ORDER_STATUS_LABELS[o.status]}</span>
                 <button data-toggle-items="${o.id}" class="toggle-order-items-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">${pedidosState.expandedId === o.id ? "Ocultar itens" : "Ver itens"}</button>
