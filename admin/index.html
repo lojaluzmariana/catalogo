@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v8.1-assisted-sales-2026-09-13" />
+<meta name="luz-mariana-admin-version" content="professional-v8.4-stock-quantity-card-rules-monthly-cash-2026-09-13" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1148,6 +1148,32 @@
   }
 
 
+  /* V8.4 — estoque por quantidade: leitura limpa em desktop e mobile */
+  .stock-editor { display:flex; flex-direction:column; gap:7px; width:100%; min-width:0; }
+  .stock-editor-row { display:grid; grid-template-columns:minmax(0,1fr) 86px; align-items:center; gap:10px; padding:10px 11px; border:1px solid #e6eaf1; border-radius:11px; background:#fbfcfe; }
+  .stock-editor-row.is-compact { padding:7px 8px; gap:7px; }
+  .stock-editor-copy { min-width:0; display:flex; flex-direction:column; gap:4px; }
+  .stock-editor-copy strong { color:#233763; font-size:11px; line-height:1.25; white-space:normal; overflow-wrap:anywhere; }
+  .stock-state { width:max-content; max-width:100%; display:inline-flex; align-items:center; border-radius:999px; padding:3px 7px; font-size:9px; font-weight:750; line-height:1.2; white-space:normal; }
+  .stock-state-ready { background:#eaf8f1; color:#1a7153; }
+  .stock-state-order { background:#fff6dc; color:#8a6500; }
+  .stock-editor-control { display:flex; flex-direction:column; align-items:stretch; gap:3px; }
+  .stock-editor-label { color:#8992a8; font-size:8px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; text-align:center; }
+  .stock-editor-control .stock-qty-input { width:100% !important; min-width:0; min-height:36px; border:1px solid #cfd7e5; border-radius:9px; padding:5px 7px; background:#fff; color:#0d2864; font-size:15px !important; font-weight:800; text-align:center; outline:none; }
+  .stock-editor-control .stock-qty-input:focus { border-color:#e9aa00; box-shadow:0 0 0 2px rgba(233,170,0,.15); }
+  .pricing-mobile-stock { overflow:visible; }
+  .pricing-mobile-stock .stock-editor-row { border-left:0; border-right:0; border-radius:0; background:#fff; }
+  .pricing-mobile-stock .stock-editor-row:first-child { border-top:0; }
+  .pricing-desk-stock { max-height:none !important; overflow:visible !important; padding-right:0 !important; }
+  html.dark .stock-editor-row, html.dark .pricing-mobile-stock .stock-editor-row { background:#171f33; border-color:#2c3a5e; }
+  html.dark .stock-editor-copy strong { color:#eef3ff; }
+  html.dark .stock-editor-control .stock-qty-input { background:#111a2c; border-color:#3b4968; color:#fff; }
+  @media (max-width:640px) {
+    .stock-editor-row { grid-template-columns:minmax(0,1fr) 78px; padding:10px; gap:8px; }
+    .stock-editor-copy strong { font-size:12px; }
+    .stock-state { font-size:9px; }
+  }
+
   /* =====================================================================
      V7.5 — PRECIFICAÇÃO DESKTOP: visão operacional em cartões/linhas
      ===================================================================== */
@@ -1517,8 +1543,55 @@ supabaseClient.auth.onAuthStateChange((event) => {
    REGRAS DE PRECIFICAÇÃO (mesma lógica validada contra os 13 produtos
    originais da Luz Mariana — ver scripts/verify_pricing.mjs no projeto)
    ===================================================================== */
-const CARD_FEE = 0.05;
-const CREDIT_DIVISOR = (1 - 0.45) * (1 - CARD_FEE); // 0.5225 — margem mín. 45% no crédito
+// Regras de cartão — Ton Black, faixa de faturamento R$ 0–20 mil, D1.
+// Regra comercial da Luz Mariana:
+//   • Pix/dinheiro: preço à vista.
+//   • Débito: mesmo preço à vista; a taxa real reduz o líquido.
+//   • Crédito 1x–3x: cliente paga +5% sobre o preço à vista.
+//   • Crédito 4x–12x: gross-up da taxa real, para que sobre exatamente o preço à vista.
+// As taxas ficam editáveis em Configurações > Financeiro.
+const CARD_FEE = 0.05; // legado: pedidos antigos sem nº de parcelas continuam usando 5% para não reescrever o histórico.
+const CARD_RATE_STORAGE_KEY = "luz-mariana-card-rates-ton-v1";
+const DEFAULT_CARD_RATE_SETTINGS = {
+  provider: "Ton Black", range: "R$ 0–20 mil", settlement: "D1", customerSurchargeUpTo3: 0.05,
+  debit: 0.0136,
+  credit: { 1:0.0314, 2:0.0538, 3:0.0611, 4:0.0684, 5:0.0756, 6:0.0827, 7:0.0898, 8:0.0968, 9:0.1037, 10:0.1105, 11:0.1173, 12:0.1239 },
+};
+function loadCardRateSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CARD_RATE_STORAGE_KEY) || "null");
+    return saved && typeof saved === "object" ? { ...DEFAULT_CARD_RATE_SETTINGS, ...saved, credit:{...DEFAULT_CARD_RATE_SETTINGS.credit,...(saved.credit||{})} } : structuredClone(DEFAULT_CARD_RATE_SETTINGS);
+  } catch (_err) { return structuredClone(DEFAULT_CARD_RATE_SETTINGS); }
+}
+function saveCardRateSettings(settings) {
+  try { localStorage.setItem(CARD_RATE_STORAGE_KEY, JSON.stringify(settings)); } catch (_err) {}
+}
+function cardRateFor(paymentMethod, installments = 1, { legacyCreditFallback = false } = {}) {
+  const cfg = loadCardRateSettings();
+  if (paymentMethod === "debito") return Number(cfg.debit || 0);
+  if (paymentMethod !== "credito") return 0;
+  const n = Math.max(1, Math.min(12, Math.trunc(Number(installments) || 1)));
+  if (legacyCreditFallback && !installments) return CARD_FEE;
+  return Number(cfg.credit?.[n] ?? cfg.credit?.[String(n)] ?? CARD_FEE);
+}
+function customerCardPriceFromPix(pixPrice, installments = 1) {
+  const base = Math.max(0, Number(pixPrice || 0));
+  const n = Math.max(1, Math.min(12, Math.trunc(Number(installments) || 1)));
+  const cfg = loadCardRateSettings();
+  if (n <= 3) return round2(base * (1 + Number(cfg.customerSurchargeUpTo3 || 0.05)));
+  const rate = cardRateFor("credito", n);
+  return rate >= 1 ? base : round2(base / (1 - rate));
+}
+function paymentGrossFromBase(baseAmount, paymentMethod, installments = 1) {
+  const base = Math.max(0, Number(baseAmount || 0));
+  if (paymentMethod === "credito") return customerCardPriceFromPix(base, installments);
+  return round2(base);
+}
+function orderInstallments(order) {
+  const raw = orderAdminMeta(order)?.sale?.installments;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.max(1, Math.min(12, Math.trunc(n))) : null;
+}
 const PROMO_DIVISOR = 1 - 0.40; // 0.60 — margem mín. 40% no pix/promo
 
 function round2(n) {
@@ -1542,15 +1615,18 @@ function niceCeil(raw) {
 }
 
 function calculatePricing(cost) {
-  const creditPrice = niceFloor(cost / CREDIT_DIVISOR);
-  const creditNet = round2(creditPrice * (1 - CARD_FEE));
-  const creditProfit = round2(creditNet - cost);
-  const creditMarkup = cost > 0 ? round2(creditNet / cost) : 0;
-  const creditMargin = creditNet > 0 ? round2(creditProfit / creditNet) : 0;
-
   const promoPrice = niceCeil(cost / PROMO_DIVISOR);
   const promoProfit = round2(promoPrice - cost);
   const promoMargin = promoPrice > 0 ? round2(promoProfit / promoPrice) : 0;
+
+  // Preço padrão exibido no catálogo/painel = crédito em até 3x (+5%).
+  // Para margem e líquido, usamos a taxa real de 3x (pior caso dentro do "até 3x").
+  const creditPrice = customerCardPriceFromPix(promoPrice, 3);
+  const creditRate = cardRateFor("credito", 3);
+  const creditNet = round2(creditPrice * (1 - creditRate));
+  const creditProfit = round2(creditNet - cost);
+  const creditMarkup = cost > 0 ? round2(creditNet / cost) : 0;
+  const creditMargin = creditNet > 0 ? round2(creditProfit / creditNet) : 0;
 
   return {
     cost, creditPrice, creditNet, creditProfit, creditMarkup, creditMargin,
@@ -1558,24 +1634,16 @@ function calculatePricing(cost) {
   };
 }
 
-// Quando o Promo/Pix é digitado manualmente (ex: preço de consignação já
-// combinado com o fornecedor), o Crédito continua sendo calculado a partir
-// dele — usando a mesma proporção predefinida que normalmente liga os dois
-// preços (a razão entre PROMO_DIVISOR e CREDIT_DIVISOR). Lucro e margem,
-// porém, são sempre calculados em cima do custo REAL registrado, pra
-// continuar refletindo a rentabilidade de verdade — não a "implícita" no
-// valor manual.
 function calculatePricingFromManualPromo(cost, manualPromo) {
   const promoPrice = round2(manualPromo);
   const promoProfit = round2(promoPrice - cost);
   const promoMargin = promoPrice > 0 ? round2(promoProfit / promoPrice) : 0;
-
-  const creditPrice = niceFloor(promoPrice * (PROMO_DIVISOR / CREDIT_DIVISOR));
-  const creditNet = round2(creditPrice * (1 - CARD_FEE));
+  const creditPrice = customerCardPriceFromPix(promoPrice, 3);
+  const creditRate = cardRateFor("credito", 3);
+  const creditNet = round2(creditPrice * (1 - creditRate));
   const creditProfit = round2(creditNet - cost);
   const creditMarkup = cost > 0 ? round2(creditNet / cost) : 0;
   const creditMargin = creditNet > 0 ? round2(creditProfit / creditNet) : 0;
-
   return {
     cost, creditPrice, creditNet, creditProfit, creditMarkup, creditMargin,
     promoPrice, promoProfit, promoMargin,
@@ -1593,18 +1661,19 @@ function effectiveCost(product, variant) {
   return Number(product?.cost ?? 0);
 }
 function effectivePricing(product, variant) {
+  // Recalcula a camada financeira em tempo real a partir do preço Pix já
+  // cadastrado. Assim produtos antigos passam a usar imediatamente a regra
+  // atual do cartão sem alterar silenciosamente o preço Pix do catálogo.
   if (variant && variant.cost != null) {
-    return variant.promo_manual_price != null
-      ? calculatePricingFromManualPromo(Number(variant.cost), Number(variant.promo_manual_price))
-      : calculatePricing(Number(variant.cost));
+    const vCost = Number(variant.cost || 0);
+    const vPix = variant.promo_manual_price != null ? Number(variant.promo_manual_price)
+      : variant.promo_price != null ? Number(variant.promo_price) : null;
+    return vPix != null ? calculatePricingFromManualPromo(vCost, vPix) : calculatePricing(vCost);
   }
-  return {
-    cost: Number(product?.cost ?? 0),
-    creditPrice: Number(product?.credit_price ?? 0), promoPrice: Number(product?.promo_price ?? 0),
-    creditNet: Number(product?.credit_net ?? 0), creditProfit: Number(product?.credit_profit ?? 0),
-    creditMarkup: Number(product?.credit_markup ?? 0), creditMargin: Number(product?.credit_margin ?? 0),
-    promoProfit: Number(product?.promo_profit ?? 0), promoMargin: Number(product?.promo_margin ?? 0),
-  };
+  const cost = Number(product?.cost ?? 0);
+  const pix = product?.promo_manual_price != null ? Number(product.promo_manual_price)
+    : product?.promo_price != null ? Number(product.promo_price) : null;
+  return pix != null ? calculatePricingFromManualPromo(cost, pix) : calculatePricing(cost);
 }
 // Acha o objeto do modelo a partir do NOME salvo num item de pedido —
 // order_items guarda variant_name (texto), não o id, então é assim que
@@ -2660,7 +2729,8 @@ function productProfitabilityRows() {
   state.orders.filter((o) => o.status !== "cancelado" && o.payment_method !== "brinde" && !!o.paid_at).forEach((o) => {
     const itemSubtotal = (o.items || []).reduce((s,it) => s + Number(it.unit_price || 0) * Number(it.quantity || 0), 0);
     const factor = itemSubtotal > 0 ? Number(o.total || 0) / itemSubtotal : 1;
-    const cardFactor = o.payment_method === "credito" ? (1 - CARD_FEE) : 1;
+    const om = orderMoneySplit(o, orderCost(o));
+    const cardFactor = Number(o.total || 0) > 0 ? (om.netRevenue / Number(o.total || 0)) : 1;
     (o.items || []).forEach((it) => {
       const key = `${it.product_id || it.product_name}::${it.variant_name || ""}`;
       const product = state.products.find((p) => p.id === it.product_id);
@@ -2777,8 +2847,8 @@ function renderInicio(container) {
   const receivable = round2(state.orders
     .filter((o) => o.status !== "cancelado" && o.payment_method !== "brinde" && !o.paid_at)
     .reduce((sum, o) => sum + Number(o.total || 0), 0));
-  const currentBalance = Number(state.cashEntries[0]?.running_balance ?? 0);
-  const plan = cashReservePlan(currentBalance);
+  const currentBalance = cashOperationalBalance();
+  const plan = cashReservePlan(currentBalance, ym);
   const prod = productionMetrics();
 
   const newOrders = state.orders.filter((o) => o.status === "novo").length;
@@ -3565,7 +3635,7 @@ function renderFechamento(container) {
   const data = monthManagementData(professionalState.month);
   const closings = loadMonthClosings();
   const closed = closings[professionalState.month];
-  const currentBalance = Number(state.cashEntries[0]?.running_balance ?? 0);
+  const currentBalance = cashOperationalBalance();
   const projected = round2(currentBalance + data.receivable - data.supplierPayable);
   const withdrawalRemaining = Math.max(0, round2(data.ownerTarget - data.ownerWithdrawn));
 
@@ -3706,7 +3776,7 @@ function renderContas(container) {
 
   const totalReceive = round2(receivables.reduce((s,r)=>s+r.amount,0));
   const totalPay = round2(payables.reduce((s,r)=>s+r.amount,0));
-  const currentBalance = Number(state.cashEntries[0]?.running_balance ?? 0);
+  const currentBalance = cashOperationalBalance();
   const projected = round2(currentBalance + totalReceive - totalPay);
   const overdueReceive = receivables.filter((r) => r.age >= 7);
 
@@ -3978,6 +4048,16 @@ function renderConfiguracoes(container) {
         </section>
 
         <section class="management-card">
+          <h2>Financeiro · taxas da maquininha</h2>
+          <p class="caption">Ton Black · faixa R$ 0–20 mil · D1. Até 3x o cliente paga +5%; de 4x a 12x o sistema faz gross-up para preservar o preço à vista.</p>
+          <div class="settings-field"><label>Débito (%)</label><input id="cfg-card-debit" type="number" min="0" max="100" step="0.01" value="${(loadCardRateSettings().debit*100).toFixed(2)}"></div>
+          <div class="settings-field"><label>Acréscimo ao cliente no crédito 1x–3x (%)</label><input id="cfg-card-surcharge" type="number" min="0" max="100" step="0.01" value="${(loadCardRateSettings().customerSurchargeUpTo3*100).toFixed(2)}"></div>
+          <div class="mt-3 grid grid-cols-3 gap-2">${Array.from({length:12},(_,i)=>i+1).map(n=>`<label class="text-[10px] font-semibold text-navy-500">${n}x (%)<input data-card-rate="${n}" type="number" min="0" max="100" step="0.01" value="${(Number(loadCardRateSettings().credit[n]||0)*100).toFixed(2)}" class="mt-1 w-full rounded-lg border border-navy-200 px-2 py-1.5 text-sm"></label>`).join("")}</div>
+          <div class="mt-3 flex flex-wrap gap-2"><button id="cfg-save-card-rates" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white">Salvar taxas</button><button id="cfg-reset-card-rates" class="pro-tab">Restaurar tabela Ton</button></div>
+          <p class="caption mt-2">Pedidos antigos sem número de parcelas continuam usando a regra legada de 5% para não alterar retroativamente o histórico.</p>
+        </section>
+
+        <section class="management-card">
           <h2>Segurança e backup</h2>
           <p class="caption">O backup continua na aba Relatórios.</p>
           <div class="finance-lines">
@@ -4061,6 +4141,22 @@ function renderConfiguracoes(container) {
       </div>
     </div>
   `;
+
+  document.getElementById("cfg-save-card-rates")?.addEventListener("click", () => {
+    const next = loadCardRateSettings();
+    next.debit = Math.max(0, Number(document.getElementById("cfg-card-debit")?.value || 0) / 100);
+    next.customerSurchargeUpTo3 = Math.max(0, Number(document.getElementById("cfg-card-surcharge")?.value || 0) / 100);
+    next.credit = {...next.credit};
+    container.querySelectorAll("[data-card-rate]").forEach((input)=>{ next.credit[Number(input.dataset.cardRate)] = Math.max(0, Number(input.value || 0) / 100); });
+    saveCardRateSettings(next);
+    alert("Taxas da maquininha salvas. A nova regra já vale para precificação e novas vendas.");
+    renderConfiguracoes(container);
+  });
+  document.getElementById("cfg-reset-card-rates")?.addEventListener("click", () => {
+    if (!confirm("Restaurar a tabela Ton Black R$ 0–20 mil / D1 enviada em 13/09/2026?")) return;
+    saveCardRateSettings(structuredClone(DEFAULT_CARD_RATE_SETTINGS));
+    renderConfiguracoes(container);
+  });
 
   document.getElementById("cfg-save-goals")?.addEventListener("click", () => {
     const next = structuredClone(professionalState.config);
@@ -5200,7 +5296,49 @@ async function loadProducts() {
     .select("*, product_materials(id, quantity, material_id, materials(id, name, unit, unit_cost)), product_variants(id, name, photo_url, sort_order, in_stock, esgotado, stock_qty, cost, promo_manual_price, credit_price, promo_price), product_photos(id, url, sort_order), suppliers(id, name, phone, instagram, address)")
     .order("active", { ascending: false })
     .order("name", { ascending: true });
-  if (!error) state.products = data;
+  if (!error) {
+    state.products = data;
+    // V8.4: todos os produtos passam a usar estoque numérico. Registros
+    // antigos sem stock_qty são normalizados de forma conservadora:
+    // "em estoque" vira 1 unidade; sem estoque vira 0. Quantidade zero
+    // continua vendável sob encomenda (esgotado=false).
+    const legacyProductUpdates = [];
+    const legacyVariantUpdates = [];
+    for (const product of state.products) {
+      const variants = product.product_variants ?? [];
+      if (variants.length === 0 && (product.stock_qty == null || product.esgotado || Number(product.lead_time_days) !== DEFAULT_LEAD_TIME_DAYS)) {
+        const qty = product.stock_qty == null ? (product.in_stock ? 1 : 0) : Math.max(0, Number(product.stock_qty) || 0);
+        legacyProductUpdates.push({ id: product.id, qty, variants:false });
+        product.stock_qty = qty; product.in_stock = qty > 0; product.esgotado = false; product.lead_time_days = DEFAULT_LEAD_TIME_DAYS;
+      } else if (variants.length > 0 && (product.esgotado || Number(product.lead_time_days) !== DEFAULT_LEAD_TIME_DAYS)) {
+        legacyProductUpdates.push({ id: product.id, qty:null, variants:true });
+        product.esgotado = false; product.lead_time_days = DEFAULT_LEAD_TIME_DAYS;
+      }
+      for (const variant of variants) {
+        if (variant.stock_qty == null || variant.esgotado) {
+          const qty = variant.stock_qty == null ? (variant.in_stock ? 1 : 0) : Math.max(0, Number(variant.stock_qty) || 0);
+          legacyVariantUpdates.push({ id: variant.id, qty });
+          variant.stock_qty = qty; variant.in_stock = qty > 0; variant.esgotado = false;
+        }
+      }
+      if (variants.length > 0) {
+        const anyVariantReady = variants.some((v) => Number(v.stock_qty ?? 0) > 0);
+        if (Boolean(product.in_stock) !== anyVariantReady) {
+          legacyProductUpdates.push({ id: product.id, qty:null, variants:true, inStock:anyVariantReady });
+          product.in_stock = anyVariantReady;
+        }
+      }
+    }
+    if (legacyProductUpdates.length || legacyVariantUpdates.length) {
+      Promise.all([
+        ...legacyProductUpdates.map((u) => supabaseClient.from("products").update(u.variants
+          ? { in_stock: u.inStock ?? state.products.find((p)=>p.id===u.id)?.in_stock ?? false, esgotado:false, lead_time_days:DEFAULT_LEAD_TIME_DAYS }
+          : { stock_qty:u.qty, in_stock:u.qty>0, esgotado:false, lead_time_days:DEFAULT_LEAD_TIME_DAYS }
+        ).eq("id",u.id)),
+        ...legacyVariantUpdates.map((u) => supabaseClient.from("product_variants").update({ stock_qty:u.qty, in_stock:u.qty>0, esgotado:false }).eq("id",u.id))
+      ]).catch((migrationError) => console.warn("Normalização de estoque:", migrationError));
+    }
+  }
   noteLoadResult("produtos", error);
 }
 
@@ -5210,9 +5348,11 @@ async function loadProducts() {
 // (botão "Aplicar a todos"). Quando o produto não tem lead_time_days
 // definido (registro antigo, de antes dessa coluna existir, ou produto
 // que sumiu do cadastro), cai no padrão de 3 dias úteis.
-const DEFAULT_LEAD_TIME_DAYS = 3;
+const DEFAULT_LEAD_TIME_DAYS = 2;
 function productLeadTimeDays(product) {
-  return product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
+  // Regra operacional atual da Luz Mariana: todo item sem pronta entrega
+  // fica disponível sob encomenda com prazo de ATÉ 2 dias úteis.
+  return DEFAULT_LEAD_TIME_DAYS;
 }
 function leadTimeDaysLabel(days) {
   return `${days} dia${days === 1 ? "" : "s"} útil${days === 1 ? "" : "eis"}`;
@@ -5247,38 +5387,30 @@ const LOW_STOCK_THRESHOLD = 2;
 // que escolher lá no Catálogo).
 function stockBadge(p) {
   const variants = p.product_variants ?? [];
-  const prazo = leadTimeDaysLabel(productLeadTimeDays(p));
+  const prazo = `até ${leadTimeDaysLabel(productLeadTimeDays(p))}`;
   if (variants.length === 0) {
-    return p.in_stock
-      ? `<span title="Em estoque — pronta entrega" class="rounded-full bg-emerald-100 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">✓ estoque</span>`
-      : `<span title="Sob encomenda — catálogo avisa prazo de ${prazo}" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda</span>`;
+    const qty = Math.max(0, Number(p.stock_qty ?? (p.in_stock ? 1 : 0)));
+    return qty > 0
+      ? `<span title="${qty} unidade(s) em pronta entrega" class="rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-semibold text-emerald-700">✓ Em estoque · ${qty}</span>`
+      : `<span title="Disponível sob encomenda — prazo de ${prazo}" class="rounded-full bg-gold-100 px-2 py-1 text-[9px] font-semibold text-gold-800">Sob encomenda · Prazo de ${prazo}</span>`;
   }
-  const inStockCount = variants.filter((v) => v.in_stock).length;
-  if (inStockCount === variants.length) {
-    return `<span title="Todos os modelos em estoque" class="rounded-full bg-emerald-100 px-1 py-0.5 text-[9px] font-semibold text-emerald-700">✓ estoque (todos)</span>`;
+  const stocked = variants.filter((v) => Number(v.stock_qty ?? (v.in_stock ? 1 : 0)) > 0);
+  if (stocked.length === variants.length) {
+    return `<span title="Todos os modelos possuem pronta entrega" class="rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-semibold text-emerald-700">✓ Em estoque · todos os modelos</span>`;
   }
-  if (inStockCount === 0) {
-    return `<span title="Nenhum modelo em estoque — catálogo avisa prazo de ${prazo}" class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500">sob encomenda (todos)</span>`;
+  if (stocked.length === 0) {
+    return `<span title="Todos os modelos disponíveis sob encomenda — prazo de ${prazo}" class="rounded-full bg-gold-100 px-2 py-1 text-[9px] font-semibold text-gold-800">Sob encomenda · Prazo de ${prazo}</span>`;
   }
-  return `<span title="${inStockCount} de ${variants.length} modelos em estoque — veja qual em Modelos" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">estoque parcial (${inStockCount}/${variants.length})</span>`;
+  return `<span title="${stocked.length} de ${variants.length} modelos em pronta entrega; demais sob encomenda em ${prazo}" class="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-semibold text-amber-800">Estoque parcial · ${stocked.length}/${variants.length} · demais em ${prazo}</span>`;
 }
 
 // Badge de "Esgotado" na listagem — só aparece quando faz sentido (não
 // polui a linha de um produto que nunca esgotou nada). Produto com
 // modelo usa o esgotado de cada um; produto sem modelo usa o dele.
 function esgotadoBadge(p) {
-  const variants = p.product_variants ?? [];
-  if (variants.length === 0) {
-    return p.esgotado
-      ? `<span title="Esgotado — não aparece pra compra no Catálogo" class="rounded-full bg-red-100 px-1 py-0.5 text-[9px] font-semibold text-red-700">⛔ esgotado</span>`
-      : "";
-  }
-  const esgotadoCount = variants.filter((v) => v.esgotado).length;
-  if (esgotadoCount === 0) return "";
-  if (esgotadoCount === variants.length) {
-    return `<span title="Todos os modelos esgotados" class="rounded-full bg-red-100 px-1 py-0.5 text-[9px] font-semibold text-red-700">⛔ esgotado (todos)</span>`;
-  }
-  return `<span title="${esgotadoCount} de ${variants.length} modelos esgotados — veja qual em Modelos" class="rounded-full bg-red-100 px-1 py-0.5 text-[9px] font-semibold text-red-700">⛔ esgotado (${esgotadoCount}/${variants.length})</span>`;
+  // Quantidade zero não significa indisponível: significa SOB ENCOMENDA.
+  // Mantemos a função por compatibilidade com a renderização antiga.
+  return "";
 }
 
 // Aviso de "estoque acabando" (só pra quem usa controle numérico de
@@ -5370,48 +5502,42 @@ let priceHistoryState = { open: false, loading: false, rows: [], filter: "", err
 // booleano manual de sempre) mostra um botão "Ativar controle" em vez
 // do número — digitar um valor liga o controle por quantidade
 // automaticamente, igual o checkbox faria no formulário completo.
-function renderStockQtyCell(p) {
-  const variants = p.product_variants ?? [];
-  if (variants.length === 0) {
-    if (p.stock_qty == null) {
-      return `<button type="button" data-stock-activate="${p.id}" class="stock-activate-btn rounded border border-navy-200 px-1.5 py-0.5 text-[10px] font-medium text-navy-500 hover:bg-navy-100">ativar controle</button>`;
-    }
-    return `
-      <span class="inline-flex items-center gap-0.5">
-        <input type="number" min="0" step="1" value="${Number(p.stock_qty)}" data-stock-qty-input="${p.id}" class="stock-qty-input w-14 rounded border border-navy-200 px-1 py-0.5 text-center text-[11px] outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-200" />
-        <button type="button" data-stock-deactivate="${p.id}" title="Parar de controlar por quantidade (volta pro manual)" class="stock-deactivate-btn rounded px-1 text-[10px] text-navy-400 hover:bg-navy-100 hover:text-red-600">✕</button>
-      </span>`;
+function stockQtyValue(entity) {
+  if (entity?.stock_qty != null) return Math.max(0, Math.trunc(Number(entity.stock_qty) || 0));
+  return entity?.in_stock ? 1 : 0;
+}
+function stockStatusHtml(qty, product) {
+  if (Number(qty) > 0) {
+    return `<span class="stock-state stock-state-ready">Pronta entrega · ${Number(qty)}</span>`;
   }
+  return `<span class="stock-state stock-state-order">Sob encomenda · Prazo de até ${leadTimeDaysLabel(productLeadTimeDays(product))}</span>`;
+}
+function stockQtyEditorHtml(p, name, variant=null, compact=false) {
+  const qty = stockQtyValue(variant || p);
+  const variantAttr = variant ? `data-variant-id="${variant.id}"` : "";
   return `
-    <div class="flex flex-col items-start gap-0.5">
-      ${[...variants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `
-        <span class="flex items-center gap-1 text-[10px] text-navy-500">
-          <span class="max-w-[70px] truncate" title="${escapeHtml(v.name)}">${escapeHtml(v.name)}</span>
-          ${v.stock_qty == null
-            ? `<button type="button" data-stock-activate="${p.id}" data-variant-id="${v.id}" class="stock-activate-btn rounded border border-navy-200 px-1 py-0.5 text-[9px] font-medium text-navy-500 hover:bg-navy-100">ativar</button>`
-            : `<input type="number" min="0" step="1" value="${Number(v.stock_qty)}" data-stock-qty-input="${p.id}" data-variant-id="${v.id}" class="stock-qty-input w-12 rounded border border-navy-200 px-1 py-0.5 text-center text-[10px] outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-200" />
-               <button type="button" data-stock-deactivate="${p.id}" data-variant-id="${v.id}" title="Parar de controlar por quantidade (volta pro manual)" class="stock-deactivate-btn rounded px-0.5 text-[9px] text-navy-400 hover:bg-navy-100 hover:text-red-600">✕</button>`}
-        </span>
-      `).join("")}
+    <div class="stock-editor-row ${compact ? "is-compact" : ""}">
+      <div class="stock-editor-copy">
+        <strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>
+        ${stockStatusHtml(qty, p)}
+      </div>
+      <div class="stock-editor-control">
+        <span class="stock-editor-label">Qtd.</span>
+        <input type="number" min="0" step="1" value="${qty}" data-stock-qty-input="${p.id}" ${variantAttr}
+          aria-label="Quantidade em estoque de ${escapeHtml(name)}"
+          class="stock-qty-input" />
+      </div>
     </div>`;
 }
-
-
+function renderStockQtyCell(p) {
+  const variants = [...(p.product_variants ?? [])].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0));
+  if (variants.length === 0) return `<div class="stock-editor">${stockQtyEditorHtml(p, "Estoque do produto", null, true)}</div>`;
+  return `<div class="stock-editor">${variants.map(v => stockQtyEditorHtml(p, v.name, v, true)).join("")}</div>`;
+}
 function renderPricingMobileStock(p) {
-  const variants = [...(p.product_variants ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  const row = (name, productId, variantId, qty) => `
-    <div class="pricing-mobile-stock-row">
-      <span class="pricing-mobile-stock-name">${escapeHtml(name)}</span>
-      <span class="pricing-mobile-stock-controls">
-        ${qty == null
-          ? `<button type="button" data-stock-activate="${productId}" ${variantId ? `data-variant-id="${variantId}"` : ""} class="stock-activate-btn rounded border border-navy-200 font-medium text-navy-500 hover:bg-navy-100">Ativar controle</button>`
-          : `<input type="number" min="0" step="1" value="${Number(qty)}" data-stock-qty-input="${productId}" ${variantId ? `data-variant-id="${variantId}"` : ""} class="stock-qty-input rounded border border-navy-200 px-2 py-1 text-center outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-200" />
-             <button type="button" data-stock-deactivate="${productId}" ${variantId ? `data-variant-id="${variantId}"` : ""} title="Parar de controlar por quantidade" class="stock-deactivate-btn rounded px-1 text-navy-400 hover:bg-navy-100 hover:text-red-600">✕</button>`}
-      </span>
-    </div>`;
-
-  if (variants.length === 0) return row("Estoque do produto", p.id, null, p.stock_qty);
-  return variants.map((v) => row(v.name, p.id, v.id, v.stock_qty)).join("");
+  const variants = [...(p.product_variants ?? [])].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0));
+  if (variants.length === 0) return stockQtyEditorHtml(p, "Estoque do produto");
+  return variants.map(v => stockQtyEditorHtml(p, v.name, v)).join("");
 }
 
 // Salva a nova quantidade em estoque (produto ou modelo), atualizando
@@ -5422,9 +5548,9 @@ async function salvarEstoqueRapido(productId, variantId, rawValue) {
   const qty = Math.max(0, Math.trunc(Number(String(rawValue).replace(",", "."))));
   if (!Number.isFinite(qty)) return;
   if (variantId) {
-    await supabaseClient.from("product_variants").update({ stock_qty: qty, in_stock: qty > 0, esgotado: qty <= 0 }).eq("id", variantId);
+    await supabaseClient.from("product_variants").update({ stock_qty: qty, in_stock: qty > 0, esgotado: false }).eq("id", variantId);
   } else {
-    await supabaseClient.from("products").update({ stock_qty: qty, in_stock: qty > 0, esgotado: qty <= 0, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", productId);
+    await supabaseClient.from("products").update({ stock_qty: qty, in_stock: qty > 0, esgotado: false, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", productId);
   }
   await loadProducts();
   renderPrecificacao(document.getElementById("main-content"));
@@ -6263,7 +6389,7 @@ async function duplicarProduto(product) {
     category: product.category ?? null, material_tag: product.material_tag ?? null,
     description: product.description ?? null, supplier_id: product.supplier_id ?? null,
     lead_time_days: product.lead_time_days ?? null,
-    in_stock: false, esgotado: true,
+    in_stock: false, esgotado: false,
     stock_qty: product.stock_qty != null ? 0 : null,
     created_by: state.currentUser.id,
   };
@@ -6282,7 +6408,7 @@ async function duplicarProduto(product) {
   if (variants.length > 0) {
     const variantRows = variants.map((v) => ({
       product_id: newProductId, name: v.name, photo_url: v.photo_url ?? null, sort_order: v.sort_order ?? 0,
-      in_stock: false, esgotado: true,
+      in_stock: false, esgotado: false,
       stock_qty: v.stock_qty != null ? 0 : null,
       cost: v.cost != null ? Number(v.cost) : null,
       promo_manual_price: v.promo_manual_price != null ? Number(v.promo_manual_price) : null,
@@ -6331,7 +6457,7 @@ function renderProductForm() {
         .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name, "pt-BR"))
         .map((v) => ({
           id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null,
-          inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false, stockTracked: v.stock_qty != null, stockQty: v.stock_qty ?? 0,
+          inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false, stockTracked: true, stockQty: v.stock_qty != null ? v.stock_qty : (v.in_stock ? 1 : 0),
           ownPrice: v.cost != null, cost: v.cost != null ? Number(v.cost) : null,
           promoManualPrice: v.promo_manual_price != null ? Number(v.promo_manual_price) : null,
         }))
@@ -6430,40 +6556,30 @@ function renderProductForm() {
           <input type="checkbox" id="pf-featured" ${product?.featured ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
           Forçar em "Mais vendidos" (a vitrine no topo do Catálogo já entra automaticamente com os produtos mais vendidos — marque aqui só se quiser garantir este produto lá mesmo sem vendas)
         </label>
-        <div id="pf-in-stock-block">
-          <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
-            <input type="checkbox" id="pf-stock-tracked" ${product?.stock_qty != null ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-            Controlar por quantidade em estoque
-          </label>
-          <p class="mt-1 text-xs text-navy-400">Marcado = "Em estoque"/"Esgotado" passam a ser calculados sozinhos a partir do número abaixo, e "Nova compra de estoque" soma direto aqui. Desmarcado = do jeito de sempre, marcado à mão.</p>
-
-          <div id="pf-stock-qty-block" class="mt-2 ${product?.stock_qty != null ? "" : "hidden"}">
-            <label class="mb-1 block text-xs font-medium text-navy-700">Quantidade em estoque</label>
-            <input id="pf-stock-qty" type="number" min="0" step="1" value="${product?.stock_qty ?? 0}" class="w-32 rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+        <div id="pf-in-stock-block" class="rounded-xl border border-navy-100 bg-white p-4">
+          <input type="checkbox" id="pf-stock-tracked" checked class="hidden" aria-hidden="true" />
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-navy-800">Estoque por quantidade</p>
+              <p class="mt-1 text-xs text-navy-400">O estoque agora é sempre numérico. Se houver modelos, a quantidade é controlada automaticamente em cada modelo.</p>
+            </div>
+            <span class="rounded-full bg-navy-50 px-2.5 py-1 text-[10px] font-semibold text-navy-600">controle automático</span>
+          </div>
+          <div id="pf-stock-qty-block" class="mt-3 ${product?.product_variants?.length ? "hidden" : ""}">
+            <label class="mb-1 block text-xs font-medium text-navy-700">Quantidade pronta para entrega</label>
+            <input id="pf-stock-qty" type="number" min="0" step="1" value="${product?.stock_qty != null ? product.stock_qty : (product?.in_stock ? 1 : 0)}" class="w-32 rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
             <p id="pf-stock-qty-derived" class="mt-1 text-xs"></p>
           </div>
-
-          <div id="pf-manual-stock-block" class="${product?.stock_qty != null ? "hidden" : ""}">
-            <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
-              <input type="checkbox" id="pf-in-stock" ${product?.in_stock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-              Em estoque (pronta entrega)
-            </label>
-            <p class="mt-1 text-xs text-navy-400">Desmarcado = sob encomenda: o Catálogo avisa o cliente o prazo de fabricação configurado abaixo, a contar da data do pedido.</p>
-            <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
-              <input type="checkbox" id="pf-esgotado" ${product?.esgotado ? "checked" : ""} class="rounded border-navy-300 text-red-600 focus:ring-red-400" />
-              Esgotado
-            </label>
-            <p class="mt-1 text-xs text-navy-400">Marcado = não dá pra comprar agora. O produto continua no Catálogo, mas some o preço/botão de comprar e aparece um aviso de "Esgotado" no lugar.</p>
-          </div>
+          <div id="pf-manual-stock-block" class="hidden"></div>
         </div>
-        <p id="pf-in-stock-variant-note" class="mt-2 hidden text-xs text-navy-400">Este produto tem modelos cadastrados — o estoque e o esgotado agora são marcados em cada modelo, logo abaixo.</p>
+        <p id="pf-in-stock-variant-note" class="mt-2 ${product?.product_variants?.length ? "" : "hidden"} rounded-lg bg-navy-50 px-3 py-2 text-xs text-navy-600">Este produto tem modelos: o estoque é controlado por quantidade individual em cada modelo abaixo.</p>
 
         <div class="mt-3 flex flex-wrap items-end gap-3">
           <div class="w-32">
-            <label class="mb-1 block text-xs font-medium text-navy-700" title="Quantos dias o Catálogo avisa pro cliente quando este produto está sob encomenda (não vale pra produto em estoque).">Prazo (dias)</label>
-            <input id="pf-lead-time" type="number" min="0" step="1" value="${productLeadTimeDays(product)}" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+            <label class="mb-1 block text-xs font-medium text-navy-700" title="Regra padrão da Luz Mariana para itens sem pronta entrega.">Prazo sob encomenda (dias úteis)</label>
+            <input id="pf-lead-time" type="number" min="0" step="1" value="${DEFAULT_LEAD_TIME_DAYS}" readonly class="w-full rounded-lg bg-navy-50 border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
           </div>
-          <button type="button" id="pf-lead-time-apply-all" class="rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100">Aplicar esse prazo a TODOS os produtos</button>
+          <button type="button" id="pf-lead-time-apply-all" class="rounded-lg border border-navy-300 px-3 py-2 text-xs font-medium text-navy-700 hover:bg-navy-100">Prazo padrão: até 2 dias úteis</button>
         </div>
         <p id="pf-lead-time-msg" class="mt-1 text-xs"></p>
       </div>
@@ -6480,7 +6596,7 @@ function renderProductForm() {
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
         <p class="mb-1 text-sm font-medium text-navy-800">Modelos / Variações (opcional)</p>
-        <p class="mb-3 text-xs text-navy-400">Se este produto vem em mais de um modelo (cor, tamanho etc.), cadastre cada um com o nome, a foto e se está em estoque (pronta entrega) ou sob encomenda.</p>
+        <p class="mb-3 text-xs text-navy-400">Se este produto vem em mais de um modelo (cor, tamanho etc.), cadastre cada um com nome e foto. A quantidade em estoque é individual por modelo; ao chegar a zero, ele continua disponível sob encomenda com prazo de até 2 dias úteis.</p>
         <div id="pf-variants-list" class="flex flex-col gap-2"></div>
         <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar modelo</button>
       </div>
@@ -6610,10 +6726,8 @@ function renderProductForm() {
   const inStockBlock = document.getElementById("pf-in-stock-block");
   const inStockVariantNote = document.getElementById("pf-in-stock-variant-note");
 
-  // Controle por quantidade (produto sem modelo): quando marcado, esconde
-  // os checkboxes manuais e mostra o campo numérico — "em estoque"/
-  // "esgotado" passam a ser calculados a partir dele (o banco garante
-  // isso via trigger, mas já mostra a prévia aqui também).
+  // Estoque numérico obrigatório: produto sem modelo usa a quantidade do produto;
+  // produto com modelos usa uma quantidade independente em cada modelo.
   const stockTrackedCheckbox = document.getElementById("pf-stock-tracked");
   const stockQtyBlock = document.getElementById("pf-stock-qty-block");
   const manualStockBlock = document.getElementById("pf-manual-stock-block");
@@ -6622,8 +6736,8 @@ function renderProductForm() {
   function updateStockQtyDerived() {
     const n = Math.trunc(Number(stockQtyField.value));
     if (!Number.isFinite(n)) { stockQtyDerivedEl.textContent = ""; return; }
-    stockQtyDerivedEl.textContent = n > 0 ? "→ Em estoque (pronta entrega)" : "→ Esgotado";
-    stockQtyDerivedEl.className = "mt-1 text-xs " + (n > 0 ? "text-emerald-700" : "text-red-600");
+    stockQtyDerivedEl.textContent = n > 0 ? `→ Pronta entrega · ${n} unidade${n === 1 ? "" : "s"}` : "→ Sob encomenda · Prazo de até 2 dias úteis";
+    stockQtyDerivedEl.className = "mt-1 text-xs " + (n > 0 ? "text-emerald-700" : "text-gold-700");
   }
   stockTrackedCheckbox.addEventListener("change", () => {
     stockQtyBlock.classList.toggle("hidden", !stockTrackedCheckbox.checked);
@@ -6633,9 +6747,8 @@ function renderProductForm() {
   stockQtyField.addEventListener("input", updateStockQtyDerived);
   if (stockTrackedCheckbox.checked) updateStockQtyDerived();
 
-  // Quando o produto tem modelo cadastrado, o estoque é controlado por
-  // modelo (logo abaixo) — o checkbox de estoque do produto some, pra
-  // não dar a entender que ele ainda faz alguma coisa.
+  // Quando o produto tem modelos, o campo de quantidade do produto some:
+  // cada modelo passa a ser a unidade real de controle de estoque.
   function updateInStockBlockVisibility() {
     const hasVariants = formVariants.length > 0;
     inStockBlock.classList.toggle("hidden", hasVariants);
@@ -6651,23 +6764,14 @@ function renderProductForm() {
             <div class="flex-1">
               <input data-variant-name="${idx}" value="${escapeHtml(v.name)}" placeholder="Ex: Azul, Modelo P..."
                 class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-              <label class="mt-1.5 flex items-center gap-1.5 text-xs text-navy-700">
-                <input type="checkbox" data-variant-stock-tracked="${idx}" ${v.stockTracked ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-                Controlar por quantidade
-              </label>
-              <div data-variant-qty-block="${idx}" class="mt-1 ${v.stockTracked ? "" : "hidden"}">
-                <input type="number" min="0" step="1" data-variant-qty="${idx}" value="${v.stockQty ?? 0}" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                <span data-variant-qty-derived="${idx}" class="ml-1 text-xs ${v.stockQty > 0 ? "text-emerald-700" : "text-red-600"}">${v.stockQty > 0 ? "→ Em estoque" : "→ Esgotado"}</span>
-              </div>
-              <div data-variant-manual-block="${idx}" class="${v.stockTracked ? "hidden" : ""}">
-                <label class="mt-1.5 flex items-center gap-1.5 text-xs text-navy-700">
-                  <input type="checkbox" data-variant-in-stock="${idx}" ${v.inStock ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-                  Em estoque (pronta entrega)
-                </label>
-                <label class="mt-1 flex items-center gap-1.5 text-xs text-navy-700">
-                  <input type="checkbox" data-variant-esgotado="${idx}" ${v.esgotado ? "checked" : ""} class="rounded border-navy-300 text-red-600 focus:ring-red-400" />
-                  Esgotado
-                </label>
+              <div data-variant-qty-block="${idx}" class="mt-2 rounded-lg border border-navy-100 bg-cream-50 p-2.5">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span class="block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Estoque deste modelo</span>
+                    <span data-variant-qty-derived="${idx}" class="mt-0.5 block text-xs ${v.stockQty > 0 ? "text-emerald-700" : "text-gold-700"}">${v.stockQty > 0 ? `Pronta entrega · ${v.stockQty}` : "Sob encomenda · Prazo de até 2 dias úteis"}</span>
+                  </div>
+                  <input type="number" min="0" step="1" data-variant-qty="${idx}" value="${v.stockQty ?? 0}" class="w-24 rounded-lg border border-navy-200 bg-white px-2 py-2 text-center text-sm font-semibold text-navy-800 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                </div>
               </div>
               <div class="mt-2 border-t border-navy-50 pt-2">
                 <label class="flex items-center gap-1.5 text-xs text-navy-700">
@@ -6767,8 +6871,8 @@ function renderProductForm() {
         formVariants[idx].stockQty = Number.isFinite(n) ? n : 0;
         const derivedEl = variantsListEl.querySelector(`[data-variant-qty-derived="${idx}"]`);
         if (derivedEl) {
-          derivedEl.textContent = formVariants[idx].stockQty > 0 ? "→ Em estoque" : "→ Esgotado";
-          derivedEl.className = "ml-1 text-xs " + (formVariants[idx].stockQty > 0 ? "text-emerald-700" : "text-red-600");
+          derivedEl.textContent = formVariants[idx].stockQty > 0 ? `→ Pronta entrega · ${formVariants[idx].stockQty}` : "→ Sob encomenda · até 2 dias úteis";
+          derivedEl.className = "ml-1 text-xs " + (formVariants[idx].stockQty > 0 ? "text-emerald-700" : "text-gold-700");
         }
       });
     });
@@ -6810,7 +6914,7 @@ function renderProductForm() {
 
   renderVariantsList();
   document.getElementById("pf-variant-add").addEventListener("click", () => {
-    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: false, stockQty: 0, ownPrice: false, cost: null, promoManualPrice: null });
+    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: true, stockQty: 0, ownPrice: false, cost: null, promoManualPrice: null });
     renderVariantsList();
   });
 
@@ -6998,16 +7102,16 @@ function renderProductForm() {
     // número — o banco confirma isso de novo via trigger, então mesmo se
     // esse cálculo aqui divergir por algum motivo, o valor salvo continua
     // correto.
-    let inStock, esgotado, stockQty = null;
-    if (formVariants.length === 0 && document.getElementById("pf-stock-tracked").checked) {
+    let inStock, esgotado = false, stockQty = null;
+    if (formVariants.length === 0) {
       const stockQtyRaw = document.getElementById("pf-stock-qty").value;
-      stockQty = Math.trunc(Number(String(stockQtyRaw).replace(",", ".")));
-      if (!Number.isFinite(stockQty) || stockQty < 0) { errorEl.textContent = "Quantidade em estoque inválida."; return; }
+      stockQty = Math.max(0, Math.trunc(Number(String(stockQtyRaw).replace(",", "."))));
+      if (!Number.isFinite(stockQty)) { errorEl.textContent = "Quantidade em estoque inválida."; return; }
       inStock = stockQty > 0;
-      esgotado = stockQty <= 0;
     } else {
-      inStock = document.getElementById("pf-in-stock").checked;
-      esgotado = document.getElementById("pf-esgotado").checked;
+      // Com modelos, a disponibilidade do produto é derivada das quantidades dos modelos.
+      inStock = formVariants.some((v) => Math.max(0, Math.trunc(Number(v.stockQty) || 0)) > 0);
+      stockQty = null;
     }
     const categorySelected = categorySelect.value;
     if (categorySelected === "__new__" && !categoryNewField.value.trim()) {
@@ -7101,7 +7205,7 @@ function renderProductForm() {
       promo_price: pricing.promoPrice, promo_profit: pricing.promoProfit, promo_margin: pricing.promoMargin,
       promo_manual_price: promoManual,
       photo_url: newPhotoUrl, show_in_catalog: showInCatalog, category: category || null, featured,
-      in_stock: inStock, esgotado, stock_qty: stockQty, lead_time_days: leadTimeDays,
+      in_stock: inStock, esgotado, stock_qty: stockQty, lead_time_days: DEFAULT_LEAD_TIME_DAYS,
       description: description || null, material_tag: materialTag || null, supplier_id: supplierId,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
     };
@@ -7134,7 +7238,7 @@ function renderProductForm() {
     await supabaseClient.from("product_variants").delete().eq("product_id", productId);
     if (formVariants.length > 0) {
       const variantRows = formVariants.map((v, idx) => {
-        const qty = v.stockTracked ? Math.max(0, Math.trunc(Number(v.stockQty) || 0)) : null;
+        const qty = Math.max(0, Math.trunc(Number(v.stockQty) || 0));
         // Igual ao produto: o CUSTO fica só aqui no painel (nunca é
         // exposto ao público), mas o preço de venda JÁ CALCULADO
         // (credit_price/promo_price) é salvo também — é isso que a view
@@ -7148,8 +7252,8 @@ function renderProductForm() {
         }
         return {
           product_id: productId, name: v.name.trim(), photo_url: v.finalPhotoUrl ?? null, sort_order: idx,
-          in_stock: qty != null ? qty > 0 : v.inStock,
-          esgotado: qty != null ? qty <= 0 : v.esgotado,
+          in_stock: qty > 0,
+          esgotado: false,
           stock_qty: qty,
           cost: v.ownPrice && v.cost != null ? v.cost : null,
           promo_manual_price: v.ownPrice && v.promoManualPrice != null ? v.promoManualPrice : null,
@@ -8851,7 +8955,12 @@ function orderCost(order) {
 function orderMoneySplit(order, costInfo = null) {
   const c = costInfo || orderCost(order);
   const gross = Number(order?.total || 0);
-  const cardFee = order?.payment_method === "credito" ? round2(gross * CARD_FEE) : 0;
+  const installments = orderInstallments(order);
+  const isLegacyCredit = order?.payment_method === "credito" && !installments;
+  const feeRate = order?.payment_method === "credito"
+    ? (isLegacyCredit ? CARD_FEE : cardRateFor("credito", installments))
+    : order?.payment_method === "debito" ? cardRateFor("debito", 1) : 0;
+  const cardFee = round2(gross * feeRate);
   const netRevenue = round2(gross - cardFee);
   const costToKeep = round2(Number(c.cost || 0));
   const profit = round2(netRevenue - costToKeep);
@@ -8863,7 +8972,7 @@ function orderMoneySplit(order, costInfo = null) {
 
   return {
     gross,
-    cardFee,
+    cardFee, feeRate, installments, isLegacyCredit,
     netRevenue,
     costToKeep,
     profit,
@@ -8876,8 +8985,46 @@ function orderMoneySplit(order, costInfo = null) {
   };
 }
 
+
+// Lança a taxa real da operadora como saída separada no Caixa. Isso mantém
+// o faturamento bruto visível como entrada e, ao mesmo tempo, deixa o saldo
+// bancário/financeiro líquido correto. A função é idempotente por pedido.
+async function ensureOrderCardFeeCashEntry(order, entryDate = todayISO(), customerId = null) {
+  if (!order || !order.paid_at || !["credito","debito"].includes(order.payment_method)) return { skipped:true };
+  if (state.cashEntries.some((e) => e.order_id === order.id && e.category === "Taxa da maquininha")) return { skipped:true };
+  const split = orderMoneySplit(order);
+  if (!(split.cardFee > 0)) return { skipped:true };
+  const parcelas = order.payment_method === "credito" ? (split.installments ? ` · ${split.installments}x` : " · parcelas não registradas (regra legada)") : "";
+  const payload = {
+    entry_type:"saida", entry_date:entryDate, amount:split.cardFee, category:"Taxa da maquininha",
+    description:`Taxa ${loadCardRateSettings().provider} — Pedido Nº ${String(order.order_number ?? "").padStart(6,"0")}${parcelas} · ${(split.feeRate*100).toFixed(2).replace(".",",")}%`,
+    payment_method:order.payment_method, customer_id:customerId || null, order_id:order.id,
+    paid_at:order.paid_at || new Date().toISOString(), created_by:state.currentUser.id,
+  };
+  return await supabaseClient.from("cash_entries").insert(payload);
+}
+
+async function reconcileExistingCardFees() {
+  const candidates = state.orders.filter((o) => o.status !== "cancelado" && !!o.paid_at && ["credito","debito"].includes(o.payment_method));
+  const missing = candidates.filter((o) => state.cashEntries.some((e)=>e.order_id===o.id && e.entry_type==="entrada") && !state.cashEntries.some((e)=>e.order_id===o.id && e.category==="Taxa da maquininha"));
+  if (!missing.length) { alert("Nenhuma taxa de cartão pendente de conciliação."); return; }
+  const legacy = missing.filter((o)=>o.payment_method==="credito" && !orderInstallments(o)).length;
+  const msg = `Foram encontrados ${missing.length} pedido(s) pagos com cartão sem lançamento de taxa.${legacy ? `\n\n${legacy} pedido(s) antigo(s) não têm número de parcelas salvo; nesses casos será mantida a regra histórica de 5%.` : ""}\n\nCriar agora as saídas de taxa no Caixa?`;
+  if (!confirm(msg)) return;
+  let ok=0, fail=0;
+  for (const order of missing) {
+    const entry = state.cashEntries.find((e)=>e.order_id===order.id && e.entry_type==="entrada");
+    const customer = findCustomerByPhone(order.customer_whatsapp);
+    const {error} = await ensureOrderCardFeeCashEntry(order, entry?.entry_date || String(order.paid_at).slice(0,10), customer?.id || null);
+    if (error) { console.error("reconcile card fee", order.id, error.message); fail++; } else ok++;
+  }
+  await loadCashEntries();
+  alert(`Conciliação concluída: ${ok} taxa(s) criada(s)${fail ? `; ${fail} falha(s)` : ""}.`);
+  renderCaixa(document.getElementById("main-content"));
+}
+
 // Produto com modelo cadastrado tem o estoque controlado por modelo (e
-// não pelo produto inteiro) — ver product_variants.in_stock. Essa função
+// não pelo produto inteiro) — cada modelo tem sua própria quantidade. Essa função
 // resolve o estoque certo pro item de um pedido: se o produto tem
 // modelos, procura o modelo pelo nome salvo no pedido (variant_name é só
 // um "retrato" do nome na hora da compra, não uma referência); se o
@@ -8898,12 +9045,12 @@ async function ajustarEstoqueQtd(productId, variantId, delta) {
     const variant = (product.product_variants ?? []).find((v) => v.id === variantId);
     if (!variant || variant.stock_qty == null) return;
     const newQty = Math.max(0, Number(variant.stock_qty) + delta);
-    const { error } = await supabaseClient.from("product_variants").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: newQty <= 0 }).eq("id", variantId);
+    const { error } = await supabaseClient.from("product_variants").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: false }).eq("id", variantId);
     if (error) console.error("Não foi possível ajustar o estoque do modelo:", error.message);
   } else {
     if (product.stock_qty == null) return;
     const newQty = Math.max(0, Number(product.stock_qty) + delta);
-    const { error } = await supabaseClient.from("products").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: newQty <= 0, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", productId);
+    const { error } = await supabaseClient.from("products").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: false, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", productId);
     if (error) console.error("Não foi possível ajustar o estoque do produto:", error.message);
   }
 }
@@ -10235,6 +10382,11 @@ async function iniciarVenda(order) {
     if (custoError) console.error("iniciarVenda custo:", custoError.message);
   }
 
+  if (order.paid_at) {
+    const { error: feeError } = await ensureOrderCardFeeCashEntry(order, todayISO(), customer ? customer.id : null);
+    if (feeError) console.error("iniciarVenda taxa cartão:", feeError.message);
+  }
+
   const giftWrapRows = (order.giftWraps ?? [])
     .filter((g) => g.material_id && state.materials.some((m) => m.id === g.material_id))
     .map((g) => {
@@ -11493,12 +11645,92 @@ function saveProfitSplitSettings(settings) {
   try { localStorage.setItem(PROFIT_SPLIT_SETTINGS_KEY, JSON.stringify(settings)); } catch (_err) {}
 }
 
+// O Caixa mensal começa sempre no dia 01 e fecha no último dia de cada mês.
+// Setembro/2026 é a primeira competência operacional; a primeira venda registrada
+// aconteceu em 02/09, portanto 01/09 simplesmente fica sem movimentação.
+const CASH_OPERATION_START_DATE = "2026-09-01";
+
 let caixaState = {
   formOpen: false, editingId: null, eventFilter: "", startDate: "", endDate: "",
+  month: todayISO().slice(0, 7),
   reserveOpen: false,
   withdrawOpen: false,
   reserveSettings: loadProfitSplitSettings(),
 };
+
+function cashEntryAffectsBalance(entry) {
+  return !!entry?.paid_at;
+}
+
+function cashOperationalEntries() {
+  return state.cashEntries.filter((e) => String(e.entry_date || "") >= CASH_OPERATION_START_DATE);
+}
+
+function cashOperationalBalance(asOfDate = todayISO()) {
+  return round2(cashOperationalEntries()
+    .filter((e) => String(e.entry_date || "") <= asOfDate && cashEntryAffectsBalance(e))
+    .reduce((sum, e) => sum + (e.entry_type === "entrada" ? Number(e.amount || 0) : -Number(e.amount || 0)), 0));
+}
+
+function cashMonthEnd(month) {
+  const [y,m] = month.split("-").map(Number);
+  return `${y}-${String(m).padStart(2,"0")}-${String(new Date(y,m,0).getDate()).padStart(2,"0")}`;
+}
+
+function cashMonthStart(month) { return `${month}-01`; }
+
+function cashMonthLabel(month) {
+  if (!/^\d{4}-\d{2}$/.test(String(month || ""))) return month || "—";
+  const [y,m] = month.split("-").map(Number);
+  const label = new Date(y,m-1,1).toLocaleDateString("pt-BR", { month:"long", year:"numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function cashMonthEntries(month) {
+  return state.cashEntries.filter((e) => String(e.entry_date || "").slice(0,7) === month);
+}
+
+function cashMonthActualTotals(month) {
+  const rows = cashMonthEntries(month).filter(cashEntryAffectsBalance);
+  const entradas = round2(rows.filter((e)=>e.entry_type === "entrada").reduce((s,e)=>s+Number(e.amount||0),0));
+  const saidas = round2(rows.filter((e)=>e.entry_type === "saida").reduce((s,e)=>s+Number(e.amount||0),0));
+  return { entradas, saidas, movimento: round2(entradas-saidas) };
+}
+
+function cashMonthOpeningBalance(month) {
+  if (`${month}-01` <= CASH_OPERATION_START_DATE) return 0;
+  const [y,m] = month.split("-").map(Number);
+  const prev = new Date(y,m-1,0);
+  const iso = `${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,"0")}-${String(prev.getDate()).padStart(2,"0")}`;
+  return cashOperationalBalance(iso);
+}
+
+function cashMonthClosingBalance(month) {
+  if (cashMonthEnd(month) < CASH_OPERATION_START_DATE) return 0;
+  return cashOperationalBalance(cashMonthEnd(month));
+}
+
+function cashRunningBalanceMap() {
+  const rows = [...cashOperationalEntries()].sort((a,b) => {
+    const da=String(a.entry_date||"")+String(a.created_at||"");
+    const db=String(b.entry_date||"")+String(b.created_at||"");
+    return da.localeCompare(db);
+  });
+  let balance=0;
+  const map=new Map();
+  rows.forEach((e)=>{
+    if (cashEntryAffectsBalance(e)) balance=round2(balance+(e.entry_type === "entrada" ? Number(e.amount||0) : -Number(e.amount||0)));
+    map.set(String(e.id), balance);
+  });
+  return map;
+}
+
+function cashAvailableMonths() {
+  const months = new Set(state.cashEntries.map((e)=>String(e.entry_date||"").slice(0,7)).filter((m)=>/^\d{4}-\d{2}$/.test(m)));
+  months.add(todayISO().slice(0,7));
+  months.add(CASH_OPERATION_START_DATE.slice(0,7));
+  return [...months].sort().reverse();
+}
 
 /* =====================================================================
    SIMULAR VENDA — calculadora pura, NÃO grava nada no banco. Serve pra
@@ -11506,7 +11738,7 @@ let caixaState = {
    venda hipotética com vários produtos/modelos antes de vender de
    verdade. Fecha e esquece: não fica em nenhum histórico.
    ===================================================================== */
-let simulateState = { open: false, items: [], payment: "pix", _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+let simulateState = { open: false, items: [], payment: "pix", installments: 1, _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
 
 // Preço de venda de um produto (ou de um MODELO específico, se ele tiver
 // preço próprio — ver effectivePricing) pra uma forma de pagamento —
@@ -11551,7 +11783,7 @@ let eventModeState = loadEventModeFromStorage();
 // total pela forma de pagamento escolhida e, ao enviar, lança a entrada
 // (venda) e a saída (custo) no Caixa, marcadas com o event_tag, e baixa o
 // estoque de verdade dos produtos/modelos vendidos (ver aplicarBaixaEstoque).
-let eventoVendaState = { open: false, eventName: "", date: todayISO(), payment: "pix", items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+let eventoVendaState = { open: false, eventName: "", date: todayISO(), payment: "pix", installments: 1, items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
 
 /* =====================================================================
    VENDA MANUAL — pra clientes que não sabem/não querem usar o Catálogo
@@ -11570,7 +11802,7 @@ function newVendaManualState(overrides = {}) {
     items: [], giftWraps: [],
     customerName: "", customerWhatsapp: "", customerInstagram: "",
     notes: "", internalNotes: "",
-    payment: "pix", paymentStatus: "pending",
+    payment: "pix", paymentStatus: "pending", installments: 1,
     couponCode: "", appliedCoupon: null,
     manualDiscount: "", manualDiscountReason: "",
     deliveryMethod: "retirada", deliveryFee: "", deliveryDeadline: "",
@@ -12120,7 +12352,7 @@ function renderAvaliacoes(container) {
    OVERLAY: SIMULAR VENDA (calculadora, não grava nada)
    ===================================================================== */
 function closeSimulateOverlay() {
-  simulateState = { open: false, items: [], payment: "pix", _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+  simulateState = { open: false, items: [], payment: "pix", installments: 1, _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
   renderSimulateOverlay();
 }
 
@@ -12128,15 +12360,20 @@ function simulateTotals() {
   const resolved = simulateState.items.map((it) => {
     const product = state.products.find((p) => p.id === it.product_id);
     const variant = it.variant_id ? (product?.product_variants ?? []).find((v) => v.id === it.variant_id) : null;
-    const unitPrice = salePriceFor(product, simulateState.payment, variant);
+    const unitPrice = salePriceFor(product, "pix", variant);
     const unitCost = product ? effectiveCost(product, variant) : 0;
     return { ...it, unitPrice, unitCost, lineTotal: round2(unitPrice * it.quantity), lineCost: round2(unitCost * it.quantity) };
   });
   const cost = orderCost({ items: simulateState.items, giftWraps: [] });
-  const subtotal = round2(resolved.reduce((s, it) => s + it.lineTotal, 0));
-  const profit = round2(subtotal - cost.cost);
-  const margin = subtotal > 0 ? round2(profit / subtotal) : 0;
-  return { resolved, subtotal, cost, profit, margin };
+  const baseTotal = round2(resolved.reduce((sum, it) => sum + it.lineTotal, 0));
+  const installments = simulateState.payment === "credito" ? Number(simulateState.installments || 1) : 1;
+  const subtotal = paymentGrossFromBase(baseTotal, simulateState.payment, installments);
+  const feeRate = simulateState.payment === "credito" ? cardRateFor("credito", installments) : simulateState.payment === "debito" ? cardRateFor("debito", 1) : 0;
+  const fee = round2(subtotal * feeRate);
+  const net = round2(subtotal - fee);
+  const profit = round2(net - cost.cost);
+  const margin = net > 0 ? round2(profit / net) : 0;
+  return { resolved, baseTotal, subtotal, feeRate, fee, net, installments, cost, profit, margin };
 }
 
 function renderSimulateOverlay() {
@@ -12147,7 +12384,7 @@ function renderSimulateOverlay() {
   const activeProducts = state.products.filter((p) => p.active);
   const selectedProduct = activeProducts.find((p) => p.id === simulateState._selectedProductId);
   const selectedVariants = selectedProduct?.product_variants ?? [];
-  const { resolved, subtotal, cost, profit, margin } = simulateTotals();
+  const { resolved, baseTotal, subtotal, feeRate, fee, net, installments, cost, profit, margin } = simulateTotals();
 
   slot.innerHTML = `
     <div id="simulate-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4">
@@ -12165,8 +12402,10 @@ function renderSimulateOverlay() {
               <p class="mb-1 text-xs font-medium text-navy-700">Forma de pagamento (define o preço de venda usado no cálculo)</p>
               <div class="inline-flex rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
                 <button type="button" data-sim-payment="pix" class="sim-payment-btn rounded-md px-3 py-1.5 font-medium transition ${simulateState.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / à vista</button>
-                <button type="button" data-sim-payment="credito" class="sim-payment-btn rounded-md px-3 py-1.5 font-medium transition ${simulateState.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
+                <button type="button" data-sim-payment="debito" class="sim-payment-btn rounded-md px-3 py-1.5 font-medium transition ${simulateState.payment === "debito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Débito</button>
+                <button type="button" data-sim-payment="credito" class="sim-payment-btn rounded-md px-3 py-1.5 font-medium transition ${simulateState.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Crédito</button>
               </div>
+              ${simulateState.payment === "credito" ? `<label class="mt-2 block max-w-xs text-xs font-medium text-navy-700">Parcelas<select id="sim-installments" class="mt-1 w-full rounded-lg border border-navy-200 px-3 py-2 text-sm">${Array.from({length:12},(_,i)=>i+1).map(n=>`<option value="${n}" ${Number(simulateState.installments||1)===n?"selected":""}>${n}x · ${(cardRateFor("credito",n)*100).toFixed(2).replace(".",",")}%</option>`).join("")}</select></label>` : ""}
             </div>
 
             <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
@@ -12213,13 +12452,14 @@ function renderSimulateOverlay() {
                 <div>
                   <p class="text-xs uppercase tracking-wide opacity-70">Total cobrado</p>
                   <p class="mt-0.5 text-lg font-semibold">${formatBRL(subtotal)}</p>
+                  <p class="text-[10px] opacity-70">Base Pix ${formatBRL(baseTotal)}${fee?` · taxa ${formatBRL(fee)}`:""}</p>
                 </div>
                 <div>
                   <p class="text-xs uppercase tracking-wide opacity-70">Custo estimado</p>
                   <p class="mt-0.5 text-lg font-semibold">${formatBRL(cost.cost)}</p>
                 </div>
                 <div>
-                  <p class="text-xs uppercase tracking-wide opacity-70">Lucro estimado</p>
+                  <p class="text-xs uppercase tracking-wide opacity-70">Lucro líquido estimado</p>
                   <p class="mt-0.5 text-lg font-semibold ${profit >= 0 ? "text-emerald-300" : "text-red-300"}">${formatBRL(profit)}</p>
                 </div>
                 <div>
@@ -12246,6 +12486,7 @@ function renderSimulateOverlay() {
   document.querySelectorAll(".sim-payment-btn").forEach((btn) => {
     btn.addEventListener("click", () => { simulateState.payment = btn.dataset.simPayment; renderSimulateOverlay(); });
   });
+  document.getElementById("sim-installments")?.addEventListener("change", (e)=>{ simulateState.installments=Number(e.target.value||1); renderSimulateOverlay(); });
   document.getElementById("sim-product-select").addEventListener("change", (e) => {
     simulateState._selectedProductId = e.target.value || null;
     simulateState._selectedVariantId = null;
@@ -12286,7 +12527,7 @@ function renderSimulateOverlay() {
    venda real, só que sem passar pelo Catálogo/pedido.
    ===================================================================== */
 function closeEventoVendaOverlay() {
-  eventoVendaState = { open: false, eventName: eventModeState.name, date: todayISO(), payment: "pix", items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+  eventoVendaState = { open: false, eventName: eventModeState.name, date: todayISO(), payment: "pix", installments: 1, items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
   renderEventoVendaOverlay();
 }
 
@@ -12294,12 +12535,16 @@ function eventoVendaTotals() {
   const resolved = eventoVendaState.items.map((it) => {
     const product = state.products.find((p) => p.id === it.product_id);
     const variant = it.variant_id ? (product?.product_variants ?? []).find((v) => v.id === it.variant_id) : null;
-    const unitPrice = salePriceFor(product, eventoVendaState.payment, variant);
+    const unitPrice = salePriceFor(product, "pix", variant);
     return { ...it, unitPrice, lineTotal: round2(unitPrice * it.quantity) };
   });
   const cost = orderCost({ items: eventoVendaState.items, giftWraps: [] });
-  const subtotal = round2(resolved.reduce((s, it) => s + it.lineTotal, 0));
-  return { resolved, subtotal, cost };
+  const baseTotal = round2(resolved.reduce((s, it) => s + it.lineTotal, 0));
+  const installments = eventoVendaState.payment === "credito" ? Number(eventoVendaState.installments || 1) : 1;
+  const subtotal = paymentGrossFromBase(baseTotal, eventoVendaState.payment, installments);
+  const feeRate = eventoVendaState.payment === "credito" ? cardRateFor("credito", installments) : eventoVendaState.payment === "debito" ? cardRateFor("debito", 1) : 0;
+  const fee = round2(subtotal * feeRate);
+  return { resolved, baseTotal, subtotal, feeRate, fee, installments, cost };
 }
 
 function renderEventoVendaOverlay() {
@@ -12310,7 +12555,7 @@ function renderEventoVendaOverlay() {
   const activeProducts = state.products.filter((p) => p.active);
   const selectedProduct = activeProducts.find((p) => p.id === eventoVendaState._selectedProductId);
   const selectedVariants = selectedProduct?.product_variants ?? [];
-  const { resolved, subtotal, cost } = eventoVendaTotals();
+  const { resolved, baseTotal, subtotal, feeRate, fee, installments, cost } = eventoVendaTotals();
   const knownEvents = [...new Set(state.cashEntries.map((e) => e.event_tag).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
   slot.innerHTML = `
@@ -12346,8 +12591,10 @@ function renderEventoVendaOverlay() {
               <p class="mb-1 text-xs font-medium text-navy-700">Forma de pagamento</p>
               <div class="inline-flex rounded-lg border border-navy-200 bg-white p-1 text-sm">
                 <button type="button" data-ev-payment="pix" class="ev-payment-btn rounded-md px-3 py-1.5 font-medium transition ${eventoVendaState.payment === "pix" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Pix / dinheiro</button>
-                <button type="button" data-ev-payment="credito" class="ev-payment-btn rounded-md px-3 py-1.5 font-medium transition ${eventoVendaState.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Cartão de crédito</button>
+                <button type="button" data-ev-payment="debito" class="ev-payment-btn rounded-md px-3 py-1.5 font-medium transition ${eventoVendaState.payment === "debito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Débito</button>
+                <button type="button" data-ev-payment="credito" class="ev-payment-btn rounded-md px-3 py-1.5 font-medium transition ${eventoVendaState.payment === "credito" ? "bg-gold-500 text-navy-900" : "text-navy-600"}">Crédito</button>
               </div>
+              ${eventoVendaState.payment === "credito" ? `<label class="mt-2 block max-w-xs text-xs font-medium text-navy-700">Parcelas<select id="ev-installments" class="mt-1 w-full rounded-lg border border-navy-200 px-3 py-2 text-sm">${Array.from({length:12},(_,i)=>i+1).map(n=>`<option value="${n}" ${Number(eventoVendaState.installments||1)===n?"selected":""}>${n}x · ${(cardRateFor("credito",n)*100).toFixed(2).replace(".",",")}%${n<=3?" · cliente +5%":" · gross-up"}</option>`).join("")}</select></label>` : ""}
             </div>
 
             <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
@@ -12394,6 +12641,7 @@ function renderEventoVendaOverlay() {
                   <span>Total da venda:</span>
                   <b class="text-gold-300 text-base">${formatBRL(subtotal)}</b>
                 </div>
+                <p class="mt-1 text-xs opacity-70">Base Pix: ${formatBRL(baseTotal)}${fee?` · taxa operadora ${formatBRL(fee)} (${(feeRate*100).toFixed(2).replace(".",",")}%)`:""}</p>
                 <p class="mt-1 text-xs opacity-70">Custo estimado dos itens: ${formatBRL(cost.costExcludingEssentials)}${cost.isApprox ? " (aproximado)" : ""}</p>
               </div>
             ` : ""}
@@ -12420,6 +12668,7 @@ function renderEventoVendaOverlay() {
   document.querySelectorAll(".ev-payment-btn").forEach((btn) => {
     btn.addEventListener("click", () => { eventoVendaState.payment = btn.dataset.evPayment; renderEventoVendaOverlay(); });
   });
+  document.getElementById("ev-installments")?.addEventListener("change", (e)=>{ eventoVendaState.installments=Number(e.target.value||1); renderEventoVendaOverlay(); });
   document.getElementById("ev-product-select").addEventListener("change", (e) => {
     eventoVendaState._selectedProductId = e.target.value || null;
     eventoVendaState._selectedVariantId = null;
@@ -12465,7 +12714,7 @@ async function submeterVendaEvento(e) {
   submitBtn.disabled = true;
   submitBtn.textContent = "Registrando...";
 
-  const { subtotal, cost } = eventoVendaTotals();
+  const { subtotal, fee, feeRate, installments, cost } = eventoVendaTotals();
   const itemsDesc = eventoVendaState.items.map((it) => `${it.quantity}x ${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""}`).join(", ");
 
   const vendaPayload = {
@@ -12485,6 +12734,15 @@ async function submeterVendaEvento(e) {
     submitBtn.disabled = false;
     submitBtn.textContent = "Registrar venda do evento";
     return;
+  }
+
+  if (fee > 0) {
+    const { error: feeError } = await supabaseClient.from("cash_entries").insert({
+      entry_type:"saida", entry_date:date, amount:fee, category:"Taxa da maquininha",
+      description:`Taxa ${loadCardRateSettings().provider} — ${eventName}${eventoVendaState.payment === "credito" ? ` · ${installments}x` : ""} · ${(feeRate*100).toFixed(2).replace(".",",")}%`,
+      payment_method:eventoVendaState.payment, event_tag:eventName, paid_at:new Date().toISOString(), created_by:state.currentUser.id,
+    });
+    if (feeError) console.error("submeterVendaEvento taxa:", feeError.message);
   }
 
   if (cost.costExcludingEssentials > 0) {
@@ -12517,7 +12775,7 @@ async function submeterVendaEvento(e) {
     saveEventModeToStorage();
   }
 
-  eventoVendaState = { open: false, eventName, date, payment: eventoVendaState.payment, items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+  eventoVendaState = { open: false, eventName, date, payment: eventoVendaState.payment, installments:eventoVendaState.installments, items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
   await Promise.all([loadCashEntries(), loadProducts()]);
   renderCaixa(document.getElementById("main-content"));
 }
@@ -12614,11 +12872,11 @@ function vendaManualResolvedItems() {
     let unitPrice;
     if (it.courtesy) unitPrice = 0;
     else if (hasFixed) {
-      unitPrice = vendaManualState.payment === "credito"
-        ? (Number.isFinite(fixedCredit) ? fixedCredit : fixedPix)
-        : (Number.isFinite(fixedPix) ? fixedPix : fixedCredit);
+      // A base da Venda assistida é sempre o preço Pix. O acréscimo/gross-up
+      // do cartão é aplicado no total final, depois de cupom/desconto/entrega.
+      unitPrice = Number.isFinite(fixedPix) ? fixedPix : (Number.isFinite(fixedCredit) ? round2(fixedCredit / 1.05) : 0);
     } else {
-      unitPrice = salePriceFor(product, vendaManualState.payment === "credito" ? "credito" : "pix", variant);
+      unitPrice = salePriceFor(product, "pix", variant);
     }
     unitPrice = Number(unitPrice || 0);
     return { ...it, unitPrice, lineTotal: round2(unitPrice * it.quantity), product, variant };
@@ -12639,16 +12897,20 @@ function vendaManualTotals() {
   }
   const manualDiscount = Math.max(0, Math.min(Number(String(vendaManualState.manualDiscount || "0").replace(",",".")) || 0, Math.max(0, subtotal - couponDiscount)));
   const deliveryFee = vendaManualState.payment === "brinde" ? 0 : Math.max(0, Number(String(vendaManualState.deliveryFee || "0").replace(",",".")) || 0);
-  const total = vendaManualState.payment === "brinde" ? 0 : round2(Math.max(0, subtotal - couponDiscount - manualDiscount + deliveryFee));
+  const baseTotal = vendaManualState.payment === "brinde" ? 0 : round2(Math.max(0, subtotal - couponDiscount - manualDiscount + deliveryFee));
+  const installments = vendaManualState.payment === "credito" ? Math.max(1, Math.min(12, Number(vendaManualState.installments || 1))) : 1;
+  const total = vendaManualState.payment === "brinde" ? 0 : paymentGrossFromBase(baseTotal, vendaManualState.payment, installments);
+  const paymentAdjustment = round2(total - baseTotal);
   const pseudoOrder = {
     total,
     payment_method:vendaManualState.payment,
+    notes:composeOrderNotes("", {sale:{installments}}),
     items: resolved.map((it) => ({ product_id:it.product_id, product_name:it.product_name, variant_name:it.variant_name, quantity:it.quantity, unit_price:it.unitPrice })),
     giftWraps:vendaManualState.giftWraps,
   };
   const cost = orderCost(pseudoOrder);
   const split = orderMoneySplit(pseudoOrder, cost);
-  return { resolved, itemSubtotal, giftWrapTotal, subtotal, couponDiscount:round2(couponDiscount), manualDiscount:round2(manualDiscount), deliveryFee:round2(deliveryFee), total, cost, split };
+  return { resolved, itemSubtotal, giftWrapTotal, subtotal, couponDiscount:round2(couponDiscount), manualDiscount:round2(manualDiscount), deliveryFee:round2(deliveryFee), baseTotal, paymentAdjustment, installments, total, cost, split };
 }
 function vendaManualInventoryWarnings() {
   const warnings = [];
@@ -12681,7 +12943,8 @@ function vendaManualCopyLastOrder(order) {
   vendaManualState.customerName = order.customer_name || vendaManualState.customerName;
   vendaManualState.customerWhatsapp = order.customer_whatsapp || vendaManualState.customerWhatsapp;
   vendaManualState.customerInstagram = order.customer_instagram || vendaManualState.customerInstagram;
-  vendaManualState.payment = order.payment_method === "credito" ? "credito" : "pix";
+  vendaManualState.payment = ["credito","debito","dinheiro","pix"].includes(order.payment_method) ? order.payment_method : "pix";
+  vendaManualState.installments = orderInstallments(order) || 1;
   vendaManualState.notes = orderCustomerNotes(order) || "";
   renderVendaManualOverlay();
 }
@@ -12813,6 +13076,7 @@ function renderVendaManualOverlay() {
                 <section class="vm-section">
                   <div class="vm-section-title"><strong>3. Pagamento ${full ? "e entrega" : ""}</strong><span>${vendaManualState.paymentStatus === "paid" ? "Pago agora" : "Pendente"}</span></div>
                   <div class="vm-payment-grid">${[["pix","Pix"],["dinheiro","Dinheiro"],["debito","Débito"],["credito","Crédito"],["brinde","Brinde"]].map(([v,l])=>`<button type="button" data-vm-payment="${v}" class="vm-choice ${vendaManualState.payment===v?"active":""}">${l}</button>`).join("")}</div>
+                  ${vendaManualState.payment==="credito" ? `<div class="mt-3 vm-field"><label>Parcelas no crédito</label><select id="vm-installments">${Array.from({length:12},(_,i)=>i+1).map((n)=>`<option value="${n}" ${Number(vendaManualState.installments||1)===n?"selected":""}>${n}x · taxa Ton ${(cardRateFor("credito",n)*100).toFixed(2).replace(".",",")}%${n<=3?" · cliente +5%":" · gross-up"}</option>`).join("")}</select><p class="mt-1 text-[9px] text-navy-400">1x a 3x: +5% ao cliente. A partir de 4x: valor calculado para preservar o líquido à vista.</p></div>` : ""}
                   ${vendaManualState.payment!=="brinde" ? `<div class="mt-3 grid grid-cols-2 gap-2"><button type="button" data-vm-paystatus="pending" class="vm-choice ${vendaManualState.paymentStatus==="pending"?"active":""}">Pagamento pendente</button><button type="button" data-vm-paystatus="paid" class="vm-choice ${vendaManualState.paymentStatus==="paid"?"active":""}">✓ Pago agora</button></div>` : ""}
                   ${full ? `<div class="mt-3 vm-field-grid"><div class="vm-field"><label>Entrega</label><select id="vm-delivery-method">${[["retirada","Retirada"],["entrega_local","Entrega local"],["envio","Envio / Correios"]].map(([v,l])=>`<option value="${v}" ${vendaManualState.deliveryMethod===v?"selected":""}>${l}</option>`).join("")}</select></div><div class="vm-field"><label>Taxa de entrega</label><input id="vm-delivery-fee" value="${escapeHtml(vendaManualState.deliveryFee)}" inputmode="decimal" placeholder="0,00" /></div><div class="vm-field" style="grid-column:1/-1"><label>Prazo/data combinada</label><input id="vm-delivery-deadline" type="date" value="${escapeHtml(vendaManualState.deliveryDeadline)}" /></div></div>` : `<input id="vm-delivery-method" type="hidden" value="retirada"/><input id="vm-delivery-fee" type="hidden" value="0"/><input id="vm-delivery-deadline" type="hidden" value=""/>`}
                 </section>
@@ -12824,9 +13088,10 @@ function renderVendaManualOverlay() {
                   ${totals.couponDiscount?`<div class="vm-money-line"><span>Cupom</span><strong>− ${formatBRL(totals.couponDiscount)}</strong></div>`:""}
                   ${totals.manualDiscount?`<div class="vm-money-line"><span>Desconto manual</span><strong>− ${formatBRL(totals.manualDiscount)}</strong></div>`:""}
                   ${totals.deliveryFee?`<div class="vm-money-line"><span>Entrega</span><strong>+ ${formatBRL(totals.deliveryFee)}</strong></div>`:""}
+                  ${totals.paymentAdjustment>0?`<div class="vm-money-line"><span>${vendaManualState.payment==="credito" && totals.installments<=3?"Acréscimo cartão (+5%)":`Ajuste para taxa ${vendaManualState.payment==="credito"?totals.installments+"x":paymentMethodLabel(vendaManualState.payment)}`}</span><strong>+ ${formatBRL(totals.paymentAdjustment)}</strong></div>`:""}
                   <div class="vm-money-line total"><span>Total cliente</span><strong>${formatBRL(totals.total)}</strong></div>
                   <div class="vm-finance-grid">
-                    <div class="vm-finance-chip"><span>Taxa cartão</span><b>${formatBRL(totals.split.cardFee)}</b></div>
+                    <div class="vm-finance-chip"><span>Taxa operadora ${totals.split.feeRate?`(${(totals.split.feeRate*100).toFixed(2).replace(".",",")}%)`:""}</span><b>${formatBRL(totals.split.cardFee)}</b></div>
                     <div class="vm-finance-chip"><span>Receita líquida</span><b>${formatBRL(totals.split.netRevenue)}</b></div>
                     <div class="vm-finance-chip"><span>Custo a preservar</span><b>${formatBRL(totals.split.costToKeep)}</b></div>
                     <div class="vm-finance-chip"><span>Lucro real</span><b>${formatBRL(totals.split.profit)}</b></div>
@@ -12857,6 +13122,7 @@ function renderVendaManualOverlay() {
   bindValue("vm-notes","notes"); bindValue("vm-internal-notes","internalNotes"); bindValue("vm-manual-discount","manualDiscount","change"); bindValue("vm-discount-reason","manualDiscountReason");
   bindValue("vm-delivery-method","deliveryMethod","change"); bindValue("vm-delivery-fee","deliveryFee","change"); bindValue("vm-delivery-deadline","deliveryDeadline","change");
   document.querySelectorAll("[data-vm-payment]").forEach(btn=>btn.onclick=()=>{vendaManualState.payment=btn.dataset.vmPayment; if(vendaManualState.payment==="brinde") vendaManualState.paymentStatus="paid"; renderVendaManualOverlay();});
+  const vmInstallments=document.getElementById("vm-installments"); if(vmInstallments) vmInstallments.onchange=(e)=>{vendaManualState.installments=Number(e.target.value||1); renderVendaManualOverlay();};
   document.querySelectorAll("[data-vm-paystatus]").forEach(btn=>btn.onclick=()=>{vendaManualState.paymentStatus=btn.dataset.vmPaystatus; renderVendaManualOverlay();});
   const prodSelect=document.getElementById("vm-product-select"); if(prodSelect) prodSelect.onchange=e=>{vendaManualState._selectedProductId=e.target.value||null; vendaManualState._selectedVariantId=null; renderVendaManualOverlay();};
   const varSelect=document.getElementById("vm-variant-select"); if(varSelect && !varSelect.disabled) varSelect.onchange=e=>{vendaManualState._selectedVariantId=e.target.value||null; renderVendaManualOverlay();};
@@ -12947,6 +13213,8 @@ async function submeterVendaManual(e) {
     ...defaultOrderOpsMeta(),
     sale:{
       mode:vendaManualState.mode, origin:vendaManualState.origin,
+      paymentMethod:vendaManualState.payment, installments:vendaManualState.payment === "credito" ? totals.installments : 1,
+      baseCashPrice:totals.baseTotal, paymentAdjustment:totals.paymentAdjustment, operatorFeeRate:totals.split.feeRate,
       deliveryMethod:vendaManualState.deliveryMethod, deliveryFee:totals.deliveryFee,
       manualDiscount:totals.manualDiscount, manualDiscountReason:String(vendaManualState.manualDiscountReason||"").trim()||null,
       internalNotes:String(vendaManualState.internalNotes||"").trim()||null,
@@ -13012,6 +13280,8 @@ async function registrarCustoPedidoBrinde(order) {
     payment_method:null,customer_id:customer?.id||null,order_id:order.id,paid_at:new Date().toISOString(),created_by:state.currentUser.id,
   }).select("id").single();
   if(error){console.error("venda manual brinde custo:",error.message);return;}
+  const {error:feeError}=await ensureOrderCardFeeCashEntry(order,todayISO(),customer?.id||null);
+  if(feeError) console.error("venda manual financeiro taxa cartão:",feeError.message);
   const giftRows=(order.giftWraps||[]).filter(g=>g.material_id&&state.materials.some(m=>m.id===g.material_id)).map(g=>{const m=state.materials.find(x=>x.id===g.material_id);return{cash_entry_id:inserted.id,material_id:m.id,quantity:g.quantity,unit_cost:m.unit_cost};});
   if(giftRows.length){const {error:linkError}=await supabaseClient.from("cash_entry_materials").insert(giftRows);if(linkError)console.error("venda manual brinde materiais:",linkError.message);}
 }
@@ -13047,8 +13317,8 @@ const orcamentoState = {
 };
 
 const ORC_MARGEM_PIX = 0.40;
-const ORC_MARGEM_CREDITO = 0.45;
-const ORC_TAXA_CREDITO = 0.05;
+const ORC_MARGEM_CREDITO = 0.45; // mantido só para compatibilidade histórica
+const ORC_TAXA_CREDITO = 0.05; // acréscimo comercial ao cliente em até 3x
 
 async function loadOrcamentos() {
   const { data, error } = await supabaseClient
@@ -13102,9 +13372,8 @@ function orcNumero(v) {
 function orcPrecoCreditoAPartirDoPix(valorPix) {
   const pix = orcNumero(valorPix);
   if (pix <= 0) return 0;
-  const custoEstimado = pix * (1 - ORC_MARGEM_PIX);
-  const brutoCredito = custoEstimado / ((1 - ORC_TAXA_CREDITO) * (1 - ORC_MARGEM_CREDITO));
-  return Math.round(brutoCredito);
+  // Orçamento padrão continua anunciando cartão em até 3x: +5% sobre Pix.
+  return round2(pix * (1 + loadCardRateSettings().customerSurchargeUpTo3));
 }
 
 function orcDataISOParaBR(valor) {
@@ -14041,6 +14310,7 @@ function lancarPedidoDoOrcamentoAberto() {
     customerInstagram: customer?.instagram || "",
     notes: `Originado do orçamento nº ${orcNumeroFormatado(row.numero)}.`,
     payment: d.pagamento === "credito" ? "credito" : "pix",
+    installments: d.pagamento === "credito" ? 3 : 1,
     sourceOrcamentoId: row.id,
     sourceOrcamentoNumero: row.numero,
   });
@@ -14078,13 +14348,12 @@ async function excluirOrcamento(id) {
   renderOrcamentos(document.getElementById("main-content"));
 }
 
-function cashReservePlan(currentBalance) {
+function cashReservePlan(currentBalance, month = todayISO().slice(0,7)) {
   const settings = caixaState.reserveSettings || loadProfitSplitSettings();
   const ownerPercent = Math.max(0, Math.min(100, Number(settings.ownerPercent ?? 30)));
   const reinvestPercent = 100 - ownerPercent;
 
-  const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const ym = month;
 
   // A divisão considera somente pedidos realmente pagos neste mês.
   // Pedido cancelado e brinde não entram porque não geram lucro disponível.
@@ -14165,19 +14434,24 @@ function cashReservePlan(currentBalance) {
 
 function renderCaixa(container) {
   const entries = state.cashEntries;
-  const currentBalance = entries[0]?.running_balance ?? 0;
-  const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  let monthIn = 0, monthOut = 0;
-  entries.forEach((e) => {
-    if (!e.entry_date.startsWith(ym)) return;
-    if (e.entry_type === "entrada") monthIn += Number(e.amount); else monthOut += Number(e.amount);
-  });
-  const reservePlan = cashReservePlan(currentBalance);
+  const selectedMonth = caixaState.month || todayISO().slice(0,7);
+  const currentMonth = todayISO().slice(0,7);
+  const isCurrentMonth = selectedMonth === currentMonth;
+  const isPreOperationalMonth = cashMonthEnd(selectedMonth) < CASH_OPERATION_START_DATE;
+  const currentBalance = cashOperationalBalance();
+  const monthTotals = cashMonthActualTotals(selectedMonth);
+  const monthIn = monthTotals.entradas;
+  const monthOut = monthTotals.saidas;
+  const openingBalance = cashMonthOpeningBalance(selectedMonth);
+  const closingBalance = cashMonthClosingBalance(selectedMonth);
+  const runningBalanceMap = cashRunningBalanceMap();
+  const reservePlan = cashReservePlan(isCurrentMonth ? currentBalance : closingBalance, selectedMonth);
+  const monthOptions = cashAvailableMonths();
 
   const activeProducts = state.products.filter((p) => p.active);
   const knownEvents = [...new Set(state.cashEntries.map((e) => e.event_tag).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const filteredEntries = entries.filter((e) => {
+    if (String(e.entry_date || "").slice(0,7) !== selectedMonth) return false;
     if (caixaState.eventFilter && e.event_tag !== caixaState.eventFilter) return false;
     if (caixaState.startDate && e.entry_date < caixaState.startDate) return false;
     if (caixaState.endDate && e.entry_date > caixaState.endDate) return false;
@@ -14195,7 +14469,7 @@ function renderCaixa(container) {
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-xl font-semibold text-navy-900">Controle de Caixa</h1>
-          <p class="text-sm text-navy-500">Entradas e saídas, com saldo acumulado.</p>
+          <p class="text-sm text-navy-500">Caixa separado por competência mensal. Setembro/2026 é a primeira competência; a primeira venda registrada foi em 02/09.</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button id="new-entry-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">${caixaState.formOpen ? "Fechar lançamento" : "+ Novo lançamento"}</button>
@@ -14206,9 +14480,27 @@ function renderCaixa(container) {
               <button id="sim-open-btn" type="button">🧮 Simular venda</button>
               <button id="ev-open-btn" type="button">📅 Registrar venda em evento</button>
               <button id="new-brinde-btn" type="button">🎁 Lançar brinde</button>
+              <button id="cash-reconcile-card-fees" type="button">💳 Reconciliar taxas de cartão</button>
             </div>
           </details>
         </div>
+      </div>
+
+      <div class="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-navy-400">Competência do caixa</p>
+            <h2 class="mt-0.5 text-lg font-semibold text-navy-900">${cashMonthLabel(selectedMonth)}</h2>
+            <p class="mt-1 text-xs text-navy-500">Cada mês tem seus próprios lançamentos, entradas, saídas e fechamento. O histórico anterior ao início do Caixa permanece consultável sem alterar o saldo operacional.</p>
+          </div>
+          <label class="block min-w-[220px]">
+            <span class="mb-1 block text-xs font-medium text-navy-600">Selecionar mês</span>
+            <select id="caixa-month-picker" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm font-semibold text-navy-800 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+              ${monthOptions.map((m)=>`<option value="${m}" ${m===selectedMonth?"selected":""}>${cashMonthLabel(m)}${cashMonthEnd(m) < CASH_OPERATION_START_DATE ? " — histórico" : ""}</option>`).join("")}
+            </select>
+          </label>
+        </div>
+        ${isPreOperationalMonth ? `<div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><b>Histórico anterior ao Caixa operacional.</b> Estes lançamentos continuam registrados para consulta, mas não compõem o saldo oficial iniciado em 02/09/2026.</div>` : selectedMonth === CASH_OPERATION_START_DATE.slice(0,7) ? `<div class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"><b>Primeira competência operacional:</b> setembro/2026. O mês começa em 01/09 com saldo inicial de R$ 0,00; a primeira venda registrada ocorreu em 02/09.</div>` : ""}
       </div>
 
       ${eventModeState.active ? `
@@ -14223,33 +14515,41 @@ function renderCaixa(container) {
       <div id="evento-venda-overlay-slot"></div>
       <div id="venda-manual-overlay-slot"></div>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-xl bg-navy-900 px-5 py-4 text-cream-50 shadow">
-          <p class="text-xs uppercase tracking-wide opacity-80">Saldo atual</p>
-          <p class="mt-1 text-2xl font-semibold">${formatBRL(currentBalance)}</p>
+          <p class="text-xs uppercase tracking-wide opacity-80">Saldo inicial do mês</p>
+          <p class="mt-1 text-2xl font-semibold">${formatBRL(isPreOperationalMonth ? 0 : openingBalance)}</p>
+          <p class="mt-1 text-[11px] opacity-70">${selectedMonth === CASH_OPERATION_START_DATE.slice(0,7) ? "Competência iniciada em 01/09/2026." : "Saldo trazido do mês anterior."}</p>
         </div>
         <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-800 shadow">
-          <p class="text-xs uppercase tracking-wide opacity-80">Entradas do mês</p>
+          <p class="text-xs uppercase tracking-wide opacity-80">Entradas de ${cashMonthLabel(selectedMonth).split(" de ")[0]}</p>
           <p class="mt-1 text-2xl font-semibold">${formatBRL(monthIn)}</p>
+          <p class="mt-1 text-[11px] opacity-75">Somente valores efetivamente pagos/recebidos.</p>
         </div>
         <div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-red-700 shadow">
-          <p class="text-xs uppercase tracking-wide opacity-80">Saídas do mês</p>
+          <p class="text-xs uppercase tracking-wide opacity-80">Saídas de ${cashMonthLabel(selectedMonth).split(" de ")[0]}</p>
           <p class="mt-1 text-2xl font-semibold">${formatBRL(monthOut)}</p>
+          <p class="mt-1 text-[11px] opacity-75">Somente valores efetivamente pagos.</p>
+        </div>
+        <div class="rounded-xl border border-gold-300 bg-gold-50 px-5 py-4 shadow">
+          <p class="text-xs uppercase tracking-wide text-gold-700">${isCurrentMonth ? "Saldo operacional atual" : "Saldo final do mês"}</p>
+          <p class="mt-1 text-2xl font-semibold text-navy-900">${formatBRL(isPreOperationalMonth ? 0 : (isCurrentMonth ? currentBalance : closingBalance))}</p>
+          <p class="mt-1 text-[11px] text-navy-500">${isCurrentMonth ? "Desde 02/09/2026 até hoje." : "Fechamento acumulado até o último dia do mês."}</p>
         </div>
       </div>
 
       <section class="rounded-2xl border border-gold-300 bg-white p-4 shadow sm:p-5" aria-labelledby="cash-reserve-title">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-wide text-gold-700">Separação do dinheiro — este mês</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-gold-700">Separação do dinheiro — ${cashMonthLabel(selectedMonth)}</p>
             <h2 id="cash-reserve-title" class="mt-0.5 text-lg font-semibold text-navy-900">Custo, reinvestimento e sua retirada</h2>
             <p class="mt-1 max-w-3xl text-xs leading-relaxed text-navy-500">
-              A regra é simples: <b>o custo fica 100% guardado</b>. Depois, somente o lucro dos pedidos já pagos é dividido entre reinvestimento da Luz Mariana e sua retirada.
+              A regra é simples: <b>o custo fica 100% guardado</b>. Depois, somente o lucro dos pedidos já pagos nesta competência é dividido entre reinvestimento da Luz Mariana e sua retirada.
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button id="cash-owner-withdraw-toggle" type="button" ${reservePlan.ownerAvailableNow <= 0 ? "disabled" : ""} class="rounded-lg bg-gold-500 px-3 py-2 text-xs font-semibold text-navy-900 transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-40">
-              ${caixaState.withdrawOpen ? "Fechar retirada" : "💰 Registrar retirada"}
+            <button id="cash-owner-withdraw-toggle" type="button" ${(!isCurrentMonth || reservePlan.ownerAvailableNow <= 0) ? "disabled" : ""} class="rounded-lg bg-gold-500 px-3 py-2 text-xs font-semibold text-navy-900 transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-40">
+              ${!isCurrentMonth ? "🔒 Retirada só no mês atual" : caixaState.withdrawOpen ? "Fechar retirada" : "💰 Registrar retirada"}
             </button>
             <button id="cash-reserve-settings-toggle" type="button" class="rounded-lg border border-navy-200 bg-white px-3 py-2 text-xs font-semibold text-navy-700 transition hover:bg-navy-50">
               ${caixaState.reserveOpen ? "Fechar divisão" : "⚙ Ajustar divisão do lucro"}
@@ -14261,13 +14561,13 @@ function renderCaixa(container) {
           <div class="rounded-xl bg-navy-900 px-4 py-3 text-cream-50">
             <p class="text-xs uppercase tracking-wide opacity-80">Custo a preservar</p>
             <p class="mt-1 text-2xl font-semibold">${reservePlan.hasApproxCost ? "≈ " : ""}${formatBRL(reservePlan.costs)}</p>
-            <p class="mt-1 text-[11px] opacity-75">100% do custo das vendas pagas do mês.${reservePlan.cardFees > 0 ? ` Taxas de cartão: ${formatBRL(reservePlan.cardFees)}.` : ""}</p>
+            <p class="mt-1 text-[11px] opacity-75">100% do custo das vendas pagas da competência.${reservePlan.cardFees > 0 ? ` Taxas de cartão: ${formatBRL(reservePlan.cardFees)}.` : ""}</p>
           </div>
 
           <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
             <p class="text-xs uppercase tracking-wide text-emerald-700">Lucro realizado</p>
             <p class="mt-1 text-2xl font-semibold ${reservePlan.profit >= 0 ? "text-emerald-800" : "text-red-700"}">${reservePlan.hasApproxCost ? "≈ " : ""}${formatBRL(reservePlan.profit)}</p>
-            <p class="mt-1 text-[11px] text-emerald-700">${reservePlan.paidOrdersCount} pedido(s) pago(s) no mês.</p>
+            <p class="mt-1 text-[11px] text-emerald-700">${reservePlan.paidOrdersCount} pedido(s) pago(s) na competência.</p>
           </div>
 
           <div class="rounded-xl border border-navy-100 bg-cream-50 px-4 py-3">
@@ -14285,7 +14585,7 @@ function renderCaixa(container) {
 
         <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div class="rounded-xl border border-navy-100 bg-white px-4 py-3">
-            <p class="text-xs uppercase tracking-wide text-navy-400">Já retirado no mês</p>
+            <p class="text-xs uppercase tracking-wide text-navy-400">Já retirado na competência</p>
             <p class="mt-1 text-xl font-semibold text-navy-900">${formatBRL(reservePlan.ownerWithdrawn)}</p>
             <p class="mt-1 text-[11px] text-navy-400">Somente retiradas registradas neste painel.</p>
           </div>
@@ -14491,7 +14791,7 @@ function renderCaixa(container) {
                   </label>
                 </td>
                 <td class="px-3 py-2.5 text-right font-medium ${e.entry_type === "entrada" ? "text-emerald-700" : "text-red-700"}">${e.entry_type === "entrada" ? "+" : "-"}${formatBRL(e.amount)}</td>
-                <td class="px-3 py-2.5 text-right font-semibold text-navy-900">${formatBRL(e.running_balance)}</td>
+                <td class="px-3 py-2.5 text-right font-semibold text-navy-900">${String(e.entry_date || "") < CASH_OPERATION_START_DATE ? `<span class="text-xs text-navy-400">histórico</span>` : formatBRL(runningBalanceMap.get(String(e.id)) ?? 0)}</td>
                 <td class="px-3 py-2.5 text-center">
                   <div class="flex justify-center gap-2">
                     <button data-edit="${e.id}" class="edit-entry-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">Editar</button>
@@ -14559,7 +14859,7 @@ function renderCaixa(container) {
       const errorEl = document.getElementById("cash-owner-withdraw-error");
       const raw = String(input?.value || "").trim().replace(/\./g, "").replace(",", ".");
       const amount = Number(raw);
-      const currentPlan = cashReservePlan(entries[0]?.running_balance ?? 0);
+      const currentPlan = cashReservePlan(cashOperationalBalance(), selectedMonth);
 
       if (!Number.isFinite(amount) || amount <= 0) {
         errorEl.textContent = "Informe um valor válido para a retirada.";
@@ -14602,6 +14902,7 @@ function renderCaixa(container) {
     caixaState.formOpen = !caixaState.formOpen;
     renderCaixa(container);
   });
+  document.getElementById("cash-reconcile-card-fees")?.addEventListener("click", reconcileExistingCardFees);
   document.getElementById("new-brinde-btn").addEventListener("click", () => {
     brindeState = { open: true, items: [], giftWraps: [], name: "", whatsapp: "", instagram: "", notes: "" };
     renderBrindeOverlay();
@@ -14611,11 +14912,11 @@ function renderCaixa(container) {
     renderVendaManualOverlay();
   });
   document.getElementById("sim-open-btn").addEventListener("click", () => {
-    simulateState = { open: true, items: [], payment: "pix", _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+    simulateState = { open: true, items: [], payment: "pix", installments: 1, _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
     renderSimulateOverlay();
   });
   document.getElementById("ev-open-btn").addEventListener("click", () => {
-    eventoVendaState = { open: true, eventName: eventModeState.name, date: todayISO(), payment: "pix", items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
+    eventoVendaState = { open: true, eventName: eventModeState.name, date: todayISO(), payment: "pix", installments: 1, items: [], _selectedProductId: null, _selectedVariantId: null, _qty: "1" };
     renderEventoVendaOverlay();
   });
   const evModeStopBtn = document.getElementById("ev-mode-stop-btn");
@@ -14627,6 +14928,18 @@ function renderCaixa(container) {
       renderCaixa(container);
     });
   }
+  const monthPicker = document.getElementById("caixa-month-picker");
+  if (monthPicker) {
+    monthPicker.addEventListener("change", () => {
+      caixaState.month = monthPicker.value || todayISO().slice(0,7);
+      caixaState.startDate = "";
+      caixaState.endDate = "";
+      caixaState.eventFilter = "";
+      caixaState.withdrawOpen = false;
+      renderCaixa(container);
+    });
+  }
+
   const eventFilterSelect = document.getElementById("caixa-event-filter");
   if (eventFilterSelect) {
     eventFilterSelect.addEventListener("change", () => {
@@ -16133,12 +16446,12 @@ async function submeterCompraEstoque(e) {
       // in_stock/esgotado também vão explícitos aqui (não só stock_qty) —
       // o banco confirma isso de novo sozinho via trigger, mas assim o
       // resultado já sai certo mesmo antes do próximo loadProducts().
-      const { error: variantStockError } = await supabaseClient.from("product_variants").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: newQty <= 0 }).eq("id", vid);
+      const { error: variantStockError } = await supabaseClient.from("product_variants").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: false }).eq("id", vid);
       if (variantStockError) console.error("Não foi possível atualizar o estoque do modelo:", variantStockError.message);
     } else {
       if (product.stock_qty == null) continue;
       const newQty = Math.max(0, Number(product.stock_qty) + addQty);
-      const { error: productStockError } = await supabaseClient.from("products").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: newQty <= 0, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", pid);
+      const { error: productStockError } = await supabaseClient.from("products").update({ stock_qty: newQty, in_stock: newQty > 0, esgotado: false, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", pid);
       if (productStockError) console.error("Não foi possível atualizar o estoque do produto:", productStockError.message);
     }
   }
