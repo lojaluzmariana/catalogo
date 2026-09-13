@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
+<meta name="luz-mariana-admin-version" content="visual-dashboard-v5-2026-09-12" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -226,6 +227,251 @@
     #orcamento-print-area { position: absolute; left: 0; top: 0; width: 100%; }
     #orcamento-print-area .orc-no-print { display: none !important; }
   }
+
+  /* =====================================================================
+     NOVA INTERFACE DO PAINEL — navegação lateral + dashboard
+     Mantém toda a lógica já existente; muda organização, hierarquia e uso.
+     ===================================================================== */
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .admin-shell { min-height:100vh; background:#f8f6ef; }
+  .admin-topbar {
+    position:sticky; top:0; z-index:45; height:68px;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; padding:0 22px; background:#001868; color:#fff;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    box-shadow:0 5px 20px rgba(0,24,104,.12);
+  }
+  .admin-brand {
+    display:flex; align-items:center; gap:11px; min-width:0; border:0;
+    background:transparent; color:#fff; cursor:pointer; text-align:left;
+  }
+  .admin-brand img { width:38px; height:38px; flex:none; }
+  .admin-brand strong { display:block; font-size:16px; line-height:1.15; letter-spacing:.01em; }
+  .admin-brand small { display:block; margin-top:3px; font-size:10px; color:#b9c5ef; font-weight:600; text-transform:uppercase; letter-spacing:.09em; }
+  .admin-top-actions { display:flex; align-items:center; gap:8px; }
+  .admin-top-button {
+    min-height:40px; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    border:1px solid #283e8e; border-radius:11px; padding:8px 11px;
+    background:#071f70; color:#fff; font-size:12px; font-weight:700; cursor:pointer;
+  }
+  .admin-top-button:hover { background:#102b82; }
+  .admin-update-time { font-size:11px; color:#aab8e7; white-space:nowrap; }
+  .admin-user-menu { position:relative; }
+  .admin-user-menu summary {
+    list-style:none; cursor:pointer; min-height:40px; display:flex; align-items:center; gap:8px;
+    border:1px solid #283e8e; border-radius:11px; padding:7px 11px; background:#071f70;
+    font-size:12px; font-weight:700;
+  }
+  .admin-user-menu summary::-webkit-details-marker { display:none; }
+  .admin-avatar {
+    width:26px; height:26px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center;
+    background:#e6ab00; color:#001868; font-size:12px; font-weight:800;
+  }
+  .admin-user-dropdown {
+    position:absolute; right:0; top:calc(100% + 8px); width:210px; padding:8px;
+    border:1px solid #dfe3ef; border-radius:12px; background:#fff; color:#16213f;
+    box-shadow:0 18px 45px rgba(7,20,57,.18);
+  }
+  .admin-user-dropdown button {
+    width:100%; min-height:40px; display:flex; align-items:center; gap:9px; padding:8px 10px;
+    border:0; border-radius:9px; background:transparent; color:#26345f; font-size:13px; text-align:left; cursor:pointer;
+  }
+  .admin-user-dropdown button:hover { background:#f4f6fb; }
+
+  .admin-body { display:grid; grid-template-columns:238px minmax(0,1fr); min-height:calc(100vh - 68px); }
+  .admin-sidebar {
+    position:sticky; top:68px; align-self:start; height:calc(100vh - 68px); overflow-y:auto;
+    padding:18px 12px 24px; background:#071c63; border-right:1px solid rgba(255,255,255,.06);
+  }
+  .admin-nav-group { margin-bottom:18px; }
+  .admin-nav-label {
+    display:block; padding:0 11px 7px; color:#7284c5; font-size:9px; font-weight:800;
+    letter-spacing:.12em; text-transform:uppercase;
+  }
+  .admin-nav-btn {
+    width:100%; min-height:42px; display:flex; align-items:center; gap:10px; margin:2px 0;
+    padding:9px 11px; border:0; border-radius:10px; background:transparent;
+    color:#e9edff; font-size:13px; font-weight:650; text-align:left; cursor:pointer; transition:.15s ease;
+  }
+  .admin-nav-btn:hover { background:#102b82; }
+  .admin-nav-btn.is-active {
+    background:#e9aa00; color:#001868; box-shadow:0 7px 16px rgba(0,0,0,.14);
+  }
+  .admin-nav-icon { width:20px; flex:none; text-align:center; font-size:15px; }
+  .admin-nav-badge {
+    margin-left:auto; min-width:21px; height:20px; display:inline-flex; align-items:center; justify-content:center;
+    padding:0 6px; border-radius:999px; background:#cf3341; color:#fff; font-size:10px; font-weight:800;
+  }
+  .admin-nav-btn.is-active .admin-nav-badge { background:#001868; color:#fff; }
+
+  .admin-main-column { min-width:0; }
+  .admin-notice-stack { padding:14px 24px 0; }
+  .admin-notice {
+    max-width:1440px; margin:0 auto 8px; display:flex; align-items:center; justify-content:space-between;
+    gap:12px; border-radius:11px; padding:10px 12px; font-size:12px;
+  }
+  .admin-notice-warning { border:1px solid #eed68c; background:#fff8df; color:#815e00; }
+  .admin-notice-gold { border:1px solid #e9ce73; background:#fffae9; color:#715400; }
+  .admin-main-content { width:100%; max-width:1440px; margin:0 auto; padding:26px 26px 42px; }
+
+  .admin-dashboard-hero {
+    display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
+    padding:22px 24px; border-radius:18px; background:linear-gradient(135deg,#001868 0%,#0a2b85 100%);
+    color:#fff; box-shadow:0 14px 34px rgba(0,24,104,.15);
+  }
+  .admin-dashboard-hero h1 { margin:3px 0 0; font-size:25px; line-height:1.2; font-weight:750; }
+  .admin-dashboard-hero p { margin-top:7px; max-width:680px; color:#cdd6f5; font-size:13px; line-height:1.55; }
+  .admin-kicker { font-size:10px; font-weight:800; color:#f3c84d; letter-spacing:.12em; text-transform:uppercase; }
+  .admin-dashboard-grid {
+    display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:13px; margin-top:16px;
+  }
+  .admin-stat-card {
+    min-height:118px; border:1px solid #e4e5eb; border-radius:15px; background:#fff;
+    padding:15px 16px; box-shadow:0 5px 16px rgba(18,36,83,.05);
+  }
+  button.admin-stat-card { width:100%; text-align:left; cursor:pointer; }
+  button.admin-stat-card:hover { border-color:#d5aa3e; box-shadow:0 8px 22px rgba(18,36,83,.09); transform:translateY(-1px); }
+  .admin-stat-label { display:flex; align-items:center; justify-content:space-between; gap:8px; color:#66708c; font-size:11px; font-weight:700; }
+  .admin-stat-value { margin-top:9px; color:#001868; font-size:24px; line-height:1; font-weight:800; }
+  .admin-stat-hint { margin-top:8px; color:#8a92a8; font-size:10px; line-height:1.35; }
+  .admin-stat-card.attention { border-color:#f0cba1; background:#fffaf3; }
+  .admin-stat-card.good { border-color:#b9dfce; background:#f7fcf9; }
+  .admin-stat-card.gold { border-color:#ebd076; background:#fffbee; }
+
+  .admin-section-card {
+    margin-top:16px; border:1px solid #e4e5eb; border-radius:16px; background:#fff;
+    padding:18px; box-shadow:0 5px 16px rgba(18,36,83,.05);
+  }
+  .admin-section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:13px; }
+  .admin-section-heading h2 { color:#001868; font-size:15px; font-weight:800; }
+  .admin-section-heading p { margin-top:2px; color:#7b849e; font-size:11px; }
+
+  .admin-quick-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  .admin-quick-action {
+    min-height:67px; display:flex; align-items:center; gap:10px; border:1px solid #e0e3eb;
+    border-radius:12px; padding:11px 12px; background:#fbfcff; color:#1b2b5d; font-size:12px; font-weight:750;
+    cursor:pointer; text-align:left;
+  }
+  .admin-quick-action:hover { border-color:#d9ac2b; background:#fffaf0; }
+  .admin-quick-icon {
+    width:34px; height:34px; flex:none; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:9px; background:#eef1fa; font-size:17px;
+  }
+
+  .admin-task-list { display:flex; flex-direction:column; gap:8px; }
+  .admin-task {
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px;
+    border:1px solid #eceef3; border-radius:11px; padding:10px 12px; background:#fff; text-align:left; cursor:pointer;
+  }
+  .admin-task:hover { background:#fbfcff; border-color:#d9ac2b; }
+  .admin-task-main { display:flex; align-items:center; gap:10px; min-width:0; }
+  .admin-task-dot { width:9px; height:9px; border-radius:999px; flex:none; background:#e1aa00; }
+  .admin-task strong { display:block; color:#1c2a54; font-size:12px; }
+  .admin-task small { display:block; margin-top:2px; color:#8a92a8; font-size:10px; }
+  .admin-task-count { color:#001868; font-size:13px; font-weight:800; }
+
+  .admin-recent-orders { display:grid; gap:8px; }
+  .admin-recent-order {
+    display:grid; grid-template-columns:minmax(0,1.5fr) 110px 110px 90px; gap:10px; align-items:center;
+    padding:10px 12px; border:1px solid #edf0f5; border-radius:10px; background:#fff; font-size:11px;
+  }
+  .admin-order-name { min-width:0; }
+  .admin-order-name strong { display:block; color:#001868; font-size:12px; }
+  .admin-order-name span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#7b849e; margin-top:2px; }
+  .admin-order-status { justify-self:start; border-radius:999px; padding:4px 7px; background:#eef1f8; color:#44547d; font-weight:700; font-size:10px; }
+  .admin-order-money { text-align:right; color:#001868; font-weight:800; }
+  .admin-order-open { border:0; background:transparent; color:#a57200; font-weight:800; cursor:pointer; }
+
+  .admin-actions-menu { position:relative; }
+  .admin-actions-menu summary {
+    list-style:none; cursor:pointer; min-height:40px; display:inline-flex; align-items:center; gap:7px;
+    border:1px solid #cfd5e4; border-radius:10px; padding:8px 12px; background:#fff; color:#28375f;
+    font-size:12px; font-weight:750;
+  }
+  .admin-actions-menu summary::-webkit-details-marker { display:none; }
+  .admin-actions-popover {
+    position:absolute; right:0; top:calc(100% + 7px); z-index:30; min-width:240px;
+    padding:8px; border:1px solid #dfe3ed; border-radius:12px; background:#fff;
+    box-shadow:0 15px 36px rgba(16,30,69,.16);
+  }
+  .admin-actions-popover button, .admin-actions-popover label {
+    width:100%; min-height:40px; display:flex; align-items:center; gap:9px; border:0;
+    border-radius:9px; padding:8px 10px; background:transparent; color:#28375f; font-size:12px; font-weight:650;
+    text-align:left; cursor:pointer; box-shadow:none;
+  }
+  .admin-actions-popover button:hover, .admin-actions-popover label:hover { background:#f6f7fa; }
+
+  /* Refinamento geral das telas existentes */
+  #main-content > div > div:first-child h1 { letter-spacing:-.015em; }
+  #main-content .shadow { box-shadow:0 5px 16px rgba(18,36,83,.055) !important; }
+  #main-content table thead { position:sticky; top:68px; z-index:3; }
+  #main-content table tbody tr { transition:background .12s ease; }
+  #main-content table tbody tr:hover { background:#fbfaf6; }
+
+  html.dark .admin-shell { background:#0b1120; }
+  html.dark .admin-topbar { background:#060f2e; }
+  html.dark .admin-sidebar { background:#081334; }
+  html.dark .admin-main-content { color:#e8edf9; }
+  html.dark .admin-user-dropdown,
+  html.dark .admin-stat-card,
+  html.dark .admin-section-card,
+  html.dark .admin-task,
+  html.dark .admin-recent-order,
+  html.dark .admin-actions-popover { background:#151d30; border-color:#2c3a5e; }
+  html.dark .admin-user-dropdown button,
+  html.dark .admin-task strong,
+  html.dark .admin-section-heading h2,
+  html.dark .admin-stat-value,
+  html.dark .admin-order-name strong,
+  html.dark .admin-order-money { color:#f1f4fc; }
+  html.dark .admin-quick-action { background:#151d30; border-color:#2c3a5e; color:#e8edf9; }
+  html.dark .admin-quick-icon { background:#1d2946; }
+  html.dark .admin-stat-card.attention { background:#2e2405; border-color:#6b5613; }
+  html.dark .admin-stat-card.good { background:#0c2620; border-color:#1c5741; }
+  html.dark .admin-stat-card.gold { background:#2e2405; border-color:#6b5613; }
+  html.dark .admin-actions-menu summary { background:#151d30; border-color:#2c3a5e; color:#e8edf9; }
+  html.dark .admin-actions-popover button,
+  html.dark .admin-actions-popover label { color:#e8edf9; }
+  html.dark .admin-actions-popover button:hover,
+  html.dark .admin-actions-popover label:hover { background:#1c2740; }
+
+  @media (max-width:1100px) {
+    .admin-dashboard-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .admin-quick-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width:900px) {
+    .admin-topbar { height:auto; min-height:64px; padding:10px 12px; }
+    .admin-brand small, .admin-update-time { display:none; }
+    .admin-body { display:block; }
+    .admin-sidebar {
+      position:sticky; top:64px; z-index:35; height:auto; overflow-x:auto; overflow-y:hidden;
+      display:flex; gap:5px; padding:7px 9px; border-right:0; border-bottom:1px solid #183078;
+    }
+    .admin-nav-group { display:flex; gap:5px; margin:0; }
+    .admin-nav-label { display:none; }
+    .admin-nav-btn { width:auto; min-width:max-content; min-height:38px; margin:0; padding:7px 10px; }
+    .admin-nav-icon { width:auto; }
+    .admin-main-content { padding:18px 12px 36px; }
+    .admin-notice-stack { padding:10px 12px 0; }
+    #main-content table thead { top:109px; }
+  }
+  @media (max-width:640px) {
+    .admin-top-button .admin-top-text { display:none; }
+    .admin-top-button { width:40px; padding:8px; }
+    .admin-user-menu summary .admin-user-name { display:none; }
+    .admin-dashboard-hero { padding:18px; border-radius:14px; }
+    .admin-dashboard-hero h1 { font-size:21px; }
+    .admin-dashboard-grid { grid-template-columns:1fr 1fr; gap:9px; }
+    .admin-stat-card { min-height:105px; padding:13px; }
+    .admin-stat-value { font-size:20px; }
+    .admin-quick-grid { grid-template-columns:1fr 1fr; }
+    .admin-recent-order { grid-template-columns:minmax(0,1fr) 80px; }
+    .admin-recent-order .admin-hide-mobile { display:none; }
+  }
+
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
@@ -561,7 +807,7 @@ const state = {
   selectedName: null,
   currentUser: null, // { id, name }
   forgotPassword: { username: "", submitting: false, submitted: false, error: null },
-  tab: "precificacao", // precificacao | materiais | fornecedores | clientes | cupons | orcamentos | pedidos | estoque | caixa
+  tab: "inicio", // inicio | precificacao | materiais | fornecedores | clientes | cupons | orcamentos | pedidos | estoque | caixa
   products: [],
   materials: [],
   suppliers: [],
@@ -1068,71 +1314,311 @@ async function logout() {
 /* =====================================================================
    ÁREA LOGADA — layout com navegação
    ===================================================================== */
+
+function renderInicio(container) {
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const paidMonth = state.orders.filter((o) =>
+    o.status !== "cancelado" &&
+    o.payment_method !== "brinde" &&
+    !!o.paid_at &&
+    String(o.paid_at).slice(0, 7) === ym
+  );
+
+  const salesMonth = round2(paidMonth.reduce((sum, o) => sum + Number(o.total || 0), 0));
+  const profitMonth = round2(paidMonth.reduce((sum, o) => sum + orderMoneySplit(o).profit, 0));
+  const receivable = round2(state.orders
+    .filter((o) => o.status !== "cancelado" && o.payment_method !== "brinde" && !o.paid_at)
+    .reduce((sum, o) => sum + Number(o.total || 0), 0));
+  const currentBalance = Number(state.cashEntries[0]?.running_balance ?? 0);
+  const plan = cashReservePlan(currentBalance);
+
+  const newOrders = state.orders.filter((o) => o.status === "novo").length;
+  const inProgress = state.orders.filter((o) => o.status === "em_andamento").length;
+  const lowStock = countLowStockProducts() + countLowStockMaterials();
+  const pendingReviews = state.reviews.filter((r) => !r.approved).length;
+  const unpaidStock = state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length;
+  const recentOrders = [...state.orders]
+    .filter((o) => o.status !== "cancelado")
+    .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0,5);
+
+  const firstName = (state.currentUser?.name || "Olá").split(/\s+/)[0];
+
+  container.innerHTML = `
+    <div>
+      <section class="admin-dashboard-hero">
+        <div>
+          <span class="admin-kicker">Visão geral</span>
+          <h1>Olá, ${escapeHtml(firstName)}.</h1>
+          <p>Veja primeiro o que precisa da sua atenção e, logo abaixo, os números principais da Luz Mariana. O restante do painel fica organizado por área no menu lateral.</p>
+        </div>
+        <button type="button" data-dashboard-tab="pedidos" class="admin-top-button" style="background:#e9aa00;color:#001868;border-color:#e9aa00">
+          Ver pedidos
+        </button>
+      </section>
+
+      <div class="admin-dashboard-grid">
+        <button type="button" data-dashboard-tab="pedidos" class="admin-stat-card ${newOrders ? "attention" : ""}">
+          <div class="admin-stat-label"><span>Pedidos novos</span><span>🧾</span></div>
+          <div class="admin-stat-value">${newOrders}</div>
+          <div class="admin-stat-hint">${newOrders ? "Há pedido aguardando sua conferência." : "Nenhum pedido novo agora."}</div>
+        </button>
+
+        <button type="button" data-dashboard-tab="pedidos" class="admin-stat-card">
+          <div class="admin-stat-label"><span>Em andamento</span><span>⏳</span></div>
+          <div class="admin-stat-value">${inProgress}</div>
+          <div class="admin-stat-hint">Pedidos em produção, separação ou atendimento.</div>
+        </button>
+
+        <button type="button" data-dashboard-tab="caixa" class="admin-stat-card ${receivable > 0 ? "attention" : "good"}">
+          <div class="admin-stat-label"><span>A receber</span><span>💳</span></div>
+          <div class="admin-stat-value">${formatBRL(receivable)}</div>
+          <div class="admin-stat-hint">Pedidos ainda não marcados como pagos.</div>
+        </button>
+
+        <button type="button" data-dashboard-tab="caixa" class="admin-stat-card gold">
+          <div class="admin-stat-label"><span>Pode retirar agora</span><span>💰</span></div>
+          <div class="admin-stat-value">${formatBRL(plan.ownerAvailableNow)}</div>
+          <div class="admin-stat-hint">Sua retirada disponível, preservando custo + reinvestimento.</div>
+        </button>
+
+        <button type="button" data-dashboard-tab="relatorios" class="admin-stat-card">
+          <div class="admin-stat-label"><span>Vendas do mês</span><span>📈</span></div>
+          <div class="admin-stat-value">${formatBRL(salesMonth)}</div>
+          <div class="admin-stat-hint">${paidMonth.length} pedido(s) pago(s) neste mês.</div>
+        </button>
+
+        <button type="button" data-dashboard-tab="relatorios" class="admin-stat-card good">
+          <div class="admin-stat-label"><span>Lucro realizado</span><span>↗</span></div>
+          <div class="admin-stat-value">${formatBRL(profitMonth)}</div>
+          <div class="admin-stat-hint">Já considera custo e taxa de cartão quando aplicável.</div>
+        </button>
+
+        <button type="button" data-dashboard-tab="caixa" class="admin-stat-card">
+          <div class="admin-stat-label"><span>Saldo do Caixa</span><span>🏦</span></div>
+          <div class="admin-stat-value">${formatBRL(currentBalance)}</div>
+          <div class="admin-stat-hint">Saldo acumulado registrado no painel.</div>
+        </button>
+
+        <button type="button" data-dashboard-tab="precificacao" class="admin-stat-card ${lowStock ? "attention" : ""}">
+          <div class="admin-stat-label"><span>Estoque baixo</span><span>📦</span></div>
+          <div class="admin-stat-value">${lowStock}</div>
+          <div class="admin-stat-hint">${lowStock ? "Produtos/modelos/materiais pedindo atenção." : "Nenhum alerta de estoque."}</div>
+        </button>
+      </div>
+
+      <section class="admin-section-card">
+        <div class="admin-section-heading">
+          <div>
+            <h2>Atalhos rápidos</h2>
+            <p>As ações que você mais usa, sem precisar procurar no menu.</p>
+          </div>
+        </div>
+        <div class="admin-quick-grid">
+          <button type="button" data-dashboard-action="new-product" class="admin-quick-action"><span class="admin-quick-icon">＋</span><span>Novo produto</span></button>
+          <button type="button" data-dashboard-tab="orcamentos" class="admin-quick-action"><span class="admin-quick-icon">📝</span><span>Fazer orçamento</span></button>
+          <button type="button" data-dashboard-tab="pedidos" class="admin-quick-action"><span class="admin-quick-icon">🧾</span><span>Gerenciar pedidos</span></button>
+          <button type="button" data-dashboard-tab="caixa" class="admin-quick-action"><span class="admin-quick-icon">💵</span><span>Abrir Caixa</span></button>
+        </div>
+      </section>
+
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px" class="admin-dashboard-lower">
+        <section class="admin-section-card">
+          <div class="admin-section-heading">
+            <div><h2>Precisa de atenção</h2><p>Pendências que valem uma conferida agora.</p></div>
+          </div>
+          <div class="admin-task-list">
+            <button type="button" data-dashboard-tab="pedidos" class="admin-task">
+              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Pedidos novos</strong><small>Aguardando aceitar ou revisar.</small></span></span>
+              <span class="admin-task-count">${newOrders}</span>
+            </button>
+            <button type="button" data-dashboard-tab="precificacao" class="admin-task">
+              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Estoque baixo</strong><small>Produtos, modelos ou materiais.</small></span></span>
+              <span class="admin-task-count">${lowStock}</span>
+            </button>
+            <button type="button" data-dashboard-tab="avaliacoes" class="admin-task">
+              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Avaliações pendentes</strong><small>Aguardando aprovação.</small></span></span>
+              <span class="admin-task-count">${pendingReviews}</span>
+            </button>
+            <button type="button" data-dashboard-tab="estoque" class="admin-task">
+              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Compras de estoque não pagas</strong><small>Consignações ou compras ainda abertas.</small></span></span>
+              <span class="admin-task-count">${unpaidStock}</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="admin-section-card">
+          <div class="admin-section-heading">
+            <div><h2>Pedidos recentes</h2><p>Últimos pedidos registrados no sistema.</p></div>
+            <button type="button" data-dashboard-tab="pedidos" class="admin-order-open">Ver todos</button>
+          </div>
+          <div class="admin-recent-orders">
+            ${recentOrders.length === 0 ? `<p class="text-sm text-navy-400">Nenhum pedido registrado ainda.</p>` : recentOrders.map((o) => `
+              <div class="admin-recent-order">
+                <div class="admin-order-name">
+                  <strong>Nº ${String(o.order_number ?? "").padStart(6,"0")} · ${escapeHtml(o.customer_name)}</strong>
+                  <span>${formatDate(String(o.created_at).slice(0,10))}</span>
+                </div>
+                <span class="admin-order-status admin-hide-mobile">${escapeHtml(ORDER_STATUS_LABELS[o.status] || o.status)}</span>
+                <span class="admin-order-money">${formatBRL(o.total)}</span>
+                <button type="button" data-open-dashboard-order="${o.id}" class="admin-order-open admin-hide-mobile">Abrir</button>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+      </div>
+    </div>
+  `;
+
+  // Em telas menores, as duas colunas inferiores viram uma só sem depender
+  // da recompilação do Tailwind.
+  const lower = container.querySelector(".admin-dashboard-lower");
+  const adjustLower = () => { if (lower) lower.style.gridTemplateColumns = window.innerWidth < 900 ? "1fr" : "minmax(0,1fr) minmax(0,1fr)"; };
+  adjustLower();
+
+  container.querySelectorAll("[data-dashboard-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.tab = btn.dataset.dashboardTab;
+      renderApp();
+    });
+  });
+
+  container.querySelector("[data-dashboard-action='new-product']")?.addEventListener("click", () => {
+    state.tab = "precificacao";
+    renderApp();
+    document.getElementById("new-product-btn")?.click();
+  });
+
+  container.querySelectorAll("[data-open-dashboard-order]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.tab = "pedidos";
+      pedidosState.expandedId = btn.dataset.openDashboardOrder;
+      renderApp();
+    });
+  });
+}
+
 function renderApp() {
+  const newOrdersCount = state.orders.filter((o) => o.status === "novo").length;
+  const lowStockCount = countLowStockProducts() + countLowStockMaterials();
+  const pendingReviewsCount = state.reviews.filter((r) => !r.approved).length;
+  const notificationCount = newOrdersCount + lowStockCount + pendingReviewsCount + state.dataLoadWarnings.length;
+  const initial = (state.currentUser?.name || "A").trim().charAt(0).toUpperCase();
+
+  const navBtn = (tab, icon, label, badge = 0, title = "") => `
+    <button type="button" data-tab="${tab}" ${title ? `title="${escapeHtml(title)}"` : ""}
+      class="nav-btn admin-nav-btn ${state.tab === tab ? "is-active" : ""}">
+      <span class="admin-nav-icon">${icon}</span>
+      <span>${label}</span>
+      ${badge > 0 ? `<span class="admin-nav-badge">${badge}</span>` : ""}
+    </button>`;
+
   app.innerHTML = `
-    <div class="min-h-screen bg-cream-50">
-      <header class="sticky top-0 z-10 bg-navy-900">
-        <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div class="flex items-center gap-3">
-            <img src="../logo-symbol.png" alt="Luz Mariana" class="h-8 w-8 sm:h-9 sm:w-9" />
-            <span class="text-base font-semibold tracking-wide text-cream-50 sm:text-lg">Luz Mariana</span>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="hidden text-sm text-cream-100 sm:inline">Olá, ${escapeHtml(state.currentUser?.name ?? "")}</span>
-            <span id="last-refreshed" title="Os dados se atualizam sozinhos a cada minuto" class="hidden text-xs text-navy-300 sm:inline">${state.lastRefreshedAt ? `Atualizado às ${state.lastRefreshedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}</span>
-            <button id="refresh-btn" title="Recarregar os dados sem precisar dar F5 (o F5 pede login de novo)" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">↻ Atualizar</button>
-            <button id="dark-mode-toggle-btn" title="${isDarkMode() ? "Modo claro" : "Modo escuro"}" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">${isDarkMode() ? "☀️" : "🌙"}</button>
-            <button id="security-settings-btn" title="Verificação em duas etapas (2FA)" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">🔒 Segurança</button>
-            <button id="logout-btn" class="rounded-lg border border-navy-700 px-3 py-2 text-sm font-medium text-cream-50 transition hover:bg-navy-800">Sair</button>
-          </div>
+    <div class="admin-shell">
+      <header class="admin-topbar">
+        <button type="button" data-tab="inicio" class="nav-btn admin-brand" aria-label="Ir para o início do painel">
+          <img src="../logo-symbol.png" alt="" />
+          <span><strong>Luz Mariana</strong><small>Painel de gestão</small></span>
+        </button>
+
+        <div class="admin-top-actions">
+          <span id="last-refreshed" class="admin-update-time" title="Os dados se atualizam automaticamente">
+            ${state.lastRefreshedAt ? `Atualizado ${state.lastRefreshedAt.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })}` : ""}
+          </span>
+
+          <button id="refresh-btn" type="button" class="admin-top-button" title="Atualizar dados">
+            ↻ <span class="admin-top-text">Atualizar</span>
+          </button>
+
+          <button type="button" data-tab="inicio" class="nav-btn admin-top-button" title="Ver pendências e avisos">
+            🔔 ${notificationCount > 0 ? `<span style="min-width:18px;height:18px;border-radius:999px;background:#e9aa00;color:#001868;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:900">${notificationCount}</span>` : ""}
+          </button>
+
+          <details class="admin-user-menu">
+            <summary>
+              <span class="admin-avatar">${escapeHtml(initial)}</span>
+              <span class="admin-user-name">${escapeHtml(state.currentUser?.name ?? "Usuário")}</span>
+              <span>⌄</span>
+            </summary>
+            <div class="admin-user-dropdown">
+              <button id="dark-mode-toggle-btn" type="button">${isDarkMode() ? "☀️ Modo claro" : "🌙 Modo escuro"}</button>
+              <button id="security-settings-btn" type="button">🔒 Segurança</button>
+              <button id="logout-btn" type="button">↪ Sair do painel</button>
+            </div>
+          </details>
         </div>
-        <nav class="border-t border-navy-800">
-          <div class="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 text-sm">
-            <button data-tab="precificacao" title="${countLowStockProducts() > 0 ? countLowStockProducts() + " produto(s)/modelo(s) com estoque acabando" : ""}" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "precificacao" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Precificação${countLowStockProducts() > 0 ? ` <span class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${countLowStockProducts()}</span>` : ""}</button>
-            <button data-tab="materiais" title="${countLowStockMaterials() > 0 ? countLowStockMaterials() + " material(is) com estoque acabando" : ""}" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "materiais" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Materiais${countLowStockMaterials() > 0 ? ` <span class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${countLowStockMaterials()}</span>` : ""}</button>
-            <button data-tab="fornecedores" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "fornecedores" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Fornecedores</button>
-            <button data-tab="clientes" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "clientes" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Clientes</button>
-            <button data-tab="cupons" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "cupons" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Cupons</button>
-            <button data-tab="orcamentos" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "orcamentos" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Fazer orçamento</button>
-            <button data-tab="pedidos" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "pedidos" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Pedidos${state.orders.filter((o) => o.status === "novo").length > 0 ? ` <span class="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.orders.filter((o) => o.status === "novo").length}</span>` : ""}</button>
-            <button data-tab="estoque" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "estoque" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Estoque${state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length > 0 ? ` <span class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length}</span>` : ""}</button>
-            <button data-tab="caixa" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "caixa" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Caixa</button>
-            <button data-tab="relatorios" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "relatorios" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Relatórios</button>
-            <button data-tab="avaliacoes" class="nav-btn whitespace-nowrap rounded-lg px-3 py-2 font-medium transition ${state.tab === "avaliacoes" ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:bg-navy-800"}">Avaliações${state.reviews.filter((r) => !r.approved).length > 0 ? ` <span class="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">${state.reviews.filter((r) => !r.approved).length}</span>` : ""}</button>
-          </div>
-        </nav>
       </header>
-      ${state.dataLoadWarnings.length > 0 ? `
-        <div class="border-b border-amber-200 bg-amber-50 px-4 py-2">
-          <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-sm text-amber-800">
-            <span>⚠ Não foi possível atualizar: ${escapeHtml(state.dataLoadWarnings.join(", "))}. Os dados na tela podem estar desatualizados.</span>
-            <button id="data-load-warning-retry" class="rounded-lg border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100">Tentar de novo</button>
+
+      <div class="admin-body">
+        <aside class="admin-sidebar" aria-label="Navegação principal">
+          <div class="admin-nav-group">
+            <span class="admin-nav-label">Visão geral</span>
+            ${navBtn("inicio","⌂","Início", notificationCount)}
           </div>
-        </div>
-      ` : ""}
-      ${!lowStockBannerDismissed && (countLowStockProducts() + countLowStockMaterials()) > 0 ? `
-        <div class="border-b border-amber-200 bg-amber-50 px-4 py-2">
-          <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-sm text-amber-800">
-            <span>⚠ ${countLowStockProducts() + countLowStockMaterials()} produto(s)/modelo(s)/material(is) com estoque acabando. Veja em Precificação/Materiais.</span>
-            <div class="flex items-center gap-2">
-              <button id="low-stock-whatsapp-btn" class="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100">📱 Avisar no WhatsApp da loja</button>
-              <button id="low-stock-dismiss-btn" title="Dispensar por agora (volta a aparecer se recarregar a página)" class="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100">✕</button>
-            </div>
+
+          <div class="admin-nav-group">
+            <span class="admin-nav-label">Vendas</span>
+            ${navBtn("pedidos","🧾","Pedidos",newOrdersCount)}
+            ${navBtn("orcamentos","📝","Orçamentos")}
+            ${navBtn("clientes","👤","Clientes")}
+            ${navBtn("avaliacoes","★","Avaliações",pendingReviewsCount)}
           </div>
-        </div>
-      ` : ""}
-      ${!birthdayBannerDismissed && customersWithBirthdayThisWeek().length > 0 ? `
-        <div class="border-b border-gold-300 bg-gold-50 px-4 py-2">
-          <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-sm text-gold-900">
-            <span>🎂 Aniversário essa semana: ${customersWithBirthdayThisWeek().map((c) => `${escapeHtml(c.name)} (${formatDate(c.birth_date).slice(0, 5)})`).join(", ")}</span>
-            <div class="flex flex-wrap items-center gap-2">
-              ${customersWithBirthdayThisWeek().filter((c) => waLink(c.whatsapp)).map((c) => `<button data-birthday-msg="${c.id}" class="birthday-msg-btn rounded-lg border border-gold-400 bg-white px-2.5 py-1 text-xs font-medium text-gold-900 hover:bg-gold-100">💬 ${escapeHtml(c.name.split(/\s+/)[0])}</button>`).join("")}
-              <button id="birthday-dismiss-btn" title="Dispensar por agora (volta a aparecer se recarregar a página)" class="rounded px-2 py-1 text-xs font-medium text-gold-800 hover:bg-gold-100">✕</button>
-            </div>
+
+          <div class="admin-nav-group">
+            <span class="admin-nav-label">Catálogo</span>
+            ${navBtn("precificacao","🏷","Produtos e preços",countLowStockProducts(), countLowStockProducts() ? "Há produtos/modelos com estoque baixo" : "")}
+            ${navBtn("materiais","◫","Materiais",countLowStockMaterials())}
           </div>
+
+          <div class="admin-nav-group">
+            <span class="admin-nav-label">Financeiro</span>
+            ${navBtn("caixa","💰","Caixa")}
+            ${navBtn("relatorios","📊","Relatórios")}
+            ${navBtn("cupons","%","Cupons")}
+          </div>
+
+          <div class="admin-nav-group">
+            <span class="admin-nav-label">Compras</span>
+            ${navBtn("estoque","📦","Estoque",state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length)}
+            ${navBtn("fornecedores","🚚","Fornecedores")}
+          </div>
+        </aside>
+
+        <div class="admin-main-column">
+          <div class="admin-notice-stack">
+            ${state.dataLoadWarnings.length > 0 ? `
+              <div class="admin-notice admin-notice-warning">
+                <span>⚠ Não foi possível atualizar: ${escapeHtml(state.dataLoadWarnings.join(", "))}. Alguns dados podem estar desatualizados.</span>
+                <button id="data-load-warning-retry" class="rounded-lg border border-amber-300 px-2.5 py-1 text-xs font-medium">Tentar de novo</button>
+              </div>
+            ` : ""}
+
+            ${state.tab !== "inicio" && !lowStockBannerDismissed && lowStockCount > 0 ? `
+              <div class="admin-notice admin-notice-warning">
+                <span>⚠ ${lowStockCount} item(ns) com estoque acabando.</span>
+                <div class="flex items-center gap-2">
+                  <button id="low-stock-whatsapp-btn" class="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium">Avisar no WhatsApp</button>
+                  <button id="low-stock-dismiss-btn" class="rounded px-2 py-1 text-xs">✕</button>
+                </div>
+              </div>
+            ` : ""}
+
+            ${state.tab !== "inicio" && !birthdayBannerDismissed && customersWithBirthdayThisWeek().length > 0 ? `
+              <div class="admin-notice admin-notice-gold">
+                <span>🎂 Aniversário esta semana: ${customersWithBirthdayThisWeek().map((c) => `${escapeHtml(c.name)} (${formatDate(c.birth_date).slice(0,5)})`).join(", ")}</span>
+                <div class="flex flex-wrap items-center gap-2">
+                  ${customersWithBirthdayThisWeek().filter((c) => waLink(c.whatsapp)).map((c) => `<button data-birthday-msg="${c.id}" class="birthday-msg-btn rounded-lg border border-gold-400 bg-white px-2.5 py-1 text-xs font-medium">💬 ${escapeHtml(c.name.split(/\s+/)[0])}</button>`).join("")}
+                  <button id="birthday-dismiss-btn" class="rounded px-2 py-1 text-xs">✕</button>
+                </div>
+              </div>
+            ` : ""}
+          </div>
+
+          <main class="admin-main-content" id="main-content"></main>
         </div>
-      ` : ""}
-      <main class="mx-auto max-w-6xl px-4 py-6 sm:py-8" id="main-content"></main>
+      </div>
+
       <div id="security-overlay-slot"></div>
       <div id="price-history-overlay-slot"></div>
     </div>
@@ -1198,7 +1684,8 @@ function renderApp() {
   });
 
   const main = document.getElementById("main-content");
-  if (state.tab === "precificacao") renderPrecificacao(main);
+  if (state.tab === "inicio") renderInicio(main);
+  else if (state.tab === "precificacao") renderPrecificacao(main);
   else if (state.tab === "materiais") renderMateriais(main);
   else if (state.tab === "fornecedores") renderFornecedores(main);
   else if (state.tab === "clientes") renderClientes(main);
@@ -2152,16 +2639,22 @@ function renderPrecificacao(container) {
           <h1 class="text-xl font-semibold text-navy-900">Precificação</h1>
           <p class="text-sm text-navy-500">Cadastre o custo do produto — os preços e margens são calculados automaticamente.</p>
         </div>
-        <div class="flex items-center gap-3">
-          <label class="flex items-center gap-2 text-sm text-navy-600">
-            <input type="checkbox" id="show-inactive" ${precifState.showInactive ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-            Mostrar inativos
-          </label>
-          <button id="bulk-cost-toggle-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.bulkOpen ? "Fechar reajuste em massa" : "↕ Reajustar custo em massa"}</button>
-          <button id="price-history-btn" class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">📜 Histórico de preços</button>
-          <button id="price-table-toggle-btn" title="Monta um PDF simples com os produtos que você escolher — nome, preço no crédito e preço à vista, agrupados por categoria — pronto pra imprimir e levar num evento, feira ou bazar." class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">${precifState.priceTableOpen ? "Fechar tabela de preços" : "🖨️ Tabela de preços"}</button>
-          <button id="calc3d-open-btn" title="Calcula o custo de fabricação de peças impressas em 3D (filamento, energia, desgaste, mão de obra, margem)." class="rounded-lg border border-navy-300 px-4 py-2 text-sm font-medium text-navy-700 shadow-sm transition hover:bg-navy-100">🖨️ Calculadora 3D</button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="calc3d-open-btn" title="Calcula o custo de fabricação de peças impressas em 3D." class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow-sm transition hover:bg-navy-50">🖨️ Calculadora 3D</button>
           <button id="new-product-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo produto</button>
+
+          <details class="admin-actions-menu">
+            <summary>Mais ações ▾</summary>
+            <div class="admin-actions-popover">
+              <label>
+                <input type="checkbox" id="show-inactive" ${precifState.showInactive ? "checked" : ""} />
+                Mostrar produtos inativos
+              </label>
+              <button id="bulk-cost-toggle-btn" type="button">↕ ${precifState.bulkOpen ? "Fechar reajuste em massa" : "Reajustar custo em massa"}</button>
+              <button id="price-history-btn" type="button">📜 Histórico de preços</button>
+              <button id="price-table-toggle-btn" type="button">${precifState.priceTableOpen ? "Fechar tabela de preços" : "🖨️ Gerar tabela de preços"}</button>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -10129,11 +10622,16 @@ function renderCaixa(container) {
           <p class="text-sm text-navy-500">Entradas e saídas, com saldo acumulado.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button id="vm-open-btn" class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow transition hover:bg-navy-50">🧾 Venda manual</button>
-          <button id="sim-open-btn" class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow transition hover:bg-navy-50">🧮 Simular venda</button>
-          <button id="ev-open-btn" class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow transition hover:bg-navy-50">📅 Registrar venda (evento)</button>
-          <button id="new-brinde-btn" class="rounded-lg border border-gold-400 bg-white px-4 py-2 text-sm font-semibold text-gold-700 shadow transition hover:bg-gold-50">🎁 Lançar brinde</button>
-          <button id="new-entry-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">${caixaState.formOpen ? "Fechar" : "+ Novo lançamento"}</button>
+          <button id="new-entry-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">${caixaState.formOpen ? "Fechar lançamento" : "+ Novo lançamento"}</button>
+          <details class="admin-actions-menu">
+            <summary>Outras ações ▾</summary>
+            <div class="admin-actions-popover">
+              <button id="vm-open-btn" type="button">🧾 Venda manual</button>
+              <button id="sim-open-btn" type="button">🧮 Simular venda</button>
+              <button id="ev-open-btn" type="button">📅 Registrar venda em evento</button>
+              <button id="new-brinde-btn" type="button">🎁 Lançar brinde</button>
+            </div>
+          </details>
         </div>
       </div>
 
