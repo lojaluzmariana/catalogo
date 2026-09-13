@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v7.4-pricing-mobile-2026-09-12" />
+<meta name="luz-mariana-admin-version" content="professional-v8-design-system-2026-09-13" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1146,6 +1146,238 @@
     #main-content .pricing-page-actions > details { grid-column:1 / -1; width:100%; }
     #main-content .pricing-page-actions > details > summary { width:100%; justify-content:center; }
   }
+
+
+  /* =====================================================================
+     V7.5 — PRECIFICAÇÃO DESKTOP: visão operacional em cartões/linhas
+     ===================================================================== */
+  .pricing-desktop-table { overflow:visible !important; border:0 !important; background:transparent !important; box-shadow:none !important; }
+  .pricing-desktop-list { display:flex; flex-direction:column; gap:10px; }
+  .pricing-desktop-row {
+    display:grid; grid-template-columns:minmax(250px,1.45fr) minmax(220px,1.15fr) minmax(205px,.9fr) minmax(190px,.85fr) 132px;
+    gap:0; overflow:hidden; border:1px solid #e2e6ef; border-radius:14px; background:#fff;
+    box-shadow:0 4px 14px rgba(18,35,78,.045);
+  }
+  .pricing-desktop-row:hover { border-color:#d9c06f; box-shadow:0 7px 20px rgba(18,35,78,.075); }
+  .pricing-desktop-row.is-inactive { opacity:.66; }
+  .pricing-desk-cell { min-width:0; padding:14px; border-left:1px solid #edf0f5; }
+  .pricing-desk-cell:first-child { border-left:0; }
+  .pricing-desk-label { display:block; margin-bottom:7px; color:#8a93a8; font-size:9px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+  .pricing-desk-product { display:flex; gap:11px; align-items:flex-start; }
+  .pricing-desk-photo { width:58px; height:58px; flex:none; border-radius:10px; object-fit:cover; border:1px solid #e6e9f0; background:#f7f8fb; }
+  .pricing-desk-photo-placeholder { width:58px; height:58px; flex:none; display:flex; align-items:center; justify-content:center; border:1px solid #e6e9f0; border-radius:10px; background:#f7f8fb; font-size:22px; }
+  .pricing-desk-name { margin:0; color:#10255a; font-size:13px; line-height:1.35; font-weight:800; overflow-wrap:anywhere; }
+  .pricing-desk-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; }
+  .pricing-desk-sub { margin-top:7px; color:#8790a6; font-size:10px; line-height:1.4; overflow-wrap:anywhere; }
+  .pricing-desk-stock { max-height:148px; overflow:auto; padding-right:3px; }
+  .pricing-desk-stock .stock-qty-input { min-height:30px; font-size:12px !important; }
+  .pricing-desk-stock .stock-activate-btn { min-height:28px; }
+  .pricing-desk-price-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .pricing-desk-price { min-width:0; border:1px solid #edf0f5; border-radius:9px; padding:8px 9px; background:#fbfcfe; }
+  .pricing-desk-price span { display:block; color:#8992a7; font-size:9px; font-weight:700; }
+  .pricing-desk-price strong { display:block; margin-top:3px; color:#142b61; font-size:13px; line-height:1.2; }
+  .pricing-desk-price.good strong { color:#1d7254; }
+  .pricing-desk-profit { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .pricing-desk-profit-item { border-radius:9px; padding:8px 9px; background:#f7f9fc; }
+  .pricing-desk-profit-item span { display:block; color:#8992a7; font-size:9px; }
+  .pricing-desk-profit-item strong { display:block; margin-top:3px; color:#1f365f; font-size:12px; }
+  .pricing-desk-profit-item.good strong { color:#1d7254; }
+  .pricing-desk-controls { display:flex; flex-direction:column; gap:7px; }
+  .pricing-desk-toggle { display:flex; align-items:center; justify-content:space-between; gap:8px; color:#5f6b86; font-size:10px; }
+  .pricing-desk-actions { display:grid; grid-template-columns:1fr 36px 36px; gap:5px; margin-top:3px; }
+  .pricing-desk-actions button { min-height:34px; border:1px solid #dce2ec; border-radius:8px; background:#fff; color:#263b6e; font-size:10px; font-weight:750; cursor:pointer; }
+  .pricing-desk-actions button:hover { background:#f5f7fb; border-color:#c8d0df; }
+  .pricing-desk-actions button.danger { color:#b92b37; }
+  .pricing-desk-select { display:flex; align-items:center; gap:6px; margin-bottom:9px; color:#5f6b86; font-size:10px; }
+  html.dark .pricing-desktop-row, html.dark .pricing-desk-price, html.dark .pricing-desk-actions button { background:#151d30; border-color:#2c3a5e; }
+  html.dark .pricing-desk-cell { border-color:#27344f; }
+  html.dark .pricing-desk-name, html.dark .pricing-desk-price strong, html.dark .pricing-desk-profit-item strong { color:#f1f4fc; }
+  html.dark .pricing-desk-profit-item { background:#1a243a; }
+  @media (max-width:1280px) and (min-width:761px) {
+    .pricing-desktop-row { grid-template-columns:minmax(230px,1.35fr) minmax(190px,1fr) minmax(190px,.9fr) minmax(170px,.8fr) 120px; }
+    .pricing-desk-cell { padding:11px; }
+    .pricing-desk-photo, .pricing-desk-photo-placeholder { width:50px; height:50px; }
+  }
+
+
+
+  /* =====================================================================
+     V8 — DESIGN SYSTEM GLOBAL
+     Hierarquia visual, consistência entre módulos e experiência responsiva.
+     ===================================================================== */
+  :root {
+    --lm-navy:#001868;
+    --lm-navy-2:#0a2b85;
+    --lm-gold:#e9aa00;
+    --lm-cream:#f8f6ef;
+    --lm-surface:#ffffff;
+    --lm-line:#e7e9ef;
+    --lm-muted:#77829c;
+    --lm-text:#132554;
+    --lm-success:#197653;
+    --lm-warning:#9a6c00;
+    --lm-danger:#b82f3e;
+    --lm-radius:16px;
+    --lm-shadow:0 6px 22px rgba(16,35,80,.055);
+  }
+
+  .admin-main-content { padding-top:24px; }
+  #main-content.v8-screen { display:block; }
+  #main-content.v8-screen > * + * { margin-top:16px; }
+
+  /* Cabeçalhos de página padronizados */
+  #main-content.v8-screen .v8-page-head,
+  #main-content.v8-screen .pro-page-header,
+  #main-content.v8-screen > div > div:first-child:has(h1) {
+    display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
+    margin:0 0 18px; padding:0 2px; background:transparent; border:0; box-shadow:none;
+  }
+  #main-content.v8-screen h1 {
+    color:var(--lm-navy); font-size:24px; line-height:1.18; font-weight:850; letter-spacing:-.025em;
+  }
+  #main-content.v8-screen h1 + p,
+  #main-content.v8-screen .pro-page-header p { color:var(--lm-muted); font-size:12px; line-height:1.55; max-width:760px; }
+
+  /* Superfícies: menos bordas, mais respiro */
+  #main-content.v8-screen .management-card,
+  #main-content.v8-screen .admin-section-card,
+  #main-content.v8-screen .pro-kpi,
+  #main-content.v8-screen .event-card,
+  #main-content.v8-screen .production-card,
+  #main-content.v8-screen .rounded-xl.border.bg-white,
+  #main-content.v8-screen .rounded-lg.border.bg-white {
+    border-color:var(--lm-line) !important;
+    box-shadow:var(--lm-shadow) !important;
+  }
+  #main-content.v8-screen .management-card,
+  #main-content.v8-screen .admin-section-card { border-radius:var(--lm-radius); }
+
+  /* KPIs consistentes */
+  #main-content.v8-screen .pro-kpi,
+  #main-content.v8-screen .admin-stat-card,
+  #main-content.v8-screen [data-v8-kpi] {
+    min-height:112px; border-radius:15px; padding:15px 16px; position:relative; overflow:hidden;
+  }
+  #main-content.v8-screen .pro-kpi::after,
+  #main-content.v8-screen .admin-stat-card::after {
+    content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:transparent;
+  }
+  #main-content.v8-screen .pro-kpi.attention::after,
+  #main-content.v8-screen .admin-stat-card.attention::after { background:#d69a00; }
+  #main-content.v8-screen .pro-kpi.good::after,
+  #main-content.v8-screen .admin-stat-card.good::after { background:#38a378; }
+
+  /* Botões: um padrão visual previsível */
+  #main-content.v8-screen button,
+  #main-content.v8-screen .admin-actions-menu summary { border-radius:10px; }
+  #main-content.v8-screen .v8-btn-primary,
+  #main-content.v8-screen button.bg-gold-500 {
+    background:var(--lm-gold) !important; color:var(--lm-navy) !important; border-color:var(--lm-gold) !important;
+    font-weight:800; box-shadow:0 4px 12px rgba(233,170,0,.18);
+  }
+  #main-content.v8-screen .v8-btn-secondary {
+    background:#fff; color:#26385f; border:1px solid #dfe3ec; font-weight:700;
+  }
+
+  /* Tabelas desktop mais leves */
+  #main-content.v8-screen table { border-collapse:separate; border-spacing:0; width:100%; }
+  #main-content.v8-screen table thead th {
+    background:#f6f8fb !important; color:#68758f !important; font-size:10px !important; font-weight:850 !important;
+    letter-spacing:.045em; text-transform:uppercase; padding-top:11px !important; padding-bottom:11px !important;
+    border-bottom:1px solid #e3e7ef !important;
+  }
+  #main-content.v8-screen table tbody td { border-bottom-color:#edf0f4 !important; }
+  #main-content.v8-screen table tbody tr:hover { background:#fbfcfe !important; }
+
+  /* Badges mais compactos */
+  #main-content.v8-screen .rounded-full { font-weight:700; }
+
+  /* Sidebar: módulos recolhíveis no desktop */
+  .admin-nav-group.v8-collapsible { position:relative; }
+  .admin-nav-label.v8-group-toggle {
+    cursor:pointer; user-select:none; display:flex; align-items:center; justify-content:space-between; gap:8px;
+    min-height:26px; border-radius:7px; transition:.15s ease;
+  }
+  .admin-nav-label.v8-group-toggle:hover { color:#a7b6e9; }
+  .admin-nav-label.v8-group-toggle::after { content:"⌄"; font-size:11px; transition:transform .16s ease; }
+  .admin-nav-group.v8-collapsed .admin-nav-label.v8-group-toggle::after { transform:rotate(-90deg); }
+  .admin-nav-group.v8-collapsed .admin-nav-btn { display:none; }
+  .admin-nav-group.v8-collapsed { margin-bottom:8px; }
+
+  /* Dashboard V8 */
+  .v8-dashboard-charts { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr); gap:14px; margin-top:16px; }
+  .v8-chart-card { border:1px solid var(--lm-line); border-radius:16px; background:#fff; padding:17px; box-shadow:var(--lm-shadow); }
+  .v8-chart-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:16px; }
+  .v8-chart-head h3 { color:var(--lm-navy); font-size:14px; font-weight:850; }
+  .v8-chart-head p { color:var(--lm-muted); font-size:10px; margin-top:3px; }
+  .v8-bars { display:flex; align-items:flex-end; gap:10px; height:150px; padding-top:8px; }
+  .v8-bar-col { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:6px; height:100%; }
+  .v8-bar { width:min(34px,70%); min-height:4px; border-radius:7px 7px 3px 3px; background:linear-gradient(180deg,#0a2b85,#001868); }
+  .v8-bar-col b { font-size:9px; color:#56627e; font-weight:750; white-space:nowrap; }
+  .v8-bar-col span { font-size:8px; color:#98a0b3; white-space:nowrap; }
+  .v8-rank-list { display:flex; flex-direction:column; gap:9px; }
+  .v8-rank-row { display:grid; grid-template-columns:minmax(0,1fr) 80px; gap:10px; align-items:center; }
+  .v8-rank-name { min-width:0; }
+  .v8-rank-name strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#22335e; font-size:10px; }
+  .v8-rank-track { height:6px; overflow:hidden; border-radius:999px; background:#eef1f6; margin-top:5px; }
+  .v8-rank-track span { display:block; height:100%; border-radius:999px; background:#e9aa00; }
+  .v8-rank-value { text-align:right; color:var(--lm-navy); font-size:10px; font-weight:850; }
+
+  /* Painel lateral de detalhes rápido */
+  .v8-drawer-backdrop { position:fixed; inset:0; z-index:86; background:rgba(3,12,38,.34); opacity:0; pointer-events:none; transition:.18s ease; }
+  .v8-drawer-backdrop.open { opacity:1; pointer-events:auto; }
+  .v8-drawer { position:fixed; top:0; right:0; bottom:0; z-index:87; width:min(430px,calc(100vw - 18px)); background:#fff; border-left:1px solid #e2e6ed; box-shadow:-18px 0 48px rgba(3,16,55,.18); transform:translateX(102%); transition:.2s ease; display:flex; flex-direction:column; }
+  .v8-drawer.open { transform:translateX(0); }
+  .v8-drawer-head { display:flex; justify-content:space-between; gap:14px; padding:19px; border-bottom:1px solid #edf0f4; }
+  .v8-drawer-head h2 { color:var(--lm-navy); font-size:18px; font-weight:850; }
+  .v8-drawer-body { flex:1; overflow:auto; padding:16px 18px; }
+  .v8-drawer-close { width:38px; height:38px; border:1px solid #e1e5ec; border-radius:10px; background:#fff; cursor:pointer; }
+
+  /* Mobile: navegação inferior fixa e telas sem aperto horizontal */
+  .admin-mobile-nav { display:none; }
+  .admin-mobile-more-backdrop { display:none; }
+  @media (max-width:900px) {
+    .admin-sidebar { display:none !important; }
+    .admin-main-column { padding-bottom:78px; }
+    .admin-mobile-nav {
+      position:fixed; left:8px; right:8px; bottom:8px; z-index:74; height:62px;
+      display:grid; grid-template-columns:repeat(5,1fr); align-items:center; gap:3px;
+      padding:5px; border:1px solid rgba(22,42,89,.12); border-radius:18px; background:rgba(255,255,255,.96);
+      box-shadow:0 14px 40px rgba(8,24,66,.20); backdrop-filter:blur(14px);
+    }
+    .admin-mobile-nav button { border:0; border-radius:12px; background:transparent; color:#64708b; min-width:0; height:50px; padding:4px 2px; font-size:9px; font-weight:750; }
+    .admin-mobile-nav button span { display:block; font-size:18px; line-height:1.1; margin-bottom:2px; }
+    .admin-mobile-nav button.active { background:#eef1fa; color:var(--lm-navy); }
+    .admin-mobile-nav button.primary-mobile { background:var(--lm-gold); color:var(--lm-navy); }
+    .admin-mobile-more-backdrop.open { display:block; position:fixed; inset:0; z-index:72; background:rgba(3,12,38,.36); }
+    .admin-sidebar.v8-mobile-open {
+      display:block !important; position:fixed; left:10px; right:10px; top:auto; bottom:78px; z-index:73;
+      max-height:70vh; height:auto; overflow-y:auto; overflow-x:hidden; padding:14px; border:1px solid #203879;
+      border-radius:18px; box-shadow:0 20px 50px rgba(3,12,38,.30);
+    }
+    .admin-sidebar.v8-mobile-open .admin-nav-group { display:block; margin-bottom:12px; }
+    .admin-sidebar.v8-mobile-open .admin-nav-label { display:flex; }
+    .admin-sidebar.v8-mobile-open .admin-nav-btn { width:100%; min-width:0; display:flex; }
+    #main-content.v8-screen > div > div:first-child:has(h1), #main-content.v8-screen .pro-page-header { flex-direction:column; gap:10px; }
+    .v8-dashboard-charts { grid-template-columns:1fr; }
+  }
+  @media (max-width:640px) {
+    #main-content.v8-screen h1 { font-size:21px; }
+    #main-content.v8-screen > * + * { margin-top:13px; }
+    #main-content.v8-screen .management-card, #main-content.v8-screen .admin-section-card { padding:14px !important; }
+    .v8-chart-card { padding:14px; }
+  }
+
+  html.dark .v8-chart-card,
+  html.dark .v8-drawer,
+  html.dark .admin-mobile-nav { background:#151d30; border-color:#2c3a5e; }
+  html.dark .v8-chart-head h3,
+  html.dark .v8-rank-name strong,
+  html.dark .v8-rank-value,
+  html.dark .v8-drawer-head h2 { color:#f1f4fc; }
+  html.dark .v8-rank-track { background:#27344f; }
+  html.dark #main-content.v8-screen table thead th { background:#1b263f !important; color:#aeb9d2 !important; border-color:#2c3a5e !important; }
+  html.dark #main-content.v8-screen table tbody tr:hover { background:#1b263f !important; }
 
 </style>
 </head>
@@ -2680,9 +2912,8 @@ function renderInicio(container) {
 
   container.querySelectorAll("[data-open-dashboard-order]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.tab = "pedidos";
-      pedidosState.expandedId = btn.dataset.openDashboardOrder;
-      renderApp();
+      const order = state.orders.find((o) => String(o.id) === String(btn.dataset.openDashboardOrder));
+      if (order) v8OpenDrawer(`Pedido Nº ${String(order.order_number ?? "").padStart(6,"0")}`, v8OrderDrawerHtml(order));
     });
   });
 }
@@ -3864,6 +4095,150 @@ function renderCommandResults() {
   }));
 }
 
+
+
+/* =====================================================================
+   V8 — DESIGN SYSTEM / UX LAYER
+   Não altera regras de negócio: apenas organiza, padroniza e acrescenta
+   visualizações executivas sobre os dados já carregados no painel.
+   ===================================================================== */
+const V8_NAV_STATE_KEY = "luz-mariana-v8-nav-groups";
+
+function v8LoadNavState() {
+  try { return JSON.parse(localStorage.getItem(V8_NAV_STATE_KEY)) || {}; } catch (err) { return {}; }
+}
+function v8SaveNavState(obj) {
+  try { localStorage.setItem(V8_NAV_STATE_KEY, JSON.stringify(obj)); } catch (err) {}
+}
+
+function v8EnhanceNavigation() {
+  const sidebar = document.querySelector(".admin-sidebar");
+  if (!sidebar) return;
+  const saved = v8LoadNavState();
+  sidebar.querySelectorAll(".admin-nav-group").forEach((group, index) => {
+    const label = group.querySelector(".admin-nav-label");
+    if (!label) return;
+    const name = String(label.textContent || `grupo-${index}`).trim();
+    group.classList.add("v8-collapsible");
+    label.classList.add("v8-group-toggle");
+    label.setAttribute("role","button");
+    label.setAttribute("tabindex","0");
+    if (saved[name]) group.classList.add("v8-collapsed");
+    const toggle = () => {
+      group.classList.toggle("v8-collapsed");
+      const stateObj = v8LoadNavState();
+      stateObj[name] = group.classList.contains("v8-collapsed");
+      v8SaveNavState(stateObj);
+    };
+    label.addEventListener("click", toggle);
+    label.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(); } });
+  });
+}
+
+function v8MonthlySalesSeries() {
+  const now = new Date();
+  const months = [];
+  for (let i=5;i>=0;i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    const label = d.toLocaleDateString("pt-BR", { month:"short" }).replace(".","");
+    months.push({ key, label:label.charAt(0).toUpperCase()+label.slice(1), value:0 });
+  }
+  state.orders.filter((o)=>o.paid_at && o.status !== "cancelado").forEach((o)=>{
+    const d = new Date(o.paid_at || o.created_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    const row = months.find((m)=>m.key===key);
+    if (row) row.value += Number(o.total || 0);
+  });
+  return months;
+}
+
+function v8TopProductsSeries() {
+  const map = new Map();
+  state.orders.filter((o)=>o.paid_at && o.status !== "cancelado").forEach((o)=>{
+    (o.items || []).forEach((it)=>{
+      const name = it.product_name || "Produto";
+      const revenue = Number(it.unit_price || it.price || 0) * Number(it.quantity || 0);
+      map.set(name, (map.get(name) || 0) + revenue);
+    });
+  });
+  return [...map.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value).slice(0,5);
+}
+
+function v8DashboardChartsHtml() {
+  const sales = v8MonthlySalesSeries();
+  const maxSales = Math.max(1, ...sales.map((r)=>r.value));
+  const top = v8TopProductsSeries();
+  const maxTop = Math.max(1, ...top.map((r)=>r.value));
+  return `
+    <section class="v8-dashboard-charts" aria-label="Indicadores visuais">
+      <div class="v8-chart-card">
+        <div class="v8-chart-head"><div><h3>Faturamento — últimos 6 meses</h3><p>Somente pedidos pagos e não cancelados.</p></div><span class="pro-pill navy">${formatBRL(sales.reduce((a,b)=>a+b.value,0))}</span></div>
+        <div class="v8-bars">
+          ${sales.map((r)=>`<div class="v8-bar-col" title="${escapeHtml(r.label)}: ${formatBRL(r.value)}"><span>${r.value ? formatBRL(r.value).replace("R$ ","") : "0"}</span><div class="v8-bar" style="height:${Math.max(4,Math.round((r.value/maxSales)*115))}px"></div><b>${escapeHtml(r.label)}</b></div>`).join("")}
+        </div>
+      </div>
+      <div class="v8-chart-card">
+        <div class="v8-chart-head"><div><h3>Produtos por faturamento</h3><p>Ranking dos pedidos pagos.</p></div><button type="button" data-dashboard-tab="rentabilidade" class="admin-order-open">Ver análise</button></div>
+        <div class="v8-rank-list">
+          ${top.length ? top.map((r,i)=>`<div class="v8-rank-row"><div class="v8-rank-name"><strong>${i+1}. ${escapeHtml(r.name)}</strong><div class="v8-rank-track"><span style="width:${Math.max(3,Math.round(r.value/maxTop*100))}%"></span></div></div><div class="v8-rank-value">${formatBRL(r.value)}</div></div>`).join("") : `<p class="text-sm text-navy-400">Ainda não há vendas pagas suficientes para o ranking.</p>`}
+        </div>
+      </div>
+    </section>`;
+}
+
+function v8OpenDrawer(title, html) {
+  const drawer = document.getElementById("v8-detail-drawer");
+  const backdrop = document.getElementById("v8-detail-backdrop");
+  if (!drawer || !backdrop) return;
+  drawer.querySelector("[data-v8-drawer-title]").textContent = title || "Detalhes";
+  drawer.querySelector("[data-v8-drawer-body]").innerHTML = html || "";
+  drawer.classList.add("open"); backdrop.classList.add("open");
+}
+function v8CloseDrawer() {
+  document.getElementById("v8-detail-drawer")?.classList.remove("open");
+  document.getElementById("v8-detail-backdrop")?.classList.remove("open");
+}
+
+function v8OrderDrawerHtml(order) {
+  const cost = orderCost(order);
+  const split = orderMoneySplit(order, cost);
+  const status = ORDER_STATUS_LABELS[order.status] || order.status || "—";
+  return `
+    <div class="space-y-4">
+      <div class="rounded-xl bg-navy-50 p-4"><p class="text-xs text-navy-500">Cliente</p><strong class="text-navy-900">${escapeHtml(order.customer_name || "—")}</strong><p class="mt-1 text-xs text-navy-500">Pedido Nº ${String(order.order_number ?? "").padStart(6,"0")} · ${escapeHtml(status)}</p></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div class="rounded-xl bg-cream-50 p-3"><span class="text-[10px] text-navy-500">Total</span><strong class="block mt-1 text-navy-900">${formatBRL(order.total || 0)}</strong></div>
+        <div class="rounded-xl bg-cream-50 p-3"><span class="text-[10px] text-navy-500">Guardar custo</span><strong class="block mt-1 text-navy-900">${formatBRL(split.costToKeep)}</strong></div>
+        <div class="rounded-xl bg-cream-50 p-3"><span class="text-[10px] text-navy-500">Lucro real</span><strong class="block mt-1 text-emerald-700">${formatBRL(split.profit)}</strong></div>
+        <div class="rounded-xl bg-cream-50 p-3"><span class="text-[10px] text-navy-500">Retirada potencial</span><strong class="block mt-1 text-gold-800">${order.paid_at ? formatBRL(split.ownerShare) : "Só após pagamento"}</strong></div>
+      </div>
+      <div><h3 class="text-sm font-semibold text-navy-900">Itens</h3><div class="mt-2 space-y-2">${(order.items||[]).map((it)=>`<div class="flex justify-between gap-3 rounded-lg border border-navy-100 px-3 py-2 text-xs"><span>${Number(it.quantity||0)}× ${escapeHtml(it.product_name||"Produto")}${it.variant_name?` · ${escapeHtml(it.variant_name)}`:""}</span><strong>${formatBRL(Number(it.unit_price||0)*Number(it.quantity||0))}</strong></div>`).join("") || `<p class="text-xs text-navy-400">Sem itens vinculados.</p>`}</div></div>
+      <button type="button" data-v8-go-order="${order.id}" class="w-full rounded-lg bg-gold-500 px-3 py-2.5 text-sm font-semibold text-navy-900">Abrir pedido completo</button>
+    </div>`;
+}
+
+function applyV8DesignSystem(container) {
+  if (!container) return;
+  container.classList.add("v8-screen");
+
+  // Identifica visualmente o botão principal de cada tela sem alterar ações.
+  const goldButtons = container.querySelectorAll("button.bg-gold-500");
+  goldButtons.forEach((b)=>b.classList.add("v8-btn-primary"));
+
+  // Dashboard: gráficos executivos, sem duplicar ao re-renderizar.
+  if (state.tab === "inicio") {
+    const grid = container.querySelector(".admin-dashboard-grid");
+    if (grid && !container.querySelector(".v8-dashboard-charts")) grid.insertAdjacentHTML("afterend", v8DashboardChartsHtml());
+  }
+
+  // Ações secundárias extensas ficam visualmente mais discretas.
+  container.querySelectorAll("button").forEach((b)=>{
+    const txt = (b.textContent||"").trim().toLowerCase();
+    if (/duplicar|desativar|excluir|histórico|historico/.test(txt) && !b.classList.contains("bg-red-600")) b.classList.add("v8-btn-secondary");
+  });
+}
+
 function renderActiveSection(container) {
   const renderers = {
     inicio: renderInicio,
@@ -3891,6 +4266,7 @@ function renderActiveSection(container) {
   const renderer = renderers[state.tab] || renderCaixa;
   try {
     renderer(container);
+    applyV8DesignSystem(container);
   } catch (err) {
     console.error(`Falha ao renderizar a seção ${state.tab}:`, err);
     container.innerHTML = `
@@ -4266,6 +4642,43 @@ function renderApp() {
       <div id="price-history-overlay-slot"></div>
     </div>
   `;
+
+  document.querySelector(".admin-shell")?.insertAdjacentHTML("beforeend", `
+    <div id="v8-detail-backdrop" class="v8-drawer-backdrop"></div>
+    <aside id="v8-detail-drawer" class="v8-drawer" aria-label="Detalhes rápidos">
+      <div class="v8-drawer-head"><div><span class="admin-kicker">Visão rápida</span><h2 data-v8-drawer-title>Detalhes</h2></div><button id="v8-drawer-close" type="button" class="v8-drawer-close">✕</button></div>
+      <div class="v8-drawer-body" data-v8-drawer-body></div>
+    </aside>
+    <div id="admin-mobile-more-backdrop" class="admin-mobile-more-backdrop"></div>
+    <nav class="admin-mobile-nav" aria-label="Navegação rápida">
+      <button type="button" data-mobile-tab="inicio" class="${state.tab === "inicio" ? "active" : ""}"><span>⌂</span>Início</button>
+      <button type="button" data-mobile-tab="pedidos" class="${state.tab === "pedidos" ? "active" : ""}"><span>🧾</span>Pedidos</button>
+      <button type="button" data-mobile-tab="producao" class="primary-mobile ${state.tab === "producao" ? "active" : ""}"><span>⚙</span>Produção</button>
+      <button type="button" data-mobile-tab="caixa" class="${state.tab === "caixa" ? "active" : ""}"><span>💰</span>Caixa</button>
+      <button type="button" id="admin-mobile-more-btn"><span>☰</span>Mais</button>
+    </nav>
+  `);
+
+  v8EnhanceNavigation();
+  document.querySelectorAll("[data-mobile-tab]").forEach((btn)=>btn.addEventListener("click",()=>{ state.tab=btn.dataset.mobileTab; renderApp(); }));
+  const mobileSidebar = document.querySelector(".admin-sidebar");
+  const mobileBackdrop = document.getElementById("admin-mobile-more-backdrop");
+  const closeMobileMore = ()=>{ mobileSidebar?.classList.remove("v8-mobile-open"); mobileBackdrop?.classList.remove("open"); };
+  document.getElementById("admin-mobile-more-btn")?.addEventListener("click",()=>{ mobileSidebar?.classList.toggle("v8-mobile-open"); mobileBackdrop?.classList.toggle("open"); });
+  mobileBackdrop?.addEventListener("click",closeMobileMore);
+  document.getElementById("v8-drawer-close")?.addEventListener("click",v8CloseDrawer);
+  document.getElementById("v8-detail-backdrop")?.addEventListener("click",v8CloseDrawer);
+
+  if (window.__lmV8DrawerGoHandler) document.removeEventListener("click", window.__lmV8DrawerGoHandler);
+  window.__lmV8DrawerGoHandler = (ev) => {
+    const go = ev.target.closest?.("[data-v8-go-order]");
+    if (!go) return;
+    v8CloseDrawer();
+    state.tab = "pedidos";
+    pedidosState.expandedId = go.dataset.v8GoOrder;
+    renderApp();
+  };
+  document.addEventListener("click", window.__lmV8DrawerGoHandler);
 
   app.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => { state.tab = btn.dataset.tab; render(); });
@@ -5495,78 +5908,69 @@ function renderPrecificacao(container) {
         `).join("")}
       </div>
 
-      <div class="pricing-desktop-table overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
-        <table class="w-full table-auto text-[11px] sm:text-xs">
-          <thead>
-            <tr class="border-b border-navy-100 bg-navy-900 text-left text-[10px] uppercase tracking-wide text-cream-50 sm:text-[11px]">
-              ${precifState.priceTableOpen ? `<th class="px-1 py-1.5 text-center"></th>` : ""}
-              <th class="px-1 py-1.5">Produto</th>
-              <th class="px-1 py-1.5 text-center" title="Quantidade em estoque — clique no número pra editar. Produto com modelos mostra um número por modelo.">Estoque</th>
-              <th class="px-1 py-1.5 text-right">Custo</th>
-              <th class="px-1 py-1.5 text-right" title="Preço Crédito">Créd.</th>
-              <th class="px-1 py-1.5 text-right" title="Líquido">Líq.</th>
-              <th class="px-1 py-1.5 text-right">Lucro</th>
-              <th class="px-1 py-1.5 text-right">Markup</th>
-              <th class="px-1 py-1.5 text-right" title="Margem">Marg.</th>
-              <th class="px-1 py-1.5 text-right" title="Preço Promo/Pix">Promo/Pix</th>
-              <th class="px-1 py-1.5 text-right" title="Lucro Promo">Lucro P.</th>
-              <th class="px-1 py-1.5 text-right" title="Margem Promo">Marg. P.</th>
-              <th class="px-1 py-1.5 text-center" title="Visível no Catálogo">Visível</th>
-              <th class="px-1 py-1.5 text-center" title="Forçar em 'Mais vendidos' no Catálogo, mesmo sem vendas (a vitrine já entra automática pelos mais vendidos)">Dest.</th>
-              <th class="px-1 py-1.5 text-center">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${visible.length === 0 ? `<tr><td colspan="${tableColCount}" class="px-4 py-8 text-center text-navy-400">Nenhum produto encontrado.</td></tr>` : visible.map((p) => `
-              <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50 ${!p.active ? "opacity-50" : ""}">
-                ${precifState.priceTableOpen ? `
-                <td class="px-1 py-1.5 text-center">
-                  <input type="checkbox" data-price-table-select="${p.id}" class="price-table-select-cb h-3.5 w-3.5 rounded border-navy-300 text-gold-500 focus:ring-gold-400" ${precifState.priceTableSelected.has(p.id) ? "checked" : ""} />
-                </td>
-                ` : ""}
-                <td class="px-1 py-1.5 font-medium text-navy-900">
-                  <span class="inline-flex flex-wrap items-center gap-1">
-                    ${p.photo_url ? `<img src="${p.photo_url}" class="h-5 w-5 rounded object-cover" />` : ""}
-                    ${escapeHtml(p.name)}
-                    ${p.category ? `<span class="rounded-full bg-navy-100 px-1 py-0.5 text-[9px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
-                    ${p.material_tag ? `<span class="rounded-full bg-cream-100 px-1 py-0.5 text-[9px] font-semibold text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
-                    ${p.suppliers ? `<span title="Fornecedor" class="rounded-full bg-navy-50 px-1 py-0.5 text-[9px] font-semibold text-navy-500 ring-1 ring-navy-100">🚚 ${escapeHtml(p.suppliers.name)}</span>` : ""}
-                    ${p.description ? `<span title="Tem descrição cadastrada" class="text-[10px]">📝</span>` : ""}
-                    ${p.product_variants && p.product_variants.length > 0 ? `<span title="${p.product_variants.length} modelo(s) cadastrado(s)" class="rounded-full bg-gold-100 px-1 py-0.5 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
-                    ${p.product_variants && p.product_variants.some((v) => v.cost != null) ? `<span title="Um ou mais modelos têm custo/preço próprio, diferente do produto — confira em Editar" class="rounded-full bg-navy-800 px-1 py-0.5 text-[9px] font-semibold text-cream-50">💲 preço por modelo</span>` : ""}
-                    ${stockBadge(p)}
-                    ${esgotadoBadge(p)}
-                    ${lowStockBadge(p)}
-                  </span>
-                  ${p.product_materials && p.product_materials.length > 0 ? `<div class="mt-0.5 text-[10px] font-normal text-navy-400">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).join(", ")}</div>` : ""}
-                </td>
-                <td class="px-1 py-1.5 text-center align-top">${renderStockQtyCell(p)}</td>
-                <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatBRL(p.cost)}</td>
-                <td class="px-1 py-1.5 text-right whitespace-nowrap font-semibold text-navy-900">${formatBRL(p.credit_price)}</td>
-                <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatBRL(p.credit_net)}</td>
-                <td class="px-1 py-1.5 text-right whitespace-nowrap text-emerald-700">${formatBRL(p.credit_profit)}</td>
-                <td class="px-1 py-1.5 text-right whitespace-nowrap">${Number(p.credit_markup).toFixed(2)}x</td>
-                <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatPercent(p.credit_margin)}</td>
-                <td class="px-1 py-1.5 text-right whitespace-nowrap font-semibold text-navy-900" title="${p.promo_manual_price != null ? "Valor manual" : ""}">${formatBRL(p.promo_price)}${p.promo_manual_price != null ? ` <span class="text-[9px] font-normal text-navy-400">(manual)</span>` : ""}</td>
-                <td class="px-1 py-1.5 text-right whitespace-nowrap text-emerald-700">${formatBRL(p.promo_profit)}</td>
-                <td class="px-1 py-1.5 text-right whitespace-nowrap">${formatPercent(p.promo_margin)}</td>
-                <td class="px-1 py-1.5 text-center">
-                  <input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-                </td>
-                <td class="px-1 py-1.5 text-center">
-                  <input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-                </td>
-                <td class="px-1 py-1.5 text-center">
-                  <div class="flex justify-center gap-1">
-                    <button data-edit="${p.id}" title="Editar produto" class="edit-product-btn rounded px-1 py-0.5 text-sm text-navy-700 hover:bg-navy-100">✎</button>
-                    <button data-duplicate="${p.id}" title="Duplicar produto — copia preço/custo/materiais pra criar uma variação parecida rapidamente" class="duplicate-product-btn rounded px-1 py-0.5 text-sm text-navy-700 hover:bg-navy-100">⧉</button>
-                    <button data-toggle="${p.id}" data-active="${p.active}" title="${p.active ? "Desativar produto" : "Reativar produto"}" class="toggle-product-btn rounded px-1 py-0.5 text-sm ${p.active ? "text-red-600" : "text-emerald-700"} hover:bg-navy-100">${p.active ? "✕" : "↺"}</button>
+      <div class="pricing-desktop-table">
+        <div class="pricing-desktop-list">
+          ${visible.length === 0 ? `<div class="pricing-mobile-card text-center text-navy-400">Nenhum produto encontrado.</div>` : visible.map((p) => `
+            <article class="pricing-desktop-row ${!p.active ? "is-inactive" : ""}">
+              <div class="pricing-desk-cell">
+                ${precifState.priceTableOpen ? `<label class="pricing-desk-select"><input type="checkbox" data-price-table-select="${p.id}" class="price-table-select-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" ${precifState.priceTableSelected.has(p.id) ? "checked" : ""} /> Incluir na tabela de preços</label>` : ""}
+                <div class="pricing-desk-product">
+                  ${p.photo_url ? `<img src="${p.photo_url}" alt="" class="pricing-desk-photo" />` : `<span class="pricing-desk-photo-placeholder">📦</span>`}
+                  <div class="min-w-0">
+                    <h3 class="pricing-desk-name">${escapeHtml(p.name)}</h3>
+                    <div class="pricing-desk-badges">
+                      ${p.category ? `<span class="rounded-full bg-navy-100 px-2 py-1 text-[9px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
+                      ${p.material_tag ? `<span class="rounded-full bg-cream-100 px-2 py-1 text-[9px] font-semibold text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
+                      ${p.product_variants?.length ? `<span class="rounded-full bg-gold-100 px-2 py-1 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
+                      ${stockBadge(p)}${esgotadoBadge(p)}${lowStockBadge(p)}
+                    </div>
+                    ${p.suppliers ? `<div class="pricing-desk-sub">🚚 ${escapeHtml(p.suppliers.name)}</div>` : ""}
                   </div>
-                </td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
+                </div>
+              </div>
+
+              <div class="pricing-desk-cell">
+                <span class="pricing-desk-label">Estoque ${p.product_variants?.length ? "por modelo" : "do produto"}</span>
+                <div class="pricing-desk-stock">${renderStockQtyCell(p)}</div>
+                ${p.product_materials?.length ? `<div class="pricing-desk-sub">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).filter(Boolean).join(", ")}</div>` : ""}
+              </div>
+
+              <div class="pricing-desk-cell">
+                <span class="pricing-desk-label">Preços</span>
+                <div class="pricing-desk-price-grid">
+                  <div class="pricing-desk-price"><span>Custo</span><strong>${formatBRL(p.cost)}</strong></div>
+                  <div class="pricing-desk-price"><span>Promo / Pix</span><strong>${formatBRL(p.promo_price)}</strong></div>
+                  <div class="pricing-desk-price"><span>Crédito</span><strong>${formatBRL(p.credit_price)}</strong></div>
+                  <div class="pricing-desk-price"><span>Líquido cartão</span><strong>${formatBRL(p.credit_net)}</strong></div>
+                </div>
+              </div>
+
+              <div class="pricing-desk-cell">
+                <span class="pricing-desk-label">Rentabilidade</span>
+                <div class="pricing-desk-profit">
+                  <div class="pricing-desk-profit-item good"><span>Lucro crédito</span><strong>${formatBRL(p.credit_profit)}</strong></div>
+                  <div class="pricing-desk-profit-item"><span>Margem crédito</span><strong>${formatPercent(p.credit_margin)}</strong></div>
+                  <div class="pricing-desk-profit-item good"><span>Lucro Pix</span><strong>${formatBRL(p.promo_profit)}</strong></div>
+                  <div class="pricing-desk-profit-item"><span>Margem Pix</span><strong>${formatPercent(p.promo_margin)}</strong></div>
+                </div>
+                <div class="pricing-desk-sub">Markup no crédito: <strong>${Number(p.credit_markup).toFixed(2)}x</strong>${p.promo_manual_price != null ? ` · Pix manual` : ""}</div>
+              </div>
+
+              <div class="pricing-desk-cell">
+                <span class="pricing-desk-label">Catálogo e ações</span>
+                <div class="pricing-desk-controls">
+                  <label class="pricing-desk-toggle"><span>Visível</span><input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" /></label>
+                  <label class="pricing-desk-toggle"><span>Destaque</span><input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" /></label>
+                  <div class="pricing-desk-actions">
+                    <button data-edit="${p.id}" class="edit-product-btn">Editar</button>
+                    <button data-duplicate="${p.id}" title="Duplicar produto" class="duplicate-product-btn">⧉</button>
+                    <button data-toggle="${p.id}" data-active="${p.active}" title="${p.active ? "Desativar" : "Reativar"}" class="toggle-product-btn ${p.active ? "danger" : ""}">${p.active ? "✕" : "↺"}</button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          `).join("")}
+        </div>
       </div>
     </div>
   `;
