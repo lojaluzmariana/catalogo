@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v7.2-stability-audit-2026-09-12" />
+<meta name="luz-mariana-admin-version" content="professional-v7.3-mobile-audit-2026-09-12" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -983,6 +983,83 @@
     .admin-sidebar::-webkit-scrollbar { display:none; }
     .production-board { scroll-snap-type:x proximity; }
     .production-column { scroll-snap-align:start; }
+  }
+
+
+  /* =====================================================================
+     V7.3 — PENTE-FINO RESPONSIVO E FALLBACKS DO TAILWIND PRÉ-COMPILADO
+     O painel usa tailwind-built.css compartilhado. Classes arbitrárias
+     adicionadas depois da compilação podem não existir nesse arquivo; os
+     fallbacks abaixo tornam o index.html autocontido nos pontos críticos.
+     ===================================================================== */
+  .min-w-\[150px\]{min-width:150px}.min-w-\[160px\]{min-width:160px}.min-w-\[180px\]{min-width:180px}
+  .min-w-\[185px\]{min-width:185px}.min-w-\[200px\]{min-width:200px}.min-w-\[220px\]{min-width:220px}
+  .min-w-\[420px\]{min-width:420px}.min-w-\[520px\]{min-width:520px}.min-w-\[640px\]{min-width:640px}
+  .min-w-\[700px\]{min-width:700px}.min-w-\[720px\]{min-width:720px}.min-w-\[760px\]{min-width:760px}
+  .min-w-\[820px\]{min-width:820px}.min-w-\[860px\]{min-width:860px}
+  .max-w-\[70px\]{max-width:70px}.max-w-\[260px\]{max-width:260px}.max-h-\[85vh\]{max-height:85vh}.max-h-\[90vh\]{max-height:90vh}
+  .text-\[9px\]{font-size:9px}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.min-h-\[18px\]{min-height:18px}
+  @media(min-width:640px){.sm\:max-w-\[300px\]{max-width:300px}.sm\:text-\[11px\]{font-size:11px}}
+
+  .orders-kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .orders-kpi-card{min-width:0!important;overflow:hidden}
+  .orders-kpi-card p,.orders-kpi-card span{overflow-wrap:anywhere}
+  .orders-tabs{align-items:stretch}
+  .orders-toolbar{min-width:0}
+  .orders-toolbar-actions{display:flex;flex-wrap:wrap;justify-content:flex-end}
+  .order-card,.order-card-head,.order-card-customer,.order-card-actions{min-width:0}
+  .order-card-customer{flex:1 1 320px}
+  .order-card-customer>div{min-width:0}
+  .order-card-customer p{overflow-wrap:anywhere}
+  .order-card-actions{flex:1 1 430px;justify-content:flex-end;flex-wrap:wrap}
+  .order-money-box{flex:0 0 210px;min-width:185px}
+
+  /* Proteção geral contra estouro horizontal em cards/formulários. Tabelas
+     continuam usando seus wrappers de rolagem horizontal. */
+  #main-content{max-width:100%;overflow-x:hidden}
+  #main-content img,#main-content svg{max-width:100%}
+  #main-content input,#main-content select,#main-content textarea,#main-content button{max-width:100%}
+  #main-content .grid>*{min-width:0}
+
+  @media(max-width:1100px){.orders-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:700px){
+    .admin-main-content{padding:14px 10px 32px}
+    #main-content>div{gap:16px!important}
+    #main-content h1{line-height:1.2}
+    #main-content>div>div:first-child p{line-height:1.45}
+    .orders-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .orders-kpi-card{padding:12px!important;border-radius:12px}
+    .orders-kpi-card p:first-child{font-size:11px!important;line-height:1.3}
+    .orders-kpi-card p.text-lg{font-size:19px!important;line-height:1.15;margin-top:4px}
+    .orders-kpi-card .text-\[11px\]{font-size:9px!important}
+    .orders-tabs{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px}
+    .orders-tabs button{width:100%;min-width:0!important;text-align:center;padding:9px 6px!important;font-size:13px!important}
+    .orders-toolbar{display:block!important;padding:12px!important}
+    .orders-toolbar>label{width:100%;margin-bottom:6px}
+    .orders-toolbar>span{display:block;margin:0 0 10px 26px}
+    .orders-toolbar-actions{margin-left:0!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%}
+    .orders-toolbar-actions button{width:100%;min-width:0!important;min-height:48px;padding:8px!important;font-size:12px!important;line-height:1.25}
+    .order-card{padding:12px!important}
+    .order-card-head{display:block!important}
+    .order-card-customer{width:100%;display:flex!important;align-items:flex-start}
+    .order-card-customer p.font-medium{font-size:15px;line-height:1.45}
+    .order-card-customer p.font-medium a,.order-card-customer p.font-medium span{display:inline-flex;margin-top:4px;margin-left:0!important;margin-right:4px}
+    .order-card-actions{width:100%;margin-top:12px;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;justify-content:stretch}
+    .order-card-actions>*{min-width:0!important;width:100%;max-width:none!important;margin:0!important;text-align:center;justify-self:stretch}
+    .order-money-box{grid-column:1/-1;min-width:0!important;text-align:left!important;padding:10px 12px!important}
+    .order-money-box span{text-align:left}
+    .order-card-actions .toggle-order-items-btn,.order-card-actions .edit-order-btn,.order-card-actions .msg-cliente-btn,.order-card-actions .iniciar-venda-btn{min-height:38px}
+    /* Formulários flexíveis: em celular nenhum campo pode depender de uma
+       min-width arbitrária que talvez não esteja no CSS pré-compilado. */
+    #main-content .flex.flex-wrap>[class*="min-w-["]{min-width:0!important}
+    #main-content .flex.flex-wrap>input[class*="min-w-["],#main-content .flex.flex-wrap>select[class*="min-w-["],#main-content .flex.flex-wrap>label[class*="min-w-["]{flex:1 1 100%;width:100%}
+    .pro-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+    .month-grid,.settings-grid{grid-template-columns:1fr!important}
+  }
+  @media(max-width:390px){
+    .orders-kpi-grid{grid-template-columns:1fr}
+    .orders-toolbar-actions,.order-card-actions{grid-template-columns:1fr}
+    .pro-kpi-grid{grid-template-columns:1fr!important}
   }
 
 </style>
@@ -9675,16 +9752,16 @@ function renderPedidos(container) {
 
       <div id="edit-order-overlay-slot"></div>
 
-      <div class="flex flex-wrap gap-3">
-        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma do valor cobrado (entrada pura, sem descontar custo) dos pedidos já PAGOS, de qualquer status (exceto cancelados).">
+      <div class="orders-kpi-grid">
+        <div class="orders-kpi-card flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma do valor cobrado (entrada pura, sem descontar custo) dos pedidos já PAGOS, de qualquer status (exceto cancelados).">
           <p class="text-xs font-medium text-navy-500">Valores recebidos (entradas)</p>
           <p class="text-lg font-semibold text-blue-700">${formatBRL(valoresRecebidos)}</p>
         </div>
-        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${lucroRealHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido pago não está mais cadastrado. " : ""}Soma de (valor cobrado − custo) só dos pedidos já PAGOS, de qualquer status (exceto cancelados) — dinheiro que já entrou de verdade.">
+        <div class="orders-kpi-card flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${lucroRealHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido pago não está mais cadastrado. " : ""}Soma de (valor cobrado − custo) só dos pedidos já PAGOS, de qualquer status (exceto cancelados) — dinheiro que já entrou de verdade.">
           <p class="text-xs font-medium text-navy-500">Lucro real (pedidos pagos)</p>
           <p class="text-lg font-semibold text-emerald-700">${lucroRealHasApprox ? "≈ " : ""}${formatBRL(lucroReal)}</p>
         </div>
-        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma do valor dos pedidos NÃO pagos ainda, de qualquer status (exceto cancelados) — quanto falta receber dos clientes.">
+        <div class="orders-kpi-card flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma do valor dos pedidos NÃO pagos ainda, de qualquer status (exceto cancelados) — quanto falta receber dos clientes.">
           <p class="text-xs font-medium text-navy-500">Valores a receber (não pagos)</p>
           <p class="text-lg font-semibold text-red-600">${formatBRL(valoresAReceber)}</p>
           ${receivablesList.length > 0 ? `
@@ -9698,7 +9775,7 @@ function renderPedidos(container) {
             </div>
           ` : ""}
         </div>
-        <div class="flex-1 min-w-[220px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${despesasHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido não está mais cadastrado. " : ""}Soma do custo de TODOS os pedidos, pagos ou não (exceto cancelados) — não é o saldo de saídas do Caixa.">
+        <div class="orders-kpi-card flex-1 min-w-[220px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${despesasHasApprox ? "Inclui custo aproximado — algum produto ou material de um pedido não está mais cadastrado. " : ""}Soma do custo de TODOS os pedidos, pagos ou não (exceto cancelados) — não é o saldo de saídas do Caixa.">
           <p class="text-xs font-medium text-navy-500">Despesas (custo total)</p>
           <p class="text-lg font-semibold text-orange-600">${despesasHasApprox ? "≈ " : ""}${formatBRL(despesasTotal)}</p>
           <div class="mt-1.5 flex flex-col gap-0.5 border-t border-navy-50 pt-1.5 text-[11px] text-navy-400">
@@ -9712,11 +9789,11 @@ function renderPedidos(container) {
             </span>
           </div>
         </div>
-        <div class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${faltaPagarHasApprox ? "Inclui custo aproximado — algum produto de um pedido não está mais cadastrado. " : ""}Soma só do custo do PRODUTO (sem materiais, tipo embalagem — isso é gasto interno da loja) dos pedidos cujo 'Fornecedor pago' ainda não foi marcado.">
+        <div class="orders-kpi-card flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="${faltaPagarHasApprox ? "Inclui custo aproximado — algum produto de um pedido não está mais cadastrado. " : ""}Soma só do custo do PRODUTO (sem materiais, tipo embalagem — isso é gasto interno da loja) dos pedidos cujo 'Fornecedor pago' ainda não foi marcado.">
           <p class="text-xs font-medium text-navy-500">Falta pagar (fornecedor)</p>
           <p class="text-lg font-semibold text-red-700">${faltaPagarHasApprox ? "≈ " : ""}${formatBRL(faltaPagarFornecedor)}</p>
         </div>
-        <button id="produtos-a-receber-btn" type="button" class="flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 text-left shadow transition hover:border-gold-300 hover:shadow-md" title="Pedidos cujo fornecedor/fabricante ainda não entregou o produto pra loja (checkbox 'Fornecedor entregou' desmarcada). Clique pra ver a lista.">
+        <button id="produtos-a-receber-btn" type="button" class="orders-kpi-card flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 text-left shadow transition hover:border-gold-300 hover:shadow-md" title="Pedidos cujo fornecedor/fabricante ainda não entregou o produto pra loja (checkbox 'Fornecedor entregou' desmarcada). Clique pra ver a lista.">
           <p class="text-xs font-medium text-navy-500">Produtos a receber (fornecedor)</p>
           <p class="text-lg font-semibold ${produtosAReceberOrders.length > 0 ? "text-gold-700" : "text-navy-400"}">${produtosAReceberOrders.length} ${produtosAReceberOrders.length === 1 ? "pedido" : "pedidos"}</p>
         </button>
@@ -9757,7 +9834,7 @@ function renderPedidos(container) {
         </div>
       ` : ""}
 
-      <div class="flex flex-wrap gap-2 border-b border-navy-100">
+      <div class="orders-tabs flex flex-wrap gap-2 border-b border-navy-100">
         ${PEDIDOS_TABS.map((t) => {
           const count = state.orders.filter((o) => o.status === t.key).length;
           const active = pedidosState.tab === t.key;
@@ -9769,7 +9846,7 @@ function renderPedidos(container) {
         }).join("")}
       </div>
 
-      <div class="flex flex-wrap items-center gap-3 rounded-xl border border-navy-100 bg-white px-4 py-3 shadow">
+      <div class="orders-toolbar flex flex-wrap items-center gap-3 rounded-xl border border-navy-100 bg-white px-4 py-3 shadow">
         <label class="flex items-center gap-2 text-sm text-navy-700">
           <input type="checkbox" id="pedidos-select-all" class="h-4 w-4 rounded border-navy-300" ${visible.length === 0 ? "disabled" : ""} ${allVisibleSelected ? "checked" : ""} />
           Selecionar todos os visíveis
@@ -9784,7 +9861,7 @@ function renderPedidos(container) {
             <span>Lucro estimado: <b class="text-emerald-700">${selectedHasApprox ? "≈ " : ""}${formatBRL(selectedProfitEstimate)}</b></span>
           </div>
         ` : ""}
-        <div class="ml-auto flex gap-2">
+        <div class="orders-toolbar-actions ml-auto flex gap-2">
           <button id="pedidos-picking-list-btn" ${state.orders.filter((o) => o.status === "em_andamento").length === 0 ? "disabled" : ""} title="Junta os itens de todos os pedidos 'Em andamento' numa lista só, com a quantidade total de cada produto — pra separar/produzir em lote." class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🖨 Lista de separação</button>
           <button id="pedidos-download-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🧾 Gerar comprovante</button>
           <button id="pedidos-shipping-labels-btn" ${selectedCount === 0 ? "disabled" : ""} title="Gera uma etiqueta em PDF (nome, WhatsApp, nº do pedido e observações/endereço) pra cada pedido selecionado, prontas pra imprimir e recortar." class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🏷 Etiqueta de envio</button>
@@ -9794,9 +9871,9 @@ function renderPedidos(container) {
 
       <div class="flex flex-col gap-3">
         ${visible.length === 0 ? `<p class="rounded-xl border border-navy-100 bg-white px-4 py-8 text-center text-navy-400 shadow">Nenhum pedido em "${PEDIDOS_TABS.find((t) => t.key === pedidosState.tab)?.label}".</p>` : visible.map((o) => `
-          <div class="rounded-xl border ${pedidosState.selected.has(o.id) ? "border-gold-400 ring-1 ring-gold-200" : !o.paid_at && o.payment_method !== "brinde" ? "border-red-300 ring-1 ring-red-100" : "border-navy-100"} bg-white p-4 shadow">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="flex items-start gap-3">
+          <div class="order-card rounded-xl border ${pedidosState.selected.has(o.id) ? "border-gold-400 ring-1 ring-gold-200" : !o.paid_at && o.payment_method !== "brinde" ? "border-red-300 ring-1 ring-red-100" : "border-navy-100"} bg-white p-4 shadow">
+            <div class="order-card-head flex flex-wrap items-center justify-between gap-3">
+              <div class="order-card-customer flex items-start gap-3">
                 <input type="checkbox" data-select-order="${o.id}" class="order-select-checkbox mt-1 h-4 w-4 rounded border-navy-300" ${pedidosState.selected.has(o.id) ? "checked" : ""} />
                 <div>
                   <p class="font-medium text-navy-900">Pedido Nº ${String(o.order_number ?? "").padStart(6, "0")} — ${escapeHtml(o.customer_name)}
@@ -9813,11 +9890,11 @@ function renderPedidos(container) {
                   </p>
                 </div>
               </div>
-              <div class="flex items-center gap-3">
+              <div class="order-card-actions flex items-center gap-3">
                 ${(() => {
                   const split = orderMoneySplit(o, orderCosts.get(o.id));
                   return `
-                    <div class="min-w-[185px] rounded-lg border border-navy-100 bg-cream-50 px-3 py-2 text-right leading-tight">
+                    <div class="order-money-box min-w-[185px] rounded-lg border border-navy-100 bg-cream-50 px-3 py-2 text-right leading-tight">
                       <span class="block text-[10px] font-medium uppercase tracking-wide text-navy-400">${o.paid_at ? "Separação deste pedido" : "Previsão deste pedido"}</span>
                       <span class="mt-1 block text-lg font-semibold text-navy-900">${formatBRL(o.total)}</span>
 
