@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v7.1-visual-fixes-2026-09-12" />
+<meta name="luz-mariana-admin-version" content="professional-v7.2-stability-audit-2026-09-12" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -632,7 +632,7 @@
   }
   .pro-tab.active { border-color:#001868; background:#001868; color:#fff; }
 
-  .production-board { display:grid; grid-template-columns:repeat(4,minmax(240px,1fr)); gap:12px; align-items:start; overflow-x:auto; }
+  .production-board { display:grid; grid-template-columns:repeat(5,minmax(240px,1fr)); gap:12px; align-items:start; overflow-x:auto; }
   .production-column {
     min-width:240px; border:1px solid #e3e6ee; border-radius:14px; background:#f8f9fc; padding:10px;
   }
@@ -782,7 +782,7 @@
   @media (max-width:900px) {
     .admin-search-trigger { min-width:40px; width:40px; padding:8px; justify-content:center; }
     .admin-search-trigger .search-copy, .admin-search-trigger kbd { display:none; }
-    .production-board { grid-template-columns:repeat(4,260px); }
+    .production-board { grid-template-columns:repeat(5,260px); }
     .production-list-card { grid-template-columns:minmax(200px,1fr) 80px 90px 100px 100px; min-width:720px; }
     .today-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
   }
@@ -972,6 +972,18 @@
   }
 
   html.dark .supplier-table-status { color:#a7b1c8; }
+
+
+  /* V7.2 — robustez mobile: avisos podem quebrar em duas linhas sem
+     espremer botões, e a navegação horizontal fica limpa no celular. */
+  @media (max-width:640px) {
+    .admin-notice { flex-wrap:wrap; align-items:flex-start; }
+    .admin-notice > div { max-width:100%; flex-wrap:wrap; }
+    .admin-sidebar { scrollbar-width:none; }
+    .admin-sidebar::-webkit-scrollbar { display:none; }
+    .production-board { scroll-snap-type:x proximity; }
+    .production-column { scroll-snap-align:start; }
+  }
 
 </style>
 </head>
@@ -1781,7 +1793,21 @@ function isAnyFormOpen() {
   // porque isso reconstruiria os campos e apagaria o orçamento que está sendo digitado.
   if (state.tab === "orcamentos") return true;
 
-  return !!(precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen || clientesState.formOpen || cuponsState.formOpen || caixaState.formOpen || estoqueState.stockDebtOpen || couponPhonesState.open || brindeState.open || stockPurchaseState.open || stockEntryEditState.open || pedidoState.open);
+  // Proteção genérica: se a pessoa estiver digitando/selecionando alguma
+  // coisa, não reconstruímos a tela por atualização automática. Isso cobre
+  // também formulários novos que venham a ser adicionados ao ERP.
+  const active = document.activeElement;
+  if (active && (active.matches?.("input, textarea, select, [contenteditable='true']") || active.isContentEditable)) return true;
+
+  return !!(
+    precifState.formOpen || materiaisState.formOpen || fornecedoresState.formOpen ||
+    clientesState.formOpen || cuponsState.formOpen || caixaState.formOpen ||
+    estoqueState.stockDebtOpen || couponPhonesState.open || brindeState.open ||
+    stockPurchaseState.open || stockEntryEditState.open || pedidoState.open ||
+    editOrderState.open || calc3dState.open || simulateState.open ||
+    eventoVendaState.open || vendaManualState.open || securityState.open ||
+    priceHistoryState.open
+  );
 }
 
 async function loadAdminUsers() {
@@ -2831,7 +2857,8 @@ function renderProducao(container) {
     ["todo","A fazer"],
     ["printing","Em produção"],
     ["finishing","Acabamento"],
-    ["ready","Pronto / separado"],
+    ["ready","Pronto"],
+    ["separated","Separado"],
   ];
 
   container.innerHTML = `
@@ -2879,7 +2906,7 @@ function renderProducao(container) {
         ` : `
           <div class="production-board">
             ${stages.map(([key,label]) => {
-              const list = own.filter((t) => key === "ready" ? ["ready","separated"].includes(t.stage) : t.stage === key);
+              const list = own.filter((t) => t.stage === key);
               return `
                 <section class="production-column">
                   <div class="production-column-head"><strong>${label}</strong><span class="production-column-count">${list.length}</span></div>
@@ -3675,6 +3702,54 @@ function renderCommandResults() {
   }));
 }
 
+function renderActiveSection(container) {
+  const renderers = {
+    inicio: renderInicio,
+    producao: renderProducao,
+    eventos: renderEventos,
+    posvenda: renderPosVenda,
+    ocorrencias: renderOcorrencias,
+    contas: renderContas,
+    fechamento: renderFechamento,
+    rentabilidade: renderRentabilidade,
+    atividade: renderAtividade,
+    configuracoes: renderConfiguracoes,
+    precificacao: renderPrecificacao,
+    materiais: renderMateriais,
+    fornecedores: renderFornecedores,
+    clientes: renderClientes,
+    cupons: renderCupons,
+    orcamentos: renderOrcamentos,
+    pedidos: renderPedidos,
+    estoque: renderEstoque,
+    relatorios: renderRelatorios,
+    avaliacoes: renderAvaliacoes,
+    caixa: renderCaixa,
+  };
+  const renderer = renderers[state.tab] || renderCaixa;
+  try {
+    renderer(container);
+  } catch (err) {
+    console.error(`Falha ao renderizar a seção ${state.tab}:`, err);
+    container.innerHTML = `
+      <section class="management-card" role="alert">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <span class="admin-kicker">Falha de exibição</span>
+            <h1 class="mt-1 text-xl font-semibold text-navy-900">Não foi possível abrir esta área</h1>
+            <p class="mt-2 text-sm text-navy-500">Os dados não foram apagados. O painel interceptou um erro de interface para evitar uma tela vazia.</p>
+          </div>
+          <button id="section-render-retry" type="button" class="rounded-lg bg-navy-900 px-3 py-2 text-sm font-semibold text-white">Tentar novamente</button>
+        </div>
+        <p class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">${escapeHtml(err?.message || "Erro inesperado")}</p>
+      </section>`;
+    document.getElementById("section-render-retry")?.addEventListener("click", async () => {
+      try { await loadAllData(); } catch (refreshErr) { console.error("Falha ao atualizar após erro de seção:", refreshErr); }
+      renderApp();
+    });
+  }
+}
+
 function renderApp() {
   const newOrdersCount = state.orders.filter((o) => o.status === "novo").length;
   const lowStockProductsCount = countLowStockProducts();
@@ -4180,27 +4255,7 @@ function renderApp() {
   });
 
   const main = document.getElementById("main-content");
-  if (state.tab === "inicio") renderInicio(main);
-  else if (state.tab === "producao") renderProducao(main);
-  else if (state.tab === "eventos") renderEventos(main);
-  else if (state.tab === "posvenda") renderPosVenda(main);
-  else if (state.tab === "ocorrencias") renderOcorrencias(main);
-  else if (state.tab === "contas") renderContas(main);
-  else if (state.tab === "fechamento") renderFechamento(main);
-  else if (state.tab === "rentabilidade") renderRentabilidade(main);
-  else if (state.tab === "atividade") renderAtividade(main);
-  else if (state.tab === "configuracoes") renderConfiguracoes(main);
-  else if (state.tab === "precificacao") renderPrecificacao(main);
-  else if (state.tab === "materiais") renderMateriais(main);
-  else if (state.tab === "fornecedores") renderFornecedores(main);
-  else if (state.tab === "clientes") renderClientes(main);
-  else if (state.tab === "cupons") renderCupons(main);
-  else if (state.tab === "orcamentos") renderOrcamentos(main);
-  else if (state.tab === "pedidos") renderPedidos(main);
-  else if (state.tab === "estoque") renderEstoque(main);
-  else if (state.tab === "relatorios") renderRelatorios(main);
-  else if (state.tab === "avaliacoes") renderAvaliacoes(main);
-  else renderCaixa(main);
+  renderActiveSection(main);
 
   if (securityState.open) renderSecurityOverlay();
   if (priceHistoryState.open) renderPriceHistoryOverlay();
@@ -9495,8 +9550,10 @@ function renderPedidos(container) {
     .sort((a, b) => pedidosState.tab === "em_andamento"
       ? new Date(a.created_at) - new Date(b.created_at)
       : Number(!!a.paid_at) - Number(!!b.paid_at));
-  // Limpa da seleção qualquer pedido que não existe mais na lista atual.
-  [...pedidosState.selected].forEach((id) => { if (!state.orders.some((o) => o.id === id)) pedidosState.selected.delete(id); });
+  // A seleção pertence à aba atual. Remove itens que ficaram selecionados
+  // numa aba anterior (ou que já não existem), evitando totais e ações
+  // sobre pedidos invisíveis na tela.
+  [...pedidosState.selected].forEach((id) => { if (!visible.some((o) => o.id === id)) pedidosState.selected.delete(id); });
   const selectedCount = pedidosState.selected.size;
   const allVisibleSelected = visible.length > 0 && visible.every((o) => pedidosState.selected.has(o.id));
 
@@ -9507,6 +9564,11 @@ function renderPedidos(container) {
   const deliveryDeadlines = new Map(visible.map((o) => [o.id, orderDeliveryDeadline(o)]));
   const customerHistories = new Map(visible.map((o) => [o.id, customerHistorySummary(o)]));
   const selectedIds = [...pedidosState.selected];
+  // Mantém a lista de pedidos selecionados disponível para todos os cálculos
+  // abaixo. Na V7.1, selectedProfitEstimate referenciava selectedOrders sem
+  // declarar a variável, gerando ReferenceError e interrompendo toda a tela
+  // de Pedidos antes mesmo de o HTML ser desenhado.
+  const selectedOrders = visible.filter((o) => pedidosState.selected.has(o.id));
   const selectedProductCostTotal = selectedIds.reduce((sum, id) => sum + (orderCosts.get(id)?.productCost ?? 0), 0);
   const selectedMaterialsCostTotal = selectedIds.reduce((sum, id) => sum + (orderCosts.get(id)?.materialsCost ?? 0), 0);
   const selectedCostTotal = selectedProductCostTotal + selectedMaterialsCostTotal;
