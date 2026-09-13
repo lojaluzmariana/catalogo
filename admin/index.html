@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v8.4-stock-quantity-card-rules-monthly-cash-2026-09-13" />
+<meta name="luz-mariana-admin-version" content="professional-v9-supabase-foundation-2026-09-13" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1565,6 +1565,7 @@ function loadCardRateSettings() {
 }
 function saveCardRateSettings(settings) {
   try { localStorage.setItem(CARD_RATE_STORAGE_KEY, JSON.stringify(settings)); } catch (_err) {}
+  persistBusinessSetting("card_rates", settings);
 }
 function cardRateFor(paymentMethod, installments = 1, { legacyCreditFallback = false } = {}) {
   const cfg = loadCardRateSettings();
@@ -1875,6 +1876,11 @@ const state = {
   error: null,
   lastRefreshedAt: null, // Date da última vez que os dados foram recarregados (manual ou automático)
   dataLoadWarnings: [], // nomes (em português, pra mostrar na tela) do que falhou ao carregar em segundo plano — ver noteLoadResult()
+  erpV9: {
+    available: false, migrationNeeded: false, error: null,
+    settings: {}, printers: [], productionJobs: [], productionItems: {},
+    filamentSpools: [], accountsPayable: [], accountsReceivable: [], activityLog: []
+  },
 };
 
 const app = document.getElementById("app");
@@ -2303,6 +2309,7 @@ async function finishAppEntry() {
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
   await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews()]);
+  await loadErpV9Data();
   state.lastRefreshedAt = new Date();
 }
 
@@ -2381,6 +2388,161 @@ async function logout() {
    ÁREA LOGADA — layout com navegação
    ===================================================================== */
 
+
+/* =====================================================================
+   V9 — CAMADA DE SINCRONIZAÇÃO SUPABASE
+   Mantém compatibilidade com a versão anterior: se a migração V9 ainda não
+   tiver sido executada, o painel continua funcionando com localStorage e
+   metadados de pedido. Quando as tabelas V9 existem, configurações, fechamento,
+   máquinas e produção passam a ser compartilhados entre dispositivos.
+   ===================================================================== */
+function isMissingRelationError(error) {
+  const msg = String(error?.message || "").toLowerCase();
+  return error?.code === "42P01" || error?.code === "PGRST205" || msg.includes("does not exist") || msg.includes("could not find the table");
+}
+async function persistBusinessSetting(key, value) {
+  if (!state?.erpV9?.available) return;
+  const { error } = await supabaseClient.from("business_settings").upsert({
+    setting_key:key, setting_value:value, updated_by:state.currentUser?.id || null, updated_at:new Date().toISOString()
+  }, { onConflict:"setting_key" });
+  if (error) console.error("business_settings:", error.message);
+}
+async function persistMonthlyClosing(month, snapshot) {
+  if (!state?.erpV9?.available) return;
+  const { error } = await supabaseClient.from("monthly_closings").upsert({
+    month_key:month,
+    period_start:`${month}-01`,
+    period_end:new Date(Number(month.slice(0,4)), Number(month.slice(5,7)), 0).toISOString().slice(0,10),
+    snapshot,
+    closed_by:state.currentUser?.id || null,
+    closed_at:snapshot.closedAt || new Date().toISOString()
+  }, { onConflict:"month_key" });
+  if (error) console.error("monthly_closings:", error.message);
+}
+async function persistPrintersFromConfig(cfg) {
+  if (!state?.erpV9?.available) return;
+  try {
+    const machines = Array.isArray(cfg?.machines) ? cfg.machines : [];
+    const currentIds = new Set(machines.map((m)=>m.id).filter(Boolean));
+    const oldIds = (state.erpV9.printers || []).map((m)=>m.id).filter(Boolean);
+    const removed = oldIds.filter((id)=>!currentIds.has(id));
+    if (removed.length) await supabaseClient.from("printers").delete().in("id", removed);
+    for (const m of machines) {
+      const payload = {
+        name:m.name || "Impressora", model:m.model || null,
+        hours_total:Number(m.hours || 0), maintenance_every_hours:Number(m.maintenanceEvery || 500),
+        active:true, updated_at:new Date().toISOString(), updated_by:state.currentUser?.id || null
+      };
+      if (m.id) await supabaseClient.from("printers").update(payload).eq("id", m.id);
+      else {
+        const { data } = await supabaseClient.from("printers").insert({...payload, created_by:state.currentUser?.id || null}).select("id").single();
+        if (data?.id) m.id = data.id;
+      }
+    }
+    const { data } = await supabaseClient.from("printers").select("*").eq("active", true).order("name");
+    state.erpV9.printers = data || [];
+  } catch (err) { console.error("persistPrintersFromConfig:", err); }
+}
+async function syncProductionTaskToV9(orderId, itemKey, patch = {}) {
+  if (!state?.erpV9?.available) return;
+  const order = state.orders.find((o)=>o.id===orderId);
+  const item = (order?.items || []).find((it)=>productionItemKey(it)===itemKey);
+  if (!order || !item?.id) return;
+  const task = productionTaskFor(order,item);
+  const { data: job, error: jobErr } = await supabaseClient.from("production_jobs").upsert({
+    order_id:order.id, job_type:"order", status:order.status === "concluido" ? "completed" : "open",
+    priority:task.priority.key, due_date:task.deadline.date ? toLocalISODate(task.deadline.date) : null,
+    updated_by:state.currentUser?.id || null, updated_at:new Date().toISOString()
+  }, { onConflict:"order_id" }).select("id").single();
+  if (jobErr || !job?.id) { if (jobErr) console.error("production_jobs:",jobErr.message); return; }
+  const payload = {
+    production_job_id:job.id, order_item_id:item.id, product_id:item.product_id || null,
+    product_name:item.product_name, variant_name:item.variant_name || null,
+    quantity_required:Number(item.quantity || 0), quantity_produced:Number(task.done || 0),
+    stage:task.stage, lot_code:task.lot || null, printer_name:task.machine || null,
+    estimated_minutes:Number(task.minutesPerUnit || 0), estimated_grams:Number(task.gramsPerUnit || 0),
+    updated_by:state.currentUser?.id || null, updated_at:new Date().toISOString()
+  };
+  const { data: prodItem, error } = await supabaseClient.from("production_job_items").upsert(payload,{onConflict:"order_item_id"}).select("*").single();
+  if (!error && prodItem) state.erpV9.productionItems[item.id] = prodItem;
+  if (error) console.error("production_job_items:",error.message);
+  await logActivity("production", prodItem?.id || item.id, "production_updated", {order_id:order.id, order_item_id:item.id, patch});
+}
+async function logActivity(entityType, entityId, action, details = {}) {
+  if (!state?.erpV9?.available) return;
+  const { error } = await supabaseClient.from("activity_log").insert({
+    entity_type:entityType, entity_id:entityId || null, action, details,
+    created_by:state.currentUser?.id || null
+  });
+  if (error) console.error("activity_log:", error.message);
+}
+async function bootstrapProductionV9() {
+  if (!state?.erpV9?.available) return;
+  for (const order of state.orders.filter((o)=>o.status!=="cancelado")) {
+    for (const item of (order.items || [])) {
+      if (!item?.id) continue;
+      await syncProductionTaskToV9(order.id, productionItemKey(item), {});
+    }
+  }
+}
+async function loadErpV9Data() {
+  if (!state?.erpV9) return;
+  const { data:settings, error } = await supabaseClient.from("business_settings").select("setting_key,setting_value");
+  if (error) {
+    state.erpV9.available = false;
+    state.erpV9.migrationNeeded = isMissingRelationError(error);
+    state.erpV9.error = error.message;
+    return;
+  }
+  state.erpV9.available = true;
+  state.erpV9.migrationNeeded = false;
+  state.erpV9.error = null;
+  state.erpV9.settings = Object.fromEntries((settings || []).map((r)=>[r.setting_key,r.setting_value]));
+
+  const pro = state.erpV9.settings.professional_config;
+  if (pro && typeof pro === "object") {
+    professionalState.config = {...loadProfessionalConfig(), ...pro, productionProfiles:{...(pro.productionProfiles||{})}, machines:Array.isArray(pro.machines)?pro.machines:[], costCenterMap:{...(pro.costCenterMap||{})}};
+    try { localStorage.setItem(LM_PRO_CONFIG_KEY, JSON.stringify(professionalState.config)); } catch (_err) {}
+  }
+  const rates = state.erpV9.settings.card_rates;
+  if (rates && typeof rates === "object") try { localStorage.setItem(CARD_RATE_STORAGE_KEY, JSON.stringify(rates)); } catch (_err) {}
+  const split = state.erpV9.settings.profit_split;
+  if (split && typeof split === "object") {
+    try { localStorage.setItem(PROFIT_SPLIT_SETTINGS_KEY, JSON.stringify(split)); } catch (_err) {}
+    if (typeof caixaState !== "undefined") caixaState.reserveSettings = loadProfitSplitSettings();
+  }
+
+  const [{data:closings},{data:printers},{data:prodItems},{data:spools},{data:ap},{data:ar},{data:activity}] = await Promise.all([
+    supabaseClient.from("monthly_closings").select("*").order("month_key",{ascending:false}),
+    supabaseClient.from("printers").select("*").eq("active",true).order("name"),
+    supabaseClient.from("production_job_items").select("*"),
+    supabaseClient.from("filament_spools").select("*").eq("active",true).order("created_at",{ascending:false}),
+    supabaseClient.from("accounts_payable").select("*").order("due_date",{ascending:true}),
+    supabaseClient.from("accounts_receivable").select("*").order("due_date",{ascending:true}),
+    supabaseClient.from("activity_log").select("*").order("created_at",{ascending:false}).limit(100),
+  ]);
+  if (closings) {
+    const map={}; closings.forEach((r)=>map[r.month_key]=r.snapshot || {});
+    try { localStorage.setItem(LM_MONTH_CLOSE_KEY, JSON.stringify(map)); } catch (_err) {}
+  }
+  state.erpV9.printers = printers || [];
+  if ((printers || []).length) {
+    professionalState.config.machines = printers.map((m)=>({id:m.id,name:m.name,model:m.model||"",hours:Number(m.hours_total||0),maintenanceEvery:Number(m.maintenance_every_hours||500)}));
+  }
+  state.erpV9.productionItems = Object.fromEntries((prodItems||[]).filter((r)=>r.order_item_id).map((r)=>[r.order_item_id,r]));
+  state.erpV9.filamentSpools = spools || [];
+  state.erpV9.accountsPayable = ap || [];
+  state.erpV9.accountsReceivable = ar || [];
+  state.erpV9.activityLog = activity || [];
+
+  // Primeira execução após a migração: leva as configurações locais atuais ao banco
+  // caso ainda não existam, sem apagar nada compartilhado.
+  if (!state.erpV9.settings.professional_config) await persistBusinessSetting("professional_config", professionalState.config);
+  if (!state.erpV9.settings.card_rates) await persistBusinessSetting("card_rates", loadCardRateSettings());
+  if (!state.erpV9.settings.profit_split) await persistBusinessSetting("profit_split", loadProfitSplitSettings());
+  await persistPrintersFromConfig(professionalState.config);
+  bootstrapProductionV9();
+}
 
 /* =====================================================================
    V7 — METADADOS OPERACIONAIS SINCRONIZADOS NO PRÓPRIO PEDIDO
@@ -2479,6 +2641,8 @@ function loadProfessionalConfig() {
 function saveProfessionalConfig(cfg) {
   professionalState.config = cfg;
   try { localStorage.setItem(LM_PRO_CONFIG_KEY, JSON.stringify(cfg)); } catch (_err) {}
+  persistBusinessSetting("professional_config", cfg);
+  persistPrintersFromConfig(cfg);
 }
 let professionalState = {
   config: loadProfessionalConfig(),
@@ -2497,8 +2661,10 @@ function loadMonthClosings() {
 }
 function saveMonthClosing(month, data) {
   const all = loadMonthClosings();
-  all[month] = { ...data, closedAt: new Date().toISOString(), closedBy: state.currentUser?.name || null };
+  const snapshot = { ...data, closedAt: new Date().toISOString(), closedBy: state.currentUser?.name || null };
+  all[month] = snapshot;
   try { localStorage.setItem(LM_MONTH_CLOSE_KEY, JSON.stringify(all)); } catch (_err) {}
+  persistMonthlyClosing(month, snapshot);
 }
 
 function daysUntil(dateValue) {
@@ -2539,7 +2705,9 @@ function productionSourceForItem(item) {
 function productionTaskFor(order, item) {
   const key = productionItemKey(item);
   const meta = normalizedOrderOpsMeta(order);
-  const saved = meta.production?.[key] || {};
+  const remote = state.erpV9?.productionItems?.[item.id] || null;
+  const remoteSaved = remote ? { stage:remote.stage, done:Number(remote.quantity_produced || 0), lot:remote.lot_code || "", machine:remote.printer_name || "" } : {};
+  const saved = { ...remoteSaved, ...(meta.production?.[key] || {}) };
   const qty = Math.max(0, Number(item.quantity || 0));
   const done = Math.min(qty, Math.max(0, Number(saved.done || 0)));
   let stage = saved.stage || "todo";
@@ -3291,6 +3459,7 @@ async function updateProductionTask(orderId, itemKey, patch) {
     meta.production[itemKey] = { ...current, ...patch, updatedAt:new Date().toISOString(), updatedBy:state.currentUser?.id || null };
     return meta;
   });
+  if (!error) await syncProductionTaskToV9(orderId, itemKey, patch);
   if (error) alert("Não foi possível atualizar a produção: " + error.message);
   return !error;
 }
@@ -4036,6 +4205,13 @@ function renderConfiguracoes(container) {
           <p>Metas, perfis de produção e capacidade. Essas configurações operacionais ficam neste navegador; dados de pedidos, caixa e produção dos pedidos continuam no Supabase.</p>
         </div>
       </div>
+
+      <section class="management-card" style="margin-bottom:14px;border-color:${state.erpV9.available ? "#b9dfce" : state.erpV9.migrationNeeded ? "#eed68c" : "#e3e6ef"}">
+        <div class="admin-section-heading">
+          <div><h2>Banco de dados V9</h2><p>${state.erpV9.available ? "✓ Integração compartilhada ativa: configurações, fechamentos, impressoras e produção sincronizam pelo Supabase." : state.erpV9.migrationNeeded ? "Migração V9 ainda não detectada. O painel continua funcionando em modo compatível, mas alguns dados ficam somente neste navegador." : "Não foi possível verificar a camada V9 agora."}</p></div>
+          <span class="pro-pill ${state.erpV9.available ? "good" : "warning"}">${state.erpV9.available ? "Sincronizado" : "Compatibilidade"}</span>
+        </div>
+      </section>
 
       <div class="settings-grid">
         <section class="management-card">
@@ -11643,6 +11819,7 @@ function loadProfitSplitSettings() {
 
 function saveProfitSplitSettings(settings) {
   try { localStorage.setItem(PROFIT_SPLIT_SETTINGS_KEY, JSON.stringify(settings)); } catch (_err) {}
+  persistBusinessSetting("profit_split", settings);
 }
 
 // O Caixa mensal começa sempre no dia 01 e fecha no último dia de cada mês.
