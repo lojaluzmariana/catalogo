@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v7-full-package-2026-09-12" />
+<meta name="luz-mariana-admin-version" content="professional-v7.1-visual-fixes-2026-09-12" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -407,7 +407,7 @@
   /* Refinamento geral das telas existentes */
   #main-content > div > div:first-child h1 { letter-spacing:-.015em; }
   #main-content .shadow { box-shadow:0 5px 16px rgba(18,36,83,.055) !important; }
-  #main-content table thead { position:sticky; top:68px; z-index:3; }
+  #main-content table thead { position:static; top:auto; z-index:auto; }
   #main-content table tbody tr { transition:background .12s ease; }
   #main-content table tbody tr:hover { background:#fbfaf6; }
 
@@ -456,7 +456,7 @@
     .admin-nav-icon { width:auto; }
     .admin-main-content { padding:18px 12px 36px; }
     .admin-notice-stack { padding:10px 12px 0; }
-    #main-content table thead { top:109px; }
+    #main-content table thead { position:static; top:auto; }
   }
   @media (max-width:640px) {
     .admin-top-button .admin-top-text { display:none; }
@@ -793,6 +793,185 @@
     .today-strip { grid-template-columns:1fr 1fr; }
     .command-overlay { padding-top:5vh; }
   }
+
+
+  /* =====================================================================
+     V7.1 — CORREÇÕES VISUAIS E DE EMPILHAMENTO
+     ===================================================================== */
+
+  /* Cabeçalhos de tabela permanecem no fluxo normal.
+     O sticky global fazia o cabeçalho cobrir registros em tabelas com
+     rolagem horizontal. */
+  #main-content table thead,
+  #main-content table thead tr,
+  #main-content table thead th {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+  }
+
+  #main-content .overflow-x-auto,
+  #main-content .mobile-card-table,
+  .table-scroll-safe {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;
+  }
+
+  #main-content table { max-width: none; }
+  #main-content th, #main-content td { vertical-align: middle; }
+
+  .admin-main-column,
+  .admin-main-content,
+  #main-content,
+  #main-content > * { min-width: 0; }
+
+  .admin-user-dropdown { z-index: 75; }
+  .admin-actions-popover { z-index: 70; }
+
+  /* Modais acima da navegação e do cabeçalho. */
+  .fixed.inset-0.z-50 { z-index: 90 !important; }
+
+  .pro-page-header,
+  #main-content > div > .flex:first-child,
+  #main-content > div > div:first-child { min-width: 0; }
+
+  .pro-page-header > *,
+  #main-content .flex > * { min-width: 0; }
+
+  /* Fornecedores */
+  .supplier-table-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+  }
+
+  .supplier-table {
+    width: 100%;
+    min-width: 1160px;
+    table-layout: auto;
+  }
+
+  .supplier-table th,
+  .supplier-table td { position: static !important; }
+
+  .supplier-table th:nth-child(1),
+  .supplier-table td:nth-child(1) { min-width: 170px; }
+
+  .supplier-table th:nth-child(2),
+  .supplier-table td:nth-child(2) { min-width: 135px; white-space: nowrap; }
+
+  .supplier-table th:nth-child(3),
+  .supplier-table td:nth-child(3) { min-width: 125px; }
+
+  .supplier-table th:nth-child(4),
+  .supplier-table td:nth-child(4) {
+    min-width: 220px;
+    max-width: 310px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .supplier-table th:nth-child(5),
+  .supplier-table td:nth-child(5),
+  .supplier-table th:nth-child(6),
+  .supplier-table td:nth-child(6) {
+    min-width: 120px;
+    white-space: nowrap;
+  }
+
+  .supplier-table th:nth-child(7),
+  .supplier-table td:nth-child(7) { min-width: 300px; }
+
+  .supplier-table-status {
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:7px;
+    color:#7a849d;
+    font-size:10px;
+  }
+
+  .supplier-history-lines > div { align-items:flex-start !important; }
+  .supplier-history-lines > div > span:first-child {
+    min-width:0;
+    overflow-wrap:anywhere;
+  }
+
+  /* Cabeçalho principal sem colisões em larguras intermediárias */
+  .admin-topbar,
+  .admin-top-actions { min-width:0; }
+
+  .admin-search-trigger { flex:0 1 320px; }
+
+  @media (max-width:1180px) {
+    .admin-search-trigger {
+      min-width:44px;
+      width:44px;
+      flex:0 0 44px;
+      padding:8px;
+      justify-content:center;
+    }
+    .admin-search-trigger .search-copy,
+    .admin-search-trigger kbd,
+    .admin-update-time { display:none; }
+    .admin-user-menu summary .admin-user-name { display:none; }
+  }
+
+  @media (max-width:900px) {
+    .admin-topbar {
+      height:64px;
+      min-height:64px;
+      flex-wrap:nowrap;
+    }
+
+    #main-content table thead,
+    #main-content table thead tr,
+    #main-content table thead th {
+      position:static !important;
+      top:auto !important;
+    }
+
+    .supplier-table { min-width:1080px; }
+  }
+
+  @media (max-width:640px) {
+    .admin-brand > span { display:none; }
+    .admin-brand { gap:0; }
+    .admin-brand img { width:36px; height:36px; }
+
+    .admin-top-actions { gap:5px; }
+
+    .admin-top-button,
+    .admin-search-trigger {
+      width:38px;
+      min-width:38px;
+      height:38px;
+      min-height:38px;
+      padding:7px;
+    }
+
+    .admin-user-menu summary {
+      min-height:38px;
+      padding:5px 7px;
+    }
+
+    .management-card,
+    .pro-kpi,
+    .event-card,
+    .production-card,
+    .admin-section-card {
+      max-width:100%;
+      min-width:0;
+    }
+  }
+
+  html.dark .supplier-table-status { color:#a7b1c8; }
 
 </style>
 </head>
@@ -6614,18 +6793,25 @@ function allSupplierItems(supplierId) {
 
 function renderFornecedores(container) {
   const visible = state.suppliers.filter((s) => fornecedoresState.showInactive || s.active);
+  const activeCount = state.suppliers.filter((s) => s.active).length;
+  const inactiveCount = state.suppliers.length - activeCount;
 
   container.innerHTML = `
     <div class="flex flex-col gap-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-xl font-semibold text-navy-900">Fornecedores</h1>
-          <p class="text-sm text-navy-500">Quem fabrica/fornece seus produtos. Depois, vincule cada produto ao fornecedor na aba Precificação.</p>
+          <p class="text-sm text-navy-500">Quem fabrica/fornece seus produtos. Depois, vincule cada produto ao fornecedor na aba Produtos e preços.</p>
+          <div class="supplier-table-status mt-1">
+            <span>${activeCount} ativo(s)</span>
+            ${inactiveCount > 0 ? `<span>• ${inactiveCount} inativo(s) ${fornecedoresState.showInactive ? "visível(is)" : "oculto(s)"}</span>` : ""}
+            <span>• ${visible.length} linha(s) exibida(s)</span>
+          </div>
         </div>
         <div class="flex items-center gap-3">
           <label class="flex items-center gap-2 text-sm text-navy-600">
             <input type="checkbox" id="show-inactive-suppliers" ${fornecedoresState.showInactive ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-            Mostrar inativos
+            Mostrar inativos${inactiveCount > 0 ? ` (${inactiveCount})` : ""}
           </label>
           <button id="new-supplier-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo fornecedor</button>
         </div>
@@ -6633,8 +6819,8 @@ function renderFornecedores(container) {
 
       <div id="supplier-form-slot"></div>
 
-      <div class="overflow-x-auto rounded-xl border border-navy-100 bg-white shadow">
-        <table class="w-full min-w-[820px] text-sm">
+      <div class="supplier-table-wrap rounded-xl border border-navy-100 bg-white shadow" aria-label="Lista de fornecedores">
+        <table class="supplier-table text-sm">
           <thead>
             <tr class="border-b border-navy-100 bg-navy-900 text-left text-xs uppercase tracking-wide text-cream-50">
               <th class="px-3 py-3">Nome</th>
@@ -6674,7 +6860,7 @@ function renderFornecedores(container) {
                 <tr class="border-b border-navy-50 last:border-0 bg-cream-50">
                   <td colspan="7" class="px-4 py-3">
                     ${history.rows.length === 0 ? `<p class="text-xs text-navy-400">Nenhuma compra registrada pra esse fornecedor ainda.</p>` : `
-                      <div class="flex flex-col gap-1">
+                      <div class="supplier-history-lines flex flex-col gap-1">
                         ${history.rows.map((r) => `
                           <div class="flex items-center justify-between gap-3 text-xs text-navy-600">
                             <span>${formatDate(r.date)} — ${r.kind === "pedido" ? `Pedido Nº ${String(r.orderNumber).padStart(6, "0")}` : "Compra de estoque"}: ${r.quantity != null ? `${r.quantity}× ` : ""}${escapeHtml(r.productName)}${r.variantName ? ` (${escapeHtml(r.variantName)})` : ""}</span>
