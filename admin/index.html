@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9-supabase-foundation-2026-09-13" />
+<meta name="luz-mariana-admin-version" content="professional-v8.5-orders-month-audit-2026-09-13" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1565,7 +1565,6 @@ function loadCardRateSettings() {
 }
 function saveCardRateSettings(settings) {
   try { localStorage.setItem(CARD_RATE_STORAGE_KEY, JSON.stringify(settings)); } catch (_err) {}
-  persistBusinessSetting("card_rates", settings);
 }
 function cardRateFor(paymentMethod, installments = 1, { legacyCreditFallback = false } = {}) {
   const cfg = loadCardRateSettings();
@@ -1876,11 +1875,6 @@ const state = {
   error: null,
   lastRefreshedAt: null, // Date da última vez que os dados foram recarregados (manual ou automático)
   dataLoadWarnings: [], // nomes (em português, pra mostrar na tela) do que falhou ao carregar em segundo plano — ver noteLoadResult()
-  erpV9: {
-    available: false, migrationNeeded: false, error: null,
-    settings: {}, printers: [], productionJobs: [], productionItems: {},
-    filamentSpools: [], accountsPayable: [], accountsReceivable: [], activityLog: []
-  },
 };
 
 const app = document.getElementById("app");
@@ -2309,7 +2303,6 @@ async function finishAppEntry() {
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
   await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews()]);
-  await loadErpV9Data();
   state.lastRefreshedAt = new Date();
 }
 
@@ -2388,161 +2381,6 @@ async function logout() {
    ÁREA LOGADA — layout com navegação
    ===================================================================== */
 
-
-/* =====================================================================
-   V9 — CAMADA DE SINCRONIZAÇÃO SUPABASE
-   Mantém compatibilidade com a versão anterior: se a migração V9 ainda não
-   tiver sido executada, o painel continua funcionando com localStorage e
-   metadados de pedido. Quando as tabelas V9 existem, configurações, fechamento,
-   máquinas e produção passam a ser compartilhados entre dispositivos.
-   ===================================================================== */
-function isMissingRelationError(error) {
-  const msg = String(error?.message || "").toLowerCase();
-  return error?.code === "42P01" || error?.code === "PGRST205" || msg.includes("does not exist") || msg.includes("could not find the table");
-}
-async function persistBusinessSetting(key, value) {
-  if (!state?.erpV9?.available) return;
-  const { error } = await supabaseClient.from("business_settings").upsert({
-    setting_key:key, setting_value:value, updated_by:state.currentUser?.id || null, updated_at:new Date().toISOString()
-  }, { onConflict:"setting_key" });
-  if (error) console.error("business_settings:", error.message);
-}
-async function persistMonthlyClosing(month, snapshot) {
-  if (!state?.erpV9?.available) return;
-  const { error } = await supabaseClient.from("monthly_closings").upsert({
-    month_key:month,
-    period_start:`${month}-01`,
-    period_end:new Date(Number(month.slice(0,4)), Number(month.slice(5,7)), 0).toISOString().slice(0,10),
-    snapshot,
-    closed_by:state.currentUser?.id || null,
-    closed_at:snapshot.closedAt || new Date().toISOString()
-  }, { onConflict:"month_key" });
-  if (error) console.error("monthly_closings:", error.message);
-}
-async function persistPrintersFromConfig(cfg) {
-  if (!state?.erpV9?.available) return;
-  try {
-    const machines = Array.isArray(cfg?.machines) ? cfg.machines : [];
-    const currentIds = new Set(machines.map((m)=>m.id).filter(Boolean));
-    const oldIds = (state.erpV9.printers || []).map((m)=>m.id).filter(Boolean);
-    const removed = oldIds.filter((id)=>!currentIds.has(id));
-    if (removed.length) await supabaseClient.from("printers").delete().in("id", removed);
-    for (const m of machines) {
-      const payload = {
-        name:m.name || "Impressora", model:m.model || null,
-        hours_total:Number(m.hours || 0), maintenance_every_hours:Number(m.maintenanceEvery || 500),
-        active:true, updated_at:new Date().toISOString(), updated_by:state.currentUser?.id || null
-      };
-      if (m.id) await supabaseClient.from("printers").update(payload).eq("id", m.id);
-      else {
-        const { data } = await supabaseClient.from("printers").insert({...payload, created_by:state.currentUser?.id || null}).select("id").single();
-        if (data?.id) m.id = data.id;
-      }
-    }
-    const { data } = await supabaseClient.from("printers").select("*").eq("active", true).order("name");
-    state.erpV9.printers = data || [];
-  } catch (err) { console.error("persistPrintersFromConfig:", err); }
-}
-async function syncProductionTaskToV9(orderId, itemKey, patch = {}) {
-  if (!state?.erpV9?.available) return;
-  const order = state.orders.find((o)=>o.id===orderId);
-  const item = (order?.items || []).find((it)=>productionItemKey(it)===itemKey);
-  if (!order || !item?.id) return;
-  const task = productionTaskFor(order,item);
-  const { data: job, error: jobErr } = await supabaseClient.from("production_jobs").upsert({
-    order_id:order.id, job_type:"order", status:order.status === "concluido" ? "completed" : "open",
-    priority:task.priority.key, due_date:task.deadline.date ? toLocalISODate(task.deadline.date) : null,
-    updated_by:state.currentUser?.id || null, updated_at:new Date().toISOString()
-  }, { onConflict:"order_id" }).select("id").single();
-  if (jobErr || !job?.id) { if (jobErr) console.error("production_jobs:",jobErr.message); return; }
-  const payload = {
-    production_job_id:job.id, order_item_id:item.id, product_id:item.product_id || null,
-    product_name:item.product_name, variant_name:item.variant_name || null,
-    quantity_required:Number(item.quantity || 0), quantity_produced:Number(task.done || 0),
-    stage:task.stage, lot_code:task.lot || null, printer_name:task.machine || null,
-    estimated_minutes:Number(task.minutesPerUnit || 0), estimated_grams:Number(task.gramsPerUnit || 0),
-    updated_by:state.currentUser?.id || null, updated_at:new Date().toISOString()
-  };
-  const { data: prodItem, error } = await supabaseClient.from("production_job_items").upsert(payload,{onConflict:"order_item_id"}).select("*").single();
-  if (!error && prodItem) state.erpV9.productionItems[item.id] = prodItem;
-  if (error) console.error("production_job_items:",error.message);
-  await logActivity("production", prodItem?.id || item.id, "production_updated", {order_id:order.id, order_item_id:item.id, patch});
-}
-async function logActivity(entityType, entityId, action, details = {}) {
-  if (!state?.erpV9?.available) return;
-  const { error } = await supabaseClient.from("activity_log").insert({
-    entity_type:entityType, entity_id:entityId || null, action, details,
-    created_by:state.currentUser?.id || null
-  });
-  if (error) console.error("activity_log:", error.message);
-}
-async function bootstrapProductionV9() {
-  if (!state?.erpV9?.available) return;
-  for (const order of state.orders.filter((o)=>o.status!=="cancelado")) {
-    for (const item of (order.items || [])) {
-      if (!item?.id) continue;
-      await syncProductionTaskToV9(order.id, productionItemKey(item), {});
-    }
-  }
-}
-async function loadErpV9Data() {
-  if (!state?.erpV9) return;
-  const { data:settings, error } = await supabaseClient.from("business_settings").select("setting_key,setting_value");
-  if (error) {
-    state.erpV9.available = false;
-    state.erpV9.migrationNeeded = isMissingRelationError(error);
-    state.erpV9.error = error.message;
-    return;
-  }
-  state.erpV9.available = true;
-  state.erpV9.migrationNeeded = false;
-  state.erpV9.error = null;
-  state.erpV9.settings = Object.fromEntries((settings || []).map((r)=>[r.setting_key,r.setting_value]));
-
-  const pro = state.erpV9.settings.professional_config;
-  if (pro && typeof pro === "object") {
-    professionalState.config = {...loadProfessionalConfig(), ...pro, productionProfiles:{...(pro.productionProfiles||{})}, machines:Array.isArray(pro.machines)?pro.machines:[], costCenterMap:{...(pro.costCenterMap||{})}};
-    try { localStorage.setItem(LM_PRO_CONFIG_KEY, JSON.stringify(professionalState.config)); } catch (_err) {}
-  }
-  const rates = state.erpV9.settings.card_rates;
-  if (rates && typeof rates === "object") try { localStorage.setItem(CARD_RATE_STORAGE_KEY, JSON.stringify(rates)); } catch (_err) {}
-  const split = state.erpV9.settings.profit_split;
-  if (split && typeof split === "object") {
-    try { localStorage.setItem(PROFIT_SPLIT_SETTINGS_KEY, JSON.stringify(split)); } catch (_err) {}
-    if (typeof caixaState !== "undefined") caixaState.reserveSettings = loadProfitSplitSettings();
-  }
-
-  const [{data:closings},{data:printers},{data:prodItems},{data:spools},{data:ap},{data:ar},{data:activity}] = await Promise.all([
-    supabaseClient.from("monthly_closings").select("*").order("month_key",{ascending:false}),
-    supabaseClient.from("printers").select("*").eq("active",true).order("name"),
-    supabaseClient.from("production_job_items").select("*"),
-    supabaseClient.from("filament_spools").select("*").eq("active",true).order("created_at",{ascending:false}),
-    supabaseClient.from("accounts_payable").select("*").order("due_date",{ascending:true}),
-    supabaseClient.from("accounts_receivable").select("*").order("due_date",{ascending:true}),
-    supabaseClient.from("activity_log").select("*").order("created_at",{ascending:false}).limit(100),
-  ]);
-  if (closings) {
-    const map={}; closings.forEach((r)=>map[r.month_key]=r.snapshot || {});
-    try { localStorage.setItem(LM_MONTH_CLOSE_KEY, JSON.stringify(map)); } catch (_err) {}
-  }
-  state.erpV9.printers = printers || [];
-  if ((printers || []).length) {
-    professionalState.config.machines = printers.map((m)=>({id:m.id,name:m.name,model:m.model||"",hours:Number(m.hours_total||0),maintenanceEvery:Number(m.maintenance_every_hours||500)}));
-  }
-  state.erpV9.productionItems = Object.fromEntries((prodItems||[]).filter((r)=>r.order_item_id).map((r)=>[r.order_item_id,r]));
-  state.erpV9.filamentSpools = spools || [];
-  state.erpV9.accountsPayable = ap || [];
-  state.erpV9.accountsReceivable = ar || [];
-  state.erpV9.activityLog = activity || [];
-
-  // Primeira execução após a migração: leva as configurações locais atuais ao banco
-  // caso ainda não existam, sem apagar nada compartilhado.
-  if (!state.erpV9.settings.professional_config) await persistBusinessSetting("professional_config", professionalState.config);
-  if (!state.erpV9.settings.card_rates) await persistBusinessSetting("card_rates", loadCardRateSettings());
-  if (!state.erpV9.settings.profit_split) await persistBusinessSetting("profit_split", loadProfitSplitSettings());
-  await persistPrintersFromConfig(professionalState.config);
-  bootstrapProductionV9();
-}
 
 /* =====================================================================
    V7 — METADADOS OPERACIONAIS SINCRONIZADOS NO PRÓPRIO PEDIDO
@@ -2641,8 +2479,6 @@ function loadProfessionalConfig() {
 function saveProfessionalConfig(cfg) {
   professionalState.config = cfg;
   try { localStorage.setItem(LM_PRO_CONFIG_KEY, JSON.stringify(cfg)); } catch (_err) {}
-  persistBusinessSetting("professional_config", cfg);
-  persistPrintersFromConfig(cfg);
 }
 let professionalState = {
   config: loadProfessionalConfig(),
@@ -2661,10 +2497,8 @@ function loadMonthClosings() {
 }
 function saveMonthClosing(month, data) {
   const all = loadMonthClosings();
-  const snapshot = { ...data, closedAt: new Date().toISOString(), closedBy: state.currentUser?.name || null };
-  all[month] = snapshot;
+  all[month] = { ...data, closedAt: new Date().toISOString(), closedBy: state.currentUser?.name || null };
   try { localStorage.setItem(LM_MONTH_CLOSE_KEY, JSON.stringify(all)); } catch (_err) {}
-  persistMonthlyClosing(month, snapshot);
 }
 
 function daysUntil(dateValue) {
@@ -2705,9 +2539,7 @@ function productionSourceForItem(item) {
 function productionTaskFor(order, item) {
   const key = productionItemKey(item);
   const meta = normalizedOrderOpsMeta(order);
-  const remote = state.erpV9?.productionItems?.[item.id] || null;
-  const remoteSaved = remote ? { stage:remote.stage, done:Number(remote.quantity_produced || 0), lot:remote.lot_code || "", machine:remote.printer_name || "" } : {};
-  const saved = { ...remoteSaved, ...(meta.production?.[key] || {}) };
+  const saved = meta.production?.[key] || {};
   const qty = Math.max(0, Number(item.quantity || 0));
   const done = Math.min(qty, Math.max(0, Number(saved.done || 0)));
   let stage = saved.stage || "todo";
@@ -3459,7 +3291,6 @@ async function updateProductionTask(orderId, itemKey, patch) {
     meta.production[itemKey] = { ...current, ...patch, updatedAt:new Date().toISOString(), updatedBy:state.currentUser?.id || null };
     return meta;
   });
-  if (!error) await syncProductionTaskToV9(orderId, itemKey, patch);
   if (error) alert("Não foi possível atualizar a produção: " + error.message);
   return !error;
 }
@@ -4205,13 +4036,6 @@ function renderConfiguracoes(container) {
           <p>Metas, perfis de produção e capacidade. Essas configurações operacionais ficam neste navegador; dados de pedidos, caixa e produção dos pedidos continuam no Supabase.</p>
         </div>
       </div>
-
-      <section class="management-card" style="margin-bottom:14px;border-color:${state.erpV9.available ? "#b9dfce" : state.erpV9.migrationNeeded ? "#eed68c" : "#e3e6ef"}">
-        <div class="admin-section-heading">
-          <div><h2>Banco de dados V9</h2><p>${state.erpV9.available ? "✓ Integração compartilhada ativa: configurações, fechamentos, impressoras e produção sincronizam pelo Supabase." : state.erpV9.migrationNeeded ? "Migração V9 ainda não detectada. O painel continua funcionando em modo compatível, mas alguns dados ficam somente neste navegador." : "Não foi possível verificar a camada V9 agora."}</p></div>
-          <span class="pro-pill ${state.erpV9.available ? "good" : "warning"}">${state.erpV9.available ? "Sincronizado" : "Compatibilidade"}</span>
-        </div>
-      </section>
 
       <div class="settings-grid">
         <section class="management-card">
@@ -5497,18 +5321,11 @@ async function loadProducts() {
           variant.stock_qty = qty; variant.in_stock = qty > 0; variant.esgotado = false;
         }
       }
-      if (variants.length > 0) {
-        const anyVariantReady = variants.some((v) => Number(v.stock_qty ?? 0) > 0);
-        if (Boolean(product.in_stock) !== anyVariantReady) {
-          legacyProductUpdates.push({ id: product.id, qty:null, variants:true, inStock:anyVariantReady });
-          product.in_stock = anyVariantReady;
-        }
-      }
     }
     if (legacyProductUpdates.length || legacyVariantUpdates.length) {
       Promise.all([
         ...legacyProductUpdates.map((u) => supabaseClient.from("products").update(u.variants
-          ? { in_stock: u.inStock ?? state.products.find((p)=>p.id===u.id)?.in_stock ?? false, esgotado:false, lead_time_days:DEFAULT_LEAD_TIME_DAYS }
+          ? { esgotado:false, lead_time_days:DEFAULT_LEAD_TIME_DAYS }
           : { stock_qty:u.qty, in_stock:u.qty>0, esgotado:false, lead_time_days:DEFAULT_LEAD_TIME_DAYS }
         ).eq("id",u.id)),
         ...legacyVariantUpdates.map((u) => supabaseClient.from("product_variants").update({ stock_qty:u.qty, in_stock:u.qty>0, esgotado:false }).eq("id",u.id))
@@ -9200,7 +9017,7 @@ async function reconcileExistingCardFees() {
 }
 
 // Produto com modelo cadastrado tem o estoque controlado por modelo (e
-// não pelo produto inteiro) — cada modelo tem sua própria quantidade. Essa função
+// não pelo produto inteiro) — ver product_variants.in_stock. Essa função
 // resolve o estoque certo pro item de um pedido: se o produto tem
 // modelos, procura o modelo pelo nome salvo no pedido (variant_name é só
 // um "retrato" do nome na hora da compra, não uma referência); se o
@@ -9497,7 +9314,15 @@ function resolveOrderGiftWraps(order, rows) {
   return [];
 }
 
-let pedidosState = { tab: "novo", expandedId: null, selected: new Set(), produtosAReceberOpen: false };
+let pedidosState = {
+  tab: "novo",
+  expandedId: null,
+  selected: new Set(),
+  produtosAReceberOpen: false,
+  month: "",
+  startDate: "",
+  endDate: "",
+};
 
 // Abas dos Pedidos — cada pedido mora numa aba de acordo com o status
 // atual dele. "novo" é sempre o ponto de entrada (todo pedido sobe assim);
@@ -10594,16 +10419,27 @@ async function iniciarVenda(order) {
 }
 
 function renderPedidos(container) {
+  // Filtro por data do PEDIDO (created_at). O Caixa, por outro lado,
+  // usa paid_at para competência financeira — são visões diferentes e
+  // isso fica explícito na interface.
+  const orderDateISO = (o) => toLocalISODate(new Date(o.created_at));
+  const orderMonth = (o) => orderDateISO(o).slice(0, 7);
+  const availableOrderMonths = [...new Set(
+    state.orders.map(orderMonth).filter((m) => /^\d{4}-\d{2}$/.test(m))
+  )].sort().reverse();
+
+  const dateFilteredOrders = state.orders.filter((o) => {
+    const d = orderDateISO(o);
+    if (pedidosState.month && d.slice(0, 7) !== pedidosState.month) return false;
+    if (pedidosState.startDate && d < pedidosState.startDate) return false;
+    if (pedidosState.endDate && d > pedidosState.endDate) return false;
+    return true;
+  });
+
   // Ordenação da lista, por aba:
-  //   - "Em andamento": ordem CRONOLÓGICA (mais antigo primeiro) — é a
-  //     fila de produção/entrega: mostra qual pedido foi recebido
-  //     primeiro e, portanto, deve ser entregue primeiro.
-  //   - Outras abas: pedidos NÃO pagos ficam em evidência, no topo da
-  //     lista — o resto mantém a ordem normal (mais recente primeiro,
-  //     como já vem de loadOrders). Array.prototype.sort é estável em
-  //     todo navegador moderno, então essa ordenação secundária é
-  //     preservada.
-  const visible = state.orders
+  //   - "Em andamento": ordem CRONOLÓGICA (mais antigo primeiro).
+  //   - Outras abas: pedidos NÃO pagos ficam em evidência.
+  const visible = dateFilteredOrders
     .filter((o) => o.status === pedidosState.tab)
     .sort((a, b) => pedidosState.tab === "em_andamento"
       ? new Date(a.created_at) - new Date(b.created_at)
@@ -10660,7 +10496,7 @@ function renderPedidos(container) {
   //     materiais — embalagem/essencial são gasto interno da loja, não
   //     do fornecedor) dos pedidos cujo "Fornecedor pago" ainda não foi
   //     marcado. Independe de o cliente já ter pago ou não.
-  const statsOrders = state.orders.filter((o) => o.status !== "cancelado");
+  const statsOrders = dateFilteredOrders.filter((o) => o.status !== "cancelado");
   let lucroReal = 0;
   let lucroRealHasApprox = false;
   let valoresRecebidos = 0;
@@ -10732,6 +10568,32 @@ function renderPedidos(container) {
       </div>
 
       <div id="edit-order-overlay-slot"></div>
+
+      <section class="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="min-w-[210px] flex-1 sm:flex-none">
+            <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-navy-500">Filtrar pedidos por mês</span>
+            <select id="pedidos-month-filter" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm font-semibold text-navy-800 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+              <option value="">Todos os meses</option>
+              ${availableOrderMonths.map((m) => `<option value="${m}" ${pedidosState.month === m ? "selected" : ""}>${cashMonthLabel(m)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span class="mb-1 block text-xs font-medium text-navy-500">De</span>
+            <input id="pedidos-start-date" type="date" value="${pedidosState.startDate}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+          </label>
+          <label>
+            <span class="mb-1 block text-xs font-medium text-navy-500">Até</span>
+            <input id="pedidos-end-date" type="date" value="${pedidosState.endDate}" class="rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+          </label>
+          ${(pedidosState.month || pedidosState.startDate || pedidosState.endDate) ? `<button id="pedidos-date-clear" class="rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm font-semibold text-navy-700 hover:bg-navy-50">Limpar período</button>` : ""}
+          <div class="ml-auto rounded-xl bg-cream-50 px-4 py-2.5 text-right">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-navy-400">Pedidos no período</p>
+            <p class="text-lg font-semibold text-navy-900">${dateFilteredOrders.filter((o)=>o.status!=="cancelado").length}</p>
+            <p class="text-[10px] text-navy-400">pela data em que o pedido foi criado</p>
+          </div>
+        </div>
+      </section>
 
       <div class="orders-kpi-grid">
         <div class="orders-kpi-card flex-1 min-w-[200px] rounded-xl border border-navy-100 bg-white px-4 py-3 shadow" title="Soma do valor cobrado (entrada pura, sem descontar custo) dos pedidos já PAGOS, de qualquer status (exceto cancelados).">
@@ -10817,7 +10679,7 @@ function renderPedidos(container) {
 
       <div class="orders-tabs flex flex-wrap gap-2 border-b border-navy-100">
         ${PEDIDOS_TABS.map((t) => {
-          const count = state.orders.filter((o) => o.status === t.key).length;
+          const count = dateFilteredOrders.filter((o) => o.status === t.key).length;
           const active = pedidosState.tab === t.key;
           return `
             <button data-pedidos-tab="${t.key}" class="pedidos-tab-btn -mb-px rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition ${active ? "border-gold-500 text-navy-900" : "border-transparent text-navy-400 hover:text-navy-600"}">
@@ -10843,7 +10705,7 @@ function renderPedidos(container) {
           </div>
         ` : ""}
         <div class="orders-toolbar-actions ml-auto flex gap-2">
-          <button id="pedidos-picking-list-btn" ${state.orders.filter((o) => o.status === "em_andamento").length === 0 ? "disabled" : ""} title="Junta os itens de todos os pedidos 'Em andamento' numa lista só, com a quantidade total de cada produto — pra separar/produzir em lote." class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🖨 Lista de separação</button>
+          <button id="pedidos-picking-list-btn" ${dateFilteredOrders.filter((o) => o.status === "em_andamento").length === 0 ? "disabled" : ""} title="Junta os itens de todos os pedidos 'Em andamento' numa lista só, com a quantidade total de cada produto — pra separar/produzir em lote." class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🖨 Lista de separação</button>
           <button id="pedidos-download-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🧾 Gerar comprovante</button>
           <button id="pedidos-shipping-labels-btn" ${selectedCount === 0 ? "disabled" : ""} title="Gera uma etiqueta em PDF (nome, WhatsApp, nº do pedido e observações/endereço) pra cada pedido selecionado, prontas pra imprimir e recortar." class="rounded-lg border border-navy-200 px-3 py-2 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-40">🏷 Etiqueta de envio</button>
           <button id="pedidos-delete-btn" ${selectedCount === 0 ? "disabled" : ""} class="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">🗑 Excluir selecionados</button>
@@ -11025,6 +10887,40 @@ function renderPedidos(container) {
       </div>
     </div>
   `;
+
+  const pedidosMonthFilter = document.getElementById("pedidos-month-filter");
+  if (pedidosMonthFilter) {
+    pedidosMonthFilter.addEventListener("change", () => {
+      pedidosState.month = pedidosMonthFilter.value || "";
+      if (pedidosState.month) {
+        pedidosState.startDate = "";
+        pedidosState.endDate = "";
+      }
+      pedidosState.expandedId = null;
+      pedidosState.selected.clear();
+      renderPedidos(container);
+    });
+  }
+  const pedidosStartDate = document.getElementById("pedidos-start-date");
+  const pedidosEndDate = document.getElementById("pedidos-end-date");
+  const applyPedidosDateRange = () => {
+    pedidosState.startDate = pedidosStartDate?.value || "";
+    pedidosState.endDate = pedidosEndDate?.value || "";
+    if (pedidosState.startDate || pedidosState.endDate) pedidosState.month = "";
+    pedidosState.expandedId = null;
+    pedidosState.selected.clear();
+    renderPedidos(container);
+  };
+  pedidosStartDate?.addEventListener("change", applyPedidosDateRange);
+  pedidosEndDate?.addEventListener("change", applyPedidosDateRange);
+  document.getElementById("pedidos-date-clear")?.addEventListener("click", () => {
+    pedidosState.month = "";
+    pedidosState.startDate = "";
+    pedidosState.endDate = "";
+    pedidosState.expandedId = null;
+    pedidosState.selected.clear();
+    renderPedidos(container);
+  });
 
   container.querySelectorAll(".pedidos-tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -11819,7 +11715,6 @@ function loadProfitSplitSettings() {
 
 function saveProfitSplitSettings(settings) {
   try { localStorage.setItem(PROFIT_SPLIT_SETTINGS_KEY, JSON.stringify(settings)); } catch (_err) {}
-  persistBusinessSetting("profit_split", settings);
 }
 
 // O Caixa mensal começa sempre no dia 01 e fecha no último dia de cada mês.
@@ -14625,6 +14520,29 @@ function renderCaixa(container) {
   const reservePlan = cashReservePlan(isCurrentMonth ? currentBalance : closingBalance, selectedMonth);
   const monthOptions = cashAvailableMonths();
 
+  // Auditoria mensal: "vendas do mês" no Caixa = pedidos efetivamente PAGOS
+  // no mês, usando paid_at. Isso evita confundir data do pedido com data de
+  // recebimento e permite conferir cada venda que compõe o faturamento.
+  const paidOrdersThisMonth = state.orders
+    .filter((o) =>
+      o.status !== "cancelado" &&
+      o.payment_method !== "brinde" &&
+      o.paid_at &&
+      String(o.paid_at).slice(0, 7) === selectedMonth
+    )
+    .sort((a, b) => new Date(a.paid_at) - new Date(b.paid_at));
+  const paidOrdersGross = round2(paidOrdersThisMonth.reduce((s, o) => s + Number(o.total || 0), 0));
+  const paidOrdersCardFees = round2(paidOrdersThisMonth.reduce((s, o) => s + Number(orderMoneySplit(o).cardFee || 0), 0));
+  const paidOrdersNet = round2(paidOrdersGross - paidOrdersCardFees);
+  const linkedOrderEntriesThisMonth = state.cashEntries.filter((e) =>
+    e.entry_type === "entrada" &&
+    e.order_id &&
+    cashEntryAffectsBalance(e) &&
+    String(e.entry_date || "").slice(0, 7) === selectedMonth
+  );
+  const linkedOrderCashGross = round2(linkedOrderEntriesThisMonth.reduce((s, e) => s + Number(e.amount || 0), 0));
+  const monthlySalesDifference = round2(linkedOrderCashGross - paidOrdersGross);
+
   const activeProducts = state.products.filter((p) => p.active);
   const knownEvents = [...new Set(state.cashEntries.map((e) => e.event_tag).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const filteredEntries = entries.filter((e) => {
@@ -14646,7 +14564,7 @@ function renderCaixa(container) {
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-xl font-semibold text-navy-900">Controle de Caixa</h1>
-          <p class="text-sm text-navy-500">Caixa separado por competência mensal. Setembro/2026 é a primeira competência; a primeira venda registrada foi em 02/09.</p>
+          <p class="text-sm text-navy-500">Caixa separado por competência mensal, sempre do dia 01 ao último dia. Setembro/2026 é a primeira competência; a primeira movimentação registrada ocorreu em 02/09.</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button id="new-entry-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">${caixaState.formOpen ? "Fechar lançamento" : "+ Novo lançamento"}</button>
@@ -14711,9 +14629,76 @@ function renderCaixa(container) {
         <div class="rounded-xl border border-gold-300 bg-gold-50 px-5 py-4 shadow">
           <p class="text-xs uppercase tracking-wide text-gold-700">${isCurrentMonth ? "Saldo operacional atual" : "Saldo final do mês"}</p>
           <p class="mt-1 text-2xl font-semibold text-navy-900">${formatBRL(isPreOperationalMonth ? 0 : (isCurrentMonth ? currentBalance : closingBalance))}</p>
-          <p class="mt-1 text-[11px] text-navy-500">${isCurrentMonth ? "Desde 02/09/2026 até hoje." : "Fechamento acumulado até o último dia do mês."}</p>
+          <p class="mt-1 text-[11px] text-navy-500">${isCurrentMonth ? "Do dia 01 deste mês até hoje." : "Fechamento acumulado até o último dia do mês."}</p>
         </div>
       </div>
+
+      <section class="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm sm:p-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-navy-400">Conferência de vendas — ${cashMonthLabel(selectedMonth)}</p>
+            <h2 class="mt-0.5 text-lg font-semibold text-navy-900">Pedidos pagos no mês</h2>
+            <p class="mt-1 text-xs text-navy-500">Aqui entram somente pedidos com pagamento marcado dentro desta competência. É a lista usada para conferir quantidade de vendas e faturamento.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="rounded-xl bg-navy-900 px-3 py-2 text-center text-cream-50">
+              <span class="block text-[10px] uppercase opacity-70">Vendas pagas</span>
+              <strong class="text-lg">${paidOrdersThisMonth.length}</strong>
+            </span>
+            <span class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center">
+              <span class="block text-[10px] uppercase text-emerald-700">Faturamento bruto</span>
+              <strong class="text-lg text-emerald-800">${formatBRL(paidOrdersGross)}</strong>
+            </span>
+            ${paidOrdersCardFees > 0 ? `<span class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center"><span class="block text-[10px] uppercase text-amber-700">Taxas cartão</span><strong class="text-lg text-amber-800">${formatBRL(paidOrdersCardFees)}</strong></span>` : ""}
+          </div>
+        </div>
+
+        <div class="mt-4 rounded-xl ${Math.abs(monthlySalesDifference) < 0.01 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"} border px-3 py-2 text-xs ${Math.abs(monthlySalesDifference) < 0.01 ? "text-emerald-800" : "text-amber-800"}">
+          <b>Conferência com o Caixa:</b>
+          pedidos pagos = ${formatBRL(paidOrdersGross)} ·
+          entradas vinculadas a pedidos = ${formatBRL(linkedOrderCashGross)}.
+          ${Math.abs(monthlySalesDifference) < 0.01
+            ? "Os valores batem."
+            : `Diferença de ${formatBRL(Math.abs(monthlySalesDifference))}. Isso indica pedido pago sem entrada vinculada, entrada duplicada ou lançamento com data diferente.`}
+        </div>
+
+        <details class="mt-3" ${paidOrdersThisMonth.length <= 15 ? "open" : ""}>
+          <summary class="cursor-pointer rounded-lg bg-cream-50 px-3 py-2 text-sm font-semibold text-navy-800">
+            Ver ${paidOrdersThisMonth.length} pedido${paidOrdersThisMonth.length === 1 ? "" : "s"} que compõem o mês
+          </summary>
+          <div class="mt-2 overflow-x-auto rounded-xl border border-navy-100">
+            <table class="w-full min-w-[760px] text-sm">
+              <thead>
+                <tr class="bg-navy-900 text-left text-xs uppercase tracking-wide text-cream-50">
+                  <th class="px-3 py-2.5">Pago em</th>
+                  <th class="px-3 py-2.5">Pedido</th>
+                  <th class="px-3 py-2.5">Cliente</th>
+                  <th class="px-3 py-2.5">Pagamento</th>
+                  <th class="px-3 py-2.5 text-right">Bruto</th>
+                  <th class="px-3 py-2.5 text-right">Taxa</th>
+                  <th class="px-3 py-2.5 text-right">Líquido</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${paidOrdersThisMonth.length === 0 ? `<tr><td colspan="7" class="px-4 py-6 text-center text-navy-400">Nenhum pedido pago nesta competência.</td></tr>` : paidOrdersThisMonth.map((o) => {
+                  const split = orderMoneySplit(o);
+                  return `
+                    <tr class="border-b border-navy-50 last:border-0 hover:bg-cream-50">
+                      <td class="px-3 py-2.5">${formatDate(String(o.paid_at).slice(0,10))}</td>
+                      <td class="px-3 py-2.5 font-semibold text-navy-900">#${String(o.order_number ?? "").padStart(6,"0")}</td>
+                      <td class="px-3 py-2.5">${escapeHtml(o.customer_name)}</td>
+                      <td class="px-3 py-2.5">${escapeHtml(paymentMethodLabel(o.payment_method))}${Number(o.installments||0)>1 ? ` · ${Number(o.installments)}x` : ""}</td>
+                      <td class="px-3 py-2.5 text-right font-semibold">${formatBRL(Number(o.total||0))}</td>
+                      <td class="px-3 py-2.5 text-right ${split.cardFee > 0 ? "text-amber-700" : "text-navy-400"}">${split.cardFee > 0 ? `−${formatBRL(split.cardFee)}` : "—"}</td>
+                      <td class="px-3 py-2.5 text-right font-semibold text-emerald-700">${formatBRL(split.netRevenue)}</td>
+                    </tr>`;
+                }).join("")}
+              </tbody>
+              ${paidOrdersThisMonth.length ? `<tfoot><tr class="border-t-2 border-navy-100 bg-cream-50 font-semibold text-navy-900"><td colspan="4" class="px-3 py-2.5">Total (${paidOrdersThisMonth.length} vendas)</td><td class="px-3 py-2.5 text-right">${formatBRL(paidOrdersGross)}</td><td class="px-3 py-2.5 text-right text-amber-700">${paidOrdersCardFees > 0 ? `−${formatBRL(paidOrdersCardFees)}` : "—"}</td><td class="px-3 py-2.5 text-right text-emerald-700">${formatBRL(paidOrdersNet)}</td></tr></tfoot>` : ""}
+            </table>
+          </div>
+        </details>
+      </section>
 
       <section class="rounded-2xl border border-gold-300 bg-white p-4 shadow sm:p-5" aria-labelledby="cash-reserve-title">
         <div class="flex flex-wrap items-start justify-between gap-3">
