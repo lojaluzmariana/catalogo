@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.3-assisted-sale-price-fix-2026-09-14" />
+<meta name="luz-mariana-admin-version" content="professional-v9.5-desktop-quick-sale-fortaleza-clock-2026-09-14" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -280,6 +280,19 @@
   .admin-brand strong { display:block; font-size:16px; line-height:1.15; letter-spacing:.01em; }
   .admin-brand small { display:block; margin-top:3px; font-size:10px; color:#b9c5ef; font-weight:600; text-transform:uppercase; letter-spacing:.09em; }
   .admin-top-actions { display:flex; align-items:center; gap:8px; }
+  .admin-quick-sale-btn {
+    min-height:40px; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    border:1px solid #e9aa00; border-radius:11px; padding:8px 13px;
+    background:#e9aa00; color:#001868; font-size:12px; font-weight:850; cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,.10); white-space:nowrap; transition:.15s ease;
+  }
+  .admin-quick-sale-btn:hover { background:#f3ba18; border-color:#f3ba18; transform:translateY(-1px); }
+  .admin-clock {
+    min-width:145px; min-height:40px; display:flex; flex-direction:column; justify-content:center;
+    padding:5px 9px; border-left:1px solid rgba(255,255,255,.14); color:#fff; line-height:1.15;
+  }
+  .admin-clock-main { font-size:11px; font-weight:800; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .admin-clock-zone { margin-top:3px; color:#aebce9; font-size:8px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
   .admin-top-button {
     min-height:40px; display:inline-flex; align-items:center; justify-content:center; gap:7px;
     border:1px solid #283e8e; border-radius:11px; padding:8px 11px;
@@ -802,6 +815,9 @@
 
   @media (max-width:1150px) {
     .admin-search-trigger { min-width:180px; }
+    .admin-clock { min-width:126px; padding-left:8px; padding-right:8px; }
+    .admin-clock-zone { display:none; }
+    .admin-quick-sale-btn { padding-left:10px; padding-right:10px; }
     .pro-kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .month-grid { grid-template-columns:1fr; }
     .event-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -809,6 +825,7 @@
   }
   @media (max-width:900px) {
     .admin-search-trigger { min-width:40px; width:40px; padding:8px; justify-content:center; }
+    .admin-quick-sale-btn, .admin-clock { display:none; }
     .admin-search-trigger .search-copy, .admin-search-trigger kbd { display:none; }
     .production-board { grid-template-columns:repeat(5,260px); }
     .production-list-card { grid-template-columns:minmax(200px,1fr) 80px 90px 100px 100px; min-width:720px; }
@@ -1515,6 +1532,38 @@
   .vm-finance-chip { border:1px solid rgba(255,255,255,.14); border-radius:9px; padding:8px; background:rgba(255,255,255,.07); }
   .vm-finance-chip span { display:block; color:#cbd6f5; font-size:8px; text-transform:uppercase; letter-spacing:.05em; }
   .vm-finance-chip b { display:block; margin-top:3px; color:#fff; font-size:12px; }
+  .vm-customer-search { position:relative; }
+  .vm-customer-suggestions {
+    position:absolute;
+    z-index:75;
+    left:0;
+    right:0;
+    top:calc(100% + 5px);
+    max-height:250px;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    border:1px solid #d9dfeb;
+    border-radius:10px;
+    padding:4px;
+    background:#fff;
+    box-shadow:0 14px 34px rgba(18,36,83,.16);
+  }
+  .vm-customer-suggestion {
+    width:100%;
+    display:block;
+    border:0;
+    border-radius:8px;
+    padding:9px 10px;
+    background:transparent;
+    color:#1a2a55;
+    text-align:left;
+    cursor:pointer;
+  }
+  .vm-customer-suggestion:hover,
+  .vm-customer-suggestion:focus { background:#f4f7fd; outline:none; }
+  .vm-customer-suggestion strong { display:block; font-size:12px; line-height:1.3; }
+  .vm-customer-suggestion span { display:block; margin-top:2px; color:#77839d; font-size:10px; line-height:1.35; }
+  .vm-customer-suggestion-empty { padding:9px 10px; color:#77839d; font-size:10px; line-height:1.4; }
   .vm-customer-match { margin-top:8px; border-radius:10px; padding:9px 10px; background:#eef4ff; color:#31476f; font-size:10px; line-height:1.45; }
   .vm-warning-box { margin-top:9px; border:1px solid #f0cf7a; border-radius:10px; padding:9px 10px; background:#fff9e7; color:#775800; font-size:10px; line-height:1.45; }
   .vm-footer {
@@ -1551,6 +1600,12 @@
   html.dark .vm-section.soft { background:#101827; }
   html.dark .vm-section-title strong { color:#f1f4fc; }
   html.dark .vm-field input, html.dark .vm-field select, html.dark .vm-field textarea, html.dark .vm-choice, html.dark .vm-item-row { background:#182238; border-color:#33415f; color:#e9eefb; }
+  html.dark .vm-customer-suggestions { background:#182238; border-color:#33415f; box-shadow:0 14px 34px rgba(0,0,0,.28); }
+  html.dark .vm-customer-suggestion { color:#e9eefb; }
+  html.dark .vm-customer-suggestion:hover,
+  html.dark .vm-customer-suggestion:focus { background:#22304c; }
+  html.dark .vm-customer-suggestion span,
+  html.dark .vm-customer-suggestion-empty { color:#9eabc6; }
   html.dark .vm-customer-match { background:#172440; color:#cbd6f5; }
   html.dark .vm-footer-total strong { color:#f1f4fc; }
   @media (max-width:900px) {
@@ -5589,6 +5644,35 @@ function renderActiveSection(container) {
   }
 }
 
+function fortalezaDateTimeText(date = new Date()) {
+  try {
+    const parts = new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Fortaleza",
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(date);
+    const get = (type) => parts.find((p) => p.type === type)?.value || "";
+    return `${get("day")}/${get("month")}/${get("year")} · ${get("hour")}:${get("minute")}`;
+  } catch (_err) {
+    return date.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }).replace(",", " ·");
+  }
+}
+
+function startFortalezaHeaderClock() {
+  const update = () => {
+    const el = document.getElementById("fortaleza-clock-main");
+    if (el) el.textContent = fortalezaDateTimeText(new Date());
+  };
+  update();
+  if (window.__lmFortalezaClockTimer) clearInterval(window.__lmFortalezaClockTimer);
+  window.__lmFortalezaClockTimer = setInterval(update, 15000);
+}
+
+function openGlobalVendaAssistida(mode = "full") {
+  vendaManualState = newVendaManualState({ open: true, mode });
+  renderVendaManualOverlay();
+}
+
 function renderApp() {
   const newOrdersCount = state.orders.filter((o) => o.status === "novo").length;
   const lowStockProductsCount = countLowStockProducts();
@@ -5631,6 +5715,16 @@ function renderApp() {
           <button id="global-search-btn" type="button" class="admin-search-trigger" title="Buscar em todo o painel (Ctrl + K)">
             <span>⌕</span><span class="search-copy">Buscar pedido, cliente, produto...</span><kbd>Ctrl K</kbd>
           </button>
+
+          <button id="desktop-venda-manual-btn" type="button" class="admin-quick-sale-btn" title="Abrir Venda Assistida">
+            🧾 <span>Nova venda</span>
+          </button>
+
+          <div id="fortaleza-clock" class="admin-clock" title="Data e horário de Fortaleza (GMT−3)" aria-label="Data e horário de Fortaleza, GMT menos 3">
+            <strong id="fortaleza-clock-main" class="admin-clock-main">--/--/---- · --:--</strong>
+            <span class="admin-clock-zone">Fortaleza · GMT−3</span>
+          </div>
+
           <span id="last-refreshed" class="admin-update-time" title="Os dados se atualizam automaticamente">
             ${state.lastRefreshedAt ? `Atualizado ${state.lastRefreshedAt.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })}` : ""}
           </span>
@@ -5941,6 +6035,7 @@ function renderApp() {
 
       <div id="security-overlay-slot"></div>
       <div id="price-history-overlay-slot"></div>
+      <div id="venda-manual-overlay-slot"></div>
     </div>
   `;
 
@@ -6002,6 +6097,8 @@ function renderApp() {
     commandOverlay?.setAttribute("aria-hidden","true");
   };
   document.getElementById("global-search-btn")?.addEventListener("click", openCommandSearch);
+  document.getElementById("desktop-venda-manual-btn")?.addEventListener("click", () => openGlobalVendaAssistida("full"));
+  startFortalezaHeaderClock();
   document.getElementById("command-close-btn")?.addEventListener("click", closeCommandSearch);
   commandOverlay?.addEventListener("click", (e) => { if (e.target === commandOverlay) closeCommandSearch(); });
   commandInput?.addEventListener("input", renderCommandResults);
@@ -13041,7 +13138,7 @@ function newVendaManualState(overrides = {}) {
     open: false,
     mode: "full", // full = pedido completo; quick = balcão/evento rápido
     items: [], giftWraps: [],
-    customerName: "", customerWhatsapp: "", customerInstagram: "",
+    customerName: "", customerWhatsapp: "", customerInstagram: "", _selectedCustomerId: null,
     notes: "", internalNotes: "",
     payment: "pix", paymentStatus: "pending", installments: 1,
     couponCode: "", appliedCoupon: null,
@@ -14129,8 +14226,8 @@ function vendaManualStockSnapshot(product, variant = null, requestedQty = 0) {
   const toProduce = tracked ? Math.max(0, Number(requestedQty || 0) - available) : 0;
   return { tracked, ready, reserved, available, toProduce };
 }
-function vendaManualCustomerInfo(phone) {
-  const customer = findCustomerByPhone(phone);
+function vendaManualCustomerInfo(phone, customerId = null) {
+  const customer = (customerId ? state.customers.find((c) => String(c.id) === String(customerId)) : null) || findCustomerByPhone(phone);
   if (!customer) return null;
   const entries = state.cashEntries
     .filter((e) => e.customer_id === customer.id && e.entry_type === "entrada")
@@ -14141,6 +14238,85 @@ function vendaManualCustomerInfo(phone) {
     total: round2(entries.reduce((s,e) => s + Number(e.amount || 0), 0)),
     last: entries[0]?.entry_date || null,
   };
+}
+
+function vendaManualNormalizeCustomerSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+function vendaManualPhoneKey(phone) {
+  let digits = String(phone || "").replace(/\D/g, "");
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) digits = digits.slice(2);
+  return digits;
+}
+function vendaManualFormatPhone(phone) {
+  const digits = vendaManualPhoneKey(phone);
+  if (digits.length === 11) return digits.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  if (digits.length === 10) return digits.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+  return String(phone || "");
+}
+function vendaManualSearchCustomers(term, limit = 8) {
+  const q = vendaManualNormalizeCustomerSearch(term);
+  const digits = vendaManualPhoneKey(term);
+  if (!q && !digits) return [];
+  return [...state.customers]
+    .filter((c) => {
+      const name = vendaManualNormalizeCustomerSearch(c.name || "");
+      const instagram = vendaManualNormalizeCustomerSearch(c.instagram || "");
+      const phone = vendaManualPhoneKey(c.whatsapp || "");
+      return (q && (name.includes(q) || instagram.includes(q))) || (digits && phone.includes(digits));
+    })
+    .sort((a,b) => {
+      if (!!a.active !== !!b.active) return a.active ? -1 : 1;
+      const an = vendaManualNormalizeCustomerSearch(a.name || "");
+      const bn = vendaManualNormalizeCustomerSearch(b.name || "");
+      const aStarts = q && an.startsWith(q) ? 0 : 1;
+      const bStarts = q && bn.startsWith(q) ? 0 : 1;
+      if (aStarts !== bStarts) return aStarts - bStarts;
+      return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR");
+    })
+    .slice(0, limit);
+}
+function vendaManualSelectCustomer(customer) {
+  if (!customer) return;
+  vendaManualState._selectedCustomerId = customer.id;
+  vendaManualState.customerName = customer.name || "";
+  vendaManualState.customerWhatsapp = customer.whatsapp || "";
+  vendaManualState.customerInstagram = customer.instagram || "";
+  renderVendaManualOverlay();
+}
+function vendaManualRenderCustomerSuggestions() {
+  const input = document.getElementById("vm-name");
+  const box = document.getElementById("vm-customer-suggestions");
+  if (!input || !box) return;
+  const term = input.value.trim();
+  if (!term) {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+    return;
+  }
+  const results = vendaManualSearchCustomers(term);
+  box.innerHTML = results.length
+    ? results.map((c) => {
+        const details = [
+          c.whatsapp ? vendaManualFormatPhone(c.whatsapp) : "Sem WhatsApp",
+          c.instagram ? `@${String(c.instagram).replace(/^@/, "")}` : "",
+          c.active === false ? "Inativo" : "",
+        ].filter(Boolean).join(" · ");
+        return `<button type="button" class="vm-customer-suggestion" data-vm-customer-id="${escapeHtml(c.id)}"><strong>${escapeHtml(c.name || "Cliente")}</strong><span>${escapeHtml(details)}</span></button>`;
+      }).join("")
+    : `<div class="vm-customer-suggestion-empty">Nenhum cliente cadastrado encontrado. Você pode continuar digitando para registrar um novo cliente.</div>`;
+  box.classList.remove("hidden");
+  box.querySelectorAll("[data-vm-customer-id]").forEach((btn) => {
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const customer = state.customers.find((c) => String(c.id) === String(btn.dataset.vmCustomerId));
+      if (customer) vendaManualSelectCustomer(customer);
+    });
+  });
 }
 function vendaManualResolvedItems() {
   return vendaManualState.items.map((it) => {
@@ -14308,7 +14484,7 @@ function renderVendaManualOverlay() {
   const supplierOptions = vendaManualSupplierOptions();
   const selectedSupplier = supplierOptions.find((s) => String(s.id) === String(vendaManualState._selectedSupplierId || "")) || null;
   const giftOptions = vendaManualGiftWrapOptions();
-  const customerInfo = vendaManualCustomerInfo(vendaManualState.customerWhatsapp);
+  const customerInfo = vendaManualCustomerInfo(vendaManualState.customerWhatsapp, vendaManualState._selectedCustomerId);
   const customerOrders = vendaManualState.customerWhatsapp ? state.orders.filter((o) => String(o.customer_whatsapp || "").replace(/\D/g,"") === String(vendaManualState.customerWhatsapp || "").replace(/\D/g,"") && o.status !== "cancelado").sort((a,b) => new Date(b.created_at)-new Date(a.created_at)) : [];
   const lastOrder = customerOrders[0] || state.orders.find((o) => o.status !== "cancelado") || null;
   const totals = vendaManualTotals();
@@ -14345,7 +14521,7 @@ function renderVendaManualOverlay() {
                 <section class="vm-section">
                   <div class="vm-section-title"><strong>1. Cliente</strong><span>${full ? "Identificação e histórico" : "Opcional na venda rápida"}</span></div>
                   <div class="vm-field-grid">
-                    <div class="vm-field"><label>Nome ${full ? "*" : ""}</label><input id="vm-name" value="${escapeHtml(vendaManualState.customerName)}" placeholder="${full ? "Nome do cliente" : "Venda balcão"}" /></div>
+                    <div class="vm-field vm-customer-search"><label>Nome ${full ? "*" : ""}</label><input id="vm-name" autocomplete="off" value="${escapeHtml(vendaManualState.customerName)}" placeholder="${full ? "Comece a digitar o nome" : "Venda balcão"}" /><div id="vm-customer-suggestions" class="vm-customer-suggestions hidden"></div></div>
                     <div class="vm-field"><label>WhatsApp ${full ? "*" : ""}</label><input id="vm-whatsapp" value="${escapeHtml(vendaManualState.customerWhatsapp)}" placeholder="+55 84 9XXXX-XXXX" /></div>
                     ${full ? `<div class="vm-field"><label>Instagram</label><input id="vm-instagram" value="${escapeHtml(vendaManualState.customerInstagram)}" placeholder="@usuario" /></div>` : `<input id="vm-instagram" type="hidden" value="${escapeHtml(vendaManualState.customerInstagram)}" />`}
                     <div class="vm-field"><label>Origem da venda</label><select id="vm-origin">${[["whatsapp","WhatsApp"],["instagram","Instagram"],["loja","Loja / balcão"],["evento","Evento"],["indicacao","Indicação"],["catalogo","Catálogo"],["outro","Outro"]].map(([v,l]) => `<option value="${v}" ${vendaManualState.origin===v?"selected":""}>${l}</option>`).join("")}</select></div>
@@ -14518,7 +14694,25 @@ function renderVendaManualOverlay() {
     if (e.target === vmOverlay) e.preventDefault();
   }, { passive:false });
   document.querySelectorAll("[data-vm-mode]").forEach(btn=>btn.onclick=()=>{vendaManualState.mode=btn.dataset.vmMode; renderVendaManualOverlay();});
-  bindValue("vm-name","customerName"); bindValue("vm-whatsapp","customerWhatsapp","change"); bindValue("vm-instagram","customerInstagram"); bindValue("vm-origin","origin","change");
+  const vmName=document.getElementById("vm-name");
+  const vmCustomerSuggestions=document.getElementById("vm-customer-suggestions");
+  if(vmName){
+    vmName.addEventListener("input",(e)=>{
+      vendaManualState.customerName=e.target.value;
+      vendaManualState._selectedCustomerId=null;
+      vendaManualRenderCustomerSuggestions();
+    });
+    vmName.addEventListener("focus",vendaManualRenderCustomerSuggestions);
+    vmName.addEventListener("blur",()=>setTimeout(()=>{ if(vmCustomerSuggestions) vmCustomerSuggestions.classList.add("hidden"); },180));
+  }
+  const vmWhatsapp=document.getElementById("vm-whatsapp");
+  if(vmWhatsapp) vmWhatsapp.addEventListener("change",(e)=>{
+    vendaManualState.customerWhatsapp=e.target.value;
+    const matched=findCustomerByPhone(e.target.value);
+    vendaManualState._selectedCustomerId=matched?.id || null;
+    renderVendaManualOverlay();
+  });
+  bindValue("vm-instagram","customerInstagram"); bindValue("vm-origin","origin","change");
   bindValue("vm-notes","notes"); bindValue("vm-internal-notes","internalNotes"); bindValue("vm-manual-discount","manualDiscount","change"); bindValue("vm-discount-reason","manualDiscountReason");
   bindValue("vm-delivery-method","deliveryMethod","change"); bindValue("vm-delivery-fee","deliveryFee","change"); bindValue("vm-delivery-deadline","deliveryDeadline","change");
   document.querySelectorAll("[data-vm-payment]").forEach(btn=>btn.onclick=()=>{vendaManualState.payment=btn.dataset.vmPayment; if(vendaManualState.payment==="brinde") vendaManualState.paymentStatus="paid"; renderVendaManualOverlay();});
@@ -16139,7 +16333,6 @@ function renderCaixa(container) {
       <div id="brinde-overlay-slot"></div>
       <div id="simulate-overlay-slot"></div>
       <div id="evento-venda-overlay-slot"></div>
-      <div id="venda-manual-overlay-slot"></div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-xl bg-navy-900 px-5 py-4 text-cream-50 shadow">
