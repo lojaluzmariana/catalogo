@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.5-desktop-quick-sale-fortaleza-clock-2026-09-14" />
+<meta name="luz-mariana-admin-version" content="professional-v9.6-persistent-session-2026-09-14" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1683,11 +1683,34 @@ const STORE_WHATSAPP_NUMBER = "5584991263907";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    // Sem persistência: fechar/recarregar a página sempre pede login de novo.
-    persistSession: false,
-    autoRefreshToken: false,
+    // Mantém a sessão do admin no navegador. F5 não pede login novamente
+    // e o token é renovado automaticamente enquanto a sessão continuar válida.
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
   },
 });
+
+// O 2FA continua protegendo o acesso, mas não é solicitado de novo a cada F5.
+// sessionStorage sobrevive ao recarregamento da aba, porém é apagado quando
+// a aba/janela é encerrada. Ao reabrir o navegador, a sessão principal pode
+// continuar válida, mas o 2FA volta a ser solicitado — equilíbrio entre
+// praticidade e segurança.
+const ADMIN_2FA_SESSION_KEY = "luz-mariana-admin-2fa-verified-v1";
+function isTwoFactorVerifiedFor(userId) {
+  if (!userId) return false;
+  try { return sessionStorage.getItem(ADMIN_2FA_SESSION_KEY) === String(userId); }
+  catch (_err) { return false; }
+}
+function markTwoFactorVerified(userId) {
+  if (!userId) return;
+  try { sessionStorage.setItem(ADMIN_2FA_SESSION_KEY, String(userId)); }
+  catch (_err) {}
+}
+function clearTwoFactorVerified() {
+  try { sessionStorage.removeItem(ADMIN_2FA_SESSION_KEY); }
+  catch (_err) {}
+}
 
 /* Link de "Redefinir senha" que veio do e-mail: o Supabase pode devolver o
    token tanto num fragmento (#...&type=recovery) quanto numa query
@@ -2287,6 +2310,7 @@ function renderTwoFactor() {
       state.error = "Código inválido. Confira e tente de novo.";
       return render();
     }
+    markTwoFactorVerified(state.currentUser?.id);
     await finishAppEntry();
   });
 }
@@ -2540,7 +2564,7 @@ async function enterApp() {
   // sozinho não é suficiente — pede o código do app autenticador (ou um
   // código de recuperação) antes de liberar o painel de verdade.
   const { data: twoFactorEnabled, error: twoFactorErr } = await supabaseClient.rpc("totp_status");
-  if (!twoFactorErr && twoFactorEnabled) {
+  if (!twoFactorErr && twoFactorEnabled && !isTwoFactorVerifiedFor(uid)) {
     state.screen = "twoFactor";
     state.error = null;
     render();
@@ -2647,6 +2671,7 @@ function adminName(id) {
 }
 
 async function logout() {
+  clearTwoFactorVerified();
   await supabaseClient.auth.signOut();
   Object.assign(state, {
     screen: "login", selectedName: null, currentUser: null, tab: "inicio",
@@ -18531,10 +18556,10 @@ function enviarPedido(e) {
 /* =====================================================================
    START
    ===================================================================== */
-// Ao carregar a página (inclusive apertando F5), verifica se já existe uma
-// sessão salva pelo navegador — se tiver, entra direto no painel sem pedir
-// login de novo. Antes, todo F5 voltava pra tela de login mesmo com a
-// sessão ainda válida.
+// Ao carregar a página (inclusive apertando F5), restaura a sessão persistida
+// pelo Supabase. Enquanto o refresh token continuar válido, entra direto no
+// painel sem pedir usuário e senha novamente. Se houver 2FA ativo, o código
+// só é repetido quando a aba/janela for encerrada, não em simples F5.
 (async function boot() {
   // Link de redefinição de senha: nunca entra direto no painel, mesmo que
   // a sessão temporária de recuperação pareça uma sessão válida — tem que
