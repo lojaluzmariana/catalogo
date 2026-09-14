@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.6-persistent-session-2026-09-14" />
+<meta name="luz-mariana-admin-version" content="professional-v9.9-september-full-reinvestment-2026-09-14" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -288,7 +288,7 @@
   }
   .admin-quick-sale-btn:hover { background:#f3ba18; border-color:#f3ba18; transform:translateY(-1px); }
   .admin-clock {
-    min-width:145px; min-height:40px; display:flex; flex-direction:column; justify-content:center;
+    min-width:235px; min-height:40px; display:flex; flex-direction:column; justify-content:center;
     padding:5px 9px; border-left:1px solid rgba(255,255,255,.14); color:#fff; line-height:1.15;
   }
   .admin-clock-main { font-size:11px; font-weight:800; white-space:nowrap; font-variant-numeric:tabular-nums; }
@@ -3731,10 +3731,15 @@ function monthManagementData(month) {
     String(e.entry_date).slice(0,7) === month
   ).reduce((s,e) => s + Number(e.amount || 0), 0);
 
-  const settings = caixaState.reserveSettings || loadProfitSplitSettings();
+  const splitSettings = profitSplitForMonth(month);
   const distributable = Math.max(0, profitBeforeOps - operatingExpenses);
-  const ownerTarget = round2(distributable * Number(settings.ownerPercent || 0) / 100);
-  const reinvestment = round2(distributable - ownerTarget);
+  const ownerTarget = round2(distributable * splitSettings.ownerPercent / 100);
+  // Em setembro, todo o lucro gerado depois de custo/taxas foi destinado
+  // ao crescimento da operação. As despesas de equipamentos/ferramentas
+  // aparecem separadamente na DRE como a aplicação prática desse reinvestimento.
+  const reinvestment = splitSettings.startupReinvestment
+    ? round2(Math.max(0, profitBeforeOps))
+    : round2(distributable - ownerTarget);
 
   const receivable = state.orders.filter((o) =>
     o.status !== "cancelado" && o.payment_method !== "brinde" && !o.paid_at
@@ -3756,6 +3761,7 @@ function monthManagementData(month) {
     month, paidOrders, gross:round2(gross), costs:round2(costs), fees:round2(fees),
     profitBeforeOps:round2(profitBeforeOps), operatingExpenses:round2(operatingExpenses),
     result:round2(profitBeforeOps - operatingExpenses), ownerTarget, reinvestment,
+    profitSplit: splitSettings,
     ownerWithdrawn:round2(ownerWithdrawn), receivable:round2(receivable),
     supplierPayable:round2(supplierPayable + stockPayable), approx,
   };
@@ -3987,7 +3993,7 @@ function renderInicio(container) {
         <button type="button" data-dashboard-tab="caixa" class="admin-stat-card gold">
           <div class="admin-stat-label"><span>Pode retirar agora</span><span>💰</span></div>
           <div class="admin-stat-value">${formatBRL(plan.ownerAvailableNow)}</div>
-          <div class="admin-stat-hint">Preservando custo e reinvestimento.</div>
+          <div class="admin-stat-hint">${plan.settings.startupReinvestment ? "Setembro: 100% do lucro fica na loja para reinvestimento." : "Preservando custo e reinvestimento."}</div>
         </button>
 
         <button type="button" data-dashboard-tab="fechamento" class="admin-stat-card">
@@ -4884,12 +4890,12 @@ function renderFechamento(container) {
 
         <section class="management-card">
           <h2>Destino do lucro</h2>
-          <p class="caption">Aplica a mesma divisão configurada no Caixa, depois das despesas operacionais.</p>
+          <p class="caption">${data.profitSplit.startupReinvestment ? "Setembro/2026: 100% do lucro gerado depois de custo e taxas foi destinado ao reinvestimento. As compras de equipamentos, ferramentas e estrutura aparecem nas despesas acima como uso desse valor. A divisão 70/30 começa em outubro." : "Aplica a mesma divisão configurada no Caixa, depois das despesas operacionais."}</p>
           <div class="finance-lines">
             <div class="finance-line"><span>Reinvestimento</span><strong>${formatBRL(data.reinvestment)}</strong></div>
             <div class="finance-line"><span>Sua parte do lucro</span><strong>${formatBRL(data.ownerTarget)}</strong></div>
             <div class="finance-line"><span>Já retirado</span><strong>${formatBRL(data.ownerWithdrawn)}</strong></div>
-            <div class="finance-line total"><span>Ainda poderia retirar</span><strong>${formatBRL(withdrawalRemaining)}</strong></div>
+            <div class="finance-line total"><span>${data.profitSplit.startupReinvestment ? "Retirada em setembro" : "Ainda poderia retirar"}</span><strong>${formatBRL(withdrawalRemaining)}</strong></div>
           </div>
         </section>
 
@@ -5673,13 +5679,22 @@ function fortalezaDateTimeText(date = new Date()) {
   try {
     const parts = new Intl.DateTimeFormat("pt-BR", {
       timeZone: "America/Fortaleza",
-      day: "2-digit", month: "2-digit", year: "numeric",
-      hour: "2-digit", minute: "2-digit", hour12: false,
+      weekday: "long",
+      day: "2-digit", month: "2-digit", year: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hourCycle: "h23",
     }).formatToParts(date);
     const get = (type) => parts.find((p) => p.type === type)?.value || "";
-    return `${get("day")}/${get("month")}/${get("year")} · ${get("hour")}:${get("minute")}`;
+    const weekdayRaw = get("weekday");
+    const weekday = weekdayRaw ? weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1) : "";
+    return `${weekday}, ${get("day")}/${get("month")}/${get("year")} — ${get("hour")}:${get("minute")}:${get("second")}`;
   } catch (_err) {
-    return date.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }).replace(",", " ·");
+    const fallback = date.toLocaleString("pt-BR", {
+      timeZone: "America/Fortaleza",
+      weekday: "long", day:"2-digit", month:"2-digit", year:"2-digit",
+      hour:"2-digit", minute:"2-digit", second:"2-digit", hourCycle:"h23"
+    });
+    return fallback.charAt(0).toUpperCase() + fallback.slice(1).replace(",", " —");
   }
 }
 
@@ -5690,7 +5705,7 @@ function startFortalezaHeaderClock() {
   };
   update();
   if (window.__lmFortalezaClockTimer) clearInterval(window.__lmFortalezaClockTimer);
-  window.__lmFortalezaClockTimer = setInterval(update, 15000);
+  window.__lmFortalezaClockTimer = setInterval(update, 1000);
 }
 
 function openGlobalVendaAssistida(mode = "full") {
@@ -5746,8 +5761,8 @@ function renderApp() {
           </button>
 
           <div id="fortaleza-clock" class="admin-clock" title="Data e horário de Fortaleza (GMT−3)" aria-label="Data e horário de Fortaleza, GMT menos 3">
-            <strong id="fortaleza-clock-main" class="admin-clock-main">--/--/---- · --:--</strong>
-            <span class="admin-clock-zone">Fortaleza · GMT−3</span>
+            <strong id="fortaleza-clock-main" class="admin-clock-main">Segunda-feira, --/--/-- — --:--:--</strong>
+            <span class="admin-clock-zone">Natal · GMT−3</span>
           </div>
 
           <span id="last-refreshed" class="admin-update-time" title="Os dados se atualizam automaticamente">
@@ -10225,11 +10240,32 @@ function orderCost(order) {
 }
 
 
+// Setembro/2026 é o mês de implantação da operação: por decisão da loja,
+// 100% do lucro fica na Luz Mariana para reinvestimento em equipamentos,
+// ferramentas, estoque e estrutura. A divisão padrão (hoje 70% loja / 30%
+// proprietário) só passa a valer a partir de outubro/2026.
+const STARTUP_FULL_REINVESTMENT_MONTH = "2026-09";
+function profitSplitForMonth(month) {
+  const configured = caixaState?.reserveSettings || loadProfitSplitSettings();
+  const configuredOwnerPercent = Math.max(0, Math.min(100, Number(configured.ownerPercent ?? 30)));
+  const normalizedMonth = /^\d{4}-\d{2}$/.test(String(month || "")) ? String(month) : todayISO().slice(0,7);
+  const startupReinvestment = normalizedMonth === STARTUP_FULL_REINVESTMENT_MONTH;
+  const ownerPercent = startupReinvestment ? 0 : configuredOwnerPercent;
+  return {
+    ownerPercent,
+    reinvestPercent: 100 - ownerPercent,
+    startupReinvestment,
+    configuredOwnerPercent,
+    month: normalizedMonth,
+  };
+}
+
 // Resumo financeiro individual de um pedido.
 // "Guardar" = custo real cadastrado (produto/modelo + materiais).
 // "Lucro" = valor líquido recebido menos esse custo.
 // No crédito, desconta a taxa de cartão já adotada na regra de precificação.
-// Depois o lucro é dividido pela mesma regra configurada no Caixa.
+// Depois o lucro é dividido pela regra da competência: setembro/2026 fica
+// 100% na loja; a divisão configurada no Caixa vale a partir de outubro.
 function orderMoneySplit(order, costInfo = null) {
   const c = costInfo || orderCost(order);
   const gross = Number(order?.total || 0);
@@ -10243,9 +10279,10 @@ function orderMoneySplit(order, costInfo = null) {
   const costToKeep = round2(Number(c.cost || 0));
   const profit = round2(netRevenue - costToKeep);
 
-  const settings = caixaState?.reserveSettings || loadProfitSplitSettings();
-  const ownerPercent = Math.max(0, Math.min(100, Number(settings.ownerPercent ?? 30)));
-  const reinvestPercent = 100 - ownerPercent;
+  const splitMonth = String(order?.paid_at || order?.created_at || todayISO()).slice(0,7);
+  const splitSettings = profitSplitForMonth(splitMonth);
+  const ownerPercent = splitSettings.ownerPercent;
+  const reinvestPercent = splitSettings.reinvestPercent;
   const positiveProfit = Math.max(0, profit);
 
   return {
@@ -10256,6 +10293,7 @@ function orderMoneySplit(order, costInfo = null) {
     profit,
     ownerPercent,
     reinvestPercent,
+    startupReinvestment: splitSettings.startupReinvestment,
     ownerShare: round2(positiveProfit * ownerPercent / 100),
     reinvestment: round2(positiveProfit * reinvestPercent / 100),
     storeTotalToKeep: round2(costToKeep + positiveProfit * reinvestPercent / 100),
@@ -16160,11 +16198,10 @@ function storeFinancingForMonth(ym) {
 }
 
 function cashReservePlan(currentBalance, month = todayISO().slice(0,7)) {
-  const settings = caixaState.reserveSettings || loadProfitSplitSettings();
-  const ownerPercent = Math.max(0, Math.min(100, Number(settings.ownerPercent ?? 30)));
-  const reinvestPercent = 100 - ownerPercent;
-
   const ym = month;
+  const splitSettings = profitSplitForMonth(ym);
+  const ownerPercent = splitSettings.ownerPercent;
+  const reinvestPercent = splitSettings.reinvestPercent;
 
   // A divisão considera somente pedidos realmente pagos neste mês.
   // Pedido cancelado e brinde não entram porque não geram lucro disponível.
@@ -16231,7 +16268,12 @@ function cashReservePlan(currentBalance, month = todayISO().slice(0,7)) {
   const ownerOverdrawn = round2(Math.max(0, ownerWithdrawn - ownerTarget));
 
   return {
-    settings: { ownerPercent, reinvestPercent },
+    settings: {
+      ownerPercent,
+      reinvestPercent,
+      startupReinvestment: splitSettings.startupReinvestment,
+      configuredOwnerPercent: splitSettings.configuredOwnerPercent,
+    },
     paidOrdersCount: paidOrdersThisMonth.length,
     revenue,
     costs,
@@ -16455,15 +16497,17 @@ function renderCaixa(container) {
             <p class="text-xs font-semibold uppercase tracking-wide text-gold-700">Separação do dinheiro — ${cashMonthLabel(selectedMonth)}</p>
             <h2 id="cash-reserve-title" class="mt-0.5 text-lg font-semibold text-navy-900">Custo, reinvestimento e sua retirada</h2>
             <p class="mt-1 max-w-3xl text-xs leading-relaxed text-navy-500">
-              A regra é simples: <b>o custo fica 100% guardado</b>. Compromissos da loja, como as parcelas da Bambu Lab A1 Combo, são deduzidos antes da divisão do lucro. Só o que sobra depois disso é dividido entre reinvestimento e sua retirada.
+              ${reservePlan.settings.startupReinvestment
+                ? "<b>Setembro/2026 é o mês de implantação:</b> além de preservar 100% do custo, todo o lucro disponível permanece na Luz Mariana para reinvestimento em equipamentos, ferramentas, estoque e estrutura. A divisão entre reinvestimento e retirada começa em outubro/2026."
+                : "A regra é simples: <b>o custo fica 100% guardado</b>. Compromissos da loja, como as parcelas da Bambu Lab A1 Combo, são deduzidos antes da divisão do lucro. Só o que sobra depois disso é dividido entre reinvestimento e sua retirada."}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
             <button id="cash-owner-withdraw-toggle" type="button" ${(!isCurrentMonth || reservePlan.ownerAvailableNow <= 0) ? "disabled" : ""} class="rounded-lg bg-gold-500 px-3 py-2 text-xs font-semibold text-navy-900 transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-40">
               ${!isCurrentMonth ? "🔒 Retirada só no mês atual" : caixaState.withdrawOpen ? "Fechar retirada" : "💰 Registrar retirada"}
             </button>
-            <button id="cash-reserve-settings-toggle" type="button" class="rounded-lg border border-navy-200 bg-white px-3 py-2 text-xs font-semibold text-navy-700 transition hover:bg-navy-50">
-              ${caixaState.reserveOpen ? "Fechar divisão" : "⚙ Ajustar divisão do lucro"}
+            <button id="cash-reserve-settings-toggle" type="button" ${reservePlan.settings.startupReinvestment ? "disabled" : ""} class="rounded-lg border border-navy-200 bg-white px-3 py-2 text-xs font-semibold text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-50">
+              ${reservePlan.settings.startupReinvestment ? "🔒 Setembro: 100% reinvestimento" : (caixaState.reserveOpen ? "Fechar divisão" : "⚙ Ajustar divisão do lucro")}
             </button>
           </div>
         </div>
@@ -16484,13 +16528,13 @@ function renderCaixa(container) {
           <div class="rounded-xl border border-navy-100 bg-cream-50 px-4 py-3">
             <p class="text-xs uppercase tracking-wide text-navy-400">Reinvestir na loja</p>
             <p class="mt-1 text-xl font-semibold text-navy-900">${formatBRL(reservePlan.reinvestment)}</p>
-            <p class="mt-1 text-[11px] text-navy-500">${reservePlan.settings.reinvestPercent.toLocaleString("pt-BR")}% do lucro.</p>
+            <p class="mt-1 text-[11px] text-navy-500">${reservePlan.settings.startupReinvestment ? "100% do lucro em setembro/2026 — reinvestimento integral na fase inicial." : `${reservePlan.settings.reinvestPercent.toLocaleString("pt-BR")}% do lucro.`}</p>
           </div>
 
           <div class="rounded-xl border border-gold-300 bg-gold-50 px-4 py-3">
             <p class="text-xs uppercase tracking-wide text-gold-700">Sua parte do lucro</p>
             <p class="mt-1 text-xl font-semibold text-gold-900">${formatBRL(reservePlan.ownerTarget)}</p>
-            <p class="mt-1 text-[11px] text-navy-500">${reservePlan.settings.ownerPercent.toLocaleString("pt-BR")}% do lucro.</p>
+            <p class="mt-1 text-[11px] text-navy-500">${reservePlan.settings.startupReinvestment ? "0% em setembro/2026. Sua retirada pela divisão do lucro começa em outubro." : `${reservePlan.settings.ownerPercent.toLocaleString("pt-BR")}% do lucro.`}</p>
           </div>
         </div>
 
@@ -16545,13 +16589,13 @@ function renderCaixa(container) {
           <div class="rounded-xl border ${reservePlan.ownerAvailableNow > 0 ? "border-gold-300 bg-gold-50" : "border-navy-100 bg-cream-50"} px-4 py-3">
             <p class="text-xs uppercase tracking-wide ${reservePlan.ownerAvailableNow > 0 ? "text-gold-700" : "text-navy-400"}">Pode retirar agora</p>
             <p class="mt-1 text-2xl font-semibold ${reservePlan.ownerAvailableNow > 0 ? "text-gold-900" : "text-navy-500"}">${formatBRL(reservePlan.ownerAvailableNow)}</p>
-            <p class="mt-1 text-[11px] text-navy-500">Respeita sua porcentagem e preserva custo + reinvestimento + compromissos da loja no Caixa.</p>
+            <p class="mt-1 text-[11px] text-navy-500">${reservePlan.settings.startupReinvestment ? "Setembro é 100% reinvestimento; a retirada pelo lucro começa em outubro." : "Respeita sua porcentagem e preserva custo + reinvestimento + compromissos da loja no Caixa."}</p>
           </div>
 
           <div class="rounded-xl border border-navy-100 bg-white px-4 py-3">
             <p class="text-xs uppercase tracking-wide text-navy-400">Fica na Luz Mariana</p>
             <p class="mt-1 text-xl font-semibold text-navy-900">${formatBRL(reservePlan.storeKeepTarget)}</p>
-            <p class="mt-1 text-[11px] text-navy-400">Custo + taxas de cartão + reinvestimento + parcelas ainda não pagas da loja.</p>
+            <p class="mt-1 text-[11px] text-navy-400">${reservePlan.settings.startupReinvestment ? "Em setembro: custo + taxas + 100% do lucro reinvestido permanecem na operação." : "Custo + taxas de cartão + reinvestimento + parcelas ainda não pagas da loja."}</p>
           </div>
         </div>
 
@@ -16574,12 +16618,12 @@ function renderCaixa(container) {
             <p><b>2.</b> O custo fica integralmente preservado: ele não entra na sua retirada.</p>
             <p><b>3.</b> Lucro operacional = valor cobrado − taxa de cartão (quando houver) − custo.</p>
             <p><b>4.</b> Antes da divisão, o painel deduz compromissos da loja. A Bambu Lab A1 Combo gera uma parcela de ${formatBRL(480)} por mês, de outubro/2026 a julho/2027.</p>
-            <p><b>5.</b> Só o lucro restante é dividido: ${reservePlan.settings.reinvestPercent.toLocaleString("pt-BR")}% para reinvestimento e ${reservePlan.settings.ownerPercent.toLocaleString("pt-BR")}% para sua retirada.</p>
+            <p><b>5.</b> ${reservePlan.settings.startupReinvestment ? "Em setembro/2026, 100% do lucro restante é destinado ao reinvestimento e 0% à retirada. A divisão configurada passa a valer a partir de outubro/2026." : `Só o lucro restante é dividido: ${reservePlan.settings.reinvestPercent.toLocaleString("pt-BR")}% para reinvestimento e ${reservePlan.settings.ownerPercent.toLocaleString("pt-BR")}% para sua retirada.`}</p>
             <p><b>6.</b> Se uma parcela ainda não foi paga, ela continua reservada no Caixa. “Pode retirar agora” nunca usa esse dinheiro.</p>
           </div>
         </details>
 
-        ${caixaState.reserveOpen ? `
+        ${caixaState.reserveOpen && !reservePlan.settings.startupReinvestment ? `
           <div class="mt-4 rounded-xl border border-gold-300 bg-gold-50 p-4">
             <h3 class="text-sm font-semibold text-navy-900">Divisão do lucro</h3>
             <p class="mt-1 text-xs text-navy-500">A sugestão inicial é <b>30% do lucro disponível para sua retirada</b> e <b>70% para reinvestimento</b>. Antes dessa divisão, o custo e os compromissos da loja são preservados/deduzidos.</p>
