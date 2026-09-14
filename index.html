@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v9.1-demand-analytics-2026-09-13" />
+  <meta name="luz-mariana-catalog-version" content="professional-v9.2-no-sold-out-2026-09-13" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
@@ -1076,11 +1076,12 @@ function isNewProduct(product) {
 function productAvailabilityFlags(product) {
   const variants = variantsFor(product.id);
   if (variants.length) return {
-    ready: variants.some((v) => !v.esgotado && !!v.in_stock),
-    order: variants.some((v) => !v.esgotado && !v.in_stock),
-    sold: variants.every((v) => !!v.esgotado),
+    ready: variants.some((v) => !!v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0)),
+    order: variants.some((v) => !v.in_stock || stockQuantity(v) === 0 || !!v.esgotado),
+    sold: false,
   };
-  return { ready: !product.esgotado && !!product.in_stock, order: !product.esgotado && !product.in_stock, sold: !!product.esgotado };
+  const ready = !!product.in_stock && (stockQuantity(product) == null || stockQuantity(product) > 0);
+  return { ready, order: !ready, sold: false };
 }
 function productMinPixPrice(product) { return Number(pricingSummary(product).promoPrice || 0); }
 applyFontSizePreference(loadFontSizePreference());
@@ -1406,7 +1407,7 @@ function updateProductJsonLd() {
         "@type": "Offer",
         priceCurrency: "BRL",
         price: price.toFixed(2),
-        availability: isSoldOut(p) ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+        availability: "https://schema.org/InStock",
         url: CATALOG_BASE_URL,
       },
     };
@@ -1444,7 +1445,7 @@ function starDisplayCatalog(rating) {
    parecia com o produto inteiro esgotado mesmo tendo outros disponíveis. */
 function variantsFor(productId) {
   const list = state.variantsByProduct[productId] || [];
-  const statusRank = (v) => v.esgotado ? 2 : (v.in_stock ? 0 : 1);
+  const statusRank = (v) => (v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0)) ? 0 : 1;
   return [...list].sort((a, b) => {
     const statusDiff = statusRank(a) - statusRank(b);
     if (statusDiff !== 0) return statusDiff;
@@ -1510,14 +1511,10 @@ function isBestSellingVariant(productId, variantId) {
   return !!best && best.id === variantId;
 }
 
-/* Produto totalmente esgotado (não dá pra comprar de jeito nenhum agora):
-   com modelos, só quando TODOS os modelos estão esgotados — se sobrar
-   pelo menos um modelo disponível, o produto continua comprável e não
-   conta como esgotado aqui. Sem modelos, usa o campo do produto direto. */
-function isSoldOut(p) {
-  const variants = variantsFor(p.id);
-  if (variants.length > 0) return variants.every((v) => v.esgotado);
-  return !!p.esgotado;
+/* No catálogo público, ausência de estoque nunca significa indisponibilidade:
+   o item passa automaticamente a "Sob encomenda". */
+function isSoldOut(_p) {
+  return false;
 }
 
 /* Chave usada no carrinho: junta produto + modelo (quando tiver) num só item. */
@@ -1683,7 +1680,7 @@ function pricingSummary(product) {
     const p = effectivePricing(product, null);
     return { ...p, variable: false };
   }
-  const available = variants.filter((v) => !v.esgotado);
+  const available = variants;
   const source = available.length > 0 ? available : variants;
   const prices = source.map((v) => effectivePricing(product, v));
   const creditValues = prices.map((x) => x.creditPrice);
@@ -2736,8 +2733,8 @@ function renderProductCard(p, opts = {}) {
   const isFav = !!state.favorites[p.id];
   const availability = productAvailabilityFlags(p);
   const cardStatus = availability.ready ? "ready" : availability.order ? "order" : "sold";
-  const cardStatusLabel = cardStatus === "ready" ? "Pronta entrega" : cardStatus === "order" ? "Sob encomenda" : "Esgotado";
-  const previewForStock = cardPreviewVariant || variants.find((v) => !v.esgotado && v.in_stock) || null;
+  const cardStatusLabel = cardStatus === "ready" ? "Pronta entrega" : "Sob encomenda";
+  const previewForStock = cardPreviewVariant || variants.find((v) => v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0)) || variants[0] || null;
   const stockQtyValue = stockQuantity(previewForStock || p);
   const showLowStock = cardStatus === "ready" && stockQtyValue != null && stockQtyValue > 0 && stockQtyValue <= 2;
   const favoriteBtn = `
@@ -2774,22 +2771,16 @@ function renderProductCard(p, opts = {}) {
   }
 
   const summary = pricingSummary(p);
-  const allVariantsSoldOut = variants.length > 0 && variants.every((v) => v.esgotado);
-  const availableVariantCount = variants.filter((v) => !v.esgotado).length;
-  const esgotadoTag = `<span class="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-center text-sm font-semibold text-red-700">Esgotado</span>`;
+  const availableVariantCount = variants.length;
 
   let addBlock;
   if (variants.length > 0) {
-    addBlock = allVariantsSoldOut
-      ? `<div class="mt-auto">${esgotadoTag}</div>`
-      : `
-        <div class="mt-auto">
-          <p class="mb-2 text-xs font-medium text-navy-500">${availableVariantCount} ${availableVariantCount === 1 ? "modelo disponível" : "modelos disponíveis"}</p>
-          <button type="button" data-view-product="${p.id}" class="large-touch-action view-options-btn w-full rounded-lg bg-gold-500 px-3 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Ver modelos e comprar</button>
-        </div>
-      `;
-  } else if (p.esgotado) {
-    addBlock = `<div class="mt-auto">${esgotadoTag}</div>`;
+    addBlock = `
+      <div class="mt-auto">
+        <p class="mb-2 text-xs font-medium text-navy-500">${availableVariantCount} ${availableVariantCount === 1 ? "modelo disponível" : "modelos disponíveis"}</p>
+        <button type="button" data-view-product="${p.id}" class="large-touch-action view-options-btn w-full rounded-lg bg-gold-500 px-3 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Ver modelos e comprar</button>
+      </div>
+    `;
   } else {
     const key = cartKey(p.id, null);
     const qty = state.cart[key] ?? 0;
@@ -2828,7 +2819,7 @@ function renderProductCard(p, opts = {}) {
           <p>${summary.variable ? `<span class="text-xs font-medium text-navy-500">A partir de </span>` : ""}<span class="text-lg font-semibold text-navy-900">${formatBRL(summary.creditPrice)}</span> <span class="text-[11px] font-normal text-navy-400">em até 3x no crédito</span></p>
           <p class="mt-1 text-sm text-navy-500">ou ${summary.variable ? "a partir de " : ""}<b>${formatBRL(summary.promoPrice)}</b> à vista (Pix ou espécie)</p>
         </div>
-        ${variants.length === 0 && !p.in_stock && !p.esgotado ? `<p class="text-xs font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
+        ${variants.length === 0 && (!p.in_stock || stockQuantity(p) === 0 || p.esgotado) ? `<p class="text-xs font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
         ${addBlock}
       </div>
     </div>
@@ -2941,12 +2932,12 @@ function renderProductDetail() {
   const key = variant ? cartKey(product.id, variant.id) : null;
   const qty = key ? (state.cart[key] ?? 0) : 0;
   const isInStock = variant ? variant.in_stock : product.in_stock;
-  const isEsgotado = variant ? !!variant.esgotado : !!product.esgotado;
+  const isEsgotado = false;
   const displayVariant = variant || previewVariant;
   const displayInStock = displayVariant ? !!displayVariant.in_stock : !!product.in_stock;
-  const displayEsgotado = displayVariant ? !!displayVariant.esgotado : !!product.esgotado;
-  const displayStatusText = displayEsgotado ? "Esgotado" : displayInStock ? "Pronta entrega" : "Sob encomenda";
-  const displayStatusClass = displayEsgotado ? "text-red-600" : displayInStock ? "text-emerald-800" : "text-gold-700";
+  const displayEsgotado = false;
+  const displayStatusText = displayInStock && (stockQuantity(displayVariant || product) == null || stockQuantity(displayVariant || product) > 0) ? "Pronta entrega" : "Sob encomenda";
+  const displayStatusClass = displayStatusText === "Pronta entrega" ? "text-emerald-800" : "text-gold-700";
   const galleryPhotos = productGalleryPhotos(product, displayVariant);
   const galleryIndex = Math.min(state.detailGalleryIndex, Math.max(0, galleryPhotos.length - 1));
   const photoUrl = galleryPhotos[galleryIndex] ?? null;
@@ -2998,19 +2989,19 @@ function renderProductDetail() {
               </div>
               <div class="variant-thumb-row mt-3" role="list" aria-label="Modelos disponíveis">
                 ${variants.map((v) => `
-                  <button type="button" data-variant-select="${product.id}" data-variant-id="${v.id}" aria-pressed="${variant?.id === v.id ? "true" : "false"}" aria-label="${escapeHtml(v.name)}. ${v.esgotado ? "Esgotado" : v.in_stock ? "Pronta entrega" : "Sob encomenda"}. ${formatBRL(effectivePricing(product, v).promoPrice)} no Pix." class="variant-thumb-btn ${variant?.id === v.id ? "is-selected" : ""} ${v.esgotado ? "is-sold-out" : ""}">
+                  <button type="button" data-variant-select="${product.id}" data-variant-id="${v.id}" aria-pressed="${variant?.id === v.id ? "true" : "false"}" aria-label="${escapeHtml(v.name)}. ${v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0) ? "Pronta entrega" : "Sob encomenda"}. ${formatBRL(effectivePricing(product, v).promoPrice)} no Pix." class="variant-thumb-btn ${variant?.id === v.id ? "is-selected" : ""}">
                     ${v.photo_url ? `<img src="${v.photo_url}" alt="${escapeHtml(v.name)}" class="variant-thumb-photo" />` : `<span class="variant-thumb-photo flex items-center justify-center text-lg">◻</span>`}
                     <span class="variant-thumb-name">${escapeHtml(v.name)}</span>
                     ${isBestSellingVariant(product.id, v.id) ? `<span class="best-seller-badge" style="margin-top:4px;" title="Modelo mais escolhido pelos clientes">Mais vendido</span>` : ""}
                     <span class="variant-thumb-price">${formatBRL(effectivePricing(product, v).promoPrice)} no Pix</span>
-                    <span class="variant-thumb-status ${v.esgotado ? "text-red-600" : v.in_stock ? "text-emerald-800" : "text-gold-700"}">${v.esgotado ? "Esgotado" : v.in_stock ? "Pronta entrega" : "Sob encomenda"}</span>
+                    <span class="variant-thumb-status ${v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0) ? "text-emerald-800" : "text-gold-700"}">${v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0) ? "Pronta entrega" : "Sob encomenda"}</span>
                   </button>
                 `).join("")}
               </div>
               ${variant ? `
-                <button type="button" data-quick-add="${cartKey(product.id, variant.id)}" ${variant.esgotado ? "disabled" : ""}
-                  class="quick-model-add large-touch-action rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900 disabled:cursor-not-allowed disabled:opacity-50">
-                  ${variant.esgotado ? "Modelo esgotado" : `Comprar este modelo · ${formatBRL(effectivePricing(product, variant).promoPrice)} no Pix`}
+                <button type="button" data-quick-add="${cartKey(product.id, variant.id)}"
+                  class="quick-model-add large-touch-action rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900">
+                  Comprar este modelo · ${formatBRL(effectivePricing(product, variant).promoPrice)} no Pix
                 </button>
               ` : `<button type="button" disabled class="quick-model-add large-touch-action rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">Selecione um modelo</button>`}
               <button type="button" data-model-help="${product.id}" class="context-help-btn">Preciso de ajuda para escolher o modelo</button>
@@ -3066,12 +3057,10 @@ function renderProductDetail() {
             <p class="mt-1 text-sm text-navy-500">ou ${variants.length > 0 && !variant && detailPricing.variable ? "a partir de " : ""}<b>${formatBRL(detailPricing.promoPrice)}</b> à vista (Pix ou espécie)</p>
           </div>
 
-          ${variant && !isInStock && !isEsgotado ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : variants.length === 0 && !isInStock && !isEsgotado ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : ""}
+          ${variant && (!isInStock || stockQuantity(variant) === 0 || variant.esgotado) ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : variants.length === 0 && (!isInStock || stockQuantity(product) === 0 || product.esgotado) ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : ""}
 
           ${variants.length > 0 && !variant ? `
             <button type="button" disabled class="large-touch-action mt-2 w-full disabled:cursor-not-allowed rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">Escolha um modelo para adicionar</button>
-          ` : isEsgotado ? `
-            <span class="mt-2 inline-block w-fit rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">Esgotado</span>
           ` : qty === 0 ? `
             <button data-add="${key}" class="large-touch-action add-to-cart-btn mt-2 w-full rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar ao pedido</button>
           ` : `
@@ -3515,9 +3504,7 @@ function wireCatalogEvents() {
       const group = btn.closest("[data-variant-add-group]");
       const productId = group.dataset.variantAddGroup;
       const select = group.querySelector(".variant-add-select");
-      // Segurança extra: o botão já some quando o modelo escolhido está
-      // esgotado, mas não custa nada checar de novo antes de adicionar.
-      if (select.selectedOptions[0]?.dataset.esgotado === "1") return;
+      // Sem estoque = sob encomenda; continua comprável.
       const variantId = select.value;
       const key = cartKey(productId, variantId);
       setQty(key, (state.cart[key] ?? 0) + 1);
@@ -3542,11 +3529,11 @@ function wireCatalogEvents() {
       const inStock = opt?.dataset.inStock === "1";
       const esgotado = opt?.dataset.esgotado === "1";
       const note = card.querySelector("[data-stock-note]");
-      if (note) note.classList.toggle("hidden", inStock || esgotado);
+      if (note) note.classList.toggle("hidden", inStock && !esgotado);
       const addBtn = group.querySelector(".add-variant-btn");
-      if (addBtn) addBtn.classList.toggle("hidden", esgotado);
+      if (addBtn) addBtn.classList.remove("hidden");
       const esgotadoTag = card.querySelector("[data-variant-esgotado-tag]");
-      if (esgotadoTag) esgotadoTag.classList.toggle("hidden", !esgotado);
+      if (esgotadoTag) esgotadoTag.classList.add("hidden");
       const creditEl = card.querySelector("[data-price-credit]");
       const promoEl = card.querySelector("[data-price-promo]");
       if (creditEl && opt) creditEl.textContent = formatBRL(Number(opt.dataset.creditPrice));
