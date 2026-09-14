@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.12-size-model-price-matrix-2026-09-14" />
+<meta name="luz-mariana-admin-version" content="professional-v9.13-product-search-order-routing-2026-09-14" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -6764,7 +6764,7 @@ function buildLowStockWhatsappMessage(rows) {
   return lines.join("\n");
 }
 
-let precifState = { showInactive: false, formOpen: false, editingId: null, draftFromCalc3d: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set() };
+let precifState = { showInactive: false, formOpen: false, editingId: null, draftFromCalc3d: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set(), search: "" };
 // Se o aviso de "estoque baixo" foi dispensado nesta sessão do painel
 // (não persiste — some ao recarregar a página, pra não esconder o aviso
 // pra sempre por engano).
@@ -7263,13 +7263,19 @@ function renderCalc3dOverlay() {
 }
 
 function renderPrecificacao(container) {
-  const visible = state.products.filter((p) => precifState.showInactive || p.active);
+  const baseVisible = state.products.filter((p) => precifState.showInactive || p.active);
+  const productSearch = normalizeSearchText(precifState.search || "");
+  const searchableProductText = (p) => normalizeSearchText([
+    p.name, p.category, p.material_tag, p.suppliers?.name,
+    ...(p.product_variants || []).map((v) => v.name),
+  ].filter(Boolean).join(" "));
+  const visible = productSearch ? baseVisible.filter((p) => searchableProductText(p).includes(productSearch)) : baseVisible;
   const categories = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
   // "Tabela de preços" (PDF) — seleção independente do resto da tela,
   // limpa sozinha quando um produto selecionado deixa de estar visível
   // (ex: desmarcou "Mostrar inativos" com um inativo selecionado).
-  [...precifState.priceTableSelected].forEach((id) => { if (!visible.some((p) => p.id === id)) precifState.priceTableSelected.delete(id); });
+  [...precifState.priceTableSelected].forEach((id) => { if (!baseVisible.some((p) => p.id === id)) precifState.priceTableSelected.delete(id); });
   const priceTableSelectedCount = precifState.priceTableSelected.size;
   const allVisibleSelectedForPriceTable = visible.length > 0 && visible.every((p) => precifState.priceTableSelected.has(p.id));
   const tableColCount = 14 + (precifState.priceTableOpen ? 1 : 0);
@@ -7305,6 +7311,19 @@ function renderPrecificacao(container) {
               <button id="price-table-toggle-btn" type="button">${precifState.priceTableOpen ? "Fechar tabela de preços" : "🖨️ Gerar tabela de preços"}</button>
             </div>
           </details>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-navy-100 bg-white p-3 shadow-sm">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative min-w-[240px] flex-1">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-navy-400">⌕</span>
+            <input id="product-search-input" value="${escapeHtml(precifState.search || "")}" autocomplete="off"
+              class="w-full rounded-lg border border-navy-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
+              placeholder="Buscar produto, tamanho, modelo, categoria ou fornecedor..." />
+          </div>
+          <span class="text-xs font-medium text-navy-400">${visible.length} de ${baseVisible.length} produto(s)</span>
+          ${precifState.search ? `<button id="product-search-clear" type="button" class="rounded-lg border border-navy-200 px-3 py-2 text-xs font-semibold text-navy-600 hover:bg-navy-50">Limpar busca</button>` : ""}
         </div>
       </div>
 
@@ -7461,6 +7480,26 @@ function renderPrecificacao(container) {
       </div>
     </div>
   `;
+
+  const productSearchInput = document.getElementById("product-search-input");
+  if (productSearchInput) {
+    productSearchInput.addEventListener("input", (e) => {
+      precifState.search = e.target.value;
+      renderPrecificacao(container);
+      requestAnimationFrame(() => {
+        const next = document.getElementById("product-search-input");
+        if (!next) return;
+        next.focus();
+        const end = next.value.length;
+        try { next.setSelectionRange(end, end); } catch (_err) {}
+      });
+    });
+  }
+  document.getElementById("product-search-clear")?.addEventListener("click", () => {
+    precifState.search = "";
+    renderPrecificacao(container);
+    requestAnimationFrame(() => document.getElementById("product-search-input")?.focus());
+  });
 
   document.getElementById("show-inactive").addEventListener("change", (e) => {
     precifState.showInactive = e.target.checked;
@@ -10613,7 +10652,7 @@ function orderItemPhotoPreviewUrl(item, order) {
   return `${SUPABASE_URL}/functions/v1/product-photo?${params.toString()}`;
 }
 
-// Mensagem pro fabricante: identificação da loja, nome do produto, a
+// Mensagem pro fornecedor: identificação da loja, nome do produto, a
 // variação (cor/modelo) quando tiver, foto (com miniatura automática no
 // WhatsApp) e prazo — nunca preço (o fabricante não precisa saber quanto
 // o cliente pagou), e não inclui as embalagens de presente (isso a loja
@@ -12001,6 +12040,7 @@ function renderPedidos(container) {
       </div>
 
       <div id="edit-order-overlay-slot"></div>
+      <div id="accept-order-overlay-slot"></div>
 
       <section class="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
         <div class="flex flex-wrap items-end gap-3">
@@ -12255,7 +12295,7 @@ function renderPedidos(container) {
                 ? `<span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">✓ Aceito</span>`
                 : `<button data-aceitar-pedido="${o.id}" class="aceitar-pedido-btn rounded-lg bg-navy-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-navy-800">Aceitar</button>`}
               ${o.accepted_at ? `
-                <button data-enviar-fabricante="${o.id}" class="enviar-fabricante-btn rounded-lg border border-navy-300 px-3 py-1.5 text-xs font-semibold text-navy-700 transition hover:bg-navy-100">📦 ${o.sent_to_manufacturer_at ? "Reenviar ao fabricante" : "Enviar ao fabricante"}</button>
+                <button data-enviar-fabricante="${o.id}" class="enviar-fabricante-btn rounded-lg border border-navy-300 px-3 py-1.5 text-xs font-semibold text-navy-700 transition hover:bg-navy-100">📦 ${o.sent_to_manufacturer_at ? "Reenviar ao fornecedor" : "Enviar ao fornecedor"}</button>
                 ${o.sent_to_manufacturer_at ? `<span class="text-xs text-navy-400">✓ Enviado em ${formatDate(o.sent_to_manufacturer_at.slice(0, 10))}</span>` : ""}
                 <span class="w-full text-xs text-navy-400">💡 A miniatura da foto aparece automaticamente no WhatsApp assim que o link é enviado (pode levar alguns segundos). Se não aparecer, clique em "Ver itens" abaixo pra abrir as fotos e arrastar direto pra conversa.</span>
               ` : ""}
@@ -12409,25 +12449,9 @@ function renderPedidos(container) {
     });
   });
   container.querySelectorAll(".aceitar-pedido-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      btn.disabled = true;
-      btn.textContent = "Aceitando...";
-      if (!(await checkOrderNotStale(btn.dataset.aceitarPedido))) return;
-      // Aceitar já empurra o pedido de "Novo" pra "Em andamento" sozinho —
-      // não precisa mais trocar o status na mão pra isso.
-      const { error } = await supabaseClient.from("orders").update({
-        accepted_at: new Date().toISOString(), status: "em_andamento",
-        updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
-      }).eq("id", btn.dataset.aceitarPedido);
-      if (error) {
-        alert("Não foi possível aceitar o pedido: " + error.message);
-        btn.disabled = false;
-        btn.textContent = "Aceitar";
-        return;
-      }
-      await loadOrders();
-      // Re-renderiza o app inteiro pra atualizar os contadores das abas no menu também.
-      renderApp();
+    btn.addEventListener("click", () => {
+      const order = state.orders.find((o) => String(o.id) === String(btn.dataset.aceitarPedido));
+      if (order) openAcceptOrderOverlay(order);
     });
   });
   container.querySelectorAll(".concluir-pedido-btn").forEach((btn) => {
@@ -12474,60 +12498,17 @@ function renderPedidos(container) {
   });
   container.querySelectorAll(".enviar-fabricante-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const order = state.orders.find((o) => o.id === btn.dataset.enviarFabricante);
+      const order = state.orders.find((o) => String(o.id) === String(btn.dataset.enviarFabricante));
       if (!order) return;
-
-      // Antes de montar a mensagem: confere se algum item ainda pendente
-      // já tem quantidade suficiente no estoque numérico da própria loja
-      // (stock_qty controlado). Se tiver, esse item NÃO vai pro
-      // fabricante — baixa o estoque na hora e marca "Em estoque" nele,
-      // sem precisar esperar entrega de fornecedor. Só entra nessa conta
-      // quem tem controle por QUANTIDADE (stock_qty); o booleano manual
-      // "em estoque/esgotado" de sempre não diz quanto tem, então não dá
-      // pra saber se cobre a quantidade pedida — esses continuam indo
-      // pro fabricante como antes.
-      const pending = orderSupplierPendingItems(order);
-      const fulfillFromStock = [];
-      const stillPending = [];
-      pending.forEach((it) => {
-        const product = state.products.find((p) => p.id === it.product_id);
-        const variant = it.variant_name ? (product?.product_variants ?? []).find((v) => v.name === it.variant_name) : null;
-        const stockQty = variant ? variant.stock_qty : product?.stock_qty;
-        if (stockQty != null && Number(stockQty) >= it.quantity) fulfillFromStock.push({ item: it, product, variant });
-        else stillPending.push(it);
-      });
-
-      if (fulfillFromStock.length > 0) {
-        for (const { item, product, variant } of fulfillFromStock) {
-          await ajustarEstoqueQtd(product.id, variant ? variant.id : null, -item.quantity);
-          const { error } = await supabaseClient.from("order_items").update({ fulfilled_from_stock: true }).eq("id", item.id);
-          if (error) console.error("marcar item atendido por estoque:", error.message);
-        }
-        await Promise.all([loadOrders(), loadProducts()]);
-      }
-
-      if (stillPending.length === 0) {
-        alert(fulfillFromStock.length > 0
-          ? "Todos os itens pendentes já estavam em estoque — nada foi enviado ao fabricante. O estoque já foi baixado e os itens marcados como \"Em estoque\"."
-          : "Não há itens pendentes do fornecedor nesse pedido.");
-        renderPedidos(container);
-        return;
-      }
-
+      btn.disabled = true;
       try {
-        const message = buildManufacturerMessage(order, stillPending);
-        const waUrl = `https://wa.me/${MANUFACTURER_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-        window.open(waUrl, "_blank");
+        await sendOrderToConfiguredSuppliers(order);
       } catch (err) {
-        console.error("enviar ao fabricante:", err);
-        alert("Não foi possível montar a mensagem pro fabricante. Tente novamente.");
-        return;
+        console.error("enviar ao fornecedor:", err);
+        alert("Não foi possível montar ou abrir a mensagem para o fornecedor. Tente novamente.");
+      } finally {
+        btn.disabled = false;
       }
-      const { error } = await supabaseClient.from("orders").update({
-        sent_to_manufacturer_at: new Date().toISOString(), updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
-      }).eq("id", order.id);
-      if (error) console.error("enviar ao fabricante:", error.message);
-      await loadOrders();
       renderPedidos(container);
     });
   });
@@ -12812,6 +12793,264 @@ function renderPedidos(container) {
     });
   });
   if (editOrderState.open) renderEditOrderOverlay();
+  if (acceptOrderState.open) renderAcceptOrderOverlay();
+}
+
+/* =====================================================================
+   ACEITAR PEDIDO — escolher quem vai atender cada item
+   ===================================================================== */
+let acceptOrderState = { open:false, orderId:null, items:[], sendAfterAccept:false };
+
+function closeAcceptOrderOverlay() {
+  acceptOrderState = { open:false, orderId:null, items:[], sendAfterAccept:false };
+  renderAcceptOrderOverlay();
+}
+
+function openAcceptOrderOverlay(order) {
+  const supplierOptions = state.suppliers.filter((s) => s.active && !isOwnProductionSupplier(s));
+  acceptOrderState = {
+    open:true,
+    orderId:order.id,
+    sendAfterAccept:false,
+    items:(order.items || []).map((it) => {
+      const current = orderItemFulfillmentInfo(order, it);
+      const product = state.products.find((p) => String(p.id) === String(it.product_id));
+      const linkedSupplier = state.suppliers.find((s) => String(s.id) === String(product?.supplier_id || ""));
+      const suggestedSupplierId = current.source === "supplier"
+        ? (current.supplierId || linkedSupplier?.id || "")
+        : (linkedSupplier && !isOwnProductionSupplier(linkedSupplier) ? linkedSupplier.id : "");
+      return {
+        itemId:it.id,
+        key:productionItemKey(it),
+        productName:it.product_name,
+        variantName:it.variant_name || "",
+        quantity:Number(it.quantity || 0),
+        fixedStock:!!it.fulfilled_from_stock,
+        source:it.fulfilled_from_stock ? "stock" : (current.source === "supplier" ? "supplier" : "own"),
+        supplierId:suggestedSupplierId || (supplierOptions.length === 1 ? supplierOptions[0].id : ""),
+      };
+    }),
+  };
+  renderAcceptOrderOverlay();
+}
+
+function renderAcceptOrderOverlay() {
+  const slot = document.getElementById("accept-order-overlay-slot");
+  if (!slot) return;
+  if (!acceptOrderState.open) { slot.innerHTML = ""; return; }
+
+  const order = state.orders.find((o) => String(o.id) === String(acceptOrderState.orderId));
+  if (!order) { closeAcceptOrderOverlay(); return; }
+  const suppliers = state.suppliers
+    .filter((s) => s.active && !isOwnProductionSupplier(s))
+    .sort((a,b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+  const supplierItems = acceptOrderState.items.filter((it) => it.source === "supplier").length;
+
+  slot.innerHTML = `
+    <div id="accept-order-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-3">
+      <div class="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div class="flex items-start justify-between gap-4 border-b border-navy-100 px-5 py-4">
+          <div>
+            <h2 class="text-lg font-bold text-navy-900">✓ Aceitar pedido Nº ${String(order.order_number ?? "").padStart(6,"0")}</h2>
+            <p class="mt-1 text-xs text-navy-500">Escolha como cada item será atendido. Isso define se ele entra na sua produção ou fica pendente de fornecedor.</p>
+          </div>
+          <button id="accept-order-close" type="button" class="rounded-lg border border-navy-200 px-3 py-2 text-navy-500 hover:bg-navy-50">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-5">
+          <div class="flex flex-col gap-3">
+            ${acceptOrderState.items.map((it, idx) => `
+              <section class="rounded-xl border border-navy-100 bg-cream-50 p-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <strong class="text-sm text-navy-900">${it.quantity}× ${escapeHtml(it.productName)}</strong>
+                    ${it.variantName ? `<div class="mt-0.5 text-xs text-navy-500">${escapeHtml(it.variantName)}</div>` : ""}
+                  </div>
+                  ${it.fixedStock ? `<span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">📦 Atendido pelo estoque</span>` : ""}
+                </div>
+                ${it.fixedStock ? `
+                  <p class="mt-2 text-xs text-navy-500">Este item já está marcado como atendido pelo estoque da loja e não precisa ir para produção nem fornecedor.</p>
+                ` : `
+                  <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button type="button" data-accept-source="${idx}" data-source="own" class="rounded-lg border px-3 py-3 text-left text-xs font-bold transition ${it.source === "own" ? "border-gold-400 bg-gold-50 text-navy-900 ring-2 ring-gold-100" : "border-navy-200 bg-white text-navy-600 hover:border-gold-300"}">
+                      🏭 Fabricação própria
+                      <span class="mt-1 block text-[10px] font-normal text-navy-400">Entra no seu quadro de produção.</span>
+                    </button>
+                    <button type="button" data-accept-source="${idx}" data-source="supplier" class="rounded-lg border px-3 py-3 text-left text-xs font-bold transition ${it.source === "supplier" ? "border-gold-400 bg-gold-50 text-navy-900 ring-2 ring-gold-100" : "border-navy-200 bg-white text-navy-600 hover:border-gold-300"}">
+                      🚚 Fornecedor
+                      <span class="mt-1 block text-[10px] font-normal text-navy-400">Fica aguardando produção/entrega externa.</span>
+                    </button>
+                  </div>
+                  ${it.source === "supplier" ? `
+                    <div class="mt-3">
+                      <label class="mb-1 block text-xs font-semibold text-navy-700">Fornecedor deste item</label>
+                      <select data-accept-supplier="${idx}" class="w-full rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
+                        <option value="">— selecione o fornecedor —</option>
+                        ${suppliers.map((sup) => `<option value="${sup.id}" ${String(sup.id) === String(it.supplierId || "") ? "selected" : ""}>${escapeHtml(sup.name)}</option>`).join("")}
+                      </select>
+                    </div>
+                  ` : ""}
+                `}
+              </section>
+            `).join("")}
+          </div>
+
+          ${supplierItems ? `
+            <label class="mt-4 flex items-start gap-2 rounded-xl border border-gold-200 bg-gold-50 px-3 py-3 text-xs text-navy-700">
+              <input id="accept-send-after" type="checkbox" ${acceptOrderState.sendAfterAccept ? "checked" : ""} class="mt-0.5 h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+              <span><b>Abrir WhatsApp do fornecedor depois de aceitar.</b><br><span class="text-navy-500">O painel monta a mensagem com os itens enviados para cada fornecedor.</span></span>
+            </label>
+          ` : ""}
+          <p id="accept-order-error" class="mt-3 text-sm text-red-600"></p>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2 border-t border-navy-100 bg-white px-5 py-4">
+          <button id="accept-order-cancel" type="button" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-semibold text-navy-700 hover:bg-navy-50">Cancelar</button>
+          <button id="accept-order-confirm" type="button" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-bold text-navy-900 hover:bg-gold-400">Aceitar pedido</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("accept-order-close")?.addEventListener("click", closeAcceptOrderOverlay);
+  document.getElementById("accept-order-cancel")?.addEventListener("click", closeAcceptOrderOverlay);
+  document.getElementById("accept-order-overlay")?.addEventListener("click", (e) => { if (e.target.id === "accept-order-overlay") closeAcceptOrderOverlay(); });
+  document.querySelectorAll("[data-accept-source]").forEach((btn) => btn.addEventListener("click", () => {
+    const idx = Number(btn.dataset.acceptSource);
+    const row = acceptOrderState.items[idx];
+    if (!row || row.fixedStock) return;
+    row.source = btn.dataset.source === "supplier" ? "supplier" : "own";
+    renderAcceptOrderOverlay();
+  }));
+  document.querySelectorAll("[data-accept-supplier]").forEach((sel) => sel.addEventListener("change", () => {
+    const row = acceptOrderState.items[Number(sel.dataset.acceptSupplier)];
+    if (row) row.supplierId = sel.value || "";
+  }));
+  document.getElementById("accept-send-after")?.addEventListener("change", (e) => { acceptOrderState.sendAfterAccept = e.target.checked; });
+  document.getElementById("accept-order-confirm")?.addEventListener("click", submitAcceptOrder);
+}
+
+async function submitAcceptOrder() {
+  const order = state.orders.find((o) => String(o.id) === String(acceptOrderState.orderId));
+  const errorEl = document.getElementById("accept-order-error");
+  const submitBtn = document.getElementById("accept-order-confirm");
+  if (!order || !errorEl || !submitBtn) return;
+
+  for (const row of acceptOrderState.items) {
+    if (row.source !== "supplier") continue;
+    const supplier = state.suppliers.find((s) => String(s.id) === String(row.supplierId || ""));
+    if (!supplier) { errorEl.textContent = `Selecione o fornecedor de ${row.productName}${row.variantName ? ` (${row.variantName})` : ""}.`; return; }
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Aceitando...";
+  if (!(await checkOrderNotStale(order.id))) { closeAcceptOrderOverlay(); return; }
+
+  const meta = normalizedOrderOpsMeta(order);
+  meta.fulfillment ||= {};
+  acceptOrderState.items.forEach((row) => {
+    if (row.source === "stock") return;
+    if (row.source === "supplier") {
+      const supplier = state.suppliers.find((s) => String(s.id) === String(row.supplierId || ""));
+      meta.fulfillment[row.key] = { source:"supplier", supplierId:supplier?.id || row.supplierId || null, supplierName:supplier?.name || "Fornecedor", alreadyProduced:false };
+    } else {
+      meta.fulfillment[row.key] = { source:"own", supplierId:null, supplierName:"Fabricação própria", alreadyProduced:false };
+    }
+  });
+  meta.updatedAt = new Date().toISOString();
+  meta.updatedBy = state.currentUser?.id || null;
+
+  const shouldSend = !!acceptOrderState.sendAfterAccept && acceptOrderState.items.some((row) => row.source === "supplier");
+  const now = new Date().toISOString();
+  const { error } = await supabaseClient.from("orders").update({
+    notes: composeOrderNotes(orderCustomerNotes(order), meta),
+    accepted_at: now,
+    status: "em_andamento",
+    updated_by: state.currentUser.id,
+    updated_at: now,
+  }).eq("id", order.id);
+
+  if (error) {
+    errorEl.textContent = "Não foi possível aceitar o pedido: " + error.message;
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Aceitar pedido";
+    return;
+  }
+
+  acceptOrderState = { open:false, orderId:null, items:[], sendAfterAccept:false };
+  await loadOrders();
+  const acceptedOrder = state.orders.find((o) => String(o.id) === String(order.id));
+  if (shouldSend && acceptedOrder) await sendOrderToConfiguredSuppliers(acceptedOrder);
+  renderApp();
+}
+
+async function sendOrderToConfiguredSuppliers(order) {
+  let pending = orderSupplierPendingItems(order);
+  if (!pending.length) { alert("Não há itens pendentes de fornecedor nesse pedido."); return false; }
+
+  // Compatibilidade com pedidos antigos: antes da escolha de origem no
+  // aceite, o botão de envio verificava sozinho se havia estoque numérico
+  // suficiente e atendia o item pela loja. Mantemos esse comportamento
+  // SOMENTE quando o item ainda não tem uma origem explicitamente salva.
+  // Quando você escolhe "Fornecedor" no novo aceite, essa escolha é
+  // respeitada mesmo que exista estoque — nada muda sozinho por trás.
+  const meta = normalizedOrderOpsMeta(order);
+  let usedLegacyStock = false;
+  for (const it of [...pending]) {
+    const hasExplicitRoute = !!meta.fulfillment?.[productionItemKey(it)]?.source;
+    if (hasExplicitRoute) continue;
+    const product = state.products.find((p) => String(p.id) === String(it.product_id));
+    const variant = it.variant_name ? (product?.product_variants || []).find((v) => v.name === it.variant_name) : null;
+    const stockQty = variant ? variant.stock_qty : product?.stock_qty;
+    if (product && stockQty != null && Number(stockQty) >= Number(it.quantity || 0)) {
+      await ajustarEstoqueQtd(product.id, variant?.id || null, -Number(it.quantity || 0));
+      const { error } = await supabaseClient.from("order_items").update({ fulfilled_from_stock:true }).eq("id", it.id);
+      if (error) console.error("marcar item atendido por estoque:", error.message);
+      else usedLegacyStock = true;
+    }
+  }
+  if (usedLegacyStock) {
+    await Promise.all([loadOrders(), loadProducts()]);
+    order = state.orders.find((o) => String(o.id) === String(order.id)) || order;
+    pending = orderSupplierPendingItems(order);
+    if (!pending.length) {
+      alert('Todos os itens pendentes já estavam em estoque. O estoque foi baixado e nada precisou ser enviado ao fornecedor.');
+      return false;
+    }
+  }
+
+  const groups = new Map();
+  for (const it of pending) {
+    const fulfillment = orderItemFulfillmentInfo(order, it);
+    const supplier = state.suppliers.find((s) => String(s.id) === String(fulfillment.supplierId || ""));
+    if (!supplier) {
+      alert(`O item ${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""} está marcado para fornecedor, mas nenhum fornecedor válido foi selecionado.`);
+      return false;
+    }
+    const key = String(supplier.id);
+    if (!groups.has(key)) groups.set(key, { supplier, items:[] });
+    groups.get(key).items.push(it);
+  }
+
+  if (groups.size > 1 && !confirm(`Este pedido usa ${groups.size} fornecedores. O painel tentará abrir uma conversa do WhatsApp para cada um. Continuar?`)) return false;
+
+  let opened = 0;
+  for (const { supplier, items } of groups.values()) {
+    const link = waLink(supplier.phone);
+    if (!link) { alert(`O fornecedor ${supplier.name} não possui um WhatsApp válido cadastrado.`); continue; }
+    const message = buildManufacturerMessage(order, items);
+    window.open(`${link}?text=${encodeURIComponent(message)}`, "_blank");
+    opened += 1;
+  }
+
+  if (opened > 0) {
+    const { error } = await supabaseClient.from("orders").update({
+      sent_to_manufacturer_at: new Date().toISOString(),
+      updated_by: state.currentUser.id,
+      updated_at: new Date().toISOString(),
+    }).eq("id", order.id);
+    if (error) console.error("enviar ao fornecedor:", error.message);
+    await loadOrders();
+  }
+  return opened > 0;
 }
 
 /* =====================================================================
@@ -12909,7 +13148,7 @@ function renderEditOrderOverlay() {
                 if (days == null) return "pronta entrega";
                 const d = addBusinessDays(order.created_at, days);
                 return `até ${formatDate(toLocalISODate(d))}`;
-              })()}</b>. Combine uma data diferente com o cliente só se for o caso — fica valendo pro pedido inteiro (Catálogo, comprovantes e mensagem pro fabricante passam a usar essa data).</p>
+              })()}</b>. Combine uma data diferente com o cliente só se for o caso — fica valendo pro pedido inteiro (Catálogo, comprovantes e mensagem pro fornecedor passam a usar essa data).</p>
               <div class="flex flex-wrap items-end gap-3">
                 <div>
                   <label class="mb-1 block text-xs font-medium text-navy-700">Data combinada (opcional)</label>
