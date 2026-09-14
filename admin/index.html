@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.9-september-full-reinvestment-2026-09-14" />
+<meta name="luz-mariana-admin-version" content="professional-v9.10-header-3d-calculator-2026-09-14" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -280,6 +280,14 @@
   .admin-brand strong { display:block; font-size:16px; line-height:1.15; letter-spacing:.01em; }
   .admin-brand small { display:block; margin-top:3px; font-size:10px; color:#b9c5ef; font-weight:600; text-transform:uppercase; letter-spacing:.09em; }
   .admin-top-actions { display:flex; align-items:center; gap:8px; }
+  .admin-header-calc-btn {
+    min-height:40px; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    border:1px solid #28418e; border-radius:11px; padding:8px 12px;
+    background:#0a2476; color:#fff; font-size:11px; font-weight:800; cursor:pointer;
+    white-space:nowrap; transition:.15s ease; box-shadow:0 4px 12px rgba(0,0,0,.08);
+  }
+  .admin-header-calc-btn:hover { background:#123084; border-color:#3b55a5; transform:translateY(-1px); }
+  .admin-header-calc-btn .admin-header-calc-icon { font-size:15px; line-height:1; }
   .admin-quick-sale-btn {
     min-height:40px; display:inline-flex; align-items:center; justify-content:center; gap:7px;
     border:1px solid #e9aa00; border-radius:11px; padding:8px 13px;
@@ -815,6 +823,8 @@
 
   @media (max-width:1150px) {
     .admin-search-trigger { min-width:180px; }
+    .admin-header-calc-btn { padding-left:10px; padding-right:10px; }
+    .admin-header-calc-btn .admin-header-calc-label { display:none; }
     .admin-clock { min-width:126px; padding-left:8px; padding-right:8px; }
     .admin-clock-zone { display:none; }
     .admin-quick-sale-btn { padding-left:10px; padding-right:10px; }
@@ -825,7 +835,7 @@
   }
   @media (max-width:900px) {
     .admin-search-trigger { min-width:40px; width:40px; padding:8px; justify-content:center; }
-    .admin-quick-sale-btn, .admin-clock { display:none; }
+    .admin-header-calc-btn, .admin-quick-sale-btn, .admin-clock { display:none; }
     .admin-search-trigger .search-copy, .admin-search-trigger kbd { display:none; }
     .production-board { grid-template-columns:repeat(5,260px); }
     .production-list-card { grid-template-columns:minmax(200px,1fr) 80px 90px 100px 100px; min-width:720px; }
@@ -5751,6 +5761,10 @@ function renderApp() {
           <span><strong>Luz Mariana</strong><small>Painel de gestão</small></span>
         </button>
 
+        <button id="header-calc3d-btn" type="button" class="admin-header-calc-btn" title="Abrir Calculadora 3D">
+          <span class="admin-header-calc-icon">🖨️</span><span class="admin-header-calc-label">Calculadora 3D</span>
+        </button>
+
         <div class="admin-top-actions">
           <button id="global-search-btn" type="button" class="admin-search-trigger" title="Buscar em todo o painel (Ctrl + K)">
             <span>⌕</span><span class="search-copy">Buscar pedido, cliente, produto...</span><kbd>Ctrl K</kbd>
@@ -6075,6 +6089,7 @@ function renderApp() {
 
       <div id="security-overlay-slot"></div>
       <div id="price-history-overlay-slot"></div>
+      <div id="calc3d-overlay-slot"></div>
       <div id="venda-manual-overlay-slot"></div>
     </div>
   `;
@@ -6137,6 +6152,10 @@ function renderApp() {
     commandOverlay?.setAttribute("aria-hidden","true");
   };
   document.getElementById("global-search-btn")?.addEventListener("click", openCommandSearch);
+  document.getElementById("header-calc3d-btn")?.addEventListener("click", () => {
+    calc3dState.open = true;
+    renderCalc3dOverlay();
+  });
   document.getElementById("desktop-venda-manual-btn")?.addEventListener("click", () => openGlobalVendaAssistida("full"));
   startFortalezaHeaderClock();
   document.getElementById("command-close-btn")?.addEventListener("click", closeCommandSearch);
@@ -7286,8 +7305,6 @@ function renderPrecificacao(container) {
         <div class="pricing-summary-card"><span>Estoque baixo</span><strong>${lowStockCount}</strong></div>
         <div class="pricing-summary-card"><span>Sob encomenda</span><strong>${madeToOrderCount}</strong></div>
       </div>
-
-      <div id="calc3d-overlay-slot"></div>
 
       ${precifState.bulkOpen ? `
         <div class="rounded-xl border border-gold-300 bg-white p-4 shadow">
