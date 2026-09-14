@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.10-header-3d-calculator-2026-09-14" />
+<meta name="luz-mariana-admin-version" content="professional-v9.11-variant-specific-costs-2026-09-14" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -7737,8 +7737,8 @@ function renderProductForm() {
             id: v.id, name: v.name, size: dims.size, color: dims.color,
             photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null,
             inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false, stockTracked: true, stockQty: v.stock_qty != null ? v.stock_qty : (v.in_stock ? 1 : 0),
-            ownPrice: v.cost != null, cost: v.cost != null ? Number(v.cost) : null,
-            promoManualPrice: v.promo_manual_price != null ? Number(v.promo_manual_price) : null,
+            ownPrice: variantHasOwnPricing(v), cost: Number(v.cost || 0) > 0 ? Number(v.cost) : null,
+            promoManualPrice: v.promo_manual_price != null && Number(v.promo_manual_price) > 0 ? Number(v.promo_manual_price) : null,
           };
         })
     : [];
@@ -7765,12 +7765,12 @@ function renderProductForm() {
             class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
             placeholder="Ex: Chaveiro Nossa Senhora" />
         </div>
-        <div class="w-full sm:w-48">
-          <label class="mb-1 block text-sm font-medium text-navy-800">Custo base (R$)</label>
-          <input id="pf-base-cost" value="${product ? product.base_cost : (draft?.baseCost ?? "0")}" required inputmode="decimal"
+        <div id="pf-base-cost-wrap" class="w-full sm:w-48">
+          <label id="pf-base-cost-label" class="mb-1 block text-sm font-medium text-navy-800">Custo base (R$)</label>
+          <input id="pf-base-cost" value="${product ? ((product.product_variants?.length && Number(product.base_cost || 0) === 0) ? "" : product.base_cost) : (draft?.baseCost ?? "")}" inputmode="decimal"
             class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
             placeholder="0,00" />
-          <p class="mt-1 text-xs text-navy-400">O custo do item em si, sem contar os materiais abaixo.</p>
+          <p id="pf-base-cost-help" class="mt-1 text-xs text-navy-400">Obrigatório para produto sem variações. Com tamanhos/cores, pode ficar em branco e cada combinação ter seu próprio custo.</p>
         </div>
         <div class="w-full sm:w-56">
           <label class="mb-1 block text-sm font-medium text-navy-800">Categoria (opcional)</label>
@@ -7917,6 +7917,9 @@ function renderProductForm() {
   `;
 
   const baseCostField = document.getElementById("pf-base-cost");
+  const baseCostLabel = document.getElementById("pf-base-cost-label");
+  const baseCostHelp = document.getElementById("pf-base-cost-help");
+  const baseCostWrap = document.getElementById("pf-base-cost-wrap");
   const promoManualField = document.getElementById("pf-promo-manual");
   const materialSelect = document.getElementById("pf-material-select");
   const materialQtyField = document.getElementById("pf-material-qty");
@@ -8033,6 +8036,19 @@ function renderProductForm() {
     const hasVariants = formVariants.length > 0;
     inStockBlock.classList.toggle("hidden", hasVariants);
     inStockVariantNote.classList.toggle("hidden", !hasVariants);
+
+    // Custo base é obrigatório só quando o produto NÃO tem variações.
+    // Com tamanho/cor, ele vira um custo padrão/fallback: pode ficar em
+    // branco desde que todas as combinações tenham custo próprio.
+    baseCostField.required = !hasVariants;
+    baseCostLabel.textContent = hasVariants ? "Custo padrão / fallback (opcional)" : "Custo base (R$) *";
+    baseCostHelp.textContent = hasVariants
+      ? "Pode ficar em branco se cada tamanho/cor tiver custo próprio. Se preencher, combinações sem custo próprio herdam este valor."
+      : "Obrigatório neste produto. É o custo do item em si, sem contar os materiais vinculados abaixo.";
+    baseCostField.placeholder = hasVariants ? "opcional" : "0,00";
+    baseCostWrap.classList.toggle("rounded-lg", hasVariants);
+    baseCostWrap.classList.toggle("bg-gold-50", hasVariants);
+    baseCostWrap.classList.toggle("p-2", hasVariants);
   }
 
   function renderVariantsList() {
@@ -8070,11 +8086,11 @@ function renderProductForm() {
               <div class="mt-2 border-t border-navy-50 pt-2">
                 <label class="flex items-center gap-1.5 text-xs text-navy-700">
                   <input type="checkbox" data-variant-own-price="${idx}" ${v.ownPrice ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-                  Este tamanho/cor tem preço diferente
+                  Usar custo/preço próprio nesta combinação
                 </label>
                 <div data-variant-price-block="${idx}" class="mt-1.5 flex flex-wrap items-end gap-2 ${v.ownPrice ? "" : "hidden"}">
                   <div>
-                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Custo desta combinação (R$)</label>
+                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Custo total desta combinação (R$)</label>
                     <input type="number" min="0" step="0.01" data-variant-cost="${idx}" value="${v.cost ?? ""}" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                   </div>
                   <div>
@@ -8083,6 +8099,7 @@ function renderProductForm() {
                   </div>
                   <p data-variant-price-preview="${idx}" class="text-xs text-navy-600"></p>
                 </div>
+                <p class="mt-1 text-[10px] text-navy-400">${v.ownPrice ? "Esta combinação usa custo e preço próprios." : "Sem custo próprio: herda o custo/preço padrão do produto."}</p>
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -8114,6 +8131,7 @@ function renderProductForm() {
         const block = variantsListEl.querySelector(`[data-variant-price-block="${idx}"]`);
         if (block) block.classList.toggle("hidden", !input.checked);
         updateVariantPricePreview(idx);
+        updatePreview();
       });
     });
     variantsListEl.querySelectorAll("[data-variant-cost]").forEach((input) => {
@@ -8122,6 +8140,7 @@ function renderProductForm() {
         const n = Number(input.value);
         formVariants[idx].cost = input.value === "" ? null : (Number.isFinite(n) ? n : null);
         updateVariantPricePreview(idx);
+        updatePreview();
       });
     });
     variantsListEl.querySelectorAll("[data-variant-promo-manual]").forEach((input) => {
@@ -8130,6 +8149,7 @@ function renderProductForm() {
         const n = Number(input.value);
         formVariants[idx].promoManualPrice = input.value === "" ? null : (Number.isFinite(n) ? n : null);
         updateVariantPricePreview(idx);
+        updatePreview();
       });
     });
     formVariants.forEach((v, idx) => { if (v.ownPrice) updateVariantPricePreview(idx); });
@@ -8217,14 +8237,20 @@ function renderProductForm() {
         if (formVariants[idx].originalPhotoUrl) deletedVariantPhotoUrls.push(formVariants[idx].originalPhotoUrl);
         formVariants.splice(idx, 1);
         renderVariantsList();
+        updatePreview();
       });
     });
   }
 
   renderVariantsList();
   document.getElementById("pf-variant-add").addEventListener("click", () => {
-    formVariants.push({ id: null, name: "", size: "", color: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: true, stockQty: 0, ownPrice: false, cost: null, promoManualPrice: null });
+    // Novas combinações já nascem com custo próprio aberto — é o caso mais
+    // comum quando o produto tem tamanhos diferentes (16/20/30 cm etc.).
+    // Se a combinação realmente tiver o mesmo custo do produto, basta
+    // desmarcar e ela passa a herdar o custo padrão/fallback.
+    formVariants.push({ id: null, name: "", size: "", color: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: true, stockQty: 0, ownPrice: true, cost: null, promoManualPrice: null });
     renderVariantsList();
+    updatePreview();
   });
 
   // Galeria: fotos novas ficam só em memória (Blob) até o Salvar — assim
@@ -8298,13 +8324,41 @@ function renderProductForm() {
   }
 
   function updatePreview() {
-    const baseCost = Number(baseCostField.value.replace(",", "."));
-    if (!Number.isFinite(baseCost) || baseCost < 0) { preview.innerHTML = ""; return; }
-    const totalCost = round2(baseCost + materialsTotal());
+    const raw = baseCostField.value.trim();
+    const hasBaseCost = raw !== "";
+    const baseCost = hasBaseCost ? Number(raw.replace(",", ".")) : 0;
+    if (hasBaseCost && (!Number.isFinite(baseCost) || baseCost < 0)) { preview.innerHTML = ""; return; }
+
     const manualPromo = manualPromoValue();
+
+    // Com variações e sem custo padrão, o produto usa os custos próprios
+    // das combinações. O menor custo vira somente a referência do produto
+    // principal (útil para cards/relatórios); cada tamanho/cor mantém seu
+    // preço calculado e salvo separadamente.
+    if (formVariants.length > 0 && !hasBaseCost) {
+      const ownCosts = formVariants
+        .filter((v) => v.ownPrice && v.cost != null && Number.isFinite(v.cost) && v.cost > 0)
+        .map((v) => Number(v.cost));
+      const missing = formVariants.filter((v) => !v.ownPrice || v.cost == null || !Number.isFinite(v.cost) || v.cost <= 0).length;
+      if (!ownCosts.length) {
+        preview.innerHTML = `<span class="text-gold-700">Informe o custo em cada combinação de tamanho/cor. Não é necessário preencher um custo base.</span>`;
+        return;
+      }
+      const minCost = Math.min(...ownCosts);
+      const maxCost = Math.max(...ownCosts);
+      const refPricing = manualPromo != null ? calculatePricingFromManualPromo(minCost, manualPromo) : calculatePricing(minCost);
+      preview.innerHTML = `
+        <span>Custos das variações: <b class="text-navy-900">${minCost === maxCost ? formatBRL(minCost) : `${formatBRL(minCost)} a ${formatBRL(maxCost)}`}</b></span>
+        <span>Referência a partir de: <b class="text-navy-900">${formatBRL(refPricing.promoPrice)}</b> no Pix</span>
+        ${missing ? `<span class="text-gold-700">⚠ ${missing} combinação(ões) ainda sem custo próprio.</span>` : `<span class="text-emerald-700">✓ Todas as combinações têm custo próprio.</span>`}
+      `;
+      return;
+    }
+
+    const totalCost = round2(baseCost + materialsTotal());
     const p = manualPromo != null ? calculatePricingFromManualPromo(totalCost, manualPromo) : calculatePricing(totalCost);
     preview.innerHTML = `
-      <span>Custo total: <b class="text-navy-900">${formatBRL(totalCost)}</b></span>
+      <span>${formVariants.length ? "Custo padrão/fallback" : "Custo total"}: <b class="text-navy-900">${formatBRL(totalCost)}</b></span>
       <span>Crédito: <b class="text-navy-900">${formatBRL(p.creditPrice)}</b> (${formatPercent(p.creditMargin)})</span>
       <span>Promo/Pix: <b class="text-navy-900">${formatBRL(p.promoPrice)}</b> (${formatPercent(p.promoMargin)})${manualPromo != null ? " (manual)" : ""}</span>
     `;
@@ -8385,10 +8439,13 @@ function renderProductForm() {
   document.getElementById("product-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = document.getElementById("pf-name").value.trim();
-    const baseCost = Number(baseCostField.value.replace(",", "."));
+    const baseCostRaw = baseCostField.value.trim();
+    const hasBaseCost = baseCostRaw !== "";
+    const baseCost = hasBaseCost ? Number(baseCostRaw.replace(",", ".")) : 0;
     const errorEl = document.getElementById("pf-error");
     if (!name) { errorEl.textContent = "Informe o nome do produto."; return; }
-    if (!Number.isFinite(baseCost) || baseCost < 0) { errorEl.textContent = "Custo base inválido."; return; }
+    if (formVariants.length === 0 && !hasBaseCost) { errorEl.textContent = "Informe o custo base do produto."; return; }
+    if (hasBaseCost && (!Number.isFinite(baseCost) || baseCost < 0)) { errorEl.textContent = "Custo base inválido."; return; }
 
     const promoManualRaw = promoManualField.value.trim();
     let promoManual = null;
@@ -8400,7 +8457,19 @@ function renderProductForm() {
     const leadTimeDays = Math.trunc(Number(document.getElementById("pf-lead-time").value.replace(",", ".")));
     if (!Number.isFinite(leadTimeDays) || leadTimeDays < 0) { errorEl.textContent = "Prazo (dias) inválido."; return; }
 
-    const totalCost = round2(baseCost + materialsTotal());
+    // Custo/preço de referência do produto principal:
+    // - sem variações: custo base + materiais, como sempre;
+    // - com variações e custo padrão preenchido: usa esse fallback;
+    // - com variações e custo padrão em branco: usa o MENOR custo próprio
+    //   apenas como referência do produto. As combinações continuam com
+    //   custos/preços independentes em product_variants.
+    const fallbackTotalCost = round2(baseCost + materialsTotal());
+    const validVariantCosts = formVariants
+      .filter((v) => v.ownPrice && v.cost != null && Number.isFinite(v.cost) && v.cost > 0)
+      .map((v) => Number(v.cost));
+    const totalCost = formVariants.length > 0 && !hasBaseCost && validVariantCosts.length
+      ? round2(Math.min(...validVariantCosts))
+      : fallbackTotalCost;
     const pricing = promoManual != null ? calculatePricingFromManualPromo(totalCost, promoManual) : calculatePricing(totalCost);
     const showInCatalog = document.getElementById("pf-show-catalog").checked;
     const featured = document.getElementById("pf-featured").checked;
@@ -8440,8 +8509,12 @@ function renderProductForm() {
       errorEl.textContent = "Preencha o nome de todos os modelos (ou remova a linha vazia).";
       return;
     }
-    if (formVariants.some((v) => v.ownPrice && (v.cost == null || !Number.isFinite(v.cost) || v.cost < 0))) {
-      errorEl.textContent = "Informe um custo válido pros modelos marcados com preço diferente (ou desmarque a opção).";
+    if (formVariants.some((v) => v.ownPrice && (v.cost == null || !Number.isFinite(v.cost) || v.cost <= 0))) {
+      errorEl.textContent = "Informe um custo maior que zero nas combinações marcadas com custo/preço próprio.";
+      return;
+    }
+    if (formVariants.length > 0 && !hasBaseCost && formVariants.some((v) => !v.ownPrice)) {
+      errorEl.textContent = "Como o custo padrão ficou em branco, informe custo próprio em todas as combinações. Ou preencha um custo padrão para as combinações que devem herdá-lo.";
       return;
     }
 
@@ -8508,7 +8581,7 @@ function renderProductForm() {
     }
 
     const payload = {
-      name, base_cost: baseCost, cost: pricing.cost,
+      name, base_cost: hasBaseCost ? baseCost : 0, cost: pricing.cost,
       credit_price: pricing.creditPrice, credit_net: pricing.creditNet, credit_profit: pricing.creditProfit,
       credit_markup: pricing.creditMarkup, credit_margin: pricing.creditMargin,
       promo_price: pricing.promoPrice, promo_profit: pricing.promoProfit, promo_margin: pricing.promoMargin,
