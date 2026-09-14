@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.11-variant-specific-costs-2026-09-14" />
+<meta name="luz-mariana-admin-version" content="professional-v9.12-size-model-price-matrix-2026-09-14" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -47,7 +47,7 @@
   body { font-family: Arial, Helvetica, sans-serif; }
   .pin-input { font-variant-numeric: tabular-nums; letter-spacing: 0.5em; }
 
-  /* V8.8 — variações do produto são tratadas como cores/acabamentos.
+  /* V8.8 — variações do produto são tratadas como modelos/acabamentos.
      O círculo representa visualmente a cor; a foto continua sendo a fonte
      principal para acabamentos especiais como granito, madeira e rosé. */
   .lm-color-options { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
@@ -1940,7 +1940,7 @@ function colorSwatchStyle(name) {
 }
 function colorSwatchButtonHtml(v, selected=false, attrs="") {
   const dims = variantDimensions(v);
-  const color = dims.color || dims.size || v?.name || "Cor";
+  const color = dims.model || dims.size || v?.name || "Modelo";
   return `<button type="button" ${attrs} class="lm-color-option ${selected ? "is-selected" : ""}" aria-pressed="${selected ? "true" : "false"}" title="${escapeHtml(color)}">
     <span class="lm-color-dot" style="${colorSwatchStyle(color)}"></span>
     <span>${escapeHtml(color)}</span>
@@ -1956,19 +1956,28 @@ function looksLikeSize(value) {
 function variantDimensions(variantOrName) {
   const raw = typeof variantOrName === "string" ? variantOrName : String(variantOrName?.name || "");
   const parts = raw.split(" · ").map((x) => x.trim()).filter(Boolean);
-  if (parts.length >= 2) return { size: parts[0], color: parts.slice(1).join(" · ") };
-  if (looksLikeSize(raw)) return { size: raw.trim(), color: "" };
-  return { size: "", color: raw.trim() };
+  let size = "", model = "";
+  if (parts.length >= 2 && looksLikeSize(parts[0])) {
+    size = parts[0];
+    model = parts.slice(1).join(" · ");
+  } else if (looksLikeSize(raw)) {
+    size = raw.trim();
+  } else {
+    model = raw.trim();
+  }
+  // `color` fica como alias por compatibilidade com relatórios/rotinas antigas.
+  // Para cadastro e Catálogo, o conceito oficial agora é MODELO, separado de TAMANHO.
+  return { size, model, color: model };
 }
-function composeVariantName(size, color) {
+function composeVariantName(size, model) {
   const s = String(size || "").trim();
-  const c = String(color || "").trim();
-  if (s && c) return `${s} · ${c}`;
-  return s || c;
+  const m = String(model || "").trim();
+  if (s && m) return `${s} · ${m}`;
+  return s || m;
 }
 function variantDisplayLabel(variant) {
   const d = variantDimensions(variant);
-  return [d.size, d.color].filter(Boolean).join(" · ") || String(variant?.name || "");
+  return [d.size, d.model].filter(Boolean).join(" · ") || String(variant?.name || "");
 }
 
 
@@ -3576,7 +3585,7 @@ function productionForStockHtml() {
         <div class="admin-section-heading"><div><h2>Produzir para estoque</h2><p>Cria uma produção sem pedido de cliente. O filamento fica reservado e, ao concluir, o produto pronto entra no estoque.</p></div></div>
         <form id="stock-production-form" class="mt-3 grid gap-3">
           <label class="settings-field"><span>Produto</span><select id="stock-prod-product" class="rounded-lg border border-navy-200 px-3 py-2 text-sm">${activeProducts.map((p)=>`<option value="${p.id}" ${String(p.id)===String(selected?.id)?"selected":""}>${escapeHtml(p.name)}</option>`).join("")}</select></label>
-          <label class="settings-field"><span>Tamanho / cor</span><select id="stock-prod-variant" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"><option value="">Sem variação</option>${variants.map((v)=>`<option value="${escapeHtml(v.name)}">${escapeHtml(v.name)}</option>`).join("")}</select></label>
+          <label class="settings-field"><span>Tamanho / modelo</span><select id="stock-prod-variant" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"><option value="">Sem variação</option>${variants.map((v)=>`<option value="${escapeHtml(v.name)}">${escapeHtml(v.name)}</option>`).join("")}</select></label>
           <label class="settings-field"><span>Quantidade a produzir</span><input id="stock-prod-qty" type="number" min="1" step="1" value="1" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"></label>
           <label class="settings-field"><span>Máquina (opcional)</span><select id="stock-prod-machine" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"><option value="">—</option>${(professionalState.config.machines||[]).map((m)=>`<option>${escapeHtml(m.name)}</option>`).join("")}</select></label>
           <div id="stock-prod-preview" class="rounded-xl bg-cream-50 p-3 text-xs text-navy-600">Selecione a variação e a quantidade para ver a previsão.</div>
@@ -3643,7 +3652,7 @@ function physicalInventoryHtml() {
     <div class="grid gap-4">
       <div class="admin-notice admin-notice-gold"><strong>Inventário físico</strong><br>Use esta tela para informar o que realmente existe hoje em casa. Ela define um ponto de partida confiável sem precisar reconstruir produções antigas. Você pode usar novamente depois para corrigir divergências de contagem.</div>
       <section class="management-card mobile-card-table">
-        <div class="admin-section-heading"><div><h2>Produtos prontos</h2><p>Informe a quantidade física de cada produto/tamanho/cor.</p></div></div>
+        <div class="admin-section-heading"><div><h2>Produtos prontos</h2><p>Informe a quantidade física de cada produto/tamanho/modelo.</p></div></div>
         <table class="rank-table"><thead><tr><th>Produto / variação</th><th>Quantidade física</th></tr></thead><tbody>${productRows.map((r)=>`<tr><td><strong>${escapeHtml(r.name)}</strong></td><td><input data-inventory-product="${r.p.id}" data-inventory-variant="${escapeHtml(r.v?.name||"")}" type="number" min="0" step="1" value="${r.stock}" class="w-28 rounded-lg border border-navy-200 px-2 py-1.5 text-sm"></td></tr>`).join("")}</tbody></table>
       </section>
       <section class="management-card mobile-card-table">
@@ -3673,7 +3682,7 @@ function replenishmentHtml() {
       <div class="grid gap-4 xl:grid-cols-2">
         <section class="management-card mobile-card-table">
           <div class="admin-section-heading"><div><h2>Principais cores dos produtos</h2><p>Ordenadas pela quantidade de variações cadastradas. Ajuda a entender quais cores fazem parte de mais produtos.</p></div></div>
-          ${colors.length?`<table class="rank-table"><thead><tr><th>Cor / acabamento</th><th>Variações</th><th>Produtos</th></tr></thead><tbody>${colors.slice(0,30).map((c)=>`<tr><td><span class="inline-flex items-center gap-2"><span class="lm-color-dot" style="${colorSwatchStyle(c.color)}"></span><strong>${escapeHtml(c.color)}</strong></span></td><td>${c.count}</td><td>${[...c.products].slice(0,4).map(escapeHtml).join(", ")}${c.products.size>4?"…":""}</td></tr>`).join("")}</tbody></table>`:`<p class="caption">Ainda não existem cores cadastradas nas variações dos produtos.</p>`}
+          ${colors.length?`<table class="rank-table"><thead><tr><th>Modelo</th><th>Variações</th><th>Produtos</th></tr></thead><tbody>${colors.slice(0,30).map((c)=>`<tr><td><span class="inline-flex items-center gap-2"><span class="lm-color-dot" style="${colorSwatchStyle(c.color)}"></span><strong>${escapeHtml(c.color)}</strong></span></td><td>${c.count}</td><td>${[...c.products].slice(0,4).map(escapeHtml).join(", ")}${c.products.size>4?"…":""}</td></tr>`).join("")}</tbody></table>`:`<p class="caption">Ainda não existem cores cadastradas nas variações dos produtos.</p>`}
         </section>
         <section class="management-card">
           <div class="admin-section-heading"><div><h2>Cores sem filamento relacionado</h2><p>Essas cores aparecem em produtos, mas o painel ainda não encontrou um carretel ou uma ficha técnica que as atenda.</p></div></div>
@@ -4027,7 +4036,7 @@ function renderInicio(container) {
         <button type="button" data-dashboard-tab="precificacao" class="admin-stat-card ${lowStock ? "attention" : ""}">
           <div class="admin-stat-label"><span>Estoque baixo</span><span>📦</span></div>
           <div class="admin-stat-value">${lowStock}</div>
-          <div class="admin-stat-hint">${lowStock ? "Produtos/tamanhos/cores/materiais pedindo atenção." : "Nenhum alerta de estoque."}</div>
+          <div class="admin-stat-hint">${lowStock ? "Produtos/tamanhos/modelos/materiais pedindo atenção." : "Nenhum alerta de estoque."}</div>
         </button>
       </div>
 
@@ -4525,7 +4534,7 @@ function renderProducao(container) {
           ${groupedRows.length ? `
             <div style="min-width:720px">
               <div class="production-list-card" style="grid-template-columns:minmax(0,1.6fr) 80px 100px 100px 100px 110px;font-weight:800;color:#7c869d;background:#fafbfe">
-                <span>Produto / tamanho/cor</span><span>Falta</span><span>Pedidos</span><span>Tempo</span><span>Filamento</span><span>Ação</span>
+                <span>Produto / tamanho/modelo</span><span>Falta</span><span>Pedidos</span><span>Tempo</span><span>Filamento</span><span>Ação</span>
               </div>
               ${groupedRows.map((g) => `
                 <div class="production-list-card" style="grid-template-columns:minmax(0,1.6fr) 80px 100px 100px 100px 110px">
@@ -4598,7 +4607,7 @@ function renderProducao(container) {
             <div><h2>Estoque físico × reservado × disponível</h2><p>Uma peça comprometida com um pedido deixa de contar como disponível.</p></div>
           </div>
           <table class="rank-table">
-            <thead><tr><th>Produto / tamanho/cor</th><th>Físico</th><th>Reservado</th><th>Disponível</th><th>Status</th></tr></thead>
+            <thead><tr><th>Produto / tamanho/modelo</th><th>Físico</th><th>Reservado</th><th>Disponível</th><th>Status</th></tr></thead>
             <tbody>
               ${state.products.filter((p) => p.active).flatMap((p) => {
                 const rows = (p.product_variants || []).length ? p.product_variants.map((v) => ({p,variant:v.name})) : [{p,variant:""}];
@@ -5105,7 +5114,7 @@ function renderRentabilidade(container) {
 
       <section class="management-card mobile-card-table">
         <table class="rank-table">
-          <thead><tr><th>#</th><th>Produto / tamanho/cor</th><th>Unidades</th><th>Pedidos</th><th>Receita líquida</th><th>Custo</th><th>Lucro</th><th>Margem</th></tr></thead>
+          <thead><tr><th>#</th><th>Produto / tamanho/modelo</th><th>Unidades</th><th>Pedidos</th><th>Receita líquida</th><th>Custo</th><th>Lucro</th><th>Margem</th></tr></thead>
           <tbody>
             ${rows.length ? rows.map((r,i) => `<tr>
               <td>${i+1}</td>
@@ -5291,7 +5300,7 @@ function renderConfiguracoes(container) {
 
         <section class="management-card" style="grid-column:1/-1">
           <h2>Fichas técnicas de produção</h2>
-          <p class="caption">Configure por produto + tamanho/cor. Cada combinação pode ter tempo próprio e consumir até 3 filamentos diferentes por unidade. Isso alimenta reserva, baixa real, custo e recomendação de compra.</p>
+          <p class="caption">Configure por produto + tamanho/modelo. Cada combinação pode ter tempo próprio e consumir até 3 filamentos diferentes por unidade. Isso alimenta reserva, baixa real, custo e recomendação de compra.</p>
           <div class="mobile-card-table mt-3">
             <table class="rank-table">
               <thead><tr><th>Produto / tamanho / cor</th><th>Minutos / un.</th><th>Filamentos por unidade</th></tr></thead>
@@ -7727,14 +7736,14 @@ function renderProductForm() {
   // causa deles — o que é exatamente o contrário do que foi pedido.
   const activeMaterials = state.materials.filter((m) => m.active && !isEssencial(m));
 
-  // Lista de combinações de tamanho/cor deste produto (estado local do formulário).
+  // Lista de combinações de tamanho/modelo deste produto (estado local do formulário).
   const formVariants = product && product.product_variants
     ? [...product.product_variants]
         .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name, "pt-BR"))
         .map((v) => {
           const dims = variantDimensions(v);
           return {
-            id: v.id, name: v.name, size: dims.size, color: dims.color,
+            id: v.id, name: v.name, size: dims.size, model: dims.model, color: dims.model,
             photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null,
             inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false, stockTracked: true, stockQty: v.stock_qty != null ? v.stock_qty : (v.in_stock ? 1 : 0),
             ownPrice: variantHasOwnPricing(v), cost: Number(v.cost || 0) > 0 ? Number(v.cost) : null,
@@ -7770,7 +7779,7 @@ function renderProductForm() {
           <input id="pf-base-cost" value="${product ? ((product.product_variants?.length && Number(product.base_cost || 0) === 0) ? "" : product.base_cost) : (draft?.baseCost ?? "")}" inputmode="decimal"
             class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
             placeholder="0,00" />
-          <p id="pf-base-cost-help" class="mt-1 text-xs text-navy-400">Obrigatório para produto sem variações. Com tamanhos/cores, pode ficar em branco e cada combinação ter seu próprio custo.</p>
+          <p id="pf-base-cost-help" class="mt-1 text-xs text-navy-400">Obrigatório para produto sem variações. Com tamanhos/modelos, pode ficar em branco e cada combinação ter seu próprio custo.</p>
         </div>
         <div class="w-full sm:w-56">
           <label class="mb-1 block text-sm font-medium text-navy-800">Categoria (opcional)</label>
@@ -7852,7 +7861,7 @@ function renderProductForm() {
           </div>
           <div id="pf-manual-stock-block" class="hidden"></div>
         </div>
-        <p id="pf-in-stock-variant-note" class="mt-2 ${product?.product_variants?.length ? "" : "hidden"} rounded-lg bg-navy-50 px-3 py-2 text-xs text-navy-600">Este produto tem tamanhos/cores: o estoque é controlado por combinação abaixo.</p>
+        <p id="pf-in-stock-variant-note" class="mt-2 ${product?.product_variants?.length ? "" : "hidden"} rounded-lg bg-navy-50 px-3 py-2 text-xs text-navy-600">Este produto tem tamanhos/modelos: o estoque é controlado por combinação abaixo.</p>
 
         <div class="mt-3 flex flex-wrap items-end gap-3">
           <div class="w-32">
@@ -7875,8 +7884,8 @@ function renderProductForm() {
       </div>
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
-        <p class="mb-1 text-sm font-medium text-navy-800">Tamanhos e cores (opcional)</p>
-        <p class="mb-3 text-xs text-navy-400">Use esta área para tamanhos e cores/acabamentos do mesmo produto. Ex.: Estatueta São Miguel pode ter 16 cm + Branco, 16 cm + Granito, 20 cm + Branco etc. Cada combinação pode ter estoque, foto, custo e preço próprios. Se mudar o santo/modelo do produto (ex.: São Miguel para Nossa Senhora Aparecida), cadastre como outro produto.</p>
+        <p class="mb-1 text-sm font-medium text-navy-800">Tamanhos e modelos (opcional)</p>
+        <p class="mb-3 text-xs text-navy-400">Tamanho e modelo são independentes. Use apenas tamanho, apenas modelo ou os dois juntos. Ex.: um produto pode ter 16 cm, 20 cm e 30 cm em um único modelo; outro pode ter Tradicional e Vazado em um único tamanho; ou pode combinar 16 cm + Tradicional, 16 cm + Vazado, 20 cm + Tradicional etc. Cada combinação pode ter estoque, foto, custo e preço próprios.</p>
         <div id="pf-variants-list" class="flex flex-col gap-2"></div>
         <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar combinação</button>
       </div>
@@ -8038,12 +8047,12 @@ function renderProductForm() {
     inStockVariantNote.classList.toggle("hidden", !hasVariants);
 
     // Custo base é obrigatório só quando o produto NÃO tem variações.
-    // Com tamanho/cor, ele vira um custo padrão/fallback: pode ficar em
+    // Com tamanho/modelo, ele vira um custo padrão/fallback: pode ficar em
     // branco desde que todas as combinações tenham custo próprio.
     baseCostField.required = !hasVariants;
     baseCostLabel.textContent = hasVariants ? "Custo padrão / fallback (opcional)" : "Custo base (R$) *";
     baseCostHelp.textContent = hasVariants
-      ? "Pode ficar em branco se cada tamanho/cor tiver custo próprio. Se preencher, combinações sem custo próprio herdam este valor."
+      ? "Pode ficar em branco se cada combinação de tamanho/modelo tiver custo próprio. Se preencher, combinações sem custo próprio herdam este valor."
       : "Obrigatório neste produto. É o custo do item em si, sem contar os materiais vinculados abaixo.";
     baseCostField.placeholder = hasVariants ? "opcional" : "0,00";
     baseCostWrap.classList.toggle("rounded-lg", hasVariants);
@@ -8053,11 +8062,11 @@ function renderProductForm() {
 
   function renderVariantsList() {
     variantsListEl.innerHTML = formVariants.length === 0
-      ? `<p class="text-xs text-navy-400">Nenhuma variação cadastrada — use apenas se houver mais de um tamanho e/ou cor.</p>`
+      ? `<p class="text-xs text-navy-400">Nenhuma opção cadastrada — use quando houver mais de um tamanho e/ou modelo.</p>`
       : formVariants.map((v, idx) => `
           <div class="flex flex-col gap-2 rounded-lg bg-white p-3 shadow-sm sm:flex-row sm:items-center">
             <div class="lm-color-row flex-shrink-0">
-              <span data-variant-swatch="${idx}" class="lm-color-dot" style="${colorSwatchStyle(v.color || v.name)}"></span>
+              <span data-variant-swatch="${idx}" class="lm-color-dot" style="${colorSwatchStyle(v.model || v.color || v.name)}"></span>
               <img data-variant-preview="${idx}" src="${v.photoUrl ?? ""}" class="h-14 w-14 rounded-lg border border-navy-200 bg-cream-50 object-contain ${v.photoUrl ? "" : "hidden"}" />
             </div>
             <div class="flex-1">
@@ -8068,12 +8077,12 @@ function renderProductForm() {
                     class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                 </div>
                 <div>
-                  <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Cor / acabamento (opcional)</label>
-                  <input data-variant-color="${idx}" value="${escapeHtml(v.color || "")}" placeholder="Ex: Branco, Cinza, Granito"
+                  <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Modelo (opcional)</label>
+                  <input data-variant-model="${idx}" value="${escapeHtml(v.model || v.color || "")}" placeholder="Ex: Tradicional, Vazado, Branco"
                     class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                 </div>
               </div>
-              <p class="mt-1 text-[10px] text-navy-400">Preencha pelo menos tamanho ou cor. Se houver os dois, esta linha representa a combinação dos dois.</p>
+              <p class="mt-1 text-[10px] text-navy-400">Preencha pelo menos tamanho ou modelo. Se houver os dois, esta linha representa exatamente essa combinação.</p>
               <div data-variant-qty-block="${idx}" class="mt-2 rounded-lg border border-navy-100 bg-cream-50 p-2.5">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -8094,12 +8103,13 @@ function renderProductForm() {
                     <input type="number" min="0" step="0.01" data-variant-cost="${idx}" value="${v.cost ?? ""}" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                   </div>
                   <div>
-                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Pix/à vista manual (opcional)</label>
+                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Preço Pix/à vista (opcional)</label>
                     <input type="number" min="0" step="0.01" data-variant-promo-manual="${idx}" value="${v.promoManualPrice ?? ""}" placeholder="auto" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                   </div>
                   <p data-variant-price-preview="${idx}" class="text-xs text-navy-600"></p>
+                  <p class="w-full text-[10px] text-navy-400">O crédito é recalculado automaticamente a partir do preço Pix/à vista informado.</p>
                 </div>
-                <p class="mt-1 text-[10px] text-navy-400">${v.ownPrice ? "Esta combinação usa custo e preço próprios." : "Sem custo próprio: herda o custo/preço padrão do produto."}</p>
+                <p class="mt-1 text-[10px] text-navy-400">${v.ownPrice ? "Esta combinação pode usar custo e preço próprios." : "Sem custo/preço próprio: herda os valores padrão do produto."}</p>
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -8155,9 +8165,12 @@ function renderProductForm() {
     formVariants.forEach((v, idx) => { if (v.ownPrice) updateVariantPricePreview(idx); });
     const syncVariantIdentity = (idx) => {
       const v = formVariants[idx];
-      v.name = composeVariantName(v.size, v.color);
+      const model = String(v.model ?? v.color ?? "").trim();
+      v.model = model;
+      v.color = model; // alias legado
+      v.name = composeVariantName(v.size, model);
       const swatch = variantsListEl.querySelector(`[data-variant-swatch="${idx}"]`);
-      if (swatch) swatch.setAttribute("style", colorSwatchStyle(v.color || v.name));
+      if (swatch) swatch.setAttribute("style", colorSwatchStyle(model || v.name));
     };
     variantsListEl.querySelectorAll("[data-variant-size]").forEach((input) => {
       input.addEventListener("input", () => {
@@ -8166,10 +8179,11 @@ function renderProductForm() {
         syncVariantIdentity(idx);
       });
     });
-    variantsListEl.querySelectorAll("[data-variant-color]").forEach((input) => {
+    variantsListEl.querySelectorAll("[data-variant-model]").forEach((input) => {
       input.addEventListener("input", () => {
-        const idx = Number(input.dataset.variantColor);
-        formVariants[idx].color = input.value;
+        const idx = Number(input.dataset.variantModel);
+        formVariants[idx].model = input.value;
+        formVariants[idx].color = input.value; // alias legado
         syncVariantIdentity(idx);
       });
     });
@@ -8248,7 +8262,7 @@ function renderProductForm() {
     // comum quando o produto tem tamanhos diferentes (16/20/30 cm etc.).
     // Se a combinação realmente tiver o mesmo custo do produto, basta
     // desmarcar e ela passa a herdar o custo padrão/fallback.
-    formVariants.push({ id: null, name: "", size: "", color: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: true, stockQty: 0, ownPrice: true, cost: null, promoManualPrice: null });
+    formVariants.push({ id: null, name: "", size: "", model: "", color: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: true, stockQty: 0, ownPrice: true, cost: null, promoManualPrice: null });
     renderVariantsList();
     updatePreview();
   });
@@ -8333,7 +8347,7 @@ function renderProductForm() {
 
     // Com variações e sem custo padrão, o produto usa os custos próprios
     // das combinações. O menor custo vira somente a referência do produto
-    // principal (útil para cards/relatórios); cada tamanho/cor mantém seu
+    // principal (útil para cards/relatórios); cada tamanho/modelo mantém seu
     // preço calculado e salvo separadamente.
     if (formVariants.length > 0 && !hasBaseCost) {
       const ownCosts = formVariants
@@ -8341,7 +8355,7 @@ function renderProductForm() {
         .map((v) => Number(v.cost));
       const missing = formVariants.filter((v) => !v.ownPrice || v.cost == null || !Number.isFinite(v.cost) || v.cost <= 0).length;
       if (!ownCosts.length) {
-        preview.innerHTML = `<span class="text-gold-700">Informe o custo em cada combinação de tamanho/cor. Não é necessário preencher um custo base.</span>`;
+        preview.innerHTML = `<span class="text-gold-700">Informe o custo em cada combinação de tamanho/modelo. Não é necessário preencher um custo base.</span>`;
         return;
       }
       const minCost = Math.min(...ownCosts);
@@ -8506,7 +8520,7 @@ function renderProductForm() {
     const description = document.getElementById("pf-description").value.trim();
 
     if (formVariants.some((v) => !v.name.trim())) {
-      errorEl.textContent = "Preencha o nome de todos os modelos (ou remova a linha vazia).";
+      errorEl.textContent = "Preencha o tamanho e/ou modelo em todas as linhas (ou remova a linha vazia).";
       return;
     }
     if (formVariants.some((v) => v.ownPrice && (v.cost == null || !Number.isFinite(v.cost) || v.cost <= 0))) {
@@ -8616,7 +8630,7 @@ function renderProductForm() {
       if (linkError) { errorEl.textContent = linkError.message; return; }
     }
 
-    // Sincroniza combinações de tamanho/cor: apaga as antigas e grava a lista atual.
+    // Sincroniza combinações de tamanho/modelo: apaga as antigas e grava a lista atual.
     await supabaseClient.from("product_variants").delete().eq("product_id", productId);
     if (formVariants.length > 0) {
       const variantRows = formVariants.map((v, idx) => {
@@ -10953,7 +10967,7 @@ function buildPickingListPdf(rows) {
     doc.setTextColor(255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.text("Produto / tamanho/cor", cols.item.x + 1, y);
+    doc.text("Produto / tamanho/modelo", cols.item.x + 1, y);
     doc.text("Qtd. total", cols.qtd.x + cols.qtd.w - 1, y, { align: "right" });
     doc.text("Pedidos", cols.pedidos.x + 1, y);
     y += 5;
@@ -12917,7 +12931,7 @@ function renderEditOrderOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
                     <select id="edit-order-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -13916,7 +13930,7 @@ function renderSimulateOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
                     <select id="sim-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -14105,7 +14119,7 @@ function renderEventoVendaOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
                     <select id="ev-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -14695,7 +14709,7 @@ function renderVendaManualOverlay() {
                             ${sizeOptions.map((size)=>`<button type="button" data-vm-size="${escapeHtml(size)}" class="rounded-lg border px-3 py-2 text-xs font-bold ${vendaManualState._selectedSize===size ? "border-gold-400 bg-gold-50 text-navy-900" : "border-navy-200 bg-white text-navy-600"}">${escapeHtml(size)}</button>`).join("")}
                           </div>
                         ` : ""}
-                        <label>${candidateVariants.some((v)=>variantDimensions(v).color) ? "Cor / acabamento" : "Variação"}</label>
+                        <label>${candidateVariants.some((v)=>variantDimensions(v).color) ? "Modelo" : "Variação"}</label>
                         ${(!hasSizedVariants || vendaManualState._selectedSize) ? `
                           <div class="lm-color-options">
                             ${[...candidateVariants].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)).map((v)=>{
@@ -14724,7 +14738,7 @@ function renderVendaManualOverlay() {
                       </div>
                     ` : selectedProduct && selectedVariants.length ? `
                       <div style="grid-column:1/-1" class="rounded-xl border border-navy-100 bg-navy-50 px-3 py-2 text-xs text-navy-500">
-                        Escolha o tamanho/cor para calcular o valor.
+                        Escolha o tamanho/modelo para calcular o valor.
                       </div>
                     ` : ""}
 
@@ -17490,7 +17504,7 @@ function renderStockEntryEditOverlay() {
             </div>
             ${selectedVariants.length > 0 ? `
               <div>
-                <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
+                <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
                 <select id="se-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                   <option value="">— selecione —</option>
                   ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}" ${v.id === stockEntryEditState.variantId ? "selected" : ""}>${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -17981,7 +17995,7 @@ function renderBrindeOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
                     <select id="brinde-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -18330,7 +18344,7 @@ function renderStockPurchaseOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
                     <select id="sp-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}" ${v.id === stockPurchaseState._selectedVariantId ? "selected" : ""}>${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
