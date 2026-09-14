@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v8.6-equipment-financing-ios-2026-09-13" />
+<meta name="luz-mariana-admin-version" content="professional-v9.1-demand-production-2026-09-13" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -46,6 +46,29 @@
 <style>
   body { font-family: Arial, Helvetica, sans-serif; }
   .pin-input { font-variant-numeric: tabular-nums; letter-spacing: 0.5em; }
+
+  /* V8.8 — variações do produto são tratadas como cores/acabamentos.
+     O círculo representa visualmente a cor; a foto continua sendo a fonte
+     principal para acabamentos especiais como granito, madeira e rosé. */
+  .lm-color-options { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .lm-color-option {
+    display:inline-flex; align-items:center; gap:7px; min-height:42px;
+    border:1px solid #d6d9e4; border-radius:999px; background:#fff;
+    padding:5px 10px 5px 6px; color:#24325f; font-size:12px; font-weight:700;
+    cursor:pointer; transition:.15s ease;
+  }
+  .lm-color-option:hover { border-color:#d5aa3e; background:#fffaf0; }
+  .lm-color-option.is-selected { border-color:#d5aa3e; background:#fff8e8; box-shadow:0 0 0 2px rgba(213,170,62,.18); }
+  .lm-color-dot {
+    width:28px; height:28px; flex:0 0 28px; border-radius:999px;
+    border:1px solid rgba(0,0,0,.18); box-shadow:inset 0 0 0 1px rgba(255,255,255,.35);
+  }
+  .lm-color-photo {
+    width:72px; height:72px; border-radius:14px; object-fit:contain;
+    background:#f8f6ef; border:1px solid #e2e4eb;
+  }
+  .lm-color-row { display:flex; align-items:center; gap:10px; }
+
   table { border-collapse: collapse; }
   /* Campos com pelo menos 16px evitam o zoom automático do iPhone ao tocar
      num input — dá pra digitar sem a tela "pular". O !important garante
@@ -1486,6 +1509,14 @@
     .vm-footer button { min-height:44px; }
   }
 
+
+/* V9 filament / physical inventory */
+.filament-critical{border-color:#fecaca;background:#fff7f7}
+.filament-low{border-color:#fde68a;background:#fffbeb}
+@media (max-width:720px){
+  #stock-production-form .settings-field{min-width:0}
+}
+
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
@@ -1655,7 +1686,7 @@ function calculatePricingFromManualPromo(cost, manualPromo) {
   };
 }
 
-// Produto com modelos que têm TAMANHOS diferentes (ex: terço grande vs
+// Produto com cores que têm TAMANHOS diferentes (ex: terço grande vs
 // pequeno) às vezes precisa de preço por modelo, não só o preço único do
 // produto. Um modelo só tem preço próprio se `cost` estiver preenchido
 // nele (ver cadastro de produto, "Esse modelo tem preço diferente") —
@@ -1688,6 +1719,62 @@ function variantByName(product, variantName) {
   if (!variantName || !product) return null;
   return (product.product_variants ?? []).find((v) => v.name === variantName) ?? null;
 }
+
+// V8.8: product_variants agora representam CORES/ACABAMENTOS.
+// Não adicionamos coluna nova no banco: o nome da variação continua em
+// product_variants.name, preservando compatibilidade com pedidos antigos.
+function colorSwatchStyle(name) {
+  const n = String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+  const exact = [
+    ["azul marinho","#001868"],["azul petróleo","#164e63"],["azul petroleo","#164e63"],
+    ["azul celeste","#7dd3fc"],["azul bebê","#bae6fd"],["azul bebe","#bae6fd"],
+    ["rosa bebê","#fbcfe8"],["rosa bebe","#fbcfe8"],["rosé nude","#d6a6a1"],["rose nude","#d6a6a1"],
+    ["rosé","#c98f8f"],["rose","#c98f8f"],["branco","#ffffff"],["preto","#111827"],
+    ["cinza claro","#d1d5db"],["cinza","#6b7280"],["bege","#d6c7ad"],["creme","#f7f1df"],
+    ["dourado","#d4af37"],["ouro","#d4af37"],["prata","#c0c0c0"],["verde","#22c55e"],
+    ["vermelho","#dc2626"],["amarelo","#facc15"],["roxo","#7e22ce"],["lilás","#c4b5fd"],
+    ["lilas","#c4b5fd"],["marrom","#7c4a2d"],["laranja","#f97316"]
+  ];
+  const pair = exact.find(([k]) => n === k || n.includes(k));
+  if (pair) return `background:${pair[1]};`;
+  if (n.includes("granito")) return "background:radial-gradient(circle at 30% 30%,#111827 0 2px,transparent 2.5px),radial-gradient(circle at 70% 65%,#6b7280 0 2px,transparent 2.5px),#d1d5db;background-size:10px 10px;";
+  if (n.includes("madeira")) return "background:linear-gradient(135deg,#8b5a2b 0%,#c58b57 45%,#7a4a26 50%,#b97b45 75%,#8b5a2b 100%);";
+  if (n.includes("multicor") || n.includes("colorid")) return "background:conic-gradient(#ef4444,#f59e0b,#22c55e,#3b82f6,#8b5cf6,#ef4444);";
+  return "background:linear-gradient(135deg,#e5e7eb,#f8fafc);";
+}
+function colorSwatchButtonHtml(v, selected=false, attrs="") {
+  const dims = variantDimensions(v);
+  const color = dims.color || dims.size || v?.name || "Cor";
+  return `<button type="button" ${attrs} class="lm-color-option ${selected ? "is-selected" : ""}" aria-pressed="${selected ? "true" : "false"}" title="${escapeHtml(color)}">
+    <span class="lm-color-dot" style="${colorSwatchStyle(color)}"></span>
+    <span>${escapeHtml(color)}</span>
+  </button>`;
+}
+
+function looksLikeSize(value) {
+  const s = String(value || "").trim().toLowerCase();
+  return /^\d+(?:[.,]\d+)?\s*(?:mm|cm|m)$/.test(s)
+    || /^(?:pp|p|m|g|gg|xg|xgg)$/i.test(s)
+    || /\b\d+(?:[.,]\d+)?\s*(?:mm|cm)\b/.test(s);
+}
+function variantDimensions(variantOrName) {
+  const raw = typeof variantOrName === "string" ? variantOrName : String(variantOrName?.name || "");
+  const parts = raw.split(" · ").map((x) => x.trim()).filter(Boolean);
+  if (parts.length >= 2) return { size: parts[0], color: parts.slice(1).join(" · ") };
+  if (looksLikeSize(raw)) return { size: raw.trim(), color: "" };
+  return { size: "", color: raw.trim() };
+}
+function composeVariantName(size, color) {
+  const s = String(size || "").trim();
+  const c = String(color || "").trim();
+  if (s && c) return `${s} · ${c}`;
+  return s || c;
+}
+function variantDisplayLabel(variant) {
+  const d = variantDimensions(variant);
+  return [d.size, d.color].filter(Boolean).join(" · ") || String(variant?.name || "");
+}
+
 
 function isDarkMode() {
   return document.documentElement.classList.contains("dark");
@@ -1875,6 +1962,9 @@ const state = {
   orders: [],
   cashEntries: [],
   reviews: [], // avaliações de produtos enviadas pelos clientes (aprovadas e pendentes)
+  catalogEvents: [], // eventos anônimos do catálogo: visualização, busca, carrinho etc.
+  catalogAnalyticsAvailable: false,
+  catalogAnalyticsError: null,
   adminUsers: [], // [{ id, name }] — todos os administradores, pra mostrar quem fez cada venda
   loading: false,
   error: null,
@@ -2307,7 +2397,7 @@ async function finishAppEntry() {
 // Recarrega todos os dados do app de uma vez (usado ao entrar, no botão
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
-  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews()]);
+  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews(), loadCatalogEvents()]);
   state.lastRefreshedAt = new Date();
 }
 
@@ -2366,6 +2456,26 @@ async function loadReviews() {
   noteLoadResult("avaliações", error);
 }
 
+async function loadCatalogEvents() {
+  const since = new Date(Date.now() - 120 * 86400000).toISOString();
+  const { data, error } = await supabaseClient
+    .from("catalog_events")
+    .select("id,event_name,product_id,variant_id,search_term,session_id,metadata,created_at")
+    .gte("created_at", since)
+    .order("created_at", { ascending:false })
+    .limit(10000);
+  if (error) {
+    state.catalogEvents = [];
+    state.catalogAnalyticsAvailable = false;
+    state.catalogAnalyticsError = error.message || "Tabela catalog_events indisponível.";
+    console.warn("analytics do catálogo:", error.message);
+    return;
+  }
+  state.catalogEvents = Array.isArray(data) ? data : [];
+  state.catalogAnalyticsAvailable = true;
+  state.catalogAnalyticsError = null;
+}
+
 /* Nome do administrador dono desse id (ex: pra mostrar "Vendido por: Bob"). */
 function adminName(id) {
   if (!id) return null;
@@ -2377,7 +2487,7 @@ async function logout() {
   await supabaseClient.auth.signOut();
   Object.assign(state, {
     screen: "login", selectedName: null, currentUser: null, tab: "inicio",
-    products: [], materials: [], customers: [], coupons: [], couponAllowedPhones: [], orcamentos: [], orders: [], cashEntries: [], error: null,
+    products: [], materials: [], customers: [], coupons: [], couponAllowedPhones: [], orcamentos: [], orders: [], cashEntries: [], catalogEvents: [], catalogAnalyticsAvailable:false, catalogAnalyticsError:null, error: null,
   });
   render();
 }
@@ -2436,10 +2546,10 @@ function productionItemKey(item) {
   return `${item?.product_id || item?.product_name || "item"}::${item?.variant_name || ""}`;
 }
 function defaultOrderOpsMeta() {
-  return { v: 1, production: {}, checklist: {}, priority: null };
+  return { v: 1, production: {}, fulfillment: {}, checklist: {}, priority: null };
 }
 function normalizedOrderOpsMeta(order) {
-  return { ...defaultOrderOpsMeta(), ...orderAdminMeta(order), production: { ...(orderAdminMeta(order).production || {}) }, checklist: { ...(orderAdminMeta(order).checklist || {}) } };
+  return { ...defaultOrderOpsMeta(), ...orderAdminMeta(order), production: { ...(orderAdminMeta(order).production || {}) }, fulfillment: { ...(orderAdminMeta(order).fulfillment || {}) }, checklist: { ...(orderAdminMeta(order).checklist || {}) } };
 }
 async function saveOrderOpsMeta(orderId, updater) {
   const order = state.orders.find((o) => o.id === orderId);
@@ -2473,11 +2583,22 @@ function loadProfessionalConfig() {
     productionProfiles: {},
     machines: [],
     costCenterMap: {},
+    filamentMovements: [],
+    stockProductionRuns: [],
+    initialInventoryAt: null,
+    filamentLowThresholdGrams: 500,
+    filamentAttentionThresholdGrams: 1000,
   };
   try {
     const saved = JSON.parse(localStorage.getItem(LM_PRO_CONFIG_KEY) || "null");
     return saved && typeof saved === "object"
-      ? { ...defaults, ...saved, productionProfiles: { ...(saved.productionProfiles || {}) }, machines: Array.isArray(saved.machines) ? saved.machines : [], costCenterMap: { ...(saved.costCenterMap || {}) } }
+      ? { ...defaults, ...saved,
+          productionProfiles: { ...(saved.productionProfiles || {}) },
+          machines: Array.isArray(saved.machines) ? saved.machines : [],
+          costCenterMap: { ...(saved.costCenterMap || {}) },
+          filamentMovements: Array.isArray(saved.filamentMovements) ? saved.filamentMovements : [],
+          stockProductionRuns: Array.isArray(saved.stockProductionRuns) ? saved.stockProductionRuns : [],
+        }
       : defaults;
   } catch (_err) { return defaults; }
 }
@@ -2495,6 +2616,8 @@ let professionalState = {
   profitabilitySort: "profit",
   eventTag: "",
   issueOrderId: "",
+  stockProdProductId: "",
+  filamentNewOpen: false,
 };
 
 function loadMonthClosings() {
@@ -2532,39 +2655,117 @@ function orderOperationalPriority(order) {
   if (d != null && d <= 3) return { key:"high", label:"Atenção", rank:1 };
   return { key:"normal", label:"Normal", rank:2 };
 }
-function productionProfileFor(productId) {
-  return professionalState.config.productionProfiles?.[productId] || {};
+function productionProfileKey(productId, variantName = "") {
+  return `${productId}::${String(variantName || "").trim()}`;
 }
-function productionSourceForItem(item) {
+function productionProfileFor(productId, variantName = "") {
+  const profiles = professionalState.config.productionProfiles || {};
+  return profiles[productionProfileKey(productId, variantName)] || profiles[productId] || {};
+}
+function normalizeSearchText(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").trim();
+}
+function isFilamentMaterial(material) {
+  const t = normalizeSearchText(material?.type);
+  return t.includes("filamento") || t === "pla" || t === "petg";
+}
+function filamentMaterials() {
+  return state.materials.filter((m) => m.active && isFilamentMaterial(m));
+}
+function inferFilamentForText(textValue) {
+  const needle = normalizeSearchText(textValue);
+  if (!needle) return null;
+  const mats = filamentMaterials();
+  return mats.find((m) => {
+    const hay = normalizeSearchText(m.name);
+    const clean = hay.replace(/\b(pla|petg|filamento|basic|matte)\b/g,"").trim();
+    return hay.includes(needle) || (clean && needle.includes(clean));
+  }) || null;
+}
+function profileFilamentComponents(profile) {
+  if (Array.isArray(profile?.filaments) && profile.filaments.length) {
+    return profile.filaments
+      .map((f) => ({ materialId:String(f.materialId || ""), gramsPerUnit:Math.max(0, Number(f.gramsPerUnit || 0)) }))
+      .filter((f) => f.materialId && f.gramsPerUnit > 0);
+  }
+  const grams = Math.max(0, Number(profile?.gramsPerUnit || 0));
+  if (!grams) return [];
+  const inferred = inferFilamentForText(profile?.color || "");
+  return inferred ? [{ materialId:String(inferred.id), gramsPerUnit:grams }] : [];
+}
+function productionProfileRows() {
+  return state.products.filter((p)=>p.active).flatMap((p) => {
+    const variants = p.product_variants || [];
+    return variants.length
+      ? variants.map((v)=>({ product:p, variant:v, key:productionProfileKey(p.id,v.name), label:`${p.name} · ${v.name}` }))
+      : [{ product:p, variant:null, key:productionProfileKey(p.id,""), label:p.name }];
+  });
+}
+function isOwnProductionSupplier(supplier) {
+  return String(supplier?.name || "").trim().toLocaleLowerCase("pt-BR") === "fabricação própria";
+}
+function orderItemFulfillmentInfo(order, item) {
+  const key = productionItemKey(item);
+  const meta = normalizedOrderOpsMeta(order);
+  const saved = meta.fulfillment?.[key] || {};
+  const product = state.products.find((p) => p.id === item.product_id);
+  const productSupplier = state.suppliers.find((s) => s.id === product?.supplier_id) || product?.suppliers || null;
+
+  if (saved.source === "own") {
+    return { source:"own", supplierId:null, supplierName:"Fabricação própria", alreadyProduced:!!saved.alreadyProduced };
+  }
+  if (saved.source === "supplier") {
+    const supplier = state.suppliers.find((s) => String(s.id) === String(saved.supplierId || ""));
+    return {
+      source:"supplier",
+      supplierId:saved.supplierId || supplier?.id || null,
+      supplierName:saved.supplierName || supplier?.name || "Fornecedor",
+      alreadyProduced:false,
+    };
+  }
+  if (item.fulfilled_from_stock) return { source:"stock", supplierId:null, supplierName:null, alreadyProduced:true };
+
+  // Compatibilidade com pedidos antigos.
+  if (productSupplier && !isOwnProductionSupplier(productSupplier)) {
+    return { source:"supplier", supplierId:productSupplier.id, supplierName:productSupplier.name, alreadyProduced:false };
+  }
+  return { source:"own", supplierId:null, supplierName:"Fabricação própria", alreadyProduced:false };
+}
+function productionSourceForItem(item, order = null) {
+  if (order) return orderItemFulfillmentInfo(order, item).source;
   if (item.fulfilled_from_stock) return "stock";
   const product = state.products.find((p) => p.id === item.product_id);
-  if (product?.supplier_id) return "supplier";
-  return "own";
+  const supplier = state.suppliers.find((s) => s.id === product?.supplier_id) || product?.suppliers || null;
+  return supplier && !isOwnProductionSupplier(supplier) ? "supplier" : "own";
 }
 function productionTaskFor(order, item) {
   const key = productionItemKey(item);
   const meta = normalizedOrderOpsMeta(order);
   const saved = meta.production?.[key] || {};
   const qty = Math.max(0, Number(item.quantity || 0));
-  const done = Math.min(qty, Math.max(0, Number(saved.done || 0)));
-  let stage = saved.stage || "todo";
+  const fulfillment = orderItemFulfillmentInfo(order, item);
+  const preProduced = fulfillment.source === "own" && fulfillment.alreadyProduced;
+  const done = Math.min(qty, Math.max(0, Number(saved.done ?? (preProduced ? qty : 0))));
+  let stage = saved.stage || (preProduced ? "ready" : "todo");
   if (done >= qty && qty > 0 && ["todo","printing","finishing"].includes(stage)) stage = "ready";
   if (order.status === "concluido") { stage = "separated"; }
   const product = state.products.find((p) => p.id === item.product_id);
-  const profile = productionProfileFor(item.product_id);
+  const profile = productionProfileFor(item.product_id, item.variant_name || "");
+  const filamentComponents = profileFilamentComponents(profile);
   const remaining = Math.max(0, qty - done);
   const priority = orderOperationalPriority(order);
   const deadline = orderDeadlineInfo(order);
   return {
-    order, item, key, product, source: productionSourceForItem(item),
+    order, item, key, product, source: productionSourceForItem(item, order),
     qty, done, remaining, stage, priority, deadline,
     minutesPerUnit: Math.max(0, Number(profile.minutesPerUnit || 0)),
-    gramsPerUnit: Math.max(0, Number(profile.gramsPerUnit || 0)),
-    color: profile.color || "",
+    gramsPerUnit: filamentComponents.reduce((s,f)=>s+Number(f.gramsPerUnit||0),0),
+    filamentComponents,
+    color: filamentComponents.map((f)=>state.materials.find((m)=>String(m.id)===String(f.materialId))?.name).filter(Boolean).join(" + ") || profile.color || "",
     lot: saved.lot || "",
     machine: saved.machine || "",
     estimatedMinutes: Math.max(0, Number(profile.minutesPerUnit || 0)) * remaining,
-    estimatedGrams: Math.max(0, Number(profile.gramsPerUnit || 0)) * remaining,
+    estimatedGrams: filamentComponents.reduce((s,f)=>s+Number(f.gramsPerUnit||0),0) * remaining,
   };
 }
 function allProductionTasks({ includeCompleted = false } = {}) {
@@ -2639,6 +2840,649 @@ function productionMaterialNeeds() {
     stock:Number(r.material.stock_qty || 0),
     shortage:round2(Math.max(0, r.required - Number(r.material.stock_qty || 0))),
   })).sort((a,b) => b.shortage - a.shortage || b.required - a.required);
+}
+
+
+/* =====================================================================
+   V9 — FILAMENTOS, PRODUÇÃO PARA ESTOQUE E INVENTÁRIO FÍSICO
+   ===================================================================== */
+function productVariantRecord(productId, variantName = "") {
+  const product = state.products.find((p)=>String(p.id)===String(productId));
+  if (!product) return { product:null, variant:null };
+  const variant = variantName ? (product.product_variants || []).find((v)=>v.name===variantName) : null;
+  return { product, variant };
+}
+function stockProductionRuns() {
+  return Array.isArray(professionalState.config.stockProductionRuns) ? professionalState.config.stockProductionRuns : [];
+}
+function filamentMovements() {
+  return Array.isArray(professionalState.config.filamentMovements) ? professionalState.config.filamentMovements : [];
+}
+function pushFilamentMovement(movement) {
+  const next = structuredClone(professionalState.config);
+  next.filamentMovements ||= [];
+  next.filamentMovements.unshift({
+    id:`fm-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+    at:new Date().toISOString(),
+    ...movement,
+  });
+  next.filamentMovements = next.filamentMovements.slice(0,1500);
+  saveProfessionalConfig(next);
+}
+function saveStockProductionRun(run) {
+  const next = structuredClone(professionalState.config);
+  next.stockProductionRuns ||= [];
+  const idx = next.stockProductionRuns.findIndex((r)=>r.id===run.id);
+  if (idx >= 0) next.stockProductionRuns[idx] = run;
+  else next.stockProductionRuns.unshift(run);
+  saveProfessionalConfig(next);
+}
+function productionConsumedMeta(task) {
+  return normalizedOrderOpsMeta(task.order).production?.[task.key]?.filamentConsumed || null;
+}
+function taskFilamentPlan(task, units = null) {
+  const qty = units == null ? Math.max(0, task.remaining || task.qty || 0) : Math.max(0, Number(units||0));
+  return (task.filamentComponents || []).map((f)=>({
+    materialId:String(f.materialId),
+    grams:round2(Number(f.gramsPerUnit||0) * qty),
+    gramsPerUnit:Number(f.gramsPerUnit||0),
+  })).filter((f)=>f.grams > 0);
+}
+function reservedFilamentMap() {
+  const map = new Map();
+  ownProductionTasks().forEach((t)=>{
+    if (t.remaining <= 0 || productionConsumedMeta(t)) return;
+    taskFilamentPlan(t).forEach((f)=>map.set(f.materialId,(map.get(f.materialId)||0)+f.grams));
+  });
+  stockProductionRuns().filter((r)=>["todo","printing"].includes(r.status)).forEach((r)=>{
+    (r.predictedComponents || []).forEach((f)=>map.set(String(f.materialId),(map.get(String(f.materialId))||0)+Number(f.grams||0)));
+  });
+  return map;
+}
+function filamentAvailableInfo(material) {
+  const physical = Math.max(0, Number(material?.stock_qty || 0));
+  const reserved = Math.max(0, Number(reservedFilamentMap().get(String(material?.id)) || 0));
+  return { physical, reserved:round2(reserved), available:round2(Math.max(0,physical-reserved)) };
+}
+function last30DaysFilamentConsumption(materialId) {
+  const cutoff = Date.now() - 30*86400000;
+  return round2(filamentMovements()
+    .filter((m)=>String(m.materialId)===String(materialId) && Number(m.grams||0)<0 && new Date(m.at).getTime()>=cutoff)
+    .reduce((s,m)=>s+Math.abs(Number(m.grams||0)),0));
+}
+function mainRegisteredColors() {
+  const map = new Map();
+  state.products.filter((p)=>p.active).forEach((p)=>{
+    (p.product_variants || []).forEach((v)=>{
+      const d = variantDimensions(v);
+      if (!d.color) return;
+      const key = normalizeSearchText(d.color);
+      const row = map.get(key) || { color:d.color, count:0, products:new Set() };
+      row.count += 1;
+      row.products.add(p.name);
+      map.set(key,row);
+    });
+  });
+  return [...map.values()].sort((a,b)=>b.count-a.count || a.color.localeCompare(b.color,"pt-BR"));
+}
+function profileMaterialUsageCounts() {
+  const map = new Map();
+  productionProfileRows().forEach((row)=>{
+    const profile = productionProfileFor(row.product.id, row.variant?.name || "");
+    profileFilamentComponents(profile).forEach((f)=>{
+      const x = map.get(String(f.materialId)) || { profiles:0, gramsPerUnitTotal:0 };
+      x.profiles += 1;
+      x.gramsPerUnitTotal += Number(f.gramsPerUnit||0);
+      map.set(String(f.materialId),x);
+    });
+  });
+  return map;
+}
+function missingRegisteredColors() {
+  const profiled = new Set();
+  productionProfileRows().forEach((row)=>{
+    const d = row.variant ? variantDimensions(row.variant) : {color:""};
+    const comps = profileFilamentComponents(productionProfileFor(row.product.id,row.variant?.name||""));
+    if (d.color && comps.length) profiled.add(normalizeSearchText(d.color));
+  });
+  return mainRegisteredColors().filter((c)=>!profiled.has(normalizeSearchText(c.color)) && !inferFilamentForText(c.color));
+}
+function filamentReplenishmentRows() {
+  const usage = profileMaterialUsageCounts();
+  const low = Math.max(0, Number(professionalState.config.filamentLowThresholdGrams || 500));
+  const attention = Math.max(low, Number(professionalState.config.filamentAttentionThresholdGrams || 1000));
+  return filamentMaterials().map((m)=>{
+    const a = filamentAvailableInfo(m);
+    const u = usage.get(String(m.id)) || {profiles:0,gramsPerUnitTotal:0};
+    const consumed30 = last30DaysFilamentConsumption(m.id);
+    let status="ok", label="Suficiente", rank=4;
+    if (a.available <= 0 && (u.profiles || a.reserved)) { status="critical";label="Comprar agora";rank=0; }
+    else if (a.available <= low && u.profiles) { status="low";label="Estoque baixo";rank=1; }
+    else if (a.available <= attention && u.profiles) { status="attention";label="Atenção";rank=2; }
+    else if (a.reserved > a.physical*0.6 && a.reserved>0) { status="attention";label="Muito comprometido";rank=2; }
+    const demandBase = Math.max(a.reserved, consumed30, u.gramsPerUnitTotal*3);
+    const target = Math.max(attention, demandBase*1.35);
+    const buyGrams = Math.max(0, target-a.available);
+    const buyKg = buyGrams > 0 ? Math.max(1, Math.ceil(buyGrams/1000)) : 0;
+    return { material:m, ...a, ...u, consumed30, status,label,rank,buyKg };
+  }).sort((a,b)=>a.rank-b.rank || b.profiles-a.profiles || a.available-b.available);
+}
+function filamentStatusPill(row) {
+  const cls = row.rank===0 ? "urgent" : row.rank===1 || row.rank===2 ? "warning" : "good";
+  return `<span class="pro-pill ${cls}">${row.label}</span>`;
+}
+async function updateMaterialStock(materialId, nextStock) {
+  const material = state.materials.find((m)=>String(m.id)===String(materialId));
+  if (!material) return { error:new Error("Filamento não encontrado") };
+  const stock = Math.max(0, round2(Number(nextStock||0)));
+  const { error } = await supabaseClient.from("materials").update({
+    stock_qty:stock, updated_at:new Date().toISOString(), updated_by:state.currentUser?.id || null
+  }).eq("id",material.id);
+  if (!error) material.stock_qty = stock;
+  return { error };
+}
+async function consumeFilamentComponents(components, context = {}) {
+  for (const c of components) {
+    const material = state.materials.find((m)=>String(m.id)===String(c.materialId));
+    if (!material) return { error:new Error("Um filamento da ficha técnica não foi encontrado.") };
+    const grams = Math.max(0, Number(c.grams||0));
+    const current = Math.max(0, Number(material.stock_qty||0));
+    if (grams > current + 0.001) {
+      return { error:new Error(`${material.name}: consumo de ${grams} g maior que o saldo atual de ${current} g.`) };
+    }
+  }
+  for (const c of components) {
+    const material = state.materials.find((m)=>String(m.id)===String(c.materialId));
+    const grams = round2(Math.max(0,Number(c.grams||0)));
+    const nextStock = round2(Math.max(0,Number(material.stock_qty||0)-grams));
+    const result = await updateMaterialStock(material.id,nextStock);
+    if (result.error) return result;
+    pushFilamentMovement({
+      materialId:String(material.id),
+      materialName:material.name,
+      grams:-grams,
+      kind:context.kind || "production",
+      productId:context.productId || null,
+      variantName:context.variantName || "",
+      orderId:context.orderId || null,
+      orderNumber:context.orderNumber || null,
+      runId:context.runId || null,
+      note:context.note || "",
+    });
+  }
+  return { error:null };
+}
+function promptActualFilamentComponents(plan, title = "Consumo real de filamento") {
+  const actual = [];
+  for (const p of plan) {
+    const material = state.materials.find((m)=>String(m.id)===String(p.materialId));
+    if (!material) continue;
+    const answer = prompt(`${title}\n\n${material.name}\nPrevisto: ${round2(p.grams)} g\n\nInforme os gramas realmente consumidos:`, String(round2(p.grams)).replace(".",","));
+    if (answer === null) return null;
+    const grams = Number(String(answer).replace(",","."));
+    if (!Number.isFinite(grams) || grams < 0) { alert("Quantidade de filamento inválida."); return null; }
+    actual.push({ materialId:String(p.materialId), grams:round2(grams) });
+  }
+  return actual;
+}
+async function recordOrderFilamentConsumption(task) {
+  if (productionConsumedMeta(task)) return true;
+  const plan = taskFilamentPlan(task, task.qty);
+  if (!plan.length) {
+    if (!confirm("Este item não possui filamento configurado na ficha técnica. Continuar sem descontar filamento?")) return false;
+    return true;
+  }
+  const actual = promptActualFilamentComponents(plan, `Pedido ${String(task.order.order_number??"").padStart(6,"0")} · consumo real`);
+  if (!actual) return false;
+  const consumed = await consumeFilamentComponents(actual,{
+    kind:"production_order",
+    productId:task.item.product_id,
+    variantName:task.item.variant_name || "",
+    orderId:task.order.id,
+    orderNumber:task.order.order_number,
+    note:`${task.item.product_name}${task.item.variant_name?` · ${task.item.variant_name}`:""}`,
+  });
+  if (consumed.error) { alert(consumed.error.message); return false; }
+  const { error } = await saveOrderOpsMeta(task.order.id,(meta)=>{
+    meta.production ||= {};
+    const current = meta.production[task.key] || {};
+    meta.production[task.key] = {
+      ...current,
+      filamentConsumed:{ at:new Date().toISOString(), components:actual, predicted:plan },
+      updatedAt:new Date().toISOString(),
+    };
+    return meta;
+  });
+  if (error) { alert("Filamento foi descontado, mas não foi possível registrar o consumo no pedido: "+error.message); return false; }
+  return true;
+}
+async function recordProductionFailure(task) {
+  const plan = taskFilamentPlan(task,1);
+  if (!plan.length) { alert("Cadastre a ficha técnica de filamento deste produto antes de registrar perdas."); return; }
+  const actual = promptActualFilamentComponents(plan,"Falha / descarte de impressão");
+  if (!actual) return;
+  const result = await consumeFilamentComponents(actual,{
+    kind:"production_failure",
+    productId:task.item.product_id, variantName:task.item.variant_name||"",
+    orderId:task.order.id, orderNumber:task.order.order_number,
+    note:"Falha/descarte de impressão"
+  });
+  if (result.error) return alert(result.error.message);
+  alert("Perda registrada e filamento descontado. A quantidade produzida não foi alterada.");
+}
+async function incrementProductStock(productId, variantName, quantity) {
+  const { product, variant } = productVariantRecord(productId,variantName);
+  if (!product) return { error:new Error("Produto não encontrado") };
+  const qty = Math.max(0, Number(quantity||0));
+  if (variant) {
+    const next = Math.max(0,Number(variant.stock_qty||0)+qty);
+    const { error } = await supabaseClient.from("product_variants").update({
+      stock_qty:next, in_stock:next>0, esgotado:false
+    }).eq("id",variant.id);
+    if (!error) { variant.stock_qty=next; variant.in_stock=next>0; variant.esgotado=false; }
+    return { error };
+  }
+  const next = Math.max(0,Number(product.stock_qty||0)+qty);
+  const { error } = await supabaseClient.from("products").update({
+    stock_qty:next, in_stock:next>0, esgotado:false, updated_at:new Date().toISOString(), updated_by:state.currentUser?.id || null
+  }).eq("id",product.id);
+  if (!error) { product.stock_qty=next; product.in_stock=next>0; product.esgotado=false; }
+  return { error };
+}
+async function setProductPhysicalStock(productId, variantName, quantity) {
+  const { product, variant } = productVariantRecord(productId,variantName);
+  if (!product) return { error:new Error("Produto não encontrado") };
+  const qty = Math.max(0,Number(quantity||0));
+  if (variant) {
+    const { error } = await supabaseClient.from("product_variants").update({ stock_qty:qty,in_stock:qty>0,esgotado:false }).eq("id",variant.id);
+    if (!error) { variant.stock_qty=qty;variant.in_stock=qty>0;variant.esgotado=false; }
+    return {error};
+  }
+  const { error } = await supabaseClient.from("products").update({stock_qty:qty,in_stock:qty>0,esgotado:false,updated_at:new Date().toISOString(),updated_by:state.currentUser?.id||null}).eq("id",product.id);
+  if (!error) {product.stock_qty=qty;product.in_stock=qty>0;product.esgotado=false;}
+  return {error};
+}
+function stockRunLabel(run) {
+  const {product}=productVariantRecord(run.productId,run.variantName);
+  return `${product?.name || "Produto"}${run.variantName?` · ${run.variantName}`:""}`;
+}
+async function completeStockProductionRun(run) {
+  const actual = promptActualFilamentComponents(run.predictedComponents || [],`Produção para estoque · ${stockRunLabel(run)}`);
+  if (actual === null) return false;
+  const consumed = await consumeFilamentComponents(actual,{
+    kind:"production_stock", productId:run.productId,variantName:run.variantName||"",runId:run.id,
+    note:`Produção para estoque · ${run.qty} un.`
+  });
+  if (consumed.error) { alert(consumed.error.message); return false; }
+  const stockResult = await incrementProductStock(run.productId,run.variantName,run.qty);
+  if (stockResult.error) { alert("Filamento foi descontado, mas o estoque do produto não pôde ser atualizado: "+stockResult.error.message); return false; }
+  run.status="completed";run.completedAt=new Date().toISOString();run.actualComponents=actual;
+  saveStockProductionRun(run);
+  return true;
+}
+async function failStockProductionRun(run) {
+  const actual = promptActualFilamentComponents(run.predictedComponents || [],`Falha na produção para estoque · ${stockRunLabel(run)}`);
+  if (actual === null) return false;
+  const result = await consumeFilamentComponents(actual,{
+    kind:"production_failure", productId:run.productId,variantName:run.variantName||"",runId:run.id,note:"Falha/descarte · produção para estoque"
+  });
+  if (result.error) { alert(result.error.message);return false; }
+  run.status="failed";run.failedAt=new Date().toISOString();run.actualComponents=actual;
+  saveStockProductionRun(run);
+  return true;
+}
+
+/* =====================================================================
+   V9.1 — INTELIGÊNCIA DE DEMANDA / SUGESTÃO DE PRODUÇÃO
+   Vendas têm peso maior do que interesse. Cliques, carrinho e busca
+   ajudam a desempatar e a enxergar procura ainda não convertida.
+   ===================================================================== */
+function demandVariantId(product, variantName = "") {
+  if (!variantName) return "";
+  const v = (product?.product_variants || []).find((x)=>String(x.name)===String(variantName));
+  return v ? String(v.id) : "";
+}
+function activeDemandOrder(order) {
+  const s = normalizeSearchText(order?.status || "");
+  return !["cancelado","cancelada","cancelled","canceled","recusado","recusada"].includes(s);
+}
+function demandSalesFor(productId, variantName = "", days = 30) {
+  const cutoff = Date.now() - days * 86400000;
+  let units = 0, orders = new Set();
+  state.orders.forEach((o)=>{
+    if (!activeDemandOrder(o) || new Date(o.created_at || 0).getTime() < cutoff) return;
+    (o.items || []).forEach((it)=>{
+      if (String(it.product_id) !== String(productId)) return;
+      if (String(it.variant_name || "") !== String(variantName || "")) return;
+      units += Number(it.quantity || 0);
+      orders.add(String(o.id));
+    });
+  });
+  return { units, orders:orders.size };
+}
+function eventWithin(event, days) {
+  return new Date(event?.created_at || 0).getTime() >= Date.now() - days*86400000;
+}
+function metadataObject(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try { return JSON.parse(value); } catch (_err) { return {}; }
+}
+function eventMatchesDemandRow(event, product, variantName = "") {
+  if (String(event.product_id || "") && String(event.product_id) !== String(product.id)) return false;
+  const vid = demandVariantId(product,variantName);
+  if (String(event.variant_id || "") && vid && String(event.variant_id) !== String(vid)) return false;
+  if (String(event.variant_id || "") && !vid) return false;
+  return String(event.product_id || "") === String(product.id);
+}
+function searchHitsForDemandRow(product, variantName = "", days = 30) {
+  const productNeedle = normalizeSearchText(`${product.name} ${variantName}`);
+  let hits = 0;
+  state.catalogEvents.forEach((e)=>{
+    if (e.event_name !== "search_query" || !eventWithin(e,days)) return;
+    const meta = metadataObject(e.metadata);
+    const ids = Array.isArray(meta.result_ids) ? meta.result_ids.map(String) : [];
+    const term = normalizeSearchText(e.search_term || "");
+    if (ids.includes(String(product.id))) {
+      hits += 1;
+      return;
+    }
+    if (term && productNeedle.includes(term)) hits += 0.75;
+  });
+  return round2(hits);
+}
+function demandEventCounts(product, variantName = "", days = 30) {
+  const counts = { views:0, clicks:0, carts:0, variant:0, whatsapp:0 };
+  state.catalogEvents.forEach((e)=>{
+    if (!eventWithin(e,days) || !eventMatchesDemandRow(e,product,variantName)) return;
+    if (e.event_name === "view_item") counts.views += 1;
+    else if (e.event_name === "select_item") counts.clicks += 1;
+    else if (e.event_name === "add_to_cart") counts.carts += 1;
+    else if (e.event_name === "select_model" || e.event_name === "select_variant") counts.variant += 1;
+    else if (e.event_name === "product_whatsapp" || e.event_name === "contact_product") counts.whatsapp += 1;
+  });
+  return counts;
+}
+function openStockRunFor(productId, variantName = "") {
+  return stockProductionRuns().find((r)=>["todo","printing"].includes(r.status) && String(r.productId)===String(productId) && String(r.variantName||"")===String(variantName||""));
+}
+function productionSuggestionRows() {
+  const rows = [];
+  state.products.filter((p)=>p.active).forEach((product)=>{
+    const variants = (product.product_variants || []).length ? product.product_variants : [null];
+    variants.forEach((variant)=>{
+      const variantName = variant?.name || "";
+      const stock = stockAvailability(product,variantName);
+      const s30 = demandSalesFor(product.id,variantName,30);
+      const s90 = demandSalesFor(product.id,variantName,90);
+      const ev30 = demandEventCounts(product,variantName,30);
+      const searches30 = searchHitsForDemandRow(product,variantName,30);
+
+      // Venda real domina a nota. Carrinho vem depois; clique/busca ajudam,
+      // mas não podem superar facilmente um item que de fato vende.
+      const score = round2(
+        s30.units * 24 +
+        Math.max(0,s90.units - s30.units) * 8 +
+        ev30.carts * 5 +
+        ev30.whatsapp * 5 +
+        searches30 * 2.5 +
+        ev30.views * 1.2 +
+        ev30.clicks * 0.8 +
+        ev30.variant * 0.8
+      );
+
+      const monthlyVelocity = Math.max(s30.units, s90.units / 3);
+      const engagement = ev30.carts*1.2 + searches30*0.7 + ev30.views*0.12 + ev30.clicks*0.12;
+      const targetCover = Math.max(
+        1,
+        Math.ceil(monthlyVelocity * 0.55),
+        score >= 80 ? 3 : score >= 35 ? 2 : 1,
+        s30.units === 0 && engagement >= 8 ? 1 : 0
+      );
+      let suggestedQty = Math.max(0, Math.min(12, targetCover - Math.max(0,stock.available)));
+      if (stock.available <= 0 && score > 0) suggestedQty = Math.max(1,suggestedQty);
+
+      const profile = productionProfileFor(product.id,variantName);
+      const componentsPerUnit = profileFilamentComponents(profile);
+      const required = componentsPerUnit.map((f)=>({
+        materialId:String(f.materialId),
+        grams:round2(Number(f.gramsPerUnit||0) * Math.max(1,suggestedQty))
+      }));
+      const filamentRows = required.map((r)=>{
+        const m=state.materials.find((x)=>String(x.id)===String(r.materialId));
+        const avail=m?filamentAvailableInfo(m):{available:0};
+        return { ...r, material:m, available:Number(avail.available||0), enough:!!m && Number(avail.available||0)+0.001>=Number(r.grams||0) };
+      });
+      const hasProfile = componentsPerUnit.length > 0;
+      const filamentEnough = hasProfile && filamentRows.every((r)=>r.enough);
+      const pendingRun = openStockRunFor(product.id,variantName);
+
+      let bucket="no", bucketLabel="Não produzir agora", bucketRank=3;
+      if (stock.available <= 0 && (s30.units > 0 || score >= 12)) {
+        bucket="now";bucketLabel="Produzir agora";bucketRank=0;
+      } else if (stock.available <= 2 && (s30.units > 0 || score >= 20)) {
+        bucket="soon";bucketLabel="Repor em breve";bucketRank=1;
+      } else if (s30.units === 0 && (ev30.views >= 4 || ev30.carts >= 1 || searches30 >= 2)) {
+        bucket="watch";bucketLabel="Observar";bucketRank=2;
+      }
+
+      if (pendingRun) {
+        bucketLabel = "Já na fila";
+        bucketRank = Math.min(bucketRank,1);
+      }
+      rows.push({
+        product,variant,variantName,stock,s30,s90,ev30,searches30,score,
+        suggestedQty,pendingRun,hasProfile,filamentRows,filamentEnough,
+        bucket,bucketLabel,bucketRank
+      });
+    });
+  });
+  return rows.sort((a,b)=>
+    a.bucketRank-b.bucketRank ||
+    Number(a.pendingRun)-Number(b.pendingRun) ||
+    b.score-a.score ||
+    a.stock.available-b.stock.available ||
+    a.product.name.localeCompare(b.product.name,"pt-BR")
+  );
+}
+function demandBucketPill(row) {
+  if (row.pendingRun) return `<span class="pro-pill navy">Já na fila</span>`;
+  if (row.bucket==="now") return `<span class="pro-pill urgent">Produzir agora</span>`;
+  if (row.bucket==="soon") return `<span class="pro-pill warning">Repor em breve</span>`;
+  if (row.bucket==="watch") return `<span class="pro-pill navy">Observar</span>`;
+  return `<span class="pro-pill">Não produzir agora</span>`;
+}
+function suggestionReason(row) {
+  const parts=[];
+  if(row.stock.available<=0) parts.push("sem estoque disponível");
+  else if(row.stock.available<=2) parts.push(`só ${row.stock.available} disponível(eis)`);
+  if(row.s30.units) parts.push(`${row.s30.units} vendido(s) em 30 dias`);
+  else if(row.s90.units) parts.push(`${row.s90.units} vendido(s) em 90 dias`);
+  if(row.ev30.carts) parts.push(`${row.ev30.carts} adição(ões) ao pedido`);
+  if(row.searches30) parts.push(`${row.searches30} procura(s)`);
+  if(row.ev30.views) parts.push(`${row.ev30.views} visualização(ões)`);
+  return parts.slice(0,4).join(" · ") || "demanda ainda baixa";
+}
+function productionSuggestionsHtml() {
+  const rows=productionSuggestionRows();
+  const now=rows.filter((r)=>r.bucket==="now"&&!r.pendingRun);
+  const soon=rows.filter((r)=>r.bucket==="soon"&&!r.pendingRun);
+  const watch=rows.filter((r)=>r.bucket==="watch"&&!r.pendingRun);
+  const zeroStock=rows.filter((r)=>r.stock.available<=0);
+  const analyticsNote=state.catalogAnalyticsAvailable
+    ? `<div class="admin-notice admin-notice-good"><strong>✓ Dados de procura conectados</strong><br>Ranking usa ${state.catalogEvents.length} evento(s) dos últimos 120 dias, além das vendas do ERP.</div>`
+    : `<div class="admin-notice admin-notice-gold"><strong>Dados de cliques e buscas ainda não estão disponíveis.</strong><br>O ranking já usa vendas e estoque. Para ativar procura/cliques, publique o catálogo V9.1 e execute a migração SQL entregue junto com esta versão.</div>`;
+  return `
+    <div class="grid gap-4">
+      ${analyticsNote}
+      <div class="pro-kpi-grid">
+        <div class="pro-kpi"><div class="label">Sem estoque</div><div class="value">${zeroStock.length}</div><div class="hint">Combinações com disponível igual a zero.</div></div>
+        <div class="pro-kpi"><div class="label">Produzir agora</div><div class="value">${now.length}</div><div class="hint">Sem estoque + demanda confirmada ou forte interesse.</div></div>
+        <div class="pro-kpi"><div class="label">Repor em breve</div><div class="value">${soon.length}</div><div class="hint">Estoque baixo com giro/interesse relevante.</div></div>
+        <div class="pro-kpi"><div class="label">Observar</div><div class="value">${watch.length}</div><div class="hint">Interesse alto ainda sem venda suficiente.</div></div>
+      </div>
+
+      <section class="management-card mobile-card-table">
+        <div class="admin-section-heading">
+          <div><h2>O que imprimir</h2><p>Ordenado por prioridade. Venda real tem o maior peso; carrinho, buscas, visualizações e cliques refinam a decisão. Você revisa antes de mandar qualquer coisa para a fila.</p></div>
+          <div class="flex flex-wrap gap-2">
+            <button id="suggest-select-now" class="pro-tab">Selecionar “Produzir agora”</button>
+            <button id="suggest-add-selected" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900">Adicionar selecionados à fila</button>
+          </div>
+        </div>
+        ${rows.length?`<table class="rank-table"><thead><tr><th></th><th>Prioridade</th><th>Produto / variação</th><th>Estoque</th><th>Vendas</th><th>Procura 30d</th><th>Nota</th><th>Sugestão</th><th>Filamento</th></tr></thead><tbody>
+          ${rows.map((r)=>{
+            const canQueue=!r.pendingRun && r.suggestedQty>0 && ["now","soon"].includes(r.bucket);
+            const filText=!r.hasProfile
+              ? `<span class="pro-pill warning">Sem ficha técnica</span>`
+              : r.filamentEnough
+                ? `<span class="pro-pill good">Disponível</span>`
+                : `<span class="pro-pill urgent">Insuficiente</span>`;
+            return `<tr data-suggestion-row="${r.product.id}::${escapeHtml(r.variantName)}">
+              <td>${canQueue?`<input type="checkbox" data-suggest-check data-product-id="${r.product.id}" data-variant-name="${escapeHtml(r.variantName)}" ${r.bucket==="now"?"checked":""}>`:""}</td>
+              <td>${demandBucketPill(r)}</td>
+              <td><strong>${escapeHtml(r.product.name)}${r.variantName?` · ${escapeHtml(r.variantName)}`:""}</strong><br><span class="text-[10px] text-navy-400">${escapeHtml(suggestionReason(r))}</span></td>
+              <td><strong>${r.stock.available}</strong> disponível<br><span class="text-[10px] text-navy-400">${r.stock.physical} físico · ${r.stock.reserved} reservado</span></td>
+              <td><strong>${r.s30.units}</strong> / 30d<br><span class="text-[10px] text-navy-400">${r.s90.units} / 90d</span></td>
+              <td>${state.catalogAnalyticsAvailable?`${r.searches30} buscas · ${r.ev30.carts} carrinho<br><span class="text-[10px] text-navy-400">${r.ev30.views} views · ${r.ev30.clicks} cliques</span>`:"—"}</td>
+              <td><strong>${Math.round(r.score)}</strong></td>
+              <td>${canQueue?`<input type="number" min="1" max="12" step="1" value="${Math.max(1,r.suggestedQty)}" data-suggest-qty="${r.product.id}" data-suggest-variant="${escapeHtml(r.variantName)}" class="w-20 rounded-lg border border-navy-200 px-2 py-1.5 text-sm"> un.`:r.pendingRun?`${r.pendingRun.qty} un. já na fila`:"—"}</td>
+              <td>${filText}${r.filamentRows.length?`<div class="mt-1 text-[10px] text-navy-500">${r.filamentRows.map((f)=>`${escapeHtml(f.material?.name||"Filamento")}: ${round2(f.grams)}g / ${round2(f.available)}g disp.`).join("<br>")}</div>`:""}</td>
+            </tr>`;
+          }).join("")}
+        </tbody></table>`:`<p class="caption">Nenhum produto ativo encontrado.</p>`}
+      </section>
+
+      <section class="management-card">
+        <div class="admin-section-heading"><div><h2>Como a recomendação é calculada</h2><p>O objetivo é sugerir estoque enxuto, não fabricar por vaidade de clique.</p></div></div>
+        <div class="grid gap-2 md:grid-cols-4">
+          <div class="rounded-xl border border-navy-100 p-3"><strong>Venda</strong><p class="caption mt-1">Maior peso. Giro dos últimos 30 e 90 dias.</p></div>
+          <div class="rounded-xl border border-navy-100 p-3"><strong>Intenção</strong><p class="caption mt-1">Adicionar ao pedido e contato pelo produto.</p></div>
+          <div class="rounded-xl border border-navy-100 p-3"><strong>Procura</strong><p class="caption mt-1">Busca, visualização e clique ajudam a detectar demanda não convertida.</p></div>
+          <div class="rounded-xl border border-navy-100 p-3"><strong>Capacidade</strong><p class="caption mt-1">Estoque físico/reservado e filamento disponível limitam a recomendação.</p></div>
+        </div>
+      </section>
+    </div>`;
+}
+
+function productionForStockHtml() {
+  const activeProducts=state.products.filter((p)=>p.active);
+  const selected=activeProducts.find((p)=>String(p.id)===String(professionalState.stockProdProductId)) || activeProducts[0] || null;
+  if (selected && !professionalState.stockProdProductId) professionalState.stockProdProductId=String(selected.id);
+  const variants=selected?.product_variants || [];
+  const openRuns=stockProductionRuns().filter((r)=>["todo","printing"].includes(r.status));
+  const history=stockProductionRuns().filter((r)=>["completed","failed","cancelled"].includes(r.status)).slice(0,20);
+  return `
+    <div class="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
+      <section class="management-card">
+        <div class="admin-section-heading"><div><h2>Produzir para estoque</h2><p>Cria uma produção sem pedido de cliente. O filamento fica reservado e, ao concluir, o produto pronto entra no estoque.</p></div></div>
+        <form id="stock-production-form" class="mt-3 grid gap-3">
+          <label class="settings-field"><span>Produto</span><select id="stock-prod-product" class="rounded-lg border border-navy-200 px-3 py-2 text-sm">${activeProducts.map((p)=>`<option value="${p.id}" ${String(p.id)===String(selected?.id)?"selected":""}>${escapeHtml(p.name)}</option>`).join("")}</select></label>
+          <label class="settings-field"><span>Tamanho / cor</span><select id="stock-prod-variant" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"><option value="">Sem variação</option>${variants.map((v)=>`<option value="${escapeHtml(v.name)}">${escapeHtml(v.name)}</option>`).join("")}</select></label>
+          <label class="settings-field"><span>Quantidade a produzir</span><input id="stock-prod-qty" type="number" min="1" step="1" value="1" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"></label>
+          <label class="settings-field"><span>Máquina (opcional)</span><select id="stock-prod-machine" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"><option value="">—</option>${(professionalState.config.machines||[]).map((m)=>`<option>${escapeHtml(m.name)}</option>`).join("")}</select></label>
+          <div id="stock-prod-preview" class="rounded-xl bg-cream-50 p-3 text-xs text-navy-600">Selecione a variação e a quantidade para ver a previsão.</div>
+          <button class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900">Adicionar à fila de estoque</button>
+        </form>
+      </section>
+      <div class="grid gap-4">
+        <section class="management-card mobile-card-table">
+          <div class="admin-section-heading"><div><h2>Fila para estoque</h2><p>Filamento previsto já é considerado reservado para a recomendação de compra.</p></div><span class="pro-pill navy">${openRuns.length} aberta(s)</span></div>
+          ${openRuns.length?`<table class="rank-table"><thead><tr><th>Produto</th><th>Qtd.</th><th>Filamento reservado</th><th>Status</th><th>Ações</th></tr></thead><tbody>${openRuns.map((r)=>`<tr>
+            <td><strong>${escapeHtml(stockRunLabel(r))}</strong><br><span class="text-[10px] text-navy-400">${escapeHtml(r.machine||"Máquina não definida")}</span></td>
+            <td>${r.qty}</td>
+            <td>${(r.predictedComponents||[]).map((f)=>{const m=state.materials.find((x)=>String(x.id)===String(f.materialId));return `${escapeHtml(m?.name||"Filamento")}: ${round2(f.grams)} g`;}).join("<br>") || "Ficha técnica sem filamento"}</td>
+            <td>${r.status==="printing"?`<span class="pro-pill warning">Em produção</span>`:`<span class="pro-pill navy">A fazer</span>`}</td>
+            <td><div class="flex flex-wrap gap-1">
+              ${r.status==="todo"?`<button data-stock-run-start="${r.id}" class="pro-tab">▶ Iniciar</button>`:""}
+              <button data-stock-run-complete="${r.id}" class="pro-tab">✓ Concluir</button>
+              <button data-stock-run-fail="${r.id}" class="pro-tab">Falha</button>
+              <button data-stock-run-cancel="${r.id}" class="pro-tab">Cancelar</button>
+            </div></td>
+          </tr>`).join("")}</tbody></table>`:`<p class="caption">Nenhuma produção para estoque aguardando.</p>`}
+        </section>
+        <section class="management-card mobile-card-table">
+          <div class="admin-section-heading"><div><h2>Histórico recente</h2><p>Produções concluídas e perdas registradas.</p></div></div>
+          ${history.length?`<table class="rank-table"><thead><tr><th>Data</th><th>Produto</th><th>Qtd.</th><th>Resultado</th></tr></thead><tbody>${history.map((r)=>`<tr><td>${formatDateTime(r.completedAt||r.failedAt||r.cancelledAt||r.createdAt)}</td><td>${escapeHtml(stockRunLabel(r))}</td><td>${r.qty}</td><td>${r.status==="completed"?`<span class="pro-pill good">+${r.qty} no estoque</span>`:r.status==="failed"?`<span class="pro-pill urgent">Falha / descarte</span>`:`<span class="pro-pill">Cancelada</span>`}</td></tr>`).join("")}</tbody></table>`:`<p class="caption">Ainda não há histórico.</p>`}
+        </section>
+      </div>
+    </div>`;
+}
+function filamentsHtml() {
+  const rows=filamentReplenishmentRows();
+  const movements=filamentMovements().slice(0,25);
+  return `
+    <div class="grid gap-4">
+      <section class="management-card">
+        <div class="admin-section-heading">
+          <div><h2>Carretéis / filamentos</h2><p>O saldo é armazenado em gramas. Cadastre carretéis novos, inclusive já abertos, informando o saldo físico atual.</p></div>
+          <button id="filament-toggle-new" class="pro-tab">+ Cadastrar filamento</button>
+        </div>
+        ${professionalState.filamentNewOpen?`<form id="filament-new-form" class="mt-3 grid gap-2 rounded-xl border border-navy-100 bg-cream-50 p-3 md:grid-cols-6">
+          <label class="settings-field md:col-span-2"><span>Nome / cor</span><input id="fil-new-name" required placeholder="Ex.: PLA Basic Branco" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"></label>
+          <label class="settings-field"><span>Marca</span><input id="fil-new-brand" placeholder="Ex.: Bambu Lab" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"></label>
+          <label class="settings-field"><span>Peso comprado (g)</span><input id="fil-new-package" type="number" min="1" value="1000" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"></label>
+          <label class="settings-field"><span>Saldo atual (g)</span><input id="fil-new-stock" type="number" min="0" value="1000" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"></label>
+          <label class="settings-field"><span>Preço pago (R$)</span><input id="fil-new-price" inputmode="decimal" placeholder="0,00" class="rounded-lg border border-navy-200 px-3 py-2 text-sm"></label>
+          <div class="md:col-span-6 flex gap-2"><button class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900">Salvar filamento</button><button type="button" id="fil-new-cancel" class="pro-tab">Cancelar</button></div>
+        </form>`:""}
+        <div class="mobile-card-table mt-3">
+          <table class="rank-table"><thead><tr><th>Filamento</th><th>Físico</th><th>Reservado</th><th>Disponível</th><th>Consumo 30d</th><th>Custo/g</th><th>Status</th></tr></thead><tbody>
+            ${rows.length?rows.map((r)=>`<tr><td><strong>${escapeHtml(r.material.name)}</strong><br><span class="text-[10px] text-navy-400">Usado em ${r.profiles} ficha(s)</span></td><td>${round2(r.physical)} g</td><td>${round2(r.reserved)} g</td><td><strong>${round2(r.available)} g</strong></td><td>${round2(r.consumed30)} g</td><td>${formatBRL(Number(r.material.unit_cost||0))}</td><td>${filamentStatusPill(r)}${r.buyKg?`<div class="mt-1 text-[10px] font-semibold text-red-600">Sugestão: ${r.buyKg} kg</div>`:""}</td></tr>`).join(""):`<tr><td colspan="7">Nenhum material do tipo “Filamento” cadastrado.</td></tr>`}
+          </tbody></table>
+        </div>
+      </section>
+      <section class="management-card mobile-card-table">
+        <div class="admin-section-heading"><div><h2>Movimentações recentes</h2><p>Consumo de pedidos, produção para estoque, falhas e ajustes físicos.</p></div></div>
+        ${movements.length?`<table class="rank-table"><thead><tr><th>Data</th><th>Filamento</th><th>Movimento</th><th>Origem</th><th>Observação</th></tr></thead><tbody>${movements.map((m)=>`<tr><td>${formatDateTime(m.at)}</td><td>${escapeHtml(m.materialName||"")}</td><td class="${Number(m.grams)<0?"text-red-600":"text-emerald-700"} font-semibold">${Number(m.grams)>0?"+":""}${round2(m.grams)} g</td><td>${escapeHtml(({production_order:"Pedido",production_stock:"Produção para estoque",production_failure:"Falha / descarte",inventory:"Inventário",purchase:"Compra"}[m.kind]||m.kind||"Ajuste"))}</td><td>${escapeHtml(m.note||"")}</td></tr>`).join("")}</tbody></table>`:`<p class="caption">Nenhuma movimentação registrada neste navegador.</p>`}
+      </section>
+    </div>`;
+}
+function physicalInventoryHtml() {
+  const productRows=state.products.filter((p)=>p.active).flatMap((p)=>(p.product_variants||[]).length?(p.product_variants||[]).map((v)=>({p,v,name:`${p.name} · ${v.name}`,stock:Number(v.stock_qty||0)})):[{p,v:null,name:p.name,stock:Number(p.stock_qty||0)}]);
+  const fils=filamentMaterials();
+  return `
+    <div class="grid gap-4">
+      <div class="admin-notice admin-notice-gold"><strong>Inventário físico</strong><br>Use esta tela para informar o que realmente existe hoje em casa. Ela define um ponto de partida confiável sem precisar reconstruir produções antigas. Você pode usar novamente depois para corrigir divergências de contagem.</div>
+      <section class="management-card mobile-card-table">
+        <div class="admin-section-heading"><div><h2>Produtos prontos</h2><p>Informe a quantidade física de cada produto/tamanho/cor.</p></div></div>
+        <table class="rank-table"><thead><tr><th>Produto / variação</th><th>Quantidade física</th></tr></thead><tbody>${productRows.map((r)=>`<tr><td><strong>${escapeHtml(r.name)}</strong></td><td><input data-inventory-product="${r.p.id}" data-inventory-variant="${escapeHtml(r.v?.name||"")}" type="number" min="0" step="1" value="${r.stock}" class="w-28 rounded-lg border border-navy-200 px-2 py-1.5 text-sm"></td></tr>`).join("")}</tbody></table>
+      </section>
+      <section class="management-card mobile-card-table">
+        <div class="admin-section-heading"><div><h2>Filamentos</h2><p>Digite os gramas realmente restantes em cada carretel. Carretel aberto também pode ser usado como saldo inicial.</p></div></div>
+        ${fils.length?`<table class="rank-table"><thead><tr><th>Filamento</th><th>Saldo atual do sistema</th><th>Saldo físico contado (g)</th></tr></thead><tbody>${fils.map((m)=>`<tr><td><strong>${escapeHtml(m.name)}</strong></td><td>${round2(Number(m.stock_qty||0))} g</td><td><input data-inventory-filament="${m.id}" type="number" min="0" step="0.1" value="${Number(m.stock_qty||0)}" class="w-32 rounded-lg border border-navy-200 px-2 py-1.5 text-sm"></td></tr>`).join("")}</tbody></table>`:`<p class="caption">Cadastre os filamentos primeiro na aba Filamentos.</p>`}
+      </section>
+      <div class="flex flex-wrap items-center gap-3"><button id="save-physical-inventory" class="rounded-lg bg-gold-500 px-5 py-2.5 text-sm font-semibold text-navy-900">Salvar inventário físico</button>${professionalState.config.initialInventoryAt?`<span class="text-xs text-navy-500">Último inventário: ${formatDateTime(professionalState.config.initialInventoryAt)}</span>`:""}</div>
+    </div>`;
+}
+function replenishmentHtml() {
+  const rows=filamentReplenishmentRows();
+  const colors=mainRegisteredColors();
+  const missing=missingRegisteredColors();
+  const critical=rows.filter((r)=>r.rank<=1);
+  return `
+    <div class="grid gap-4">
+      <div class="pro-kpi-grid">
+        <div class="pro-kpi"><div class="label">Comprar agora / baixo</div><div class="value">${critical.length}</div><div class="hint">Filamentos usados que precisam de reposição.</div></div>
+        <div class="pro-kpi"><div class="label">Cores nos produtos</div><div class="value">${colors.length}</div><div class="hint">Cores/acabamentos diferentes cadastrados.</div></div>
+        <div class="pro-kpi"><div class="label">Sem filamento relacionado</div><div class="value">${missing.length}</div><div class="hint">Cores cadastradas sem material/ficha técnica reconhecida.</div></div>
+        <div class="pro-kpi"><div class="label">Filamento reservado</div><div class="value">${Math.round(rows.reduce((s,r)=>s+r.reserved,0))} g</div><div class="hint">Pedidos + produções para estoque ainda abertas.</div></div>
+      </div>
+      <section class="management-card mobile-card-table">
+        <div class="admin-section-heading"><div><h2>Prioridade de compra</h2><p>Cruza saldo físico, reserva da produção, consumo recente e quantidade de fichas técnicas que usam cada filamento.</p></div></div>
+        ${rows.length?`<table class="rank-table"><thead><tr><th>Prioridade</th><th>Filamento</th><th>Disponível após reservas</th><th>Consumo 30d</th><th>Uso cadastrado</th><th>Comprar</th></tr></thead><tbody>${rows.map((r)=>`<tr><td>${filamentStatusPill(r)}</td><td><strong>${escapeHtml(r.material.name)}</strong></td><td>${round2(r.available)} g <span class="text-[10px] text-navy-400">(${round2(r.physical)} físico − ${round2(r.reserved)} reservado)</span></td><td>${round2(r.consumed30)} g</td><td>${r.profiles} ficha(s)</td><td>${r.buyKg?`<strong class="text-red-600">${r.buyKg} kg</strong>`:`<span class="text-emerald-700">Sem compra imediata</span>`}</td></tr>`).join("")}</tbody></table>`:`<p class="caption">Cadastre filamentos para gerar recomendações.</p>`}
+      </section>
+      <div class="grid gap-4 xl:grid-cols-2">
+        <section class="management-card mobile-card-table">
+          <div class="admin-section-heading"><div><h2>Principais cores dos produtos</h2><p>Ordenadas pela quantidade de variações cadastradas. Ajuda a entender quais cores fazem parte de mais produtos.</p></div></div>
+          ${colors.length?`<table class="rank-table"><thead><tr><th>Cor / acabamento</th><th>Variações</th><th>Produtos</th></tr></thead><tbody>${colors.slice(0,30).map((c)=>`<tr><td><span class="inline-flex items-center gap-2"><span class="lm-color-dot" style="${colorSwatchStyle(c.color)}"></span><strong>${escapeHtml(c.color)}</strong></span></td><td>${c.count}</td><td>${[...c.products].slice(0,4).map(escapeHtml).join(", ")}${c.products.size>4?"…":""}</td></tr>`).join("")}</tbody></table>`:`<p class="caption">Ainda não existem cores cadastradas nas variações dos produtos.</p>`}
+        </section>
+        <section class="management-card">
+          <div class="admin-section-heading"><div><h2>Cores sem filamento relacionado</h2><p>Essas cores aparecem em produtos, mas o painel ainda não encontrou um carretel ou uma ficha técnica que as atenda.</p></div></div>
+          ${missing.length?`<div class="grid gap-2">${missing.map((c)=>`<div class="rounded-xl border border-amber-200 bg-amber-50 p-3"><div class="flex items-center justify-between gap-2"><span class="inline-flex items-center gap-2"><span class="lm-color-dot" style="${colorSwatchStyle(c.color)}"></span><strong>${escapeHtml(c.color)}</strong></span><span class="pro-pill warning">${c.count} variação(ões)</span></div><p class="mt-1 text-xs text-navy-500">${[...c.products].slice(0,5).map(escapeHtml).join(", ")}</p></div>`).join("")}</div>`:`<div class="admin-notice admin-notice-good">✓ Todas as principais cores cadastradas estão relacionadas a algum filamento ou ficha técnica.</div>`}
+        </section>
+      </div>
+    </div>`;
 }
 
 function defaultCostCenterForCategory(category) {
@@ -2979,7 +3823,7 @@ function renderInicio(container) {
         <button type="button" data-dashboard-tab="precificacao" class="admin-stat-card ${lowStock ? "attention" : ""}">
           <div class="admin-stat-label"><span>Estoque baixo</span><span>📦</span></div>
           <div class="admin-stat-value">${lowStock}</div>
-          <div class="admin-stat-hint">${lowStock ? "Produtos/modelos/materiais pedindo atenção." : "Nenhum alerta de estoque."}</div>
+          <div class="admin-stat-hint">${lowStock ? "Produtos/tamanhos/cores/materiais pedindo atenção." : "Nenhum alerta de estoque."}</div>
         </button>
       </div>
 
@@ -3013,7 +3857,7 @@ function renderInicio(container) {
               <span class="admin-task-count">${newOrders}</span>
             </button>
             <button type="button" data-dashboard-tab="precificacao" class="admin-task">
-              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Estoque baixo</strong><small>Produtos, modelos ou materiais.</small></span></span>
+              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Estoque baixo</strong><small>Produtos, cores ou materiais.</small></span></span>
               <span class="admin-task-count">${lowStock}</span>
             </button>
             <button type="button" data-dashboard-tab="avaliacoes" class="admin-task">
@@ -3341,6 +4185,7 @@ function renderProductionCard(t) {
           ${t.estimatedMinutes ? `<span class="pro-pill">⏱ ${formatDurationMinutes(t.estimatedMinutes)}</span>` : ""}
           ${t.estimatedGrams ? `<span class="pro-pill">🧵 ${Math.round(t.estimatedGrams)} g</span>` : ""}
           ${t.color ? `<span class="pro-pill">${escapeHtml(t.color)}</span>` : ""}
+          ${productionConsumedMeta(t) ? `<span class="pro-pill good">Filamento baixado</span>` : t.filamentComponents?.length ? `<span class="pro-pill warning">Filamento reservado</span>` : ""}
           ${t.lot ? `<span class="pro-pill navy">Lote ${escapeHtml(t.lot)}</span>` : ""}
           ${t.machine ? `<span class="pro-pill">🖨 ${escapeHtml(t.machine)}</span>` : ""}
         </div>
@@ -3350,6 +4195,7 @@ function renderProductionCard(t) {
         <button data-prod-priority="${t.order.id}" data-current-priority="${normalizedOrderOpsMeta(t.order).priority || ""}" title="Marca o pedido inteiro como prioridade manual">${normalizedOrderOpsMeta(t.order).priority === "urgent" ? "⚑ Tirar urgência" : "⚑ Prioridade"}</button>
         ${t.stage === "todo" ? `<button class="primary" data-prod-stage="printing" data-order-id="${t.order.id}" data-item-key="${escapeHtml(t.key)}">▶ Iniciar</button>` : ""}
         ${t.stage === "printing" ? `<button class="gold" data-prod-stage="finishing" data-order-id="${t.order.id}" data-item-key="${escapeHtml(t.key)}">Impressão terminou</button>` : ""}
+        ${["printing","finishing"].includes(t.stage) && t.filamentComponents?.length ? `<button data-prod-failure="1" data-order-id="${t.order.id}" data-item-key="${escapeHtml(t.key)}">Registrar falha</button>` : ""}
         ${t.stage === "finishing" ? `<button class="good" data-prod-done="1" data-order-id="${t.order.id}" data-item-key="${escapeHtml(t.key)}" ${t.done >= t.qty ? "disabled" : ""}>+1 pronta</button>` : ""}
         ${["printing","finishing"].includes(t.stage) && t.done < t.qty ? `<button data-prod-complete="1" data-order-id="${t.order.id}" data-item-key="${escapeHtml(t.key)}">Tudo pronto</button>` : ""}
         ${t.stage === "ready" ? `<button class="good" data-prod-stage="separated" data-order-id="${t.order.id}" data-item-key="${escapeHtml(t.key)}">✓ Separado</button>` : ""}
@@ -3411,7 +4257,7 @@ function renderProducao(container) {
         <div>
           <span class="admin-kicker">Operação</span>
           <h1>Produção</h1>
-          <p>Fila de fabricação ligada aos pedidos. Você marca o que começou, o que terminou e o que ainda falta. Pedidos de fabricação própria entram aqui automaticamente.</p>
+          <p>Controle de fabricação própria, produção para estoque, filamentos, inventário físico e reposição. O consumo de filamento nasce da produção — seja para um pedido ou para formar estoque.</p>
         </div>
         <div class="flex flex-wrap gap-2">
           ${waitingAcceptance.length ? `<span class="pro-pill warning">${waitingAcceptance.length} item(ns) aguardando aceite do pedido</span>` : ""}
@@ -3432,7 +4278,12 @@ function renderProducao(container) {
           ["batch","Produzir em lote"],
           ["supplier","Fornecedor"],
           ["materials","Materiais necessários"],
-          ["inventory","Estoque reservado"]
+          ["inventory","Estoque reservado"],
+          ["suggestions","Sugestão de produção"],
+          ["stockprod","Produzir p/ estoque"],
+          ["filaments","Filamentos"],
+          ["replenishment","Reposição"],
+          ["physical","Inventário físico"]
         ].map(([key,label]) => `<button class="pro-tab ${professionalState.productionView === key ? "active" : ""}" data-production-view="${key}">${label}</button>`).join("")}
       </div>
 
@@ -3470,7 +4321,7 @@ function renderProducao(container) {
           ${groupedRows.length ? `
             <div style="min-width:720px">
               <div class="production-list-card" style="grid-template-columns:minmax(0,1.6fr) 80px 100px 100px 100px 110px;font-weight:800;color:#7c869d;background:#fafbfe">
-                <span>Produto / modelo</span><span>Falta</span><span>Pedidos</span><span>Tempo</span><span>Filamento</span><span>Ação</span>
+                <span>Produto / tamanho/cor</span><span>Falta</span><span>Pedidos</span><span>Tempo</span><span>Filamento</span><span>Ação</span>
               </div>
               ${groupedRows.map((g) => `
                 <div class="production-list-card" style="grid-template-columns:minmax(0,1.6fr) 80px 100px 100px 100px 110px">
@@ -3497,13 +4348,14 @@ function renderProducao(container) {
               <thead><tr><th>Pedido</th><th>Produto</th><th>Fornecedor</th><th>Pagamento</th><th>Entrega</th></tr></thead>
               <tbody>
                 ${supplierTasks.map((t) => {
-                  const supplier = t.product?.suppliers;
+                  const fulfillment = orderItemFulfillmentInfo(t.order, t.item);
+                  const supplier = state.suppliers.find((s) => String(s.id) === String(fulfillment.supplierId || ""));
                   const paid = t.item.fornecedor_pago_at || t.order.fornecedor_pago_at;
                   const delivered = t.item.fornecedor_entregue_at || t.order.fornecedor_entregue_at;
                   return `<tr>
                     <td><strong>${String(t.order.order_number ?? "").padStart(6,"0")}</strong><br><span class="text-[9px] text-navy-400">${escapeHtml(t.order.customer_name)}</span></td>
                     <td>${escapeHtml(t.item.product_name)}${t.item.variant_name ? ` · ${escapeHtml(t.item.variant_name)}` : ""}</td>
-                    <td>${escapeHtml(supplier?.name || "Fornecedor cadastrado")}</td>
+                    <td>${escapeHtml(fulfillment.supplierName || supplier?.name || "Fornecedor")}</td>
                     <td>${paid ? `<span class="pro-pill good">Pago</span>` : `<span class="pro-pill warning">Pendente</span>`}</td>
                     <td>${delivered ? `<span class="pro-pill good">Recebido</span>` : `<span class="pro-pill warning">Aguardando</span>`}</td>
                   </tr>`;
@@ -3542,7 +4394,7 @@ function renderProducao(container) {
             <div><h2>Estoque físico × reservado × disponível</h2><p>Uma peça comprometida com um pedido deixa de contar como disponível.</p></div>
           </div>
           <table class="rank-table">
-            <thead><tr><th>Produto / modelo</th><th>Físico</th><th>Reservado</th><th>Disponível</th><th>Status</th></tr></thead>
+            <thead><tr><th>Produto / tamanho/cor</th><th>Físico</th><th>Reservado</th><th>Disponível</th><th>Status</th></tr></thead>
             <tbody>
               ${state.products.filter((p) => p.active).flatMap((p) => {
                 const rows = (p.product_variants || []).length ? p.product_variants.map((v) => ({p,variant:v.name})) : [{p,variant:""}];
@@ -3559,6 +4411,12 @@ function renderProducao(container) {
           </table>
         </section>
       ` : ""}
+
+      ${professionalState.productionView === "suggestions" ? productionSuggestionsHtml() : ""}
+      ${professionalState.productionView === "stockprod" ? productionForStockHtml() : ""}
+      ${professionalState.productionView === "filaments" ? filamentsHtml() : ""}
+      ${professionalState.productionView === "replenishment" ? replenishmentHtml() : ""}
+      ${professionalState.productionView === "physical" ? physicalInventoryHtml() : ""}
     </div>
   `;
 
@@ -3605,8 +4463,24 @@ function renderProducao(container) {
   }));
   container.querySelectorAll("[data-prod-stage]").forEach((btn) => btn.addEventListener("click", async () => {
     btn.disabled = true;
+    const order = state.orders.find((o)=>String(o.id)===String(btn.dataset.orderId));
+    const item = (order?.items||[]).find((it)=>productionItemKey(it)===btn.dataset.itemKey);
+    const task = item ? productionTaskFor(order,item) : null;
+    if (btn.dataset.prodStage === "finishing" && task && !productionConsumedMeta(task)) {
+      const consumed = await recordOrderFilamentConsumption(task);
+      if (!consumed) { btn.disabled=false; return; }
+    }
     const ok = await updateProductionTask(btn.dataset.orderId, btn.dataset.itemKey, { stage:btn.dataset.prodStage });
     if (ok) renderProducao(container);
+  }));
+  container.querySelectorAll("[data-prod-failure]").forEach((btn)=>btn.addEventListener("click",async()=>{
+    const order=state.orders.find((o)=>String(o.id)===String(btn.dataset.orderId));
+    const item=(order?.items||[]).find((it)=>productionItemKey(it)===btn.dataset.itemKey);
+    const task=item?productionTaskFor(order,item):null;
+    if(!task)return;
+    btn.disabled=true;
+    await recordProductionFailure(task);
+    renderProducao(container);
   }));
   container.querySelectorAll("[data-prod-done]").forEach((btn) => btn.addEventListener("click", async () => {
     const order = state.orders.find((o) => o.id === btn.dataset.orderId);
@@ -3631,6 +4505,141 @@ function renderProducao(container) {
     const ok = await updateOrderChecklist(btn.dataset.orderId, btn.dataset.checklistKey, btn.dataset.checklistValue === "1");
     if (ok) renderProducao(container);
   }));
+
+  const stockProdProduct=document.getElementById("stock-prod-product");
+  stockProdProduct?.addEventListener("change",()=>{
+    professionalState.stockProdProductId=stockProdProduct.value;
+    renderProducao(container);
+  });
+  const updateStockProdPreview=()=>{
+    const product=state.products.find((p)=>String(p.id)===String(document.getElementById("stock-prod-product")?.value||""));
+    const variant=document.getElementById("stock-prod-variant")?.value||"";
+    const qty=Math.max(1,Number(document.getElementById("stock-prod-qty")?.value||1));
+    const profile=productionProfileFor(product?.id,variant);
+    const comps=profileFilamentComponents(profile).map((f)=>({materialId:f.materialId,grams:round2(f.gramsPerUnit*qty)}));
+    const el=document.getElementById("stock-prod-preview");
+    if(!el)return;
+    el.innerHTML=comps.length
+      ? `<strong>Previsão para ${qty} un.</strong><br>${comps.map((f)=>{const m=state.materials.find((x)=>String(x.id)===String(f.materialId));const a=m?filamentAvailableInfo(m):null;return `${escapeHtml(m?.name||"Filamento")}: <b>${round2(f.grams)} g</b>${a?` · disponível ${round2(a.available)} g`:""}`;}).join("<br>")}${Number(profile.minutesPerUnit||0)?`<br>Tempo estimado: <b>${formatDurationMinutes(Number(profile.minutesPerUnit)*qty)}</b>`:""}`
+      : `Esta combinação ainda não possui filamento na ficha técnica. Cadastre em <b>Configurações → Fichas técnicas de produção</b>.`;
+  };
+  document.getElementById("stock-prod-variant")?.addEventListener("change",updateStockProdPreview);
+  document.getElementById("stock-prod-qty")?.addEventListener("input",updateStockProdPreview);
+  updateStockProdPreview();
+  document.getElementById("stock-production-form")?.addEventListener("submit",(e)=>{
+    e.preventDefault();
+    const productId=document.getElementById("stock-prod-product")?.value||"";
+    const variantName=document.getElementById("stock-prod-variant")?.value||"";
+    const qty=Math.max(1,Math.floor(Number(document.getElementById("stock-prod-qty")?.value||1)));
+    const profile=productionProfileFor(productId,variantName);
+    const predictedComponents=profileFilamentComponents(profile).map((f)=>({materialId:String(f.materialId),grams:round2(f.gramsPerUnit*qty),gramsPerUnit:Number(f.gramsPerUnit)}));
+    if(!predictedComponents.length&&!confirm("Esta combinação não tem filamento configurado. Adicionar à fila mesmo assim?"))return;
+    const run={id:`spr-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,createdAt:new Date().toISOString(),status:"todo",productId,variantName,qty,machine:document.getElementById("stock-prod-machine")?.value||"",predictedComponents};
+    saveStockProductionRun(run);
+    renderProducao(container);
+  });
+  container.querySelectorAll("[data-stock-run-start]").forEach((btn)=>btn.addEventListener("click",()=>{
+    const run=stockProductionRuns().find((r)=>r.id===btn.dataset.stockRunStart);if(!run)return;
+    run.status="printing";run.startedAt=new Date().toISOString();saveStockProductionRun(run);renderProducao(container);
+  }));
+  container.querySelectorAll("[data-stock-run-complete]").forEach((btn)=>btn.addEventListener("click",async()=>{
+    const run=stockProductionRuns().find((r)=>r.id===btn.dataset.stockRunComplete);if(!run)return;
+    btn.disabled=true;if(await completeStockProductionRun(run)){await loadProducts();await loadMaterials();renderProducao(container);}else btn.disabled=false;
+  }));
+  container.querySelectorAll("[data-stock-run-fail]").forEach((btn)=>btn.addEventListener("click",async()=>{
+    const run=stockProductionRuns().find((r)=>r.id===btn.dataset.stockRunFail);if(!run)return;
+    btn.disabled=true;if(await failStockProductionRun(run)){await loadMaterials();renderProducao(container);}else btn.disabled=false;
+  }));
+  container.querySelectorAll("[data-stock-run-cancel]").forEach((btn)=>btn.addEventListener("click",()=>{
+    const run=stockProductionRuns().find((r)=>r.id===btn.dataset.stockRunCancel);if(!run||!confirm("Cancelar esta produção para estoque? A reserva de filamento será liberada."))return;
+    run.status="cancelled";run.cancelledAt=new Date().toISOString();saveStockProductionRun(run);renderProducao(container);
+  }));
+
+  document.getElementById("filament-toggle-new")?.addEventListener("click",()=>{professionalState.filamentNewOpen=!professionalState.filamentNewOpen;renderProducao(container);});
+  document.getElementById("fil-new-cancel")?.addEventListener("click",()=>{professionalState.filamentNewOpen=false;renderProducao(container);});
+  document.getElementById("filament-new-form")?.addEventListener("submit",async(e)=>{
+    e.preventDefault();
+    const name=document.getElementById("fil-new-name")?.value.trim();
+    const brand=document.getElementById("fil-new-brand")?.value.trim();
+    const packageQty=Math.max(1,Number(document.getElementById("fil-new-package")?.value||1000));
+    const stock=Math.max(0,Number(document.getElementById("fil-new-stock")?.value||0));
+    const price=Number(String(document.getElementById("fil-new-price")?.value||"0").replace(",","."));
+    if(!name||!Number.isFinite(price)||price<0)return alert("Confira nome e preço do filamento.");
+    const fullName=brand?`${name} · ${brand}`:name;
+    const {error}=await supabaseClient.from("materials").insert({
+      name:fullName,package_price:price,package_qty:packageQty,unit:"g",stock_qty:stock,type:"Filamento",
+      unit_cost:round2(price/packageQty),active:true,created_by:state.currentUser.id,updated_by:state.currentUser.id,updated_at:new Date().toISOString()
+    });
+    if(error)return alert("Não foi possível cadastrar: "+error.message);
+    await loadMaterials();professionalState.filamentNewOpen=false;renderProducao(container);
+  });
+
+
+  document.getElementById("suggest-select-now")?.addEventListener("click",()=>{
+    container.querySelectorAll("[data-suggest-check]").forEach((cb)=>{
+      const product=state.products.find((p)=>String(p.id)===String(cb.dataset.productId));
+      const row=productionSuggestionRows().find((r)=>String(r.product.id)===String(cb.dataset.productId)&&String(r.variantName||"")===String(cb.dataset.variantName||""));
+      cb.checked=!!row && row.bucket==="now";
+    });
+  });
+  document.getElementById("suggest-add-selected")?.addEventListener("click",()=>{
+    const checked=[...container.querySelectorAll("[data-suggest-check]:checked")];
+    if(!checked.length)return alert("Selecione pelo menos uma sugestão.");
+    const suggestions=productionSuggestionRows();
+    const queue=[];
+    checked.forEach((cb)=>{
+      const row=suggestions.find((r)=>String(r.product.id)===String(cb.dataset.productId)&&String(r.variantName||"")===String(cb.dataset.variantName||""));
+      if(!row||row.pendingRun)return;
+      const qtyInput=[...container.querySelectorAll("[data-suggest-qty]")].find((el)=>String(el.dataset.suggestQty)===String(row.product.id)&&String(el.dataset.suggestVariant||"")===String(row.variantName||""));
+      const qty=Math.max(1,Math.min(12,Math.floor(Number(qtyInput?.value||row.suggestedQty||1))));
+      const profile=productionProfileFor(row.product.id,row.variantName);
+      const predictedComponents=profileFilamentComponents(profile).map((f)=>({materialId:String(f.materialId),grams:round2(f.gramsPerUnit*qty),gramsPerUnit:Number(f.gramsPerUnit)}));
+      queue.push({row,qty,predictedComponents});
+    });
+    if(!queue.length)return alert("As sugestões selecionadas já estão na fila ou não podem ser adicionadas.");
+    const noProfile=queue.filter((x)=>!x.predictedComponents.length);
+    const message=`Adicionar ${queue.length} sugestão(ões) à produção para estoque, totalizando ${queue.reduce((s,x)=>s+x.qty,0)} unidade(s)?${noProfile.length?`\n\nAtenção: ${noProfile.length} item(ns) ainda não têm ficha técnica de filamento.`:""}`;
+    if(!confirm(message))return;
+    queue.forEach(({row,qty,predictedComponents})=>{
+      saveStockProductionRun({
+        id:`spr-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+        createdAt:new Date().toISOString(),
+        status:"todo",
+        source:"smart_suggestion",
+        suggestionScore:row.score,
+        productId:String(row.product.id),
+        variantName:row.variantName||"",
+        qty,
+        machine:"",
+        predictedComponents
+      });
+    });
+    professionalState.productionView="stockprod";
+    renderProducao(container);
+  });
+
+  document.getElementById("save-physical-inventory")?.addEventListener("click",async()=>{
+    if(!confirm("Salvar as quantidades informadas como estoque físico atual? Isso substituirá os saldos atuais dos itens exibidos."))return;
+    const btn=document.getElementById("save-physical-inventory");btn.disabled=true;
+    for(const input of container.querySelectorAll("[data-inventory-product]")){
+      const qty=Math.max(0,Number(input.value||0));
+      const productId=input.dataset.inventoryProduct,variantName=input.dataset.inventoryVariant||"";
+      const {product}=productVariantRecord(productId,variantName);
+      const result=await setProductPhysicalStock(productId,variantName,qty);
+      if(result.error){alert(`Erro ao atualizar ${product?.name||"produto"}: ${result.error.message}`);btn.disabled=false;return;}
+    }
+    for(const input of container.querySelectorAll("[data-inventory-filament]")){
+      const material=state.materials.find((m)=>String(m.id)===String(input.dataset.inventoryFilament));
+      if(!material)continue;
+      const before=Number(material.stock_qty||0),after=Math.max(0,Number(input.value||0));
+      const result=await updateMaterialStock(material.id,after);
+      if(result.error){alert(`Erro ao atualizar ${material.name}: ${result.error.message}`);btn.disabled=false;return;}
+      const delta=round2(after-before);
+      if(Math.abs(delta)>0.001)pushFilamentMovement({materialId:String(material.id),materialName:material.name,grams:delta,kind:"inventory",note:"Ajuste por inventário físico"});
+    }
+    const next=structuredClone(professionalState.config);next.initialInventoryAt=new Date().toISOString();saveProfessionalConfig(next);
+    await loadProducts();await loadMaterials();alert("Inventário físico salvo. Este passa a ser o saldo real de partida.");renderProducao(container);
+  });
 }
 
 /* =====================================================================
@@ -3892,7 +4901,7 @@ function renderRentabilidade(container) {
 
       <section class="management-card mobile-card-table">
         <table class="rank-table">
-          <thead><tr><th>#</th><th>Produto / modelo</th><th>Unidades</th><th>Pedidos</th><th>Receita líquida</th><th>Custo</th><th>Lucro</th><th>Margem</th></tr></thead>
+          <thead><tr><th>#</th><th>Produto / tamanho/cor</th><th>Unidades</th><th>Pedidos</th><th>Receita líquida</th><th>Custo</th><th>Lucro</th><th>Margem</th></tr></thead>
           <tbody>
             ${rows.length ? rows.map((r,i) => `<tr>
               <td>${i+1}</td>
@@ -4077,25 +5086,26 @@ function renderConfiguracoes(container) {
         </section>
 
         <section class="management-card" style="grid-column:1/-1">
-          <h2>Perfis de produção</h2>
-          <p class="caption">Cadastre tempo e filamento por unidade. A fila de produção passa a calcular automaticamente carga de máquina e consumo previsto.</p>
+          <h2>Fichas técnicas de produção</h2>
+          <p class="caption">Configure por produto + tamanho/cor. Cada combinação pode ter tempo próprio e consumir até 3 filamentos diferentes por unidade. Isso alimenta reserva, baixa real, custo e recomendação de compra.</p>
           <div class="mobile-card-table mt-3">
             <table class="rank-table">
-              <thead><tr><th>Produto</th><th>Minutos / un.</th><th>Gramas / un.</th><th>Cor / material</th></tr></thead>
+              <thead><tr><th>Produto / tamanho / cor</th><th>Minutos / un.</th><th>Filamentos por unidade</th></tr></thead>
               <tbody>
-                ${activeProducts.map((p) => {
-                  const pr = cfg.productionProfiles?.[p.id] || {};
+                ${productionProfileRows().map((row) => {
+                  const pr = productionProfileFor(row.product.id,row.variant?.name||"");
+                  const comps = profileFilamentComponents(pr);
+                  const escKey = escapeHtml(row.key);
                   return `<tr>
-                    <td><strong>${escapeHtml(p.name)}</strong></td>
-                    <td><input data-profile-minutes="${p.id}" type="number" min="0" step="1" value="${Number(pr.minutesPerUnit || 0)}" class="w-28 rounded-lg border border-navy-200 px-2 py-1.5 text-sm"></td>
-                    <td><input data-profile-grams="${p.id}" type="number" min="0" step="0.1" value="${Number(pr.gramsPerUnit || 0)}" class="w-28 rounded-lg border border-navy-200 px-2 py-1.5 text-sm"></td>
-                    <td><input data-profile-color="${p.id}" value="${escapeHtml(pr.color || "")}" placeholder="Ex.: Branco" class="w-40 rounded-lg border border-navy-200 px-2 py-1.5 text-sm"></td>
+                    <td><strong>${escapeHtml(row.label)}</strong>${row.variant?.photo_url?`<div class="mt-1"><img src="${row.variant.photo_url}" class="h-10 w-10 rounded-lg border border-navy-100 object-contain"></div>`:""}</td>
+                    <td><input data-profile-minutes-key="${escKey}" type="number" min="0" step="1" value="${Number(pr.minutesPerUnit || 0)}" class="w-24 rounded-lg border border-navy-200 px-2 py-1.5 text-sm"></td>
+                    <td><div class="grid gap-1">${[0,1,2].map((i)=>{const c=comps[i]||{};return `<div class="flex flex-wrap gap-1"><select data-profile-filament-key="${escKey}" data-profile-slot="${i}" class="min-w-[180px] rounded-lg border border-navy-200 px-2 py-1.5 text-xs"><option value="">— filamento ${i+1} —</option>${filamentMaterials().map((m)=>`<option value="${m.id}" ${String(c.materialId||"")===String(m.id)?"selected":""}>${escapeHtml(m.name)}</option>`).join("")}</select><input data-profile-grams-key="${escKey}" data-profile-slot="${i}" type="number" min="0" step="0.1" value="${Number(c.gramsPerUnit||0)||""}" placeholder="g/un." class="w-24 rounded-lg border border-navy-200 px-2 py-1.5 text-xs"></div>`;}).join("")}</div></td>
                   </tr>`;
-                }).join("")}
+                }).join("") || `<tr><td colspan="3">Nenhum produto ativo.</td></tr>`}
               </tbody>
             </table>
           </div>
-          <button id="cfg-save-profiles" class="mt-3 rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900">Salvar perfis de produção</button>
+          <div class="mt-3 flex flex-wrap items-center gap-2"><button id="cfg-save-profiles" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900">Salvar fichas técnicas</button><span class="caption">Se um item usa, por exemplo, Branco + Azul-marinho + Dourado, informe os três consumos.</span></div>
         </section>
 
         <section class="management-card" style="grid-column:1/-1">
@@ -4175,15 +5185,21 @@ function renderConfiguracoes(container) {
   document.getElementById("cfg-save-profiles")?.addEventListener("click", () => {
     const next = structuredClone(professionalState.config);
     next.productionProfiles ||= {};
-    activeProducts.forEach((p) => {
-      next.productionProfiles[p.id] = {
-        minutesPerUnit:Number(container.querySelector(`[data-profile-minutes="${p.id}"]`)?.value || 0),
-        gramsPerUnit:Number(container.querySelector(`[data-profile-grams="${p.id}"]`)?.value || 0),
-        color:container.querySelector(`[data-profile-color="${p.id}"]`)?.value?.trim() || "",
-      };
+    productionProfileRows().forEach((row) => {
+      const key=row.key;
+      const minuteInput=[...container.querySelectorAll("[data-profile-minutes-key]")].find((el)=>el.dataset.profileMinutesKey===key);
+      const minutes=Number(minuteInput?.value || 0);
+      const filaments=[];
+      [...container.querySelectorAll("[data-profile-filament-key]")].filter((el)=>el.dataset.profileFilamentKey===key).forEach((select)=>{
+        const slot=select.dataset.profileSlot;
+        const gramsInput=[...container.querySelectorAll("[data-profile-grams-key]")].find((el)=>el.dataset.profileGramsKey===key && el.dataset.profileSlot===slot);
+        const grams=Number(gramsInput?.value||0);
+        if(select.value && grams>0)filaments.push({materialId:String(select.value),gramsPerUnit:grams});
+      });
+      next.productionProfiles[key]={minutesPerUnit:Math.max(0,minutes),filaments};
     });
     saveProfessionalConfig(next);
-    alert("Perfis de produção salvos.");
+    alert("Fichas técnicas salvas. Reserva e consumo de filamentos já usam esses valores.");
   });
 
   document.getElementById("cfg-save-cost-centers")?.addEventListener("click", () => {
@@ -4559,7 +5575,7 @@ function renderApp() {
 
           <div class="admin-nav-group">
             <span class="admin-nav-label">Catálogo</span>
-            ${navBtn("precificacao","🏷","Produtos e preços",countLowStockProducts(), countLowStockProducts() ? "Há produtos/modelos com estoque baixo" : "")}
+            ${navBtn("precificacao","🏷","Produtos e preços",countLowStockProducts(), countLowStockProducts() ? "Há produtos/cores com estoque baixo" : "")}
             ${navBtn("materiais","◫","Materiais",countLowStockMaterials())}
           </div>
 
@@ -4735,7 +5751,7 @@ function renderApp() {
               <button type="button" data-notification-tab="precificacao" class="admin-notification-item warning">
                 <span class="admin-notification-icon">🏷</span>
                 <span class="admin-notification-copy">
-                  <strong>${lowStockProductsCount} produto(s)/modelo(s) com estoque baixo</strong>
+                  <strong>${lowStockProductsCount} produto(s)/variação(ões) com estoque baixo</strong>
                   <span>Confira a aba Produtos e preços.</span>
                 </span>
                 <span class="admin-notification-count">${lowStockProductsCount}</span>
@@ -5379,9 +6395,9 @@ const LOW_STOCK_THRESHOLD = 2;
 
 // Badge de estoque na listagem de produtos. Produto SEM modelo cadastrado
 // usa o campo de estoque do produto, como sempre. Produto COM modelos
-// usa o estoque de cada modelo — mostra "todos em estoque" só se todos
+// usa o estoque de cada cor — mostra "todos em estoque" só se todos
 // estiverem marcados, "sob encomenda" só se nenhum estiver, e "parcial"
-// quando é uma mistura (aí o cliente vê o prazo certo pra cada modelo
+// quando é uma mistura (aí o cliente vê o prazo certo pra cada cor
 // que escolher lá no Catálogo).
 function stockBadge(p) {
   const variants = p.product_variants ?? [];
@@ -5394,17 +6410,17 @@ function stockBadge(p) {
   }
   const stocked = variants.filter((v) => Number(v.stock_qty ?? (v.in_stock ? 1 : 0)) > 0);
   if (stocked.length === variants.length) {
-    return `<span title="Todos os modelos possuem pronta entrega" class="rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-semibold text-emerald-700">✓ Em estoque · todos os modelos</span>`;
+    return `<span title="Todas as variações possuem pronta entrega" class="rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-semibold text-emerald-700">✓ Em estoque · todas as variações</span>`;
   }
   if (stocked.length === 0) {
-    return `<span title="Todos os modelos disponíveis sob encomenda — prazo de ${prazo}" class="rounded-full bg-gold-100 px-2 py-1 text-[9px] font-semibold text-gold-800">Sob encomenda · Prazo de ${prazo}</span>`;
+    return `<span title="Todas as cores disponíveis sob encomenda — prazo de ${prazo}" class="rounded-full bg-gold-100 px-2 py-1 text-[9px] font-semibold text-gold-800">Sob encomenda · Prazo de ${prazo}</span>`;
   }
-  return `<span title="${stocked.length} de ${variants.length} modelos em pronta entrega; demais sob encomenda em ${prazo}" class="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-semibold text-amber-800">Estoque parcial · ${stocked.length}/${variants.length} · demais em ${prazo}</span>`;
+  return `<span title="${stocked.length} de ${variants.length} variações em pronta entrega; demais sob encomenda em ${prazo}" class="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-semibold text-amber-800">Estoque parcial · ${stocked.length}/${variants.length} · demais em ${prazo}</span>`;
 }
 
 // Badge de "Esgotado" na listagem — só aparece quando faz sentido (não
 // polui a linha de um produto que nunca esgotou nada). Produto com
-// modelo usa o esgotado de cada um; produto sem modelo usa o dele.
+// modelo usa o esgotado de cada um; produto sem cor usa o dele.
 function esgotadoBadge(p) {
   // Quantidade zero não significa indisponível: significa SOB ENCOMENDA.
   // Mantemos a função por compatibilidade com a renderização antiga.
@@ -5413,8 +6429,8 @@ function esgotadoBadge(p) {
 
 // Aviso de "estoque acabando" (só pra quem usa controle numérico de
 // estoque — stock_qty preenchido) — aparece ANTES de chegar a zero,
-// diferente do badge de esgotado acima. Produto com modelo mostra
-// quantos modelos estão baixos; sem modelo, mostra a quantidade exata.
+// diferente do badge de esgotado acima. Produto com cores mostra
+// quantos modelos estão baixos; sem cor, mostra a quantidade exata.
 function lowStockBadge(p) {
   const variants = p.product_variants ?? [];
   if (variants.length === 0) {
@@ -5423,7 +6439,7 @@ function lowStockBadge(p) {
   }
   const lowVariants = variants.filter((v) => v.stock_qty != null && Number(v.stock_qty) > 0 && Number(v.stock_qty) <= LOW_STOCK_THRESHOLD);
   if (lowVariants.length === 0) return "";
-  return `<span title="${lowVariants.map((v) => `${escapeHtml(v.name)}: ${Number(v.stock_qty)}`).join(", ")} — veja em Modelos" class="rounded-full bg-amber-100 px-1 py-0.5 text-[9px] font-semibold text-amber-700">⚠ acabando (${lowVariants.length})</span>`;
+  return `<span title="${lowVariants.map((v) => `${escapeHtml(v.name)}: ${Number(v.stock_qty)}`).join(", ")} — veja em Cores" class="rounded-full bg-amber-100 px-1 py-0.5 text-[9px] font-semibold text-amber-700">⚠ acabando (${lowVariants.length})</span>`;
 }
 
 // Contagens usadas nos badges de aviso do menu (Precificação/Materiais).
@@ -5494,8 +6510,8 @@ let securityState = { open: false, step: "loading", enabled: false, backupCodesR
 let priceHistoryState = { open: false, loading: false, rows: [], filter: "", error: null };
 
 // Célula de edição rápida de estoque, direto na lista de produtos —
-// sem precisar abrir "Editar produto". Produto sem modelo mostra um
-// campo numérico só; com modelos, um campo por modelo (cada um pode ter
+// sem precisar abrir "Editar produto". Produto sem cor mostra um
+// campo numérico só; com coress, um campo por modelo (cada um pode ter
 // sua própria contagem). Quem ainda não controla por quantidade (o
 // booleano manual de sempre) mostra um botão "Ativar controle" em vez
 // do número — digitar um valor liga o controle por quantidade
@@ -6021,7 +7037,7 @@ function renderPrecificacao(container) {
 
       <div class="pricing-summary-grid">
         <div class="pricing-summary-card"><span>Produtos ativos</span><strong>${activeCount}</strong></div>
-        <div class="pricing-summary-card"><span>Modelos/variações</span><strong>${modelCount}</strong></div>
+        <div class="pricing-summary-card"><span>Cores/acabamentos</span><strong>${modelCount}</strong></div>
         <div class="pricing-summary-card"><span>Estoque baixo</span><strong>${lowStockCount}</strong></div>
         <div class="pricing-summary-card"><span>Sob encomenda</span><strong>${madeToOrderCount}</strong></div>
       </div>
@@ -6449,16 +7465,20 @@ function renderProductForm() {
   // causa deles — o que é exatamente o contrário do que foi pedido.
   const activeMaterials = state.materials.filter((m) => m.active && !isEssencial(m));
 
-  // Lista de modelos/variações deste produto (estado local do formulário).
+  // Lista de combinações de tamanho/cor deste produto (estado local do formulário).
   const formVariants = product && product.product_variants
     ? [...product.product_variants]
         .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name, "pt-BR"))
-        .map((v) => ({
-          id: v.id, name: v.name, photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null,
-          inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false, stockTracked: true, stockQty: v.stock_qty != null ? v.stock_qty : (v.in_stock ? 1 : 0),
-          ownPrice: v.cost != null, cost: v.cost != null ? Number(v.cost) : null,
-          promoManualPrice: v.promo_manual_price != null ? Number(v.promo_manual_price) : null,
-        }))
+        .map((v) => {
+          const dims = variantDimensions(v);
+          return {
+            id: v.id, name: v.name, size: dims.size, color: dims.color,
+            photoUrl: v.photo_url ?? null, originalPhotoUrl: v.photo_url ?? null, pendingPhoto: null,
+            inStock: v.in_stock ?? false, esgotado: v.esgotado ?? false, stockTracked: true, stockQty: v.stock_qty != null ? v.stock_qty : (v.in_stock ? 1 : 0),
+            ownPrice: v.cost != null, cost: v.cost != null ? Number(v.cost) : null,
+            promoManualPrice: v.promo_manual_price != null ? Number(v.promo_manual_price) : null,
+          };
+        })
     : [];
   const deletedVariantPhotoUrls = [];
 
@@ -6559,7 +7579,7 @@ function renderProductForm() {
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="text-sm font-semibold text-navy-800">Estoque por quantidade</p>
-              <p class="mt-1 text-xs text-navy-400">O estoque agora é sempre numérico. Se houver modelos, a quantidade é controlada automaticamente em cada modelo.</p>
+              <p class="mt-1 text-xs text-navy-400">O estoque agora é sempre numérico. Se houver cores, a quantidade é controlada automaticamente em cada cor.</p>
             </div>
             <span class="rounded-full bg-navy-50 px-2.5 py-1 text-[10px] font-semibold text-navy-600">controle automático</span>
           </div>
@@ -6570,7 +7590,7 @@ function renderProductForm() {
           </div>
           <div id="pf-manual-stock-block" class="hidden"></div>
         </div>
-        <p id="pf-in-stock-variant-note" class="mt-2 ${product?.product_variants?.length ? "" : "hidden"} rounded-lg bg-navy-50 px-3 py-2 text-xs text-navy-600">Este produto tem modelos: o estoque é controlado por quantidade individual em cada modelo abaixo.</p>
+        <p id="pf-in-stock-variant-note" class="mt-2 ${product?.product_variants?.length ? "" : "hidden"} rounded-lg bg-navy-50 px-3 py-2 text-xs text-navy-600">Este produto tem tamanhos/cores: o estoque é controlado por combinação abaixo.</p>
 
         <div class="mt-3 flex flex-wrap items-end gap-3">
           <div class="w-32">
@@ -6593,10 +7613,10 @@ function renderProductForm() {
       </div>
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
-        <p class="mb-1 text-sm font-medium text-navy-800">Modelos / Variações (opcional)</p>
-        <p class="mb-3 text-xs text-navy-400">Se este produto vem em mais de um modelo (cor, tamanho etc.), cadastre cada um com nome e foto. A quantidade em estoque é individual por modelo; ao chegar a zero, ele continua disponível sob encomenda com prazo de até 2 dias úteis.</p>
+        <p class="mb-1 text-sm font-medium text-navy-800">Tamanhos e cores (opcional)</p>
+        <p class="mb-3 text-xs text-navy-400">Use esta área para tamanhos e cores/acabamentos do mesmo produto. Ex.: Estatueta São Miguel pode ter 16 cm + Branco, 16 cm + Granito, 20 cm + Branco etc. Cada combinação pode ter estoque, foto, custo e preço próprios. Se mudar o santo/modelo do produto (ex.: São Miguel para Nossa Senhora Aparecida), cadastre como outro produto.</p>
         <div id="pf-variants-list" class="flex flex-col gap-2"></div>
-        <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar modelo</button>
+        <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar combinação</button>
       </div>
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
@@ -6724,8 +7744,8 @@ function renderProductForm() {
   const inStockBlock = document.getElementById("pf-in-stock-block");
   const inStockVariantNote = document.getElementById("pf-in-stock-variant-note");
 
-  // Estoque numérico obrigatório: produto sem modelo usa a quantidade do produto;
-  // produto com modelos usa uma quantidade independente em cada modelo.
+  // Estoque numérico obrigatório: produto sem cor usa a quantidade do produto;
+  // produto com variações usa uma quantidade independente em cada combinação.
   const stockTrackedCheckbox = document.getElementById("pf-stock-tracked");
   const stockQtyBlock = document.getElementById("pf-stock-qty-block");
   const manualStockBlock = document.getElementById("pf-manual-stock-block");
@@ -6746,7 +7766,7 @@ function renderProductForm() {
   if (stockTrackedCheckbox.checked) updateStockQtyDerived();
 
   // Quando o produto tem modelos, o campo de quantidade do produto some:
-  // cada modelo passa a ser a unidade real de controle de estoque.
+  // cada combinação passa a ser a unidade real de controle de estoque.
   function updateInStockBlockVisibility() {
     const hasVariants = formVariants.length > 0;
     inStockBlock.classList.toggle("hidden", hasVariants);
@@ -6755,17 +7775,31 @@ function renderProductForm() {
 
   function renderVariantsList() {
     variantsListEl.innerHTML = formVariants.length === 0
-      ? `<p class="text-xs text-navy-400">Nenhum modelo cadastrado — deixe em branco se este produto não tiver variações.</p>`
+      ? `<p class="text-xs text-navy-400">Nenhuma variação cadastrada — use apenas se houver mais de um tamanho e/ou cor.</p>`
       : formVariants.map((v, idx) => `
           <div class="flex flex-col gap-2 rounded-lg bg-white p-3 shadow-sm sm:flex-row sm:items-center">
-            <img data-variant-preview="${idx}" src="${v.photoUrl ?? ""}" class="h-14 w-14 flex-shrink-0 rounded-lg border border-navy-200 bg-cream-50 object-cover ${v.photoUrl ? "" : "hidden"}" />
+            <div class="lm-color-row flex-shrink-0">
+              <span data-variant-swatch="${idx}" class="lm-color-dot" style="${colorSwatchStyle(v.color || v.name)}"></span>
+              <img data-variant-preview="${idx}" src="${v.photoUrl ?? ""}" class="h-14 w-14 rounded-lg border border-navy-200 bg-cream-50 object-contain ${v.photoUrl ? "" : "hidden"}" />
+            </div>
             <div class="flex-1">
-              <input data-variant-name="${idx}" value="${escapeHtml(v.name)}" placeholder="Ex: Azul, Modelo P..."
-                class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+              <div class="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Tamanho (opcional)</label>
+                  <input data-variant-size="${idx}" value="${escapeHtml(v.size || "")}" placeholder="Ex: 16 cm"
+                    class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Cor / acabamento (opcional)</label>
+                  <input data-variant-color="${idx}" value="${escapeHtml(v.color || "")}" placeholder="Ex: Branco, Cinza, Granito"
+                    class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                </div>
+              </div>
+              <p class="mt-1 text-[10px] text-navy-400">Preencha pelo menos tamanho ou cor. Se houver os dois, esta linha representa a combinação dos dois.</p>
               <div data-variant-qty-block="${idx}" class="mt-2 rounded-lg border border-navy-100 bg-cream-50 p-2.5">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <span class="block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Estoque deste modelo</span>
+                    <span class="block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Estoque desta combinação</span>
                     <span data-variant-qty-derived="${idx}" class="mt-0.5 block text-xs ${v.stockQty > 0 ? "text-emerald-700" : "text-gold-700"}">${v.stockQty > 0 ? `Pronta entrega · ${v.stockQty}` : "Sob encomenda · Prazo de até 2 dias úteis"}</span>
                   </div>
                   <input type="number" min="0" step="1" data-variant-qty="${idx}" value="${v.stockQty ?? 0}" class="w-24 rounded-lg border border-navy-200 bg-white px-2 py-2 text-center text-sm font-semibold text-navy-800 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
@@ -6774,11 +7808,11 @@ function renderProductForm() {
               <div class="mt-2 border-t border-navy-50 pt-2">
                 <label class="flex items-center gap-1.5 text-xs text-navy-700">
                   <input type="checkbox" data-variant-own-price="${idx}" ${v.ownPrice ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-                  Esse modelo tem preço diferente (ex: tamanho maior/menor)
+                  Este tamanho/cor tem preço diferente
                 </label>
                 <div data-variant-price-block="${idx}" class="mt-1.5 flex flex-wrap items-end gap-2 ${v.ownPrice ? "" : "hidden"}">
                   <div>
-                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Custo deste modelo (R$)</label>
+                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Custo desta combinação (R$)</label>
                     <input type="number" min="0" step="0.01" data-variant-cost="${idx}" value="${v.cost ?? ""}" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                   </div>
                   <div>
@@ -6792,7 +7826,7 @@ function renderProductForm() {
             <div class="flex flex-wrap items-center gap-2">
               <input type="file" data-variant-photo="${idx}" accept="image/*" class="text-xs text-navy-700" />
               <button type="button" data-variant-remove-photo="${idx}" class="text-xs text-red-600 hover:underline ${v.photoUrl ? "" : "hidden"}">remover foto</button>
-              <button type="button" data-variant-remove="${idx}" class="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Remover modelo</button>
+              <button type="button" data-variant-remove="${idx}" class="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Remover combinação</button>
             </div>
           </div>
         `).join("");
@@ -6837,9 +7871,24 @@ function renderProductForm() {
       });
     });
     formVariants.forEach((v, idx) => { if (v.ownPrice) updateVariantPricePreview(idx); });
-    variantsListEl.querySelectorAll("[data-variant-name]").forEach((input) => {
+    const syncVariantIdentity = (idx) => {
+      const v = formVariants[idx];
+      v.name = composeVariantName(v.size, v.color);
+      const swatch = variantsListEl.querySelector(`[data-variant-swatch="${idx}"]`);
+      if (swatch) swatch.setAttribute("style", colorSwatchStyle(v.color || v.name));
+    };
+    variantsListEl.querySelectorAll("[data-variant-size]").forEach((input) => {
       input.addEventListener("input", () => {
-        formVariants[Number(input.dataset.variantName)].name = input.value;
+        const idx = Number(input.dataset.variantSize);
+        formVariants[idx].size = input.value;
+        syncVariantIdentity(idx);
+      });
+    });
+    variantsListEl.querySelectorAll("[data-variant-color]").forEach((input) => {
+      input.addEventListener("input", () => {
+        const idx = Number(input.dataset.variantColor);
+        formVariants[idx].color = input.value;
+        syncVariantIdentity(idx);
       });
     });
     variantsListEl.querySelectorAll("[data-variant-in-stock]").forEach((input) => {
@@ -6888,7 +7937,7 @@ function renderProductForm() {
           previewImg.classList.remove("hidden");
           variantsListEl.querySelector(`[data-variant-remove-photo="${idx}"]`).classList.remove("hidden");
         } catch (err) {
-          document.getElementById("pf-error").textContent = "Não foi possível processar a foto desse modelo: " + err.message;
+          document.getElementById("pf-error").textContent = "Não foi possível processar a foto dessa cor: " + err.message;
         }
       });
     });
@@ -6912,7 +7961,7 @@ function renderProductForm() {
 
   renderVariantsList();
   document.getElementById("pf-variant-add").addEventListener("click", () => {
-    formVariants.push({ id: null, name: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: true, stockQty: 0, ownPrice: false, cost: null, promoManualPrice: null });
+    formVariants.push({ id: null, name: "", size: "", color: "", photoUrl: null, originalPhotoUrl: null, pendingPhoto: null, inStock: false, esgotado: false, stockTracked: true, stockQty: 0, ownPrice: false, cost: null, promoManualPrice: null });
     renderVariantsList();
   });
 
@@ -7094,7 +8143,7 @@ function renderProductForm() {
     const showInCatalog = document.getElementById("pf-show-catalog").checked;
     const featured = document.getElementById("pf-featured").checked;
 
-    // Estoque do PRODUTO (só vale quando não tem modelo — com modelo, quem
+    // Estoque do PRODUTO (só vale quando não tem modelo — com cores, quem
     // manda é o estoque de cada variação, lá embaixo). Se "controlar por
     // quantidade" estiver marcado, in_stock/esgotado saem calculados do
     // número — o banco confirma isso de novo via trigger, então mesmo se
@@ -7232,7 +8281,7 @@ function renderProductForm() {
       if (linkError) { errorEl.textContent = linkError.message; return; }
     }
 
-    // Sincroniza os modelos/variações: apaga os antigos e grava a lista atual.
+    // Sincroniza combinações de tamanho/cor: apaga as antigas e grava a lista atual.
     await supabaseClient.from("product_variants").delete().eq("product_id", productId);
     if (formVariants.length > 0) {
       const variantRows = formVariants.map((v, idx) => {
@@ -7310,7 +8359,7 @@ function renderMateriais(container) {
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-xl font-semibold text-navy-900">Materiais / Insumos</h1>
-          <p class="text-sm text-navy-500">Embalagens, fitas, pérolas etc. — o custo unitário sai sozinho a partir do preço da embalagem. Depois, vincule os materiais aos produtos na aba Precificação.</p>
+          <p class="text-sm text-navy-500">Embalagens, fitas, pérolas e filamentos. Para filamento, use o tipo “Filamento”, unidade “g”, quantidade da embalagem em gramas e estoque atual em gramas. O custo unitário sai sozinho a partir do preço da embalagem. Depois, vincule os materiais aos produtos na aba Precificação.</p>
         </div>
         <div class="flex items-center gap-3">
           <label class="flex items-center gap-2 text-sm text-navy-600">
@@ -7640,7 +8689,8 @@ function allSupplierItems(supplierId) {
       (o.items ?? []).forEach((it) => {
         const product = state.products.find((p) => p.id === it.product_id);
         if (!product) { isApprox = true; return; }
-        if (product.supplier_id !== supplierId) return;
+        const fulfillment = orderItemFulfillmentInfo(o, it);
+        if (fulfillment.source !== "supplier" || String(fulfillment.supplierId || "") !== String(supplierId)) return;
         const variant = variantByName(product, it.variant_name);
         const unitCost = effectiveCost(product, variant);
         rows.push({
@@ -9021,7 +10071,7 @@ async function reconcileExistingCardFees() {
   renderCaixa(document.getElementById("main-content"));
 }
 
-// Produto com modelo cadastrado tem o estoque controlado por modelo (e
+// Produto com cores cadastrado tem o estoque controlado por modelo (e
 // não pelo produto inteiro) — ver product_variants.in_stock. Essa função
 // resolve o estoque certo pro item de um pedido: se o produto tem
 // modelos, procura o modelo pelo nome salvo no pedido (variant_name é só
@@ -9062,7 +10112,10 @@ async function ajustarEstoqueQtd(productId, variantId, delta) {
 // como "nada pendente".
 function orderSupplierUnpaidItems(order) {
   if (order.fornecedor_pago_at) return [];
-  return (order.items ?? []).filter((it) => !it.fulfilled_from_stock && !it.fornecedor_pago_at);
+  return (order.items ?? []).filter((it) =>
+    orderItemFulfillmentInfo(order, it).source === "supplier" &&
+    !it.fornecedor_pago_at
+  );
 }
 
 // Itens de um pedido que ainda dependem do fornecedor/fabricante — ou
@@ -9075,7 +10128,10 @@ function orderSupplierUnpaidItems(order) {
 // voltaria a aparecer como pendente do fornecedor.
 function orderSupplierPendingItems(order) {
   if (order.fornecedor_entregue_at) return [];
-  return (order.items ?? []).filter((it) => !it.fulfilled_from_stock && !it.fornecedor_entregue_at);
+  return (order.items ?? []).filter((it) =>
+    orderItemFulfillmentInfo(order, it).source === "supplier" &&
+    !it.fornecedor_entregue_at
+  );
 }
 
 function itemIsInStock(item, product) {
@@ -9539,7 +10595,7 @@ function buildPickingListPdf(rows) {
     doc.setTextColor(255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.text("Produto / modelo", cols.item.x + 1, y);
+    doc.text("Produto / tamanho/cor", cols.item.x + 1, y);
     doc.text("Qtd. total", cols.qtd.x + cols.qtd.w - 1, y, { align: "right" });
     doc.text("Pedidos", cols.pedidos.x + 1, y);
     y += 5;
@@ -11503,7 +12559,7 @@ function renderEditOrderOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
                     <select id="edit-order-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -11574,7 +12630,7 @@ function renderEditOrderOverlay() {
     if (!product) { errorEl.textContent = "Escolha um produto."; return; }
     const variants = product.product_variants ?? [];
     const variantSelect = document.getElementById("edit-order-variant-select");
-    if (variants.length > 0 && (!variantSelect || !variantSelect.value)) { errorEl.textContent = "Escolha o modelo do produto."; return; }
+    if (variants.length > 0 && (!variantSelect || !variantSelect.value)) { errorEl.textContent = "Escolha a cor do produto."; return; }
     const qty = Math.trunc(Number(document.getElementById("edit-order-item-qty").value.replace(",", ".")));
     if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Informe uma quantidade válida."; return; }
     errorEl.textContent = "";
@@ -11885,7 +12941,12 @@ function newVendaManualState(overrides = {}) {
     deliveryMethod: "retirada", deliveryFee: "", deliveryDeadline: "",
     origin: "whatsapp",
     sourceOrcamentoId: null, sourceOrcamentoNumero: null,
-    _selectedProductId: null, _selectedVariantId: null, _qty: "1",
+    _selectedProductId: null, _selectedVariantId: null, _selectedSize: "", _qty: "1",
+    _selectedFulfillmentSource: "own",
+    _selectedSupplierId: "",
+    _supplierPaid: false,
+    _supplierDelivered: false,
+    _alreadyProduced: false,
     _selectedGiftWrapId: null, _giftWrapQty: "1",
     successOrderId: null,
     ...overrides,
@@ -12497,7 +13558,7 @@ function renderSimulateOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
                     <select id="sim-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -12578,7 +13639,7 @@ function renderSimulateOverlay() {
     let variantId = null, variantName = null;
     if (variants.length > 0) {
       const variantSelect = document.getElementById("sim-variant-select");
-      if (!variantSelect || !variantSelect.value) { errorEl.textContent = "Escolha um modelo."; return; }
+      if (!variantSelect || !variantSelect.value) { errorEl.textContent = "Escolha uma cor."; return; }
       const variant = variants.find((v) => v.id === variantSelect.value);
       variantId = variant.id; variantName = variant.name;
     }
@@ -12686,7 +13747,7 @@ function renderEventoVendaOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
                     <select id="ev-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -12760,7 +13821,7 @@ function renderEventoVendaOverlay() {
     let variantId = null, variantName = null;
     if (variants.length > 0) {
       const variantSelect = document.getElementById("ev-variant-select");
-      if (!variantSelect || !variantSelect.value) { errorEl.textContent = "Escolha um modelo."; return; }
+      if (!variantSelect || !variantSelect.value) { errorEl.textContent = "Escolha uma cor."; return; }
       const variant = variants.find((v) => v.id === variantSelect.value);
       variantId = variant.id; variantName = variant.name;
     }
@@ -12909,6 +13970,16 @@ function vendaManualGiftWrapPrice(material) {
 function vendaManualGiftWrapOptions() {
   return state.materials.filter((m) => m.active && isEmbalagem(m));
 }
+function vendaManualDefaultFulfillment(product) {
+  const supplier = state.suppliers.find((s) => s.id === product?.supplier_id) || product?.suppliers || null;
+  if (supplier && !isOwnProductionSupplier(supplier)) return { source:"supplier", supplierId:supplier.id };
+  return { source:"own", supplierId:"" };
+}
+function vendaManualSupplierOptions() {
+  return state.suppliers
+    .filter((s) => s.active && !isOwnProductionSupplier(s))
+    .sort((a,b) => String(a.name||"").localeCompare(String(b.name||""), "pt-BR"));
+}
 function vendaManualReservedQty(productId, variantName = null) {
   return state.orders
     .filter((o) => o.status !== "cancelado" && o.status !== "concluido")
@@ -12956,7 +14027,7 @@ function vendaManualResolvedItems() {
       unitPrice = salePriceFor(product, "pix", variant);
     }
     unitPrice = Number(unitPrice || 0);
-    return { ...it, unitPrice, lineTotal: round2(unitPrice * it.quantity), product, variant };
+    return { ...it, unitPrice, lineTotal: round2(unitPrice * it.quantity), product, variant, fulfillmentSource: it.fulfillmentSource || "own" };
   });
 }
 function vendaManualTotals() {
@@ -12993,8 +14064,14 @@ function vendaManualInventoryWarnings() {
   const warnings = [];
   vendaManualResolvedItems().forEach((it) => {
     if (!it.product) return;
+    if ((it.fulfillmentSource || "own") === "supplier") {
+      if (!it.supplierId) warnings.push(`${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""}: selecione o fornecedor.`);
+      if (!it.supplierDelivered) warnings.push(`${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""}: aguardará entrega do fornecedor.`);
+      return;
+    }
+    if (it.alreadyProduced) return;
     const snap = vendaManualStockSnapshot(it.product, it.variant, it.quantity);
-    if (snap.tracked && snap.toProduce > 0) warnings.push(`${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""}: faltam ${snap.toProduce} un. para atender este pedido.`);
+    if (snap.tracked && snap.toProduce > 0) warnings.push(`${it.product_name}${it.variant_name ? ` (${it.variant_name})` : ""}: faltam ${snap.toProduce} un. para fabricar.`);
   });
   vendaManualState.giftWraps.forEach((g) => {
     const m = state.materials.find((x) => x.id === g.material_id);
@@ -13007,16 +14084,26 @@ function vendaManualInventoryWarnings() {
 }
 function vendaManualProductionUnits() {
   return vendaManualResolvedItems().reduce((sum,it) => {
+    if ((it.fulfillmentSource || "own") !== "own" || it.alreadyProduced) return sum;
     const snap = vendaManualStockSnapshot(it.product, it.variant, it.quantity);
-    return sum + Number(snap.toProduce || 0);
+    return sum + Number(snap.toProduce || it.quantity || 0);
   },0);
 }
 function vendaManualCopyLastOrder(order) {
   if (!order) return;
-  vendaManualState.items = (order.items || []).map((it) => ({
-    product_id:it.product_id, product_name:it.product_name, variant_id:null, variant_name:it.variant_name || null,
-    quantity:Number(it.quantity || 1), fixed_unit_price_pix:Number(it.unit_price || 0), fixed_unit_price_credit:null,
-  }));
+  vendaManualState.items = (order.items || []).map((it) => {
+    const f = orderItemFulfillmentInfo(order, it);
+    return {
+      product_id:it.product_id, product_name:it.product_name, variant_id:null, variant_name:it.variant_name || null,
+      quantity:Number(it.quantity || 1), fixed_unit_price_pix:Number(it.unit_price || 0), fixed_unit_price_credit:null,
+      fulfillmentSource:f.source === "supplier" ? "supplier" : "own",
+      supplierId:f.supplierId || "",
+      supplierName:f.supplierName || "",
+      supplierPaid:!!it.fornecedor_pago_at,
+      supplierDelivered:!!it.fornecedor_entregue_at,
+      alreadyProduced:f.source === "own" && !!f.alreadyProduced,
+    };
+  });
   vendaManualState.customerName = order.customer_name || vendaManualState.customerName;
   vendaManualState.customerWhatsapp = order.customer_whatsapp || vendaManualState.customerWhatsapp;
   vendaManualState.customerInstagram = order.customer_instagram || vendaManualState.customerInstagram;
@@ -13071,7 +14158,15 @@ function renderVendaManualOverlay() {
   const activeProducts = state.products.filter((p) => p.active);
   const selectedProduct = activeProducts.find((p) => p.id === vendaManualState._selectedProductId);
   const selectedVariants = selectedProduct?.product_variants ?? [];
+  const variantDims = selectedVariants.map((v) => ({ v, ...variantDimensions(v) }));
+  const hasSizedVariants = variantDims.some((x) => !!x.size);
+  const sizeOptions = [...new Set(variantDims.map((x) => x.size || (hasSizedVariants ? "Tamanho padrão" : "")).filter(Boolean))];
+  const candidateVariants = hasSizedVariants
+    ? variantDims.filter((x) => (x.size || "Tamanho padrão") === vendaManualState._selectedSize).map((x) => x.v)
+    : selectedVariants;
   const selectedVariant = selectedVariants.find((v) => v.id === vendaManualState._selectedVariantId) || null;
+  const supplierOptions = vendaManualSupplierOptions();
+  const selectedSupplier = supplierOptions.find((s) => String(s.id) === String(vendaManualState._selectedSupplierId || "")) || null;
   const giftOptions = vendaManualGiftWrapOptions();
   const customerInfo = vendaManualCustomerInfo(vendaManualState.customerWhatsapp);
   const customerOrders = vendaManualState.customerWhatsapp ? state.orders.filter((o) => String(o.customer_whatsapp || "").replace(/\D/g,"") === String(vendaManualState.customerWhatsapp || "").replace(/\D/g,"") && o.status !== "cancelado").sort((a,b) => new Date(b.created_at)-new Date(a.created_at)) : [];
@@ -13119,15 +14214,74 @@ function renderVendaManualOverlay() {
                   <div class="vm-section-title"><strong>2. Itens</strong><span>Estoque e produção em tempo real</span></div>
                   <div class="vm-item-builder">
                     <div class="vm-field vm-product-field"><label>Produto</label><select id="vm-product-select"><option value="">— selecione —</option>${activeProducts.map((p) => `<option value="${p.id}" ${p.id === vendaManualState._selectedProductId ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")}</select></div>
-                    <div class="vm-field"><label>Modelo</label>${selectedVariants.length ? `<select id="vm-variant-select"><option value="">— selecione —</option>${[...selectedVariants].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)).map((v)=>`<option value="${v.id}" ${v.id===vendaManualState._selectedVariantId?"selected":""}>${escapeHtml(v.name)}${v.esgotado?" (esgotado)":""}</option>`).join("")}</select>` : `<select id="vm-variant-select" disabled><option>Sem variação</option></select>`}</div>
+                    <div class="vm-field" style="${selectedVariants.length ? "grid-column:span 2" : ""}">
+                      ${selectedVariants.length ? `
+                        ${hasSizedVariants ? `
+                          <label>Tamanho</label>
+                          <div class="mb-3 flex flex-wrap gap-2">
+                            ${sizeOptions.map((size)=>`<button type="button" data-vm-size="${escapeHtml(size)}" class="rounded-lg border px-3 py-2 text-xs font-bold ${vendaManualState._selectedSize===size ? "border-gold-400 bg-gold-50 text-navy-900" : "border-navy-200 bg-white text-navy-600"}">${escapeHtml(size)}</button>`).join("")}
+                          </div>
+                        ` : ""}
+                        <label>${candidateVariants.some((v)=>variantDimensions(v).color) ? "Cor / acabamento" : "Variação"}</label>
+                        ${(!hasSizedVariants || vendaManualState._selectedSize) ? `
+                          <div class="lm-color-options">
+                            ${[...candidateVariants].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)).map((v)=>{
+                              const d=variantDimensions(v);
+                              if (!d.color && hasSizedVariants && candidateVariants.length===1) {
+                                return `<button type="button" data-vm-color="${v.id}" class="rounded-lg border px-3 py-2 text-xs font-bold ${v.id===vendaManualState._selectedVariantId ? "border-gold-400 bg-gold-50 text-navy-900" : "border-navy-200 bg-white text-navy-600"}">${escapeHtml(d.size || v.name)}</button>`;
+                              }
+                              return colorSwatchButtonHtml(v, v.id===vendaManualState._selectedVariantId, `data-vm-color="${v.id}"`);
+                            }).join("")}
+                          </div>
+                        ` : `<p class="rounded-lg bg-navy-50 px-3 py-2 text-xs text-navy-500">Escolha primeiro o tamanho.</p>`}
+                        ${selectedVariant?.photo_url ? `<div class="mt-2 flex items-center gap-2"><img src="${selectedVariant.photo_url}" alt="${escapeHtml(variantDisplayLabel(selectedVariant))}" class="lm-color-photo"/><div><span class="block text-xs font-semibold text-navy-700">${escapeHtml(variantDisplayLabel(selectedVariant))}</span><span class="text-[10px] text-navy-400">Foto da opção selecionada</span></div></div>` : ""}
+                      ` : `<div class="rounded-lg border border-navy-100 bg-white px-3 py-2 text-xs text-navy-500">Tamanho/cor únicos · sem variação cadastrada</div>`}
+                    </div>
                     <div class="vm-field"><label>Qtd.</label><input id="vm-item-qty" value="${escapeHtml(vendaManualState._qty)}" inputmode="numeric" /></div>
+
+                    ${selectedProduct ? `
+                      <div style="grid-column:1/-1" class="rounded-xl border border-navy-100 bg-cream-50 p-3">
+                        <p class="text-[10px] font-extrabold uppercase tracking-wide text-navy-500">Como este item será atendido?</p>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                          <button type="button" data-vm-fulfillment="own" class="rounded-lg border px-3 py-2 text-xs font-bold ${vendaManualState._selectedFulfillmentSource==="own" ? "border-gold-400 bg-gold-50 text-navy-900" : "border-navy-200 bg-white text-navy-600"}">🏭 Fabricação própria</button>
+                          <button type="button" data-vm-fulfillment="supplier" class="rounded-lg border px-3 py-2 text-xs font-bold ${vendaManualState._selectedFulfillmentSource==="supplier" ? "border-gold-400 bg-gold-50 text-navy-900" : "border-navy-200 bg-white text-navy-600"}">🚚 Fornecedor</button>
+                        </div>
+
+                        ${vendaManualState._selectedFulfillmentSource==="supplier" ? `
+                          <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                            <div class="vm-field">
+                              <label>Fornecedor</label>
+                              <select id="vm-source-supplier">
+                                <option value="">— selecione —</option>
+                                ${supplierOptions.map((s)=>`<option value="${s.id}" ${String(s.id)===String(vendaManualState._selectedSupplierId||"")?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
+                              </select>
+                            </div>
+                            <div class="flex flex-col justify-end gap-2 pb-1">
+                              <label class="flex items-center gap-2 text-xs font-semibold text-navy-700"><input id="vm-supplier-paid" type="checkbox" ${vendaManualState._supplierPaid?"checked":""}/> Fornecedor pago</label>
+                              <label class="flex items-center gap-2 text-xs font-semibold text-navy-700"><input id="vm-supplier-delivered" type="checkbox" ${vendaManualState._supplierDelivered?"checked":""}/> Fornecedor entregou</label>
+                            </div>
+                          </div>
+                        ` : `
+                          <div class="mt-3">
+                            <label class="flex items-center gap-2 text-xs font-semibold text-navy-700"><input id="vm-already-produced" type="checkbox" ${vendaManualState._alreadyProduced?"checked":""}/> Já fabricado / pronto</label>
+                            <p class="mt-1 text-[10px] text-navy-500">${vendaManualState._alreadyProduced ? "O item entra como pronto e não gera pendência na fila de fabricação." : "O item seguirá normalmente para a fila de Produção."}</p>
+                          </div>
+                        `}
+                      </div>
+                    ` : ""}
                     <button type="button" id="vm-item-add" class="rounded-lg bg-navy-900 px-3 py-2 text-xs font-bold text-white">+ Adicionar</button>
                   </div>
                   ${selectedSnap?.tracked ? `<div class="vm-stock-strip"><span class="vm-stock-pill">Pronto: <b>${selectedSnap.ready}</b></span><span class="vm-stock-pill warning">Reservado: <b>${selectedSnap.reserved}</b></span><span class="vm-stock-pill ${selectedSnap.available>0?"good":"bad"}">Disponível: <b>${selectedSnap.available}</b></span>${selectedSnap.toProduce>0?`<span class="vm-stock-pill bad">Fabricar: <b>${selectedSnap.toProduce}</b></span>`:""}</div>` : selectedProduct ? `<div class="vm-stock-strip"><span class="vm-stock-pill">Estoque sem controle por quantidade</span></div>` : ""}
                   <div class="mt-3">
                     ${totals.resolved.length === 0 ? `<p class="text-xs text-navy-400">Nenhum item adicionado.</p>` : totals.resolved.map((it,idx)=>{
                       const snap=vendaManualStockSnapshot(it.product,it.variant,it.quantity);
-                      return `<div class="vm-item-row ${it.courtesy?"courtesy":""}"><div><b class="text-xs text-navy-900">${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name?` (${escapeHtml(it.variant_name)})`:""}</b><div class="mt-1 flex flex-wrap gap-1">${it.courtesy?`<span class="vm-stock-pill warning">🎁 Cortesia</span>`:""}${snap.tracked?`<span class="vm-stock-pill">disp. ${snap.available}</span>${snap.toProduce?`<span class="vm-stock-pill bad">fabricar ${snap.toProduce}</span>`:""}`:""}</div></div><div class="vm-item-money text-right"><b class="text-sm text-navy-900">${formatBRL(it.lineTotal)}</b><div class="text-[9px] text-navy-400">${formatBRL(it.unitPrice)}/un.</div></div><div class="flex gap-1"><button type="button" data-vm-courtesy="${idx}" class="rounded border border-gold-300 px-2 py-1 text-[9px] font-bold text-gold-800">${it.courtesy?"Cobrar":"Cortesia"}</button><button type="button" data-remove-vm-idx="${idx}" class="rounded border border-red-200 px-2 py-1 text-[9px] font-bold text-red-600">✕</button></div></div>`;
+                      return `<div class="vm-item-row ${it.courtesy?"courtesy":""}"><div><b class="text-xs text-navy-900">${it.quantity}× ${escapeHtml(it.product_name)}${it.variant_name?` (${escapeHtml(it.variant_name)})`:""}</b><div class="mt-1 flex flex-wrap gap-1">
+                        ${it.courtesy?`<span class="vm-stock-pill warning">🎁 Cortesia</span>`:""}
+                        ${(it.fulfillmentSource||"own")==="supplier"
+                          ? `<span class="vm-stock-pill warning">🚚 ${escapeHtml(it.supplierName||"Fornecedor")}</span>${it.supplierPaid?`<span class="vm-stock-pill">Pago</span>`:`<span class="vm-stock-pill bad">A pagar</span>`}${it.supplierDelivered?`<span class="vm-stock-pill">Entregue</span>`:`<span class="vm-stock-pill warning">Aguardando entrega</span>`}`
+                          : `<span class="vm-stock-pill">🏭 Fabricação própria</span>${it.alreadyProduced?`<span class="vm-stock-pill">Já fabricado</span>`:(snap.tracked&&snap.toProduce?`<span class="vm-stock-pill bad">fabricar ${snap.toProduce}</span>`:`<span class="vm-stock-pill warning">vai para produção</span>`)}`
+                        }
+                      </div></div><div class="vm-item-money text-right"><b class="text-sm text-navy-900">${formatBRL(it.lineTotal)}</b><div class="text-[9px] text-navy-400">${formatBRL(it.unitPrice)}/un.</div></div><div class="flex gap-1"><button type="button" data-vm-courtesy="${idx}" class="rounded border border-gold-300 px-2 py-1 text-[9px] font-bold text-gold-800">${it.courtesy?"Cobrar":"Cortesia"}</button><button type="button" data-remove-vm-idx="${idx}" class="rounded border border-red-200 px-2 py-1 text-[9px] font-bold text-red-600">✕</button></div></div>`;
                     }).join("")}
                   </div>
                 </section>
@@ -13175,7 +14329,10 @@ function renderVendaManualOverlay() {
                     <div class="vm-finance-chip"><span>Reinvestimento ${totals.split.reinvestPercent}%</span><b>${formatBRL(totals.split.reinvestment ?? totals.split.reinvestAmount ?? Math.max(0,totals.split.profit)*totals.split.reinvestPercent/100)}</b></div>
                     <div class="vm-finance-chip"><span>Retirada ${totals.split.ownerPercent}%</span><b>${vendaManualState.paymentStatus==="paid"?formatBRL(totals.split.ownerShare):"R$ 0,00"}</b></div>
                   </div>
-                  <div class="mt-3 text-[9px] text-blue-100">${productionUnits>0?`🏭 Este pedido gera <b>${productionUnits} un.</b> para fabricar.`:"✓ Itens atendidos pelo estoque/controle atual."}</div>
+                  <div class="mt-3 text-[9px] text-blue-100">
+                    ${productionUnits>0?`🏭 Fabricação própria: <b>${productionUnits} un.</b> pendente(s) de produção.`:"✓ Nenhuma unidade pendente de fabricação própria."}
+                    ${totals.resolved.some(it=>(it.fulfillmentSource||"own")==="supplier") ? `<br>🚚 Itens de fornecedor ficam no acompanhamento de pagamento/entrega e não entram na fila de fabricação.` : ""}
+                  </div>
                 </section>
                 ${warnings.length ? `<div class="vm-warning-box"><b>⚠ Antes de registrar:</b><br>${warnings.map((w)=>`• ${escapeHtml(w)}`).join("<br>")}</div>`:""}
               </div>
@@ -13201,14 +14358,89 @@ function renderVendaManualOverlay() {
   document.querySelectorAll("[data-vm-payment]").forEach(btn=>btn.onclick=()=>{vendaManualState.payment=btn.dataset.vmPayment; if(vendaManualState.payment==="brinde") vendaManualState.paymentStatus="paid"; renderVendaManualOverlay();});
   const vmInstallments=document.getElementById("vm-installments"); if(vmInstallments) vmInstallments.onchange=(e)=>{vendaManualState.installments=Number(e.target.value||1); renderVendaManualOverlay();};
   document.querySelectorAll("[data-vm-paystatus]").forEach(btn=>btn.onclick=()=>{vendaManualState.paymentStatus=btn.dataset.vmPaystatus; renderVendaManualOverlay();});
-  const prodSelect=document.getElementById("vm-product-select"); if(prodSelect) prodSelect.onchange=e=>{vendaManualState._selectedProductId=e.target.value||null; vendaManualState._selectedVariantId=null; renderVendaManualOverlay();};
-  const varSelect=document.getElementById("vm-variant-select"); if(varSelect && !varSelect.disabled) varSelect.onchange=e=>{vendaManualState._selectedVariantId=e.target.value||null; renderVendaManualOverlay();};
+  const prodSelect=document.getElementById("vm-product-select"); if(prodSelect) prodSelect.onchange=e=>{
+    vendaManualState._selectedProductId=e.target.value||null;
+    vendaManualState._selectedVariantId=null;
+    vendaManualState._selectedSize="";
+    const p=activeProducts.find(x=>x.id===vendaManualState._selectedProductId);
+    const d=vendaManualDefaultFulfillment(p);
+    vendaManualState._selectedFulfillmentSource=d.source;
+    vendaManualState._selectedSupplierId=d.supplierId||"";
+    vendaManualState._supplierPaid=false;
+    vendaManualState._supplierDelivered=false;
+    vendaManualState._alreadyProduced=false;
+    renderVendaManualOverlay();
+  };
+  document.querySelectorAll("[data-vm-size]").forEach((btn)=>btn.onclick=()=>{
+    vendaManualState._selectedSize=btn.dataset.vmSize||"";
+    vendaManualState._selectedVariantId=null;
+    const matching=selectedVariants.filter((v)=>{
+      const d=variantDimensions(v);
+      return (d.size || "Tamanho padrão")===vendaManualState._selectedSize;
+    });
+    if(matching.length===1 && !variantDimensions(matching[0]).color) vendaManualState._selectedVariantId=matching[0].id;
+    renderVendaManualOverlay();
+  });
+  document.querySelectorAll("[data-vm-color]").forEach((btn)=>btn.onclick=()=>{
+    vendaManualState._selectedVariantId=btn.dataset.vmColor||null;
+    renderVendaManualOverlay();
+  });
+  document.querySelectorAll("[data-vm-fulfillment]").forEach(btn=>btn.onclick=()=>{
+    vendaManualState._selectedFulfillmentSource=btn.dataset.vmFulfillment;
+    if(vendaManualState._selectedFulfillmentSource==="own"){
+      vendaManualState._selectedSupplierId="";
+      vendaManualState._supplierPaid=false;
+      vendaManualState._supplierDelivered=false;
+    } else {
+      vendaManualState._alreadyProduced=false;
+      if(!vendaManualState._selectedSupplierId && selectedProduct?.supplier_id){
+        const s=state.suppliers.find(x=>x.id===selectedProduct.supplier_id);
+        if(s && !isOwnProductionSupplier(s)) vendaManualState._selectedSupplierId=s.id;
+      }
+    }
+    renderVendaManualOverlay();
+  });
+  const vmSourceSupplier=document.getElementById("vm-source-supplier"); if(vmSourceSupplier) vmSourceSupplier.onchange=e=>{vendaManualState._selectedSupplierId=e.target.value||"";};
+  const vmSupplierPaid=document.getElementById("vm-supplier-paid"); if(vmSupplierPaid) vmSupplierPaid.onchange=e=>{vendaManualState._supplierPaid=!!e.target.checked;};
+  const vmSupplierDelivered=document.getElementById("vm-supplier-delivered"); if(vmSupplierDelivered) vmSupplierDelivered.onchange=e=>{vendaManualState._supplierDelivered=!!e.target.checked;};
+  const vmAlreadyProduced=document.getElementById("vm-already-produced"); if(vmAlreadyProduced) vmAlreadyProduced.onchange=e=>{vendaManualState._alreadyProduced=!!e.target.checked;};
   bindValue("vm-item-qty","_qty");
   document.getElementById("vm-item-add").onclick=()=>{
     const errorEl=document.getElementById("vm-error"); const product=activeProducts.find(p=>p.id===vendaManualState._selectedProductId); if(!product){errorEl.textContent="Escolha um produto.";return;}
-    const variants=product.product_variants||[]; let variant=null; if(variants.length){variant=variants.find(v=>v.id===vendaManualState._selectedVariantId); if(!variant){errorEl.textContent="Escolha um modelo.";return;}}
+    const variants=product.product_variants||[]; let variant=null; if(variants.length){variant=variants.find(v=>v.id===vendaManualState._selectedVariantId); if(!variant){errorEl.textContent="Escolha o tamanho e/ou a cor do produto.";return;}}
     const qty=Math.trunc(Number(String(vendaManualState._qty).replace(",","."))); if(!Number.isFinite(qty)||qty<=0){errorEl.textContent="Informe uma quantidade válida.";return;}
-    vendaManualState.items.push({product_id:product.id,product_name:product.name,variant_id:variant?.id||null,variant_name:variant?.name||null,quantity:qty,courtesy:false}); vendaManualState._qty="1"; renderVendaManualOverlay();
+    const source=vendaManualState._selectedFulfillmentSource||"own";
+    const supplier=source==="supplier" ? state.suppliers.find(s=>String(s.id)===String(vendaManualState._selectedSupplierId||"")) : null;
+    if(source==="supplier" && !supplier){errorEl.textContent="Selecione o fornecedor que atenderá este item.";return;}
+
+    const existing=vendaManualState.items.find(it=>
+      String(it.product_id)===String(product.id) &&
+      String(it.variant_name||"")===String(variant?.name||"") &&
+      String(it.fulfillmentSource||"own")===source &&
+      String(it.supplierId||"")===String(supplier?.id||"")
+    );
+    if(existing){
+      existing.quantity=Number(existing.quantity||0)+qty;
+      existing.supplierPaid=existing.supplierPaid||!!vendaManualState._supplierPaid;
+      existing.supplierDelivered=existing.supplierDelivered||!!vendaManualState._supplierDelivered;
+      existing.alreadyProduced=existing.alreadyProduced||!!vendaManualState._alreadyProduced;
+    } else {
+      vendaManualState.items.push({
+        product_id:product.id,product_name:product.name,variant_id:variant?.id||null,variant_name:variant?.name||null,
+        quantity:qty,courtesy:false,
+        fulfillmentSource:source,
+        supplierId:supplier?.id||"",
+        supplierName:supplier?.name||"",
+        supplierPaid:source==="supplier"&&!!vendaManualState._supplierPaid,
+        supplierDelivered:source==="supplier"&&!!vendaManualState._supplierDelivered,
+        alreadyProduced:source==="own"&&!!vendaManualState._alreadyProduced,
+      });
+    }
+    vendaManualState._qty="1";
+    vendaManualState._supplierPaid=false;
+    vendaManualState._supplierDelivered=false;
+    vendaManualState._alreadyProduced=false;
+    renderVendaManualOverlay();
   };
   document.querySelectorAll("[data-remove-vm-idx]").forEach(btn=>btn.onclick=()=>{vendaManualState.items.splice(Number(btn.dataset.removeVmIdx),1);renderVendaManualOverlay();});
   document.querySelectorAll("[data-vm-courtesy]").forEach(btn=>btn.onclick=()=>{const i=Number(btn.dataset.vmCourtesy); vendaManualState.items[i].courtesy=!vendaManualState.items[i].courtesy;renderVendaManualOverlay();});
@@ -13286,8 +14518,26 @@ async function submeterVendaManual(e) {
   const veioDoOrcamento=!!vendaManualState.sourceOrcamentoId;
   const orderId=crypto.randomUUID();
   const now=new Date().toISOString();
+  const fulfillmentMeta = {};
+  const productionMeta = {};
+  totals.resolved.forEach((it) => {
+    const key = productionItemKey(it);
+    const source = it.fulfillmentSource || "own";
+    fulfillmentMeta[key] = {
+      source,
+      supplierId: source === "supplier" ? (it.supplierId || null) : null,
+      supplierName: source === "supplier" ? (it.supplierName || null) : "Fabricação própria",
+      alreadyProduced: source === "own" && !!it.alreadyProduced,
+    };
+    if (source === "own" && it.alreadyProduced) {
+      productionMeta[key] = { done:Number(it.quantity||0), stage:"ready", lot:"", machine:"" };
+    }
+  });
+
   const meta={
     ...defaultOrderOpsMeta(),
+    fulfillment: fulfillmentMeta,
+    production: productionMeta,
     sale:{
       mode:vendaManualState.mode, origin:vendaManualState.origin,
       paymentMethod:vendaManualState.payment, installments:vendaManualState.payment === "credito" ? totals.installments : 1,
@@ -13296,7 +14546,7 @@ async function submeterVendaManual(e) {
       manualDiscount:totals.manualDiscount, manualDiscountReason:String(vendaManualState.manualDiscountReason||"").trim()||null,
       internalNotes:String(vendaManualState.internalNotes||"").trim()||null,
       giftWrap:true,
-      createdVia:"venda_manual_v8_1",
+      createdVia:"venda_manual_v8_7",
     },
   };
   const orderPayload={
@@ -13317,7 +14567,17 @@ async function submeterVendaManual(e) {
   const {error:orderError}=await supabaseClient.from("orders").insert(orderPayload);
   if(orderError){errorEl.textContent="Não foi possível registrar o pedido: "+orderError.message;submitBtn.disabled=false;submitBtn.textContent="Registrar pedido";return;}
 
-  const itemRows=totals.resolved.map(it=>({order_id:orderId,product_id:it.product_id,product_name:it.product_name,variant_name:it.variant_name,unit_price:it.unitPrice,quantity:it.quantity}));
+  const itemRows=totals.resolved.map(it=>({
+    order_id:orderId,
+    product_id:it.product_id,
+    product_name:it.product_name,
+    variant_name:it.variant_name,
+    unit_price:it.unitPrice,
+    quantity:it.quantity,
+    fulfilled_from_stock:false,
+    fornecedor_pago_at:(it.fulfillmentSource==="supplier" && it.supplierPaid) ? now : null,
+    fornecedor_entregue_at:(it.fulfillmentSource==="supplier" && it.supplierDelivered) ? now : null,
+  }));
   const {error:itemsError}=await supabaseClient.from("order_items").insert(itemRows);
   if(itemsError){errorEl.textContent="O pedido foi criado, mas não foi possível salvar os itens: "+itemsError.message;submitBtn.disabled=false;submitBtn.textContent="Registrar pedido";return;}
   if(vendaManualState.giftWraps.length){
@@ -13928,7 +15188,7 @@ function orcCatalogoPesquisavel() {
           variantId: variant.id,
           productName: product.name || "Produto",
           variantName: variant.name || "",
-          label: `${product.name || "Produto"} — ${variant.name || "Modelo"}`,
+          label: `${product.name || "Produto"} — ${variant.name || "Cor"}`,
           category: product.category || "",
           pix: Number(pricing.promoPrice || 0),
           credito: Number(pricing.creditPrice || 0),
@@ -15693,7 +16953,7 @@ function renderStockEntryEditOverlay() {
             </div>
             ${selectedVariants.length > 0 ? `
               <div>
-                <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
+                <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
                 <select id="se-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                   <option value="">— selecione —</option>
                   ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}" ${v.id === stockEntryEditState.variantId ? "selected" : ""}>${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -15772,7 +17032,7 @@ function renderStockEntryEditOverlay() {
     const product = state.products.find((p) => p.id === productId);
     const variants = product?.product_variants ?? [];
     const variantSel = document.getElementById("se-variant-select");
-    if (variants.length > 0 && (!variantSel || !variantSel.value)) { errorEl.textContent = "Escolha o modelo do produto."; return; }
+    if (variants.length > 0 && (!variantSel || !variantSel.value)) { errorEl.textContent = "Escolha a cor do produto."; return; }
     const qty = Math.trunc(Number(document.getElementById("se-qty").value.replace(",", ".")));
     if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Informe uma quantidade válida."; return; }
     const unitCost = Number(document.getElementById("se-unit-cost").value.replace(",", "."));
@@ -16184,7 +17444,7 @@ function renderBrindeOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
                     <select id="brinde-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}">${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -16303,7 +17563,7 @@ function renderBrindeOverlay() {
     if (!product) { errorEl.textContent = "Escolha um produto."; return; }
     const variants = product.product_variants ?? [];
     const variantSelect = document.getElementById("brinde-variant-select");
-    if (variants.length > 0 && (!variantSelect || !variantSelect.value)) { errorEl.textContent = "Escolha o modelo do produto."; return; }
+    if (variants.length > 0 && (!variantSelect || !variantSelect.value)) { errorEl.textContent = "Escolha a cor do produto."; return; }
     const qty = Math.trunc(Number(document.getElementById("brinde-item-qty").value.replace(",", ".")));
     if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Informe uma quantidade válida."; return; }
     errorEl.textContent = "";
@@ -16533,7 +17793,7 @@ function renderStockPurchaseOverlay() {
                 </div>
                 ${selectedVariants.length > 0 ? `
                   <div class="min-w-[160px]">
-                    <label class="mb-1 block text-xs font-medium text-navy-700">Modelo</label>
+                    <label class="mb-1 block text-xs font-medium text-navy-700">Cor / acabamento</label>
                     <select id="sp-variant-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
                       <option value="">— selecione —</option>
                       ${[...selectedVariants].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((v) => `<option value="${v.id}" ${v.id === stockPurchaseState._selectedVariantId ? "selected" : ""}>${escapeHtml(v.name)}${v.esgotado ? " (esgotado)" : ""}</option>`).join("")}
@@ -16662,7 +17922,7 @@ function renderStockPurchaseOverlay() {
     if (!product) { errorEl.textContent = "Escolha um produto."; return; }
     const variants = product.product_variants ?? [];
     const variantSel = document.getElementById("sp-variant-select");
-    if (variants.length > 0 && (!variantSel || !variantSel.value)) { errorEl.textContent = "Escolha o modelo do produto."; return; }
+    if (variants.length > 0 && (!variantSel || !variantSel.value)) { errorEl.textContent = "Escolha a cor do produto."; return; }
     const qty = Math.trunc(Number(document.getElementById("sp-item-qty").value.replace(",", ".")));
     if (!Number.isFinite(qty) || qty <= 0) { errorEl.textContent = "Informe uma quantidade válida."; return; }
     const unitCost = Number(document.getElementById("sp-item-cost").value.replace(",", "."));
