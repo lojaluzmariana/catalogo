@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v9.2-no-sold-out-2026-09-13" />
+  <meta name="luz-mariana-catalog-version" content="professional-v9.3-size-model-selectors-2026-09-14" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
@@ -382,6 +382,17 @@
     color: #001868;
     line-height: 1.2;
   }
+  .dimension-selector-block + .dimension-selector-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid #eef0f5; }
+  .size-option-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .size-option-btn {
+    min-width:78px; min-height:48px; border:2px solid #e0e2ec; border-radius:12px;
+    background:#fff; padding:7px 11px; color:#1d2857; text-align:center; font-weight:750; cursor:pointer;
+  }
+  .size-option-btn:hover { border-color:#c5cad9; background:#fbfcff; }
+  .size-option-btn.is-selected { border-color:#d5aa3e; background:#fffaf0; box-shadow:0 0 0 2px rgba(213,170,62,.14); }
+  .size-option-btn .size-name { display:block; font-size:13px; line-height:1.15; }
+  .size-option-btn .size-price { display:block; margin-top:4px; font-size:9px; line-height:1.15; color:#66708c; font-weight:650; }
+  .dimension-combination-note { margin-top:10px; border-radius:10px; background:#f7f8fb; padding:8px 10px; color:#69748d; font-size:10px; line-height:1.4; }
   .quick-model-add { margin-top: 12px; width: 100%; }
   .catalog-search-suggestions {
     position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 35;
@@ -782,7 +793,7 @@
     </div>
     <div class="mt-3">
       <div class="help-step-row"><span class="help-step-icon">1</span><div><p class="font-semibold text-navy-900">Encontre o produto</p><p class="mt-0.5 text-sm text-navy-500">Use a busca ou as categorias. Toque na foto do produto para ver os detalhes.</p></div></div>
-      <div class="help-step-row"><span class="help-step-icon">2</span><div><p class="font-semibold text-navy-900">Escolha o modelo</p><p class="mt-0.5 text-sm text-navy-500">Quando houver cores ou modelos, eles aparecem em botões grandes com foto e nome.</p></div></div>
+      <div class="help-step-row"><span class="help-step-icon">2</span><div><p class="font-semibold text-navy-900">Escolha tamanho e modelo</p><p class="mt-0.5 text-sm text-navy-500">Tamanho e modelo são escolhas separadas. Quando houver mais de uma opção, escolha cada uma nos botões disponíveis; a foto muda conforme o modelo selecionado.</p></div></div>
       <div class="help-step-row"><span class="help-step-icon">3</span><div><p class="font-semibold text-navy-900">Adicione ao pedido</p><p class="mt-0.5 text-sm text-navy-500">Toque em “Adicionar ao pedido”. A barra na parte de baixo mostra quantos itens você escolheu.</p></div></div>
       <div class="help-step-row"><span class="help-step-icon">4</span><div><p class="font-semibold text-navy-900">Revise e continue</p><p class="mt-0.5 text-sm text-navy-500">Abra “Ver meu pedido”, confira os itens e toque em “Continuar”.</p></div></div>
       <div class="help-step-row"><span class="help-step-icon">5</span><div><p class="font-semibold text-navy-900">Envie pelo WhatsApp</p><p class="mt-0.5 text-sm text-navy-500">Preencha seu nome e WhatsApp. No final, o WhatsApp abre com a mensagem do pedido pronta — basta apertar “Enviar”.</p></div></div>
@@ -1227,7 +1238,9 @@ const state = {
   cart: loadCartFromStorage(), // { [cartKey]: quantity } — cartKey é o product_id, ou "product_id::variant_id" quando tem modelo escolhido
   favorites: loadFavoritesFromStorage(), // { [product_id]: true } — lista de desejos, salva só no aparelho
   favoritesOnly: false, // filtro "❤ Favoritos" ativado na barra de categorias
-  selectedVariant: {}, // { [product_id]: variant_id } — modelo escolhido na página individual do produto
+  selectedVariant: {}, // { [product_id]: variant_id } — combinação final tamanho + modelo escolhida
+  selectedSize: {}, // { [product_id]: tamanho } — permite escolher tamanho e modelo de forma independente
+  selectedModel: {}, // { [product_id]: modelo } — permite pré-visualizar o modelo antes de fechar a combinação
   cardPhotoIndex: {}, // { [product_id]: index } — foto do modelo exibida agora no carrossel automático do card
   detailProductId: null, // produto aberto na página individual
   detailGalleryIndex: 0, // qual foto da galeria está em destaque na página do produto (0 = foto de capa)
@@ -1364,6 +1377,9 @@ async function loadCatalog() {
     const directVariant = findVariantByUrlValue(directProduct.id, directVariantValue);
     if (directVariant) {
       state.selectedVariant[directProduct.id] = directVariant.id;
+      const dims = catalogVariantDimensions(directVariant);
+      if (dims.size) state.selectedSize[directProduct.id] = dims.size;
+      if (dims.model) state.selectedModel[directProduct.id] = dims.model;
     }
   }
   try {
@@ -1455,6 +1471,66 @@ function variantsFor(productId) {
   });
 }
 
+// No banco a combinação ainda chega em product_variants.name. Para o cliente,
+// porém, TAMANHO e MODELO são duas decisões diferentes. A convenção aceita é:
+//   "16 cm · Branco"  -> tamanho 16 cm / modelo Branco
+//   "16 cm"           -> somente tamanho
+//   "Granito"         -> somente modelo
+// Isso mantém compatibilidade com tudo que já está cadastrado e permite preço,
+// estoque e foto próprios para cada combinação tamanho + modelo.
+function catalogLooksLikeSize(value) {
+  const s = String(value || "").trim().toLowerCase();
+  return /^\d+(?:[.,]\d+)?\s*(?:mm|cm|m)$/.test(s)
+    || /^(?:pp|p|m|g|gg|xg|xgg)$/i.test(s)
+    || /\b\d+(?:[.,]\d+)?\s*(?:mm|cm)\b/.test(s);
+}
+function catalogVariantDimensions(variantOrName) {
+  const raw = typeof variantOrName === "string" ? variantOrName : String(variantOrName?.name || "");
+  const parts = raw.split(" · ").map((x) => x.trim()).filter(Boolean);
+  if (parts.length >= 2 && catalogLooksLikeSize(parts[0])) return { size: parts[0], model: parts.slice(1).join(" · ") };
+  if (catalogLooksLikeSize(raw)) return { size: raw.trim(), model: "" };
+  return { size: "", model: raw.trim() };
+}
+function variantSelectorData(productId) {
+  const variants = variantsFor(productId);
+  const rows = variants.map((v) => ({ v, ...catalogVariantDimensions(v) }));
+  const sizes = [...new Set(rows.map((r) => r.size).filter(Boolean))];
+  const models = [...new Set(rows.map((r) => r.model).filter(Boolean))];
+  return { variants, rows, sizes, models };
+}
+function selectedDimensionsForProduct(productId) {
+  const data = variantSelectorData(productId);
+  const selectedVariant = data.variants.find((v) => String(v.id) === String(state.selectedVariant[productId] || "")) || null;
+  const selectedDims = selectedVariant ? catalogVariantDimensions(selectedVariant) : { size:"", model:"" };
+  const size = state.selectedSize[productId] || selectedDims.size || (data.sizes.length === 1 ? data.sizes[0] : "");
+  const model = state.selectedModel[productId] || selectedDims.model || (data.models.length === 1 ? data.models[0] : "");
+  return { ...data, size, model };
+}
+function resolveVariantForDimensions(productId, size, model) {
+  const data = variantSelectorData(productId);
+  return data.rows.find((r) =>
+    (data.sizes.length === 0 || r.size === size) &&
+    (data.models.length === 0 || r.model === model)
+  )?.v || null;
+}
+function priceLabelForVariantGroup(product, variants) {
+  if (!variants.length) return "";
+  const prices = variants.map((v) => Number(effectivePricing(product, v).promoPrice || 0)).filter((n) => Number.isFinite(n));
+  if (!prices.length) return "";
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return Math.abs(max - min) < 0.005 ? `${formatBRL(min)} no Pix` : `a partir de ${formatBRL(min)} no Pix`;
+}
+function previewVariantForModel(productId, model, size) {
+  if (!model) return null;
+  const data = variantSelectorData(productId);
+  const rows = data.rows.filter((r) => r.model === model);
+  return rows.find((r) => size && r.size === size)?.v
+    || rows.find((r) => !!r.v.photo_url)?.v
+    || rows[0]?.v
+    || null;
+}
+
 /* Lista de fotos pra mostrar na página do produto: a foto "de capa" (do
    modelo escolhido, se tiver, senão a do produto) primeiro, seguida das
    fotos extras da galeria (essas são sempre do produto, não variam por
@@ -1466,12 +1542,17 @@ function productGalleryPhotos(product, variant) {
   return all;
 }
 
-/* Modelo atualmente escolhido no card desse produto (o primeiro, por padrão). */
+/* Combinação tamanho + modelo atualmente fechada para este produto. */
 function currentVariant(product) {
-  const variants = variantsFor(product.id);
-  if (variants.length === 0) return null;
+  const data = selectedDimensionsForProduct(product.id);
+  if (data.variants.length === 0) return null;
   const selectedId = state.selectedVariant[product.id];
-  return variants.find((v) => v.id === selectedId) || null;
+  const explicit = data.variants.find((v) => String(v.id) === String(selectedId || "")) || null;
+  if (explicit) return explicit;
+  const hasEnoughSize = data.sizes.length <= 1 || !!data.size;
+  const hasEnoughModel = data.models.length <= 1 || !!data.model;
+  if (!hasEnoughSize || !hasEnoughModel) return null;
+  return resolveVariantForDimensions(product.id, data.size, data.model);
 }
 
 function variantUnitsSold(variant) {
@@ -1501,6 +1582,11 @@ function bestSellingVariant(productId) {
 function previewVariantForDetail(product) {
   const selected = currentVariant(product);
   if (selected) return selected;
+  const sel = selectedDimensionsForProduct(product.id);
+  // Se a pessoa já escolheu um MODELO, mostra a foto dele imediatamente,
+  // mesmo que ainda falte escolher o tamanho.
+  const modelPreview = previewVariantForModel(product.id, sel.model, sel.size);
+  if (modelPreview) return modelPreview;
   const variants = variantsFor(product.id);
   if (!product.photo_url && variants.length > 1) return bestSellingVariant(product.id);
   return null;
@@ -2777,8 +2863,8 @@ function renderProductCard(p, opts = {}) {
   if (variants.length > 0) {
     addBlock = `
       <div class="mt-auto">
-        <p class="mb-2 text-xs font-medium text-navy-500">${availableVariantCount} ${availableVariantCount === 1 ? "modelo disponível" : "modelos disponíveis"}</p>
-        <button type="button" data-view-product="${p.id}" class="large-touch-action view-options-btn w-full rounded-lg bg-gold-500 px-3 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Ver modelos e comprar</button>
+        <p class="mb-2 text-xs font-medium text-navy-500">${availableVariantCount} ${availableVariantCount === 1 ? "opção disponível" : "opções disponíveis"}</p>
+        <button type="button" data-view-product="${p.id}" class="large-touch-action view-options-btn w-full rounded-lg bg-gold-500 px-3 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Ver opções e comprar</button>
       </div>
     `;
   } else {
@@ -2947,7 +3033,12 @@ function renderProductDetail() {
   const isFav = !!state.favorites[product.id];
   const productReviews = reviewsFor(product.id);
   const avgRating = averageRating(productReviews);
-  const selectedVariantPosition = variant ? variants.findIndex((v) => v.id === variant.id) + 1 : 0;
+  const selectorData = selectedDimensionsForProduct(product.id);
+  const selectedSize = selectorData.size;
+  const selectedModel = selectorData.model;
+  const displayDims = displayVariant ? catalogVariantDimensions(displayVariant) : { size:"", model:"" };
+  const missingSize = selectorData.sizes.length > 1 && !selectedSize;
+  const missingModel = selectorData.models.length > 1 && !selectedModel;
 
   app.innerHTML = `
     ${renderHeader()}
@@ -2964,8 +3055,8 @@ function renderProductDetail() {
             ${photoUrl ? `<button type="button" data-zoom-image="${photoUrl}" data-zoom-alt="${escapeHtml(displayVariant?.name || product.name)}" class="zoom-photo-btn" aria-label="Ampliar foto">Ampliar foto</button>` : ""}
             ${displayVariant ? `
               <div class="product-image-title-overlay">
-                <span class="title">${escapeHtml(displayVariant.name)}</span>
-                <span class="subtitle">${variant ? `Modelo selecionado · ${displayStatusText}` : showingBestSellerPreview ? `Modelo em destaque · ${displayStatusText}` : displayStatusText}</span>
+                <span class="title">${escapeHtml(displayDims.model || displayDims.size || displayVariant.name)}</span>
+                <span class="subtitle">${variant ? `${[displayDims.size, displayDims.model].filter(Boolean).map(escapeHtml).join(" · ")} · ${displayStatusText}` : selectedModel ? `Modelo em destaque · ${displayStatusText}` : showingBestSellerPreview ? `Opção em destaque · ${displayStatusText}` : displayStatusText}</span>
               </div>
             ` : ""}
           </div>
@@ -2980,31 +3071,67 @@ function renderProductDetail() {
           ` : ""}
 
           ${variants.length > 0 ? `
-            <section class="variant-thumb-section" aria-label="Escolha do modelo">
-              <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">1</span>Escolha o modelo</p>
-              <p class="mt-1 text-sm text-navy-500">Toque na miniatura desejada para ver a foto em destaque e selecionar o modelo.</p>
-              <div class="model-scroll-hint">
-                <span>Deslize para ver os demais modelos</span>
-                <span>${selectedVariantPosition > 0 ? `${selectedVariantPosition} de ${variants.length}` : `${variants.length} modelos`}</span>
+            <section class="variant-thumb-section" aria-label="Escolha de tamanho e modelo">
+              ${selectorData.sizes.length ? `
+                <div class="dimension-selector-block">
+                  <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">1</span>Escolha o tamanho</p>
+                  <p class="mt-1 text-sm text-navy-500">Selecione o tamanho desejado. Cada tamanho pode ter preço e disponibilidade próprios.</p>
+                  <div class="size-option-row" role="list" aria-label="Tamanhos disponíveis">
+                    ${selectorData.sizes.map((size) => {
+                      const rows = selectorData.rows.filter((r) => r.size === size);
+                      const compatible = selectedModel ? rows.filter((r) => r.model === selectedModel) : rows;
+                      const group = compatible.length ? compatible : rows;
+                      return `
+                        <button type="button" data-size-select="${product.id}" data-size="${escapeHtml(size)}" aria-pressed="${selectedSize === size ? "true" : "false"}" class="size-option-btn ${selectedSize === size ? "is-selected" : ""}">
+                          <span class="size-name">${escapeHtml(size)}</span>
+                          <span class="size-price">${escapeHtml(priceLabelForVariantGroup(product, group.map((r) => r.v)))}</span>
+                        </button>`;
+                    }).join("")}
+                  </div>
+                </div>
+              ` : ""}
+
+              ${selectorData.models.length ? `
+                <div class="dimension-selector-block">
+                  <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">${selectorData.sizes.length ? "2" : "1"}</span>Escolha o modelo</p>
+                  <p class="mt-1 text-sm text-navy-500">Toque no modelo desejado para ver a foto correspondente. Cada modelo pode ter preço próprio.</p>
+                  <div class="model-scroll-hint">
+                    <span>${selectorData.models.length > 1 ? "Deslize para ver os demais modelos" : "Modelo disponível"}</span>
+                    <span>${selectorData.models.length} ${selectorData.models.length === 1 ? "modelo" : "modelos"}</span>
+                  </div>
+                  <div class="variant-thumb-row mt-3" role="list" aria-label="Modelos disponíveis">
+                    ${selectorData.models.map((model) => {
+                      const rows = selectorData.rows.filter((r) => r.model === model);
+                      const compatible = selectedSize ? rows.filter((r) => r.size === selectedSize) : rows;
+                      const group = compatible.length ? compatible : rows;
+                      const representative = group.find((r) => !!r.v.photo_url)?.v || group[0]?.v || rows[0]?.v;
+                      const ready = group.some((r) => r.v.in_stock && (stockQuantity(r.v) == null || stockQuantity(r.v) > 0));
+                      return `
+                        <button type="button" data-model-select="${product.id}" data-model="${escapeHtml(model)}" aria-pressed="${selectedModel === model ? "true" : "false"}" class="variant-thumb-btn ${selectedModel === model ? "is-selected" : ""}">
+                          ${representative?.photo_url ? `<img src="${representative.photo_url}" alt="${escapeHtml(model)}" class="variant-thumb-photo" />` : `<span class="variant-thumb-photo flex items-center justify-center text-lg">◻</span>`}
+                          <span class="variant-thumb-name">${escapeHtml(model)}</span>
+                          ${representative && isBestSellingVariant(product.id, representative.id) ? `<span class="best-seller-badge" style="margin-top:4px;" title="Modelo mais escolhido pelos clientes">Mais vendido</span>` : ""}
+                          <span class="variant-thumb-price">${escapeHtml(priceLabelForVariantGroup(product, group.map((r) => r.v)))}</span>
+                          <span class="variant-thumb-status ${ready ? "text-emerald-800" : "text-gold-700"}">${ready ? "Pronta entrega" : "Sob encomenda"}</span>
+                        </button>`;
+                    }).join("")}
+                  </div>
+                </div>
+              ` : ""}
+
+              <div class="dimension-combination-note">
+                ${variant
+                  ? `Opção selecionada: <b>${escapeHtml([selectedSize, selectedModel].filter(Boolean).join(" · ") || variant.name)}</b>. O preço abaixo corresponde exatamente a esta combinação.`
+                  : `${missingSize && missingModel ? "Escolha o tamanho e o modelo" : missingSize ? "Escolha o tamanho" : missingModel ? "Escolha o modelo" : "Escolha uma opção"} para ver o preço exato e adicionar ao pedido.`}
               </div>
-              <div class="variant-thumb-row mt-3" role="list" aria-label="Modelos disponíveis">
-                ${variants.map((v) => `
-                  <button type="button" data-variant-select="${product.id}" data-variant-id="${v.id}" aria-pressed="${variant?.id === v.id ? "true" : "false"}" aria-label="${escapeHtml(v.name)}. ${v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0) ? "Pronta entrega" : "Sob encomenda"}. ${formatBRL(effectivePricing(product, v).promoPrice)} no Pix." class="variant-thumb-btn ${variant?.id === v.id ? "is-selected" : ""}">
-                    ${v.photo_url ? `<img src="${v.photo_url}" alt="${escapeHtml(v.name)}" class="variant-thumb-photo" />` : `<span class="variant-thumb-photo flex items-center justify-center text-lg">◻</span>`}
-                    <span class="variant-thumb-name">${escapeHtml(v.name)}</span>
-                    ${isBestSellingVariant(product.id, v.id) ? `<span class="best-seller-badge" style="margin-top:4px;" title="Modelo mais escolhido pelos clientes">Mais vendido</span>` : ""}
-                    <span class="variant-thumb-price">${formatBRL(effectivePricing(product, v).promoPrice)} no Pix</span>
-                    <span class="variant-thumb-status ${v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0) ? "text-emerald-800" : "text-gold-700"}">${v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0) ? "Pronta entrega" : "Sob encomenda"}</span>
-                  </button>
-                `).join("")}
-              </div>
+
               ${variant ? `
                 <button type="button" data-quick-add="${cartKey(product.id, variant.id)}"
                   class="quick-model-add large-touch-action rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900">
-                  Comprar este modelo · ${formatBRL(effectivePricing(product, variant).promoPrice)} no Pix
+                  Comprar esta opção · ${formatBRL(effectivePricing(product, variant).promoPrice)} no Pix
                 </button>
-              ` : `<button type="button" disabled class="quick-model-add large-touch-action rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">Selecione um modelo</button>`}
-              <button type="button" data-model-help="${product.id}" class="context-help-btn">Preciso de ajuda para escolher o modelo</button>
+              ` : `<button type="button" disabled class="quick-model-add large-touch-action rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">${missingSize && missingModel ? "Escolha o tamanho e o modelo" : missingSize ? "Escolha o tamanho" : missingModel ? "Escolha o modelo" : "Selecione uma opção"}</button>`}
+              ${selectorData.models.length ? `<button type="button" data-model-help="${product.id}" class="context-help-btn">Preciso de ajuda para escolher o modelo</button>` : ""}
             </section>
           ` : ""}
         </div>
@@ -3034,20 +3161,23 @@ function renderProductDetail() {
           ` : ""}
 
           ${variants.length > 0 ? `
-            <section class="selected-model-summary" aria-label="Resumo do modelo escolhido">
-              <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">1</span>Modelo</p>
+            <section class="selected-model-summary" aria-label="Resumo da opção escolhida">
+              <p class="text-base font-semibold text-navy-900">Opção escolhida</p>
               ${variant ? `
                 <div class="mt-3 rounded-lg bg-cream-50 px-3 py-3">
                   <div class="flex flex-wrap items-center gap-2">
-                    <b class="text-navy-900">${escapeHtml(variant.name)}</b>
+                    ${selectedSize ? `<span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-navy-800 ring-1 ring-navy-100">Tamanho: ${escapeHtml(selectedSize)}</span>` : ""}
+                    ${selectedModel ? `<span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-navy-800 ring-1 ring-navy-100">Modelo: ${escapeHtml(selectedModel)}</span>` : ""}
                     ${isBestSellingVariant(product.id, variant.id) ? `<span class="best-seller-badge">Mais vendido</span>` : ""}
                   </div>
-                  <p class="mt-1 text-sm ${displayStatusClass}">${displayStatusText}</p>
+                  <p class="mt-2 text-sm ${displayStatusClass}">${displayStatusText}</p>
                 </div>
+              ` : selectedModel ? `
+                <div class="mt-3 rounded-lg bg-gold-50 px-3 py-3 text-sm font-medium text-gold-800 ring-1 ring-gold-200">Modelo <b>${escapeHtml(selectedModel)}</b> selecionado. ${missingSize ? "Agora escolha o tamanho." : "Escolha a outra opção disponível para continuar."}</div>
               ` : showingBestSellerPreview ? `
-                <div class="mt-3 rounded-lg bg-gold-50 px-3 py-3 text-sm font-medium text-gold-800 ring-1 ring-gold-200">Estamos mostrando o modelo mais vendido como destaque. Toque nas miniaturas abaixo para escolher o seu.</div>
+                <div class="mt-3 rounded-lg bg-gold-50 px-3 py-3 text-sm font-medium text-gold-800 ring-1 ring-gold-200">Estamos mostrando uma opção em destaque. Faça suas escolhas acima para continuar.</div>
               ` : `
-                <div class="mt-3 rounded-lg bg-gold-50 px-3 py-3 text-sm font-medium text-gold-800 ring-1 ring-gold-200">Escolha um modelo nas miniaturas para continuar.</div>
+                <div class="mt-3 rounded-lg bg-gold-50 px-3 py-3 text-sm font-medium text-gold-800 ring-1 ring-gold-200">${missingSize && missingModel ? "Escolha o tamanho e o modelo para continuar." : missingSize ? "Escolha o tamanho para continuar." : missingModel ? "Escolha o modelo para continuar." : "Escolha uma opção para continuar."}</div>
               `}
             </section>
           ` : ""}
@@ -3060,7 +3190,7 @@ function renderProductDetail() {
           ${variant && (!isInStock || stockQuantity(variant) === 0 || variant.esgotado) ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : variants.length === 0 && (!isInStock || stockQuantity(product) === 0 || product.esgotado) ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : ""}
 
           ${variants.length > 0 && !variant ? `
-            <button type="button" disabled class="large-touch-action mt-2 w-full disabled:cursor-not-allowed rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">Escolha um modelo para adicionar</button>
+            <button type="button" disabled class="large-touch-action mt-2 w-full disabled:cursor-not-allowed rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">${missingSize && missingModel ? "Escolha o tamanho e o modelo" : missingSize ? "Escolha o tamanho" : missingModel ? "Escolha o modelo" : "Escolha uma opção"} para adicionar</button>
           ` : qty === 0 ? `
             <button data-add="${key}" class="large-touch-action add-to-cart-btn mt-2 w-full rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar ao pedido</button>
           ` : `
@@ -3439,20 +3569,45 @@ function wireCatalogEvents() {
       render();
     });
   });
-  document.querySelectorAll("[data-variant-select]").forEach((btn) => {
+  function commitDimensionSelection(productId) {
+    const data = selectedDimensionsForProduct(productId);
+    const resolved = resolveVariantForDimensions(productId, data.size, data.model);
+    const hasEnoughSize = data.sizes.length <= 1 || !!data.size;
+    const hasEnoughModel = data.models.length <= 1 || !!data.model;
+    const currentProductUrl = new URL(window.location.href);
+    const currentProduct = state.products.find((p) => String(p.id) === String(productId));
+    currentProductUrl.searchParams.set("produto", currentProduct ? slugifyUrl(currentProduct.name) : productId);
+    if (resolved && hasEnoughSize && hasEnoughModel) {
+      state.selectedVariant[productId] = resolved.id;
+      currentProductUrl.searchParams.set("modelo", slugifyUrl(resolved.name));
+      history.replaceState({ productId, variantId: resolved.id }, "", currentProductUrl);
+    } else {
+      delete state.selectedVariant[productId];
+      currentProductUrl.searchParams.delete("modelo");
+      history.replaceState({ productId }, "", currentProductUrl);
+    }
+    state.detailGalleryIndex = 0;
+    return resolved;
+  }
+
+  document.querySelectorAll("[data-size-select]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const productId = btn.dataset.variantSelect;
+      const productId = btn.dataset.sizeSelect;
+      state.selectedSize[productId] = btn.dataset.size;
+      const resolved = commitDimensionSelection(productId);
+      trackEvent("select_variant", { product_id:String(productId), variant_id:resolved?.id ? String(resolved.id) : null, dimension:"size", value:btn.dataset.size, source:"product_detail" });
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-model-select]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const productId = btn.dataset.modelSelect;
       const row = btn.closest(".variant-thumb-row");
       state.variantScrollLeft[productId] = row ? row.scrollLeft : 0;
-      state.selectedVariant[productId] = btn.dataset.variantId;
-      state.detailGalleryIndex = 0;
-      const currentProductUrl = new URL(window.location.href);
-      const currentProduct = state.products.find((p) => String(p.id) === String(productId));
-      const currentVariant = variantsFor(productId).find((v) => String(v.id) === String(btn.dataset.variantId));
-      currentProductUrl.searchParams.set("produto", currentProduct ? slugifyUrl(currentProduct.name) : productId);
-      currentProductUrl.searchParams.set("modelo", currentVariant ? slugifyUrl(currentVariant.name) : btn.dataset.variantId);
-      history.replaceState({ productId, variantId: btn.dataset.variantId }, "", currentProductUrl);
-      trackEvent("select_model", { product_id:String(productId), variant_id:String(btn.dataset.variantId), source:"product_detail" });
+      state.selectedModel[productId] = btn.dataset.model;
+      const resolved = commitDimensionSelection(productId);
+      trackEvent("select_model", { product_id:String(productId), variant_id:resolved?.id ? String(resolved.id) : null, model:btn.dataset.model, source:"product_detail" });
       render();
       requestAnimationFrame(() => {
         const freshRow = document.querySelector(".variant-thumb-row");
@@ -3486,7 +3641,7 @@ function wireCatalogEvents() {
   document.querySelectorAll("[data-model-help]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const product = state.products.find((p) => p.id === btn.dataset.modelHelp);
-      const message = `Oi! Estou vendo ${product?.name || "um produto"} no catálogo e preciso de ajuda para escolher o modelo.`;
+      const message = `Oi! Estou vendo ${product?.name || "um produto"} no catálogo e preciso de ajuda para escolher o tamanho/modelo.`;
       if(product) trackEvent("product_whatsapp",{product_id:String(product.id),source:"model_help"});
       window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
     });
@@ -5040,6 +5195,9 @@ window.addEventListener("popstate", () => {
     const popVariant = findVariantByUrlValue(popProduct.id, variantValue);
     if (popVariant) {
       state.selectedVariant[popProduct.id] = popVariant.id;
+      const dims = catalogVariantDimensions(popVariant);
+      if (dims.size) state.selectedSize[popProduct.id] = dims.size;
+      if (dims.model) state.selectedModel[popProduct.id] = dims.model;
     }
   } else {
     state.screen = "catalog";
