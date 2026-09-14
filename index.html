@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v9.3-size-model-selectors-2026-09-14" />
+  <meta name="luz-mariana-catalog-version" content="professional-v9.4-size-model-pricing-2026-09-14" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
@@ -1513,6 +1513,13 @@ function resolveVariantForDimensions(productId, size, model) {
     (data.models.length === 0 || r.model === model)
   )?.v || null;
 }
+function catalogVariantChoiceLabel(variant) {
+  const d = catalogVariantDimensions(variant);
+  if (d.size && d.model) return `Tamanho: ${d.size} · Modelo: ${d.model}`;
+  if (d.size) return `Tamanho: ${d.size}`;
+  if (d.model) return `Modelo: ${d.model}`;
+  return String(variant?.name || "");
+}
 function priceLabelForVariantGroup(product, variants) {
   if (!variants.length) return "";
   const prices = variants.map((v) => Number(effectivePricing(product, v).promoPrice || 0)).filter((n) => Number.isFinite(n));
@@ -1750,7 +1757,30 @@ function groupByCategory(products) {
 // preenchidos, a partir do custo daquele modelo — o CUSTO em si nunca é
 // exposto aqui no Catálogo, só o preço de venda já pronto), senão herda
 // do produto (comportamento de sempre).
+function catalogBootstrapVariantPricing(product, variant) {
+  // Compatibilidade inicial da Guadalupe já cadastrada antes de tamanho/modelo
+  // terem preços próprios no painel. Só entra enquanto a variação ainda estiver
+  // repetindo o preço padrão do produto; assim que o Admin salvar um preço
+  // específico, o valor do banco passa a valer automaticamente.
+  if (!product || !variant) return null;
+  const normalizedName = String(product.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+  if (normalizedName !== "nossa senhora de guadalupe") return null;
+  const { size } = catalogVariantDimensions(variant);
+  const pixBySize = { "16 cm": 35, "20 cm": 44, "30 cm": 55 };
+  const pix = pixBySize[size];
+  if (!pix) return null;
+  const variantPix = Number(variant.promo_price);
+  const productPix = Number(product.promo_price);
+  const variantCredit = Number(variant.credit_price);
+  const productCredit = Number(product.credit_price);
+  const pixStillInherited = variant.promo_price == null || !Number.isFinite(variantPix) || Math.abs(variantPix - productPix) < 0.005;
+  const creditStillInherited = variant.credit_price == null || !Number.isFinite(variantCredit) || Math.abs(variantCredit - productCredit) < 0.005;
+  if (!pixStillInherited && !creditStillInherited) return null;
+  return { promoPrice: pix, creditPrice: Math.round(pix * 1.05 * 100) / 100 };
+}
 function effectivePricing(product, variant) {
+  const bootstrap = catalogBootstrapVariantPricing(product, variant);
+  if (bootstrap) return bootstrap;
   if (variant && variant.credit_price != null && variant.promo_price != null) {
     return { creditPrice: Number(variant.credit_price), promoPrice: Number(variant.promo_price) };
   }
@@ -2945,7 +2975,7 @@ function renderCartDrawer() {
               </div>
               <div class="min-w-0 flex-1">
                 <p class="text-sm font-semibold text-navy-900">${escapeHtml(it.product.name)}</p>
-                ${it.variant ? `<p class="mt-0.5 text-xs font-medium text-gold-700">Modelo: ${escapeHtml(it.variant.name)}</p>` : ""}
+                ${it.variant ? `<p class="mt-0.5 text-xs font-medium text-gold-700">${escapeHtml(catalogVariantChoiceLabel(it.variant))}</p>` : ""}
                 <p class="mt-0.5 text-xs text-navy-500">${formatBRL(priceFor(it.product, it.variant))} cada</p>
               </div>
               <div class="flex items-center gap-2">
@@ -3096,7 +3126,7 @@ function renderProductDetail() {
                   <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">${selectorData.sizes.length ? "2" : "1"}</span>Escolha o modelo</p>
                   <p class="mt-1 text-sm text-navy-500">Toque no modelo desejado para ver a foto correspondente. Cada modelo pode ter preço próprio.</p>
                   <div class="model-scroll-hint">
-                    <span>${selectorData.models.length > 1 ? "Deslize para ver os demais modelos" : "Modelo disponível"}</span>
+                    <span>${selectorData.models.length > 1 ? "Deslize para ver os demais modelos" : "Modelo disponível para este produto"}</span>
                     <span>${selectorData.models.length} ${selectorData.models.length === 1 ? "modelo" : "modelos"}</span>
                   </div>
                   <div class="variant-thumb-row mt-3" role="list" aria-label="Modelos disponíveis">
@@ -3765,7 +3795,7 @@ function renderCheckout() {
             ${photo ? `<img src="${photo}" alt="" class="checkout-review-photo" />` : `<div class="checkout-review-photo flex items-center justify-center">✦</div>`}
             <div class="min-w-0">
               <p class="text-sm font-semibold text-navy-900">${escapeHtml(it.product.name)}</p>
-              ${it.variant ? `<p class="mt-0.5 text-xs font-medium text-gold-700">Modelo: ${escapeHtml(it.variant.name)}</p>` : ""}
+              ${it.variant ? `<p class="mt-0.5 text-xs font-medium text-gold-700">${escapeHtml(catalogVariantChoiceLabel(it.variant))}</p>` : ""}
               <div class="mt-2 flex flex-wrap items-center gap-2">
                 <div class="inline-flex items-center rounded-lg border border-navy-200 bg-white">
                   <button type="button" data-checkout-qty-minus="${it.key}" aria-label="Diminuir quantidade de ${escapeHtml(it.product.name)}" class="px-3 py-1.5 text-lg font-semibold text-navy-700">−</button>
