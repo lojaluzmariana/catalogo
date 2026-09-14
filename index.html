@@ -817,7 +817,7 @@ const STANDARD_DELIVERY_RATE_PER_KM = 1.80;
 const DEFAULT_LEAD_TIME_DAYS = 2;
 function madeToOrderText(product) {
   const days = product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
-  return `Produção em até ${days} dia${days === 1 ? "" : "s"} útil${days === 1 ? "" : "eis"}, contados a partir da confirmação do pedido.`;
+  return `Produção em até ${days} ${days === 1 ? "dia útil" : "dias úteis"}, contados a partir da confirmação do pedido.`;
 }
 // Sinal exigido pra confirmar o pedido e iniciar a produção.
 const DEPOSIT_RATE = 0.5;
