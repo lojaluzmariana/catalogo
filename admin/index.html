@@ -6369,7 +6369,7 @@ function productLeadTimeDays(product) {
   return DEFAULT_LEAD_TIME_DAYS;
 }
 function leadTimeDaysLabel(days) {
-  return `${days} dia${days === 1 ? "" : "s"} útil${days === 1 ? "" : "eis"}`;
+  return `${days} ${days === 1 ? "dia útil" : "dias úteis"}`;
 }
 
 // Soma dias ÚTEIS a uma data, pulando sábado e domingo — usada em todo
