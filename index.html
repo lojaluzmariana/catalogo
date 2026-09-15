@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v9.6-campaigns-visual-2026-09-14" />
+  <meta name="luz-mariana-catalog-version" content="professional-v9.7-campaigns-visual-avista-2026-09-15" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
@@ -1851,6 +1851,28 @@ function campaignPaymentText(c) {
   const labels={pix:"Pix/à vista",credito:"crédito",debito:"débito",dinheiro:"dinheiro"};
   return (Array.isArray(c.payment_methods)?c.payment_methods:[]).map((x)=>labels[x]||x).join(" e ");
 }
+function campaignMethodFlags(c) {
+  const methods = Array.isArray(c?.payment_methods) ? c.payment_methods : [];
+  return {
+    pix: methods.includes("pix"),
+    credito: methods.includes("credito"),
+    debito: methods.includes("debito"),
+    dinheiro: methods.includes("dinheiro"),
+    anyAtSight: methods.some((m) => ["pix","debito","dinheiro"].includes(m)),
+  };
+}
+function campaignAtSightLabel(c) {
+  const flags = campaignMethodFlags(c);
+  const parts = [];
+  if (flags.pix) parts.push("Pix");
+  if (flags.debito) parts.push("débito");
+  if (flags.dinheiro) parts.push("espécie");
+  if (!parts.length) return "";
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} e ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")} e ${parts.at(-1)}`;
+}
+
 function campaignDateEndText(c) {
   try { return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Fortaleza",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(c.ends_at)); } catch(_err){ return ""; }
 }
@@ -3031,8 +3053,11 @@ function renderProductCard(p, opts = {}) {
   `;
 
   const summary = pricingSummary(p);
-  const campaignBadge = summary.campaign && Number(summary.originalPromoPrice) > Number(summary.promoPrice)
-    ? `<div class="campaign-card-badge"><span class="line1">Campanha ativa</span><span class="line2">${escapeHtml(campaignVisualDiscount(summary.campaign))}</span><span class="line3">${escapeHtml(summary.campaign.name)}</span></div>`
+  const cardCampaign = summary.campaign && (Number(summary.originalPromoPrice) > Number(summary.promoPrice) || Number(summary.originalCreditPrice) > Number(summary.creditPrice)) ? summary.campaign : null;
+  const cardCampaignFlags = campaignMethodFlags(cardCampaign);
+  const highlightCashCampaign = !!cardCampaign && cardCampaignFlags.anyAtSight && !cardCampaignFlags.credito;
+  const campaignBadge = cardCampaign && Number(summary.originalPromoPrice) > Number(summary.promoPrice)
+    ? `<div class="campaign-card-badge"><span class="line1">Campanha ativa</span><span class="line2">${escapeHtml(campaignVisualDiscount(cardCampaign))}</span><span class="line3">${escapeHtml(cardCampaign.name)}</span></div>`
     : "";
 
   let photoBlock;
@@ -3227,6 +3252,9 @@ function renderProductDetail() {
   const bestSelling = bestSellingVariant(product.id);
   const showingBestSellerPreview = !variant && !!previewVariant && !!bestSelling && previewVariant.id === bestSelling.id;
   const detailPricing = variant ? displayPricing(product, variant) : pricingSummary(product);
+  const detailCampaign = detailPricing.campaign && (Number(detailPricing.originalPromoPrice) > Number(detailPricing.promoPrice) || Number(detailPricing.originalCreditPrice) > Number(detailPricing.creditPrice)) ? detailPricing.campaign : null;
+  const detailCampaignFlags = campaignMethodFlags(detailCampaign);
+  const highlightDetailCashCampaign = !!detailCampaign && detailCampaignFlags.anyAtSight && !detailCampaignFlags.credito;
   const key = variant ? cartKey(product.id, variant.id) : null;
   const qty = key ? (state.cart[key] ?? 0) : 0;
   const isInStock = variant ? variant.in_stock : product.in_stock;
@@ -3398,20 +3426,27 @@ function renderProductDetail() {
             <div class="campaign-detail-box">
               <div class="title">🎉 Campanha ativa</div>
               <div class="headline">${escapeHtml(detailPricing.campaign.name)} · ${escapeHtml(campaignVisualDiscount(detailPricing.campaign))}</div>
-              <div class="meta">Válida até ${escapeHtml(campaignDateEndText(detailPricing.campaign))}${campaignPaymentText(detailPricing.campaign) ? ` · ${escapeHtml(campaignPaymentText(detailPricing.campaign))}` : ""}.</div>
+              <div class="meta">Válida até ${escapeHtml(campaignDateEndText(detailCampaign))}${campaignPaymentText(detailCampaign) ? ` · ${escapeHtml(campaignPaymentText(detailCampaign))}` : ""}.</div>
               <div class="savings">
-                <span>De ${formatBRL(detailPricing.originalPromoPrice)} por ${formatBRL(detailPricing.promoPrice)} no Pix</span>
+                <span>De ${formatBRL(detailPricing.originalPromoPrice)} por ${formatBRL(detailPricing.promoPrice)} à vista${campaignAtSightLabel(detailCampaign) ? ` (${escapeHtml(campaignAtSightLabel(detailCampaign))})` : ""}</span>
                 <span>Você economiza ${formatBRL(Math.max(0, Number(detailPricing.originalPromoPrice) - Number(detailPricing.promoPrice)))} por unidade</span>
               </div>
             </div>
           ` : ""}
 
           <div class="leading-tight">
-            ${detailPricing.campaign ? `<p class="mb-1 text-xs font-semibold text-emerald-700">🎉 ${escapeHtml(detailPricing.campaign.name)} · ${escapeHtml(campaignDiscountText(detailPricing.campaign))}</p>` : ""}
-            ${detailPricing.campaign && Number(detailPricing.originalCreditPrice)>Number(detailPricing.creditPrice) ? `<p class="text-xs text-navy-400 line-through">${formatBRL(detailPricing.originalCreditPrice)} no crédito</p>` : ""}
-            <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.creditPrice)}</span> <span class="text-xs font-normal text-navy-400">em até 3x no crédito</span></p>
-            ${detailPricing.campaign && Number(detailPricing.originalPromoPrice)>Number(detailPricing.promoPrice) ? `<p class="mt-1 text-xs text-navy-400 line-through">${formatBRL(detailPricing.originalPromoPrice)} no Pix</p>` : ""}
-            <p class="mt-1 text-sm text-navy-500">ou ${variants.length > 0 && !variant && detailPricing.variable ? "a partir de " : ""}<b>${formatBRL(detailPricing.promoPrice)}</b> à vista (Pix ou espécie)</p>
+            ${detailCampaign ? `<p class="mb-1 text-xs font-semibold text-emerald-700">🎉 ${escapeHtml(detailCampaign.name)} · ${escapeHtml(campaignDiscountText(detailCampaign))}</p>` : ""}
+            ${highlightDetailCashCampaign ? `
+              ${Number(detailPricing.originalPromoPrice)>Number(detailPricing.promoPrice) ? `<p class="text-xs text-navy-400 line-through">${variants.length > 0 && !variant && detailPricing.variable ? "A partir de " : ""}${formatBRL(detailPricing.originalPromoPrice)} à vista</p>` : ""}
+              <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.promoPrice)}</span> <span class="text-sm font-normal text-navy-500">à vista (${escapeHtml(campaignAtSightLabel(detailCampaign))})</span></p>
+              <p class="mt-1 text-sm font-medium text-emerald-700">Preço promocional em ${escapeHtml(campaignAtSightLabel(detailCampaign))}</p>
+              <p class="mt-2 text-sm text-navy-500">No crédito${variants.length > 0 && !variant && detailPricing.variable ? " a partir de" : ""}: <b>${formatBRL(detailPricing.creditPrice)}</b> em até 3x</p>
+            ` : `
+              ${detailCampaign && Number(detailPricing.originalCreditPrice)>Number(detailPricing.creditPrice) ? `<p class="text-xs text-navy-400 line-through">${formatBRL(detailPricing.originalCreditPrice)} no crédito</p>` : ""}
+              <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.creditPrice)}</span> <span class="text-xs font-normal text-navy-400">em até 3x no crédito</span></p>
+              ${detailCampaign && Number(detailPricing.originalPromoPrice)>Number(detailPricing.promoPrice) ? `<p class="mt-1 text-xs text-navy-400 line-through">${formatBRL(detailPricing.originalPromoPrice)} à vista</p>` : ""}
+              <p class="mt-1 text-sm text-navy-500">ou ${variants.length > 0 && !variant && detailPricing.variable ? "a partir de " : ""}<b>${formatBRL(detailPricing.promoPrice)}</b> à vista (Pix ou espécie)</p>
+            `}
           </div>
 
           ${variant && (!isInStock || stockQuantity(variant) === 0 || variant.esgotado) ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : variants.length === 0 && (!isInStock || stockQuantity(product) === 0 || product.esgotado) ? `<p class="rounded-lg bg-gold-50 px-3 py-2 text-sm font-medium text-gold-800 ring-1 ring-gold-200">🕑 ${madeToOrderText(product)}</p>` : ""}
