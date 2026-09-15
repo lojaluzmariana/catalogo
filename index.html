@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v9.4-size-model-pricing-2026-09-14" />
+  <meta name="luz-mariana-catalog-version" content="professional-v9.6-campaigns-visual-2026-09-14" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
@@ -758,6 +758,34 @@
     .shopping-guide-number { margin: 0; flex: 0 0 28px; }
     .variant-choice-grid { grid-template-columns: 1fr; }
   }
+
+  .campaign-hero { background: linear-gradient(135deg, rgba(1,24,104,0.98) 0%, rgba(10,46,156,0.96) 55%, rgba(228,179,48,0.18) 100%); border-bottom:1px solid rgba(228,179,48,0.25); }
+  .campaign-hero-shell { max-width: 72rem; margin: 0 auto; padding: 16px; }
+  .campaign-hero-card { display:grid; gap:16px; padding:18px; border-radius:24px; background: linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04)); border:1px solid rgba(255,255,255,0.16); box-shadow: 0 16px 36px rgba(0,0,0,0.16); backdrop-filter: blur(10px); }
+  .campaign-kicker { display:inline-flex; align-items:center; gap:8px; width:max-content; border-radius:999px; padding:6px 12px; background: rgba(228,179,48,0.18); color:#f6deb0; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+  .campaign-big-discount { display:inline-flex; align-items:flex-end; gap:8px; width:max-content; padding:10px 14px; border-radius:18px; background:#f7c948; color:#001868; font-weight:800; line-height:1; box-shadow: 0 10px 22px rgba(0,0,0,0.16); }
+  .campaign-big-discount strong { font-size:32px; }
+  .campaign-big-discount span { font-size:12px; font-weight:700; text-transform:uppercase; margin-bottom:4px; }
+  .campaign-info-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .campaign-info-chip { border-radius:16px; padding:10px 12px; background: rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.12); color:#f8fafc; }
+  .campaign-info-chip b { display:block; color:#ffffff; font-size:13px; margin-bottom:3px; }
+  .campaign-countdown { display:flex; flex-wrap:wrap; gap:10px; }
+  .campaign-countdown-box { min-width:72px; padding:10px 8px; text-align:center; border-radius:16px; background:#fff; color:#001868; box-shadow:0 8px 20px rgba(0,0,0,0.14); }
+  .campaign-countdown-box strong { display:block; font-size:22px; line-height:1.1; }
+  .campaign-countdown-box span { display:block; margin-top:3px; font-size:11px; text-transform:uppercase; color:#52607a; }
+  .campaign-card-badge { position:absolute; left:10px; bottom:10px; z-index:10; max-width:calc(100% - 20px); border-radius:16px; padding:8px 10px; background:linear-gradient(135deg,#f7c948,#f0b429); color:#001868; box-shadow:0 12px 24px rgba(0,0,0,0.16); }
+  .campaign-card-badge .line1 { display:block; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+  .campaign-card-badge .line2 { display:block; font-size:13px; font-weight:800; }
+  .campaign-card-badge .line3 { display:block; font-size:10px; color:rgba(0,24,104,0.78); }
+  .campaign-detail-box { border-radius:18px; padding:14px 16px; background:linear-gradient(135deg,#fff8e6,#fff0bf); border:1px solid #f0d58a; box-shadow:0 10px 22px rgba(228,179,48,0.12); }
+  .campaign-detail-box .title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:800; color:#8d5c00; text-transform:uppercase; letter-spacing:.04em; }
+  .campaign-detail-box .headline { margin-top:6px; font-size:18px; font-weight:800; color:#001868; }
+  .campaign-detail-box .meta { margin-top:6px; font-size:13px; color:#52607a; }
+  .campaign-detail-box .savings { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }
+  .campaign-detail-box .savings span { border-radius:999px; padding:6px 10px; background:#fff; border:1px solid #ead28d; font-size:12px; font-weight:700; color:#001868; }
+  @media (min-width: 768px) { .campaign-hero-card { grid-template-columns: minmax(0,1.25fr) minmax(280px,0.75fr); padding:22px; } }
+  @media (max-width: 767px) { .campaign-info-grid { grid-template-columns:1fr; } .campaign-big-discount strong { font-size:28px; } }
+
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen pb-24">
@@ -1233,6 +1261,8 @@ const state = {
   loading: true,
   loadError: null,
   products: [],
+  campaigns: [],
+  campaignProducts: [],
   variantsByProduct: {}, // { [product_id]: [{id, name, photo_url, sort_order}, ...] }
   photosByProduct: {}, // { [product_id]: [{id, url, sort_order}, ...] } — fotos extras da galeria, além da foto de capa
   cart: loadCartFromStorage(), // { [cartKey]: quantity } — cartKey é o product_id, ou "product_id::variant_id" quando tem modelo escolhido
@@ -1339,12 +1369,14 @@ function manageCartFocus() {
 }
 
 async function loadCatalog() {
-  const [{ data: products, error: prodError }, { data: variants, error: varError }, { data: giftWrapOptions, error: giftWrapError }, { data: reviews, error: reviewsError }, { data: photos, error: photosError }] = await Promise.all([
+  const [{ data: products, error: prodError }, { data: variants, error: varError }, { data: giftWrapOptions, error: giftWrapError }, { data: reviews, error: reviewsError }, { data: photos, error: photosError }, { data: campaigns, error: campaignError }, { data: campaignProducts, error: campaignProductsError }] = await Promise.all([
     supabaseClient.from("catalog_products").select("*").order("category", { ascending: true, nullsFirst: false }).order("name"),
     supabaseClient.from("catalog_product_variants").select("*").order("sort_order", { ascending: true }).order("name"),
     supabaseClient.from("catalog_gift_wrap_options").select("*").order("name"),
     supabaseClient.from("catalog_product_reviews").select("*").order("created_at", { ascending: false }),
     supabaseClient.from("catalog_product_photos").select("*").order("sort_order", { ascending: true }),
+    supabaseClient.from("campaigns").select("*").eq("active", true).order("priority", { ascending:false }),
+    supabaseClient.from("campaign_products").select("campaign_id, product_id"),
   ]);
   if (prodError) { state.loadError = prodError.message; state.loading = false; render(); return; }
   state.products = products;
@@ -1362,6 +1394,10 @@ async function loadCatalog() {
   if (giftWrapError) console.error("Erro ao carregar opções de embalagem:", giftWrapError.message);
   if (reviewsError) console.error("Erro ao carregar avaliações:", reviewsError.message);
   if (photosError) console.error("Erro ao carregar galeria de fotos:", photosError.message);
+  if (campaignError) console.info("Campanhas ainda não disponíveis:", campaignError.message);
+  if (campaignProductsError) console.info("Vínculos de campanhas ainda não disponíveis:", campaignProductsError.message);
+  state.campaigns = campaignError ? [] : (campaigns || []);
+  state.campaignProducts = campaignProductsError ? [] : (campaignProducts || []);
   state.giftWrapOptions = giftWrapOptions || [];
   state.reviews = reviews || [];
   pruneStaleCartItems();
@@ -1522,7 +1558,7 @@ function catalogVariantChoiceLabel(variant) {
 }
 function priceLabelForVariantGroup(product, variants) {
   if (!variants.length) return "";
-  const prices = variants.map((v) => Number(effectivePricing(product, v).promoPrice || 0)).filter((n) => Number.isFinite(n));
+  const prices = variants.map((v) => Number(displayPricing(product, v).promoPrice || 0)).filter((n) => Number.isFinite(n));
   if (!prices.length) return "";
   const min = Math.min(...prices);
   const max = Math.max(...prices);
@@ -1787,23 +1823,159 @@ function effectivePricing(product, variant) {
   return { creditPrice: Number(product.credit_price), promoPrice: Number(product.promo_price) };
 }
 
+
+
+/* =====================================================================
+   CAMPANHAS AUTOMÁTICAS
+   ===================================================================== */
+function campaignIsActiveNow(c, payment=null) {
+  if (!c?.active) return false;
+  const now=Date.now(), start=new Date(c.starts_at).getTime(), end=new Date(c.ends_at).getTime();
+  if ((Number.isFinite(start)&&now<start)||(Number.isFinite(end)&&now>end)) return false;
+  if (payment && !(Array.isArray(c.payment_methods)&&c.payment_methods.includes(payment))) return false;
+  return true;
+}
+function campaignMatchesProduct(c, productId) {
+  if (c?.all_products) return true;
+  return state.campaignProducts.some((x)=>String(x.campaign_id)===String(c.id)&&String(x.product_id)===String(productId));
+}
+function campaignUnitDiscount(c, unitPrice) {
+  const price=Math.max(0,Number(unitPrice||0));
+  if (c.discount_type==="valor_fixo") return Math.min(price,Math.max(0,Number(c.discount_value||0)));
+  return Math.min(price,price*Math.max(0,Number(c.discount_value||0))/100);
+}
+function campaignDiscountText(c) {
+  return c.discount_type==="valor_fixo" ? `${formatBRL(Number(c.discount_value||0))} OFF por item` : `${Number(c.discount_value||0).toLocaleString("pt-BR",{maximumFractionDigits:2})}% OFF`;
+}
+function campaignPaymentText(c) {
+  const labels={pix:"Pix/à vista",credito:"crédito",debito:"débito",dinheiro:"dinheiro"};
+  return (Array.isArray(c.payment_methods)?c.payment_methods:[]).map((x)=>labels[x]||x).join(" e ");
+}
+function campaignDateEndText(c) {
+  try { return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Fortaleza",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(c.ends_at)); } catch(_err){ return ""; }
+}
+function campaignCountdownParts(c) {
+  const end = new Date(c?.ends_at).getTime();
+  if (!Number.isFinite(end)) return null;
+  let diff = Math.max(0, end - Date.now());
+  const days = Math.floor(diff / 86400000); diff -= days * 86400000;
+  const hours = Math.floor(diff / 3600000); diff -= hours * 3600000;
+  const minutes = Math.floor(diff / 60000);
+  return { days, hours, minutes };
+}
+function campaignVisualDiscount(c) {
+  if (!c) return "Oferta especial";
+  if (c.discount_type === "valor_fixo") return `${formatBRL(Number(c.discount_value || 0))} OFF`;
+  return `${Number(c.discount_value || 0).toLocaleString("pt-BR",{maximumFractionDigits:2})}% OFF`;
+}
+function renderCampaignShowcase() {
+  const live = activeCampaigns(null).filter((c) => c.show_banner !== false);
+  if (!live.length) return "";
+  const c = live[0];
+  const countdown = campaignCountdownParts(c);
+  const applies = c.all_products ? "Todos os produtos elegíveis da loja participam da promoção." : "Somente produtos participantes recebem o desconto desta campanha.";
+  const payment = campaignPaymentText(c) || "Consulte as formas de pagamento válidas.";
+  return `
+    <section class="campaign-hero">
+      <div class="campaign-hero-shell">
+        <div class="campaign-hero-card">
+          <div>
+            <span class="campaign-kicker">🎉 Campanha ativa</span>
+            <div class="mt-3 campaign-big-discount"><strong>${escapeHtml(campaignVisualDiscount(c))}</strong><span>${escapeHtml(c.name || "Oferta especial")}</span></div>
+            <h2 class="mt-4 text-2xl font-semibold text-white">${escapeHtml(c.banner_text || c.name || "Promoção especial")}</h2>
+            <p class="mt-3 max-w-2xl text-sm leading-6 text-cream-50/90">${escapeHtml(applies)} ${escapeHtml(payment)}${c.allow_coupon_stack ? " Pode acumular com cupom, conforme regras da campanha." : " Não acumula com cupom."}</p>
+            <div class="mt-4 campaign-info-grid">
+              <div class="campaign-info-chip"><b>Período</b>Começa em ${escapeHtml(new Intl.DateTimeFormat("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit", timeZone:"America/Fortaleza" }).format(new Date(c.starts_at)))} e termina em ${escapeHtml(campaignDateEndText(c))}.</div>
+              <div class="campaign-info-chip"><b>Condições</b>${escapeHtml(Number(c.min_order_amount||0) > 0 ? `Pedido mínimo de ${formatBRL(Number(c.min_order_amount || 0))}.` : "Sem pedido mínimo.")} ${c.max_discount_amount ? escapeHtml(`Desconto máximo de ${formatBRL(Number(c.max_discount_amount))}.`) : ""}</div>
+            </div>
+          </div>
+          <div>
+            <p class="mb-2 text-sm font-semibold uppercase tracking-[0.12em] text-cream-50/80">Termina em</p>
+            ${countdown ? `<div class="campaign-countdown">
+              <div class="campaign-countdown-box"><strong>${String(countdown.days).padStart(2, "0")}</strong><span>${countdown.days === 1 ? "dia" : "dias"}</span></div>
+              <div class="campaign-countdown-box"><strong>${String(countdown.hours).padStart(2, "0")}</strong><span>horas</span></div>
+              <div class="campaign-countdown-box"><strong>${String(countdown.minutes).padStart(2, "0")}</strong><span>minutos</span></div>
+            </div>` : ""}
+            <a href="#catalog-products" class="mt-4 inline-flex rounded-full bg-gold-500 px-5 py-3 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">Ver produtos da campanha</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function activeCampaigns(payment=null) {
+  return (state.campaigns||[]).filter((c)=>campaignIsActiveNow(c,payment)).sort((a,b)=>Number(b.priority||0)-Number(a.priority||0)||new Date(b.starts_at)-new Date(a.starts_at));
+}
+function bestPreviewCampaign(productId,payment,unitPrice) {
+  const matches=activeCampaigns(payment).filter((c)=>campaignMatchesProduct(c,productId) && Number(c.min_order_amount||0)<=Number(unitPrice||0)+0.0001);
+  if(!matches.length) return null;
+  matches.sort((a,b)=>Number(b.priority||0)-Number(a.priority||0)||campaignUnitDiscount(b,unitPrice)-campaignUnitDiscount(a,unitPrice));
+  return matches[0];
+}
+function displayPricing(product, variant) {
+  const base=effectivePricing(product,variant);
+  const pixCampaign=bestPreviewCampaign(product.id,"pix",base.promoPrice);
+  const creditCampaign=bestPreviewCampaign(product.id,"credito",base.creditPrice);
+  const pixDiscount=pixCampaign?campaignUnitDiscount(pixCampaign,base.promoPrice):0;
+  const creditDiscount=creditCampaign?campaignUnitDiscount(creditCampaign,base.creditPrice):0;
+  return {
+    promoPrice:Math.max(0,Math.round((base.promoPrice-pixDiscount)*100)/100),
+    creditPrice:Math.max(0,Math.round((base.creditPrice-creditDiscount)*100)/100),
+    originalPromoPrice:base.promoPrice, originalCreditPrice:base.creditPrice,
+    promoCampaign:pixCampaign, creditCampaign,
+    campaign:pixCampaign||creditCampaign||null,
+  };
+}
+function campaignDiscountSummary(items=cartItems(), payment=state.payment) {
+  if(!items.length) return {total:0,applications:[],canStackCoupon:true};
+  const live=activeCampaigns(payment);
+  const qualified=live.filter((c)=>{
+    const eligibleSubtotal=items.filter((it)=>campaignMatchesProduct(c,it.product.id)).reduce((s,it)=>s+priceFor(it.product,it.variant)*it.quantity,0);
+    return eligibleSubtotal>0 && eligibleSubtotal+0.0001>=Number(c.min_order_amount||0);
+  });
+  const apps=new Map();
+  items.forEach((it)=>{
+    const unit=priceFor(it.product,it.variant);
+    const candidates=qualified.filter((c)=>campaignMatchesProduct(c,it.product.id));
+    if(!candidates.length) return;
+    candidates.sort((a,b)=>Number(b.priority||0)-Number(a.priority||0)||campaignUnitDiscount(b,unit)-campaignUnitDiscount(a,unit));
+    const chosen=candidates[0]; const d=campaignUnitDiscount(chosen,unit)*it.quantity;
+    if(d<=0)return; const cur=apps.get(chosen.id)||{campaign:chosen,discount:0}; cur.discount+=d; apps.set(chosen.id,cur);
+  });
+  const applications=[...apps.values()].map((a)=>{let d=Math.round(a.discount*100)/100;if(a.campaign.max_discount_amount!=null&&Number(a.campaign.max_discount_amount)>0)d=Math.min(d,Number(a.campaign.max_discount_amount));return {...a.campaign,discount:Math.round(d*100)/100};}).filter((x)=>x.discount>0);
+  return {total:Math.round(applications.reduce((s,a)=>s+a.discount,0)*100)/100,applications,canStackCoupon:applications.every((a)=>!!a.allow_coupon_stack)};
+}
+function renderCampaignBanner() {
+  const live=activeCampaigns(null).filter((c)=>c.show_banner!==false);
+  if(!live.length) return "";
+  const c=live[0];
+  const copy=c.banner_text||`${c.name}: ${campaignDiscountText(c)}${c.all_products?" em todos os produtos":" em produtos selecionados"}.`;
+  return `<div class="border-b border-gold-300 bg-gold-100"><div class="mx-auto max-w-6xl px-4 py-2.5 text-center text-sm font-semibold text-navy-900">🎉 ${escapeHtml(copy)} <span class="font-normal text-navy-600">${campaignPaymentText(c)?`· ${escapeHtml(campaignPaymentText(c))}`:""} · até ${escapeHtml(campaignDateEndText(c))}</span></div></div>`;
+}
+
 // Resumo de preços para produtos com modelos. No card mostramos “a partir de”
 // quando os modelos têm valores diferentes, evitando que a pessoa pense que
 // todos custam exatamente o valor do primeiro modelo da lista.
 function pricingSummary(product) {
   const variants = variantsFor(product.id);
   if (variants.length === 0) {
-    const p = effectivePricing(product, null);
+    const p = displayPricing(product, null);
     return { ...p, variable: false };
   }
   const available = variants;
   const source = available.length > 0 ? available : variants;
-  const prices = source.map((v) => effectivePricing(product, v));
+  const prices = source.map((v) => displayPricing(product, v));
   const creditValues = prices.map((x) => x.creditPrice);
   const promoValues = prices.map((x) => x.promoPrice);
+  const bestPromoIndex = promoValues.indexOf(Math.min(...promoValues));
+  const bestCreditIndex = creditValues.indexOf(Math.min(...creditValues));
   return {
     creditPrice: Math.min(...creditValues),
     promoPrice: Math.min(...promoValues),
+    originalCreditPrice: prices[bestCreditIndex]?.originalCreditPrice ?? Math.min(...creditValues),
+    originalPromoPrice: prices[bestPromoIndex]?.originalPromoPrice ?? Math.min(...promoValues),
+    campaign: prices.find((x)=>x.campaign)?.campaign || null,
     variable: new Set(creditValues).size > 1 || new Set(promoValues).size > 1,
   };
 }
@@ -2412,22 +2584,21 @@ function subtotalBeforeDiscount() {
   return cartTotal() + giftWrapTotalPrice();
 }
 
-/* Quanto o cupom aplicado (se algum) desconta, já respeitando o teto
-   em R$ (max_discount_amount) e nunca deixando o desconto passar do
-   próprio subtotal. */
-function discountAmount() {
-  const coupon = state.appliedCoupon;
-  if (!coupon) return 0;
-  const subtotal = subtotalBeforeDiscount();
-  let raw = 0;
-  if (coupon.discount_type === "percentual") raw = subtotal * (Number(coupon.discount_value) / 100);
-  else if (coupon.discount_type === "valor_fixo") raw = Number(coupon.discount_value);
-  if (coupon.max_discount_amount != null) raw = Math.min(raw, Number(coupon.max_discount_amount));
-  raw = Math.min(raw, subtotal);
-  return Math.max(0, raw);
+function campaignDiscountAmount() { return campaignDiscountSummary().total; }
+function couponDiscountAmount() {
+  const coupon=state.appliedCoupon; if(!coupon) return 0;
+  const campaignSummary=campaignDiscountSummary();
+  if(campaignSummary.total>0 && !campaignSummary.canStackCoupon) return 0;
+  const subtotal=Math.max(0, subtotalBeforeDiscount()-campaignSummary.total);
+  let raw=0;
+  if(coupon.discount_type==="percentual") raw=subtotal*(Number(coupon.discount_value)/100);
+  else if(coupon.discount_type==="valor_fixo") raw=Number(coupon.discount_value);
+  if(coupon.max_discount_amount!=null) raw=Math.min(raw,Number(coupon.max_discount_amount));
+  return Math.max(0,Math.min(raw,subtotal));
 }
+function discountAmount() { return Math.round((campaignDiscountAmount()+couponDiscountAmount())*100)/100; }
 
-/* Total = itens + embalagens − desconto + motoboy.
+/* Total = itens + embalagens − campanhas − cupom + motoboy.
    O PAC fica fora do total até a cotação oficial. */
 function orderTotal() {
   return Math.max(0, subtotalBeforeDiscount() - discountAmount() + shippingFeeAmount());
@@ -2550,6 +2721,7 @@ function renderHeader() {
         <button type="button" data-font-toggle class="accessibility-btn" aria-label="Aumentar ou reduzir o tamanho do texto" title="Tamanho do texto">${document.documentElement.dataset.fontSize === "large" ? "A−" : "A+"}</button>
       </div>
     </header>
+    ${renderCampaignBanner()}
   `;
 }
 
@@ -2805,6 +2977,7 @@ function renderCatalog() {
   app.innerHTML = `
     ${renderHeader()}
     ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderHero() : ""}
+    ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderCampaignShowcase() : ""}
     <div style="position:sticky; top:0; z-index:15;">
       ${renderCategoryBar(categories)}
     </div>
@@ -2814,7 +2987,7 @@ function renderCatalog() {
       ${renderSearchBar()}
       ${renderCatalogFilters()}
     </div>
-    <main class="mx-auto max-w-5xl px-4 py-6">
+    <main id="catalog-products" class="mx-auto max-w-5xl px-4 py-6">
       ${!searchActive && state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
       ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderRecentlyViewed() : ""}
 
@@ -2857,6 +3030,11 @@ function renderProductCard(p, opts = {}) {
     <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
   `;
 
+  const summary = pricingSummary(p);
+  const campaignBadge = summary.campaign && Number(summary.originalPromoPrice) > Number(summary.promoPrice)
+    ? `<div class="campaign-card-badge"><span class="line1">Campanha ativa</span><span class="line2">${escapeHtml(campaignVisualDiscount(summary.campaign))}</span><span class="line3">${escapeHtml(summary.campaign.name)}</span></div>`
+    : "";
+
   let photoBlock;
   if (frames.length > 1) {
     const idx = (state.cardPhotoIndex[p.id] ?? 0) % frames.length;
@@ -2869,6 +3047,7 @@ function renderProductCard(p, opts = {}) {
         <button type="button" data-carousel-prev="${p.id}" aria-label="Foto anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">‹</button>
         <button type="button" data-carousel-next="${p.id}" aria-label="Próxima foto" class="carousel-nav-btn absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">›</button>
         ${favoriteBtn}
+        ${campaignBadge}
       </div>
     `;
   } else {
@@ -2882,11 +3061,11 @@ function renderProductCard(p, opts = {}) {
         </button>
         ${showCardBestSellerTag ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
         ${favoriteBtn}
+        ${campaignBadge}
       </div>
     `;
   }
 
-  const summary = pricingSummary(p);
   const availableVariantCount = variants.length;
 
   let addBlock;
@@ -2932,7 +3111,10 @@ function renderProductCard(p, opts = {}) {
         </div>
 
         <div class="leading-tight" data-price-block="${p.id}">
+          ${summary.campaign ? `<p class="mb-1 text-[11px] font-semibold text-emerald-700">🎉 ${escapeHtml(summary.campaign.name)} · ${escapeHtml(campaignDiscountText(summary.campaign))}</p>` : ""}
+          ${summary.campaign && Number(summary.originalCreditPrice)>Number(summary.creditPrice) ? `<p class="text-[11px] text-navy-400 line-through">${formatBRL(summary.originalCreditPrice)} no crédito</p>` : ""}
           <p>${summary.variable ? `<span class="text-xs font-medium text-navy-500">A partir de </span>` : ""}<span class="text-lg font-semibold text-navy-900">${formatBRL(summary.creditPrice)}</span> <span class="text-[11px] font-normal text-navy-400">em até 3x no crédito</span></p>
+          ${summary.campaign && Number(summary.originalPromoPrice)>Number(summary.promoPrice) ? `<p class="mt-1 text-[11px] text-navy-400 line-through">${formatBRL(summary.originalPromoPrice)} no Pix</p>` : ""}
           <p class="mt-1 text-sm text-navy-500">ou ${summary.variable ? "a partir de " : ""}<b>${formatBRL(summary.promoPrice)}</b> à vista (Pix ou espécie)</p>
         </div>
         ${variants.length === 0 && (!p.in_stock || stockQuantity(p) === 0 || p.esgotado) ? `<p class="text-xs font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
@@ -3044,7 +3226,7 @@ function renderProductDetail() {
   updateDynamicShareMeta(product, variant || previewVariant);
   const bestSelling = bestSellingVariant(product.id);
   const showingBestSellerPreview = !variant && !!previewVariant && !!bestSelling && previewVariant.id === bestSelling.id;
-  const detailPricing = variant ? effectivePricing(product, variant) : pricingSummary(product);
+  const detailPricing = variant ? displayPricing(product, variant) : pricingSummary(product);
   const key = variant ? cartKey(product.id, variant.id) : null;
   const qty = key ? (state.cart[key] ?? 0) : 0;
   const isInStock = variant ? variant.in_stock : product.in_stock;
@@ -3158,7 +3340,7 @@ function renderProductDetail() {
               ${variant ? `
                 <button type="button" data-quick-add="${cartKey(product.id, variant.id)}"
                   class="quick-model-add large-touch-action rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900">
-                  Comprar esta opção · ${formatBRL(effectivePricing(product, variant).promoPrice)} no Pix
+                  Comprar esta opção · ${formatBRL(displayPricing(product, variant).promoPrice)} no Pix
                 </button>
               ` : `<button type="button" disabled class="quick-model-add large-touch-action rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">${missingSize && missingModel ? "Escolha o tamanho e o modelo" : missingSize ? "Escolha o tamanho" : missingModel ? "Escolha o modelo" : "Selecione uma opção"}</button>`}
               ${selectorData.models.length ? `<button type="button" data-model-help="${product.id}" class="context-help-btn">Preciso de ajuda para escolher o modelo</button>` : ""}
@@ -3212,8 +3394,23 @@ function renderProductDetail() {
             </section>
           ` : ""}
 
+          ${detailPricing.campaign && Number(detailPricing.originalPromoPrice)>Number(detailPricing.promoPrice) ? `
+            <div class="campaign-detail-box">
+              <div class="title">🎉 Campanha ativa</div>
+              <div class="headline">${escapeHtml(detailPricing.campaign.name)} · ${escapeHtml(campaignVisualDiscount(detailPricing.campaign))}</div>
+              <div class="meta">Válida até ${escapeHtml(campaignDateEndText(detailPricing.campaign))}${campaignPaymentText(detailPricing.campaign) ? ` · ${escapeHtml(campaignPaymentText(detailPricing.campaign))}` : ""}.</div>
+              <div class="savings">
+                <span>De ${formatBRL(detailPricing.originalPromoPrice)} por ${formatBRL(detailPricing.promoPrice)} no Pix</span>
+                <span>Você economiza ${formatBRL(Math.max(0, Number(detailPricing.originalPromoPrice) - Number(detailPricing.promoPrice)))} por unidade</span>
+              </div>
+            </div>
+          ` : ""}
+
           <div class="leading-tight">
+            ${detailPricing.campaign ? `<p class="mb-1 text-xs font-semibold text-emerald-700">🎉 ${escapeHtml(detailPricing.campaign.name)} · ${escapeHtml(campaignDiscountText(detailPricing.campaign))}</p>` : ""}
+            ${detailPricing.campaign && Number(detailPricing.originalCreditPrice)>Number(detailPricing.creditPrice) ? `<p class="text-xs text-navy-400 line-through">${formatBRL(detailPricing.originalCreditPrice)} no crédito</p>` : ""}
             <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.creditPrice)}</span> <span class="text-xs font-normal text-navy-400">em até 3x no crédito</span></p>
+            ${detailPricing.campaign && Number(detailPricing.originalPromoPrice)>Number(detailPricing.promoPrice) ? `<p class="mt-1 text-xs text-navy-400 line-through">${formatBRL(detailPricing.originalPromoPrice)} no Pix</p>` : ""}
             <p class="mt-1 text-sm text-navy-500">ou ${variants.length > 0 && !variant && detailPricing.variable ? "a partir de " : ""}<b>${formatBRL(detailPricing.promoPrice)}</b> à vista (Pix ou espécie)</p>
           </div>
 
@@ -3822,9 +4019,13 @@ function renderCheckout() {
             </div>
           `).join("")}
         </div>
-        <div id="ck-discount-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-emerald-800 ${state.appliedCoupon ? "" : "hidden"}">
-          <span>Desconto (<span id="ck-discount-code">${state.appliedCoupon ? escapeHtml(state.appliedCoupon.code) : ""}</span>)</span>
-          <span id="ck-discount-value">−${formatBRL(discountAmount())}</span>
+        <div id="ck-campaign-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-emerald-800 ${campaignDiscountAmount()>0?"":"hidden"}">
+          <span>Campanha (<span id="ck-campaign-name">${escapeHtml(campaignDiscountSummary().applications.map((c)=>c.name).join(" + "))}</span>)</span>
+          <span id="ck-campaign-value">−${formatBRL(campaignDiscountAmount())}</span>
+        </div>
+        <div id="ck-discount-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-emerald-800 ${state.appliedCoupon && couponDiscountAmount()>0 ? "" : "hidden"}">
+          <span>Cupom (<span id="ck-discount-code">${state.appliedCoupon ? escapeHtml(state.appliedCoupon.code) : ""}</span>)</span>
+          <span id="ck-discount-value">−${formatBRL(couponDiscountAmount())}</span>
         </div>
         <div id="ck-shipping-line" class="flex items-center justify-between border-b border-navy-50 py-2 text-sm text-navy-700">
           <span id="ck-shipping-label">${escapeHtml(shippingSummaryText())}</span>
@@ -4375,11 +4576,19 @@ function updateCheckoutTotals() {
       </div>
     `).join("");
   }
+  const campaignSummary = campaignDiscountSummary();
+  const campaignLineEl=document.getElementById("ck-campaign-line");
+  const campaignValueEl=document.getElementById("ck-campaign-value");
+  const campaignNameEl=document.getElementById("ck-campaign-name");
+  if(campaignLineEl) campaignLineEl.classList.toggle("hidden", campaignSummary.total<=0);
+  if(campaignValueEl) campaignValueEl.textContent="−"+formatBRL(campaignSummary.total);
+  if(campaignNameEl) campaignNameEl.textContent=campaignSummary.applications.map((c)=>c.name).join(" + ");
   const discountLineEl = document.getElementById("ck-discount-line");
   const discountValueEl = document.getElementById("ck-discount-value");
   const discountCodeEl = document.getElementById("ck-discount-code");
-  if (discountLineEl) discountLineEl.classList.toggle("hidden", !state.appliedCoupon);
-  if (discountValueEl) discountValueEl.textContent = "−" + formatBRL(discountAmount());
+  const couponValue=couponDiscountAmount();
+  if (discountLineEl) discountLineEl.classList.toggle("hidden", !state.appliedCoupon || couponValue<=0);
+  if (discountValueEl) discountValueEl.textContent = "−" + formatBRL(couponValue);
   if (discountCodeEl) discountCodeEl.textContent = state.appliedCoupon ? state.appliedCoupon.code : "";
 
   if (totalEl) totalEl.textContent = formatBRL(orderTotal());
@@ -4435,6 +4644,11 @@ function resetCouponClientSide(message) {
 // (tryAutoApplyCoupon, abaixo), sem duplicar a lógica de "acender" o
 // desconto na tela.
 function applyCouponFromResult(result, code, whatsappDigits) {
+  const campaignSummaryNow=campaignDiscountSummary();
+  if(campaignSummaryNow.total>0 && !campaignSummaryNow.canStackCoupon){
+    resetCouponClientSide("A campanha ativa não acumula com cupom. O melhor desconto da campanha já foi aplicado automaticamente.");
+    return;
+  }
   state.appliedCoupon = {
     id: result.coupon_id,
     code: code.toUpperCase(),
@@ -4687,7 +4901,10 @@ async function onSubmitOrder(e) {
 
   const orderId = crypto.randomUUID();
   const subtotal = cartTotal() + giftWraps.reduce((sum, g) => sum + g.lineTotal, 0);
-  const discount = discountAmount();
+  const campaignSummary = campaignDiscountSummary(items, state.payment);
+  const campaignDiscount = campaignSummary.total;
+  const couponDiscount = couponDiscountAmount();
+  const discount = Math.round((campaignDiscount + couponDiscount) * 100) / 100;
   const shippingFee = shippingFeeAmount();
   const total = Math.max(0, subtotal - discount + shippingFee);
   const coupon = state.appliedCoupon;
@@ -4719,6 +4936,9 @@ async function onSubmitOrder(e) {
     coupon_id: coupon ? coupon.id : null,
     coupon_code: coupon ? coupon.code : null,
     discount_amount: discount > 0 ? discount : null,
+    campaign_ids: campaignSummary.applications.length ? campaignSummary.applications.map((c)=>c.id) : null,
+    campaign_names: campaignSummary.applications.length ? campaignSummary.applications.map((c)=>c.name) : null,
+    campaign_discount_amount: campaignDiscount > 0 ? campaignDiscount : null,
   });
   // De propósito SEM .select() encadeado aqui: pedir a linha de volta
   // (RETURNING) exigiria uma política de leitura pública em "orders",
@@ -4809,7 +5029,8 @@ async function onSubmitOrder(e) {
   }
 
   const message = buildWhatsAppMessage({
-    name, whatsapp, instagram, notes, items, subtotal, discount,
+    name, whatsapp, instagram, notes, items, subtotal, discount, campaignDiscount, couponDiscount,
+    campaignNames: campaignSummary.applications.map((c)=>c.name),
     couponCode: coupon ? coupon.code : null, total, payment: state.payment, giftWraps,
     shippingMethod: state.shippingMethod, shippingQuote: state.shippingQuote,
     shippingComplement: state.checkoutDraft.shippingComplement
@@ -4842,7 +5063,7 @@ async function onSubmitOrder(e) {
 }
 
 function buildWhatsAppMessage({
-  name, whatsapp, instagram, notes, items, subtotal, discount, couponCode,
+  name, whatsapp, instagram, notes, items, subtotal, discount, campaignDiscount, couponDiscount, campaignNames, couponCode,
   total, payment, giftWraps, shippingMethod, shippingQuote, shippingComplement
 }) {
   const lines = [];
@@ -4858,7 +5079,8 @@ function buildWhatsAppMessage({
   lines.push("");
   if (discount > 0) {
     lines.push(`Subtotal: ${formatBRL(subtotal)}`);
-    lines.push(`Cupom ${couponCode}: −${formatBRL(discount)}`);
+    if (campaignDiscount > 0) lines.push(`Campanha ${campaignNames?.join(" + ") || "promocional"}: −${formatBRL(campaignDiscount)}`);
+    if (couponDiscount > 0 && couponCode) lines.push(`Cupom ${couponCode}: −${formatBRL(couponDiscount)}`);
   }
 
   if (shippingMethod === "pickup") {
