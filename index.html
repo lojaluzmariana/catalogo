@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v9.8-campaign-price-priority-2026-09-15" />
+  <meta name="luz-mariana-catalog-version" content="professional-v9.9-countdown-carousel-2026-09-15" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
@@ -1708,10 +1708,73 @@ function stopCarouselTimer(productId) {
    (grid + carrossel de destaques), e pausa enquanto o dedo/mouse está
    em cima (pra não trocar a foto bem na hora que a pessoa for decidir). */
 function setupCarousels() {
-  // Para deixar a vitrine mais tranquila e previsível no celular, as fotos
-  // não trocam sozinhas. O cliente usa as setas quando quiser ver os modelos.
+  // Limpa timers antigos antes de religar os cards que estão realmente na tela.
   Object.keys(carouselTimers).forEach(stopCarouselTimer);
+
+  const productIds = new Set();
+  document.querySelectorAll("[data-carousel]").forEach((el) => {
+    const productId = el.dataset.carousel;
+    if (!productId) return;
+    const product = state.products.find((p) => String(p.id) === String(productId));
+    if (!product || carouselFrames(product).length <= 1) return;
+    productIds.add(String(productId));
+
+    // Pausa durante interação para não trocar a imagem enquanto o cliente
+    // estiver tocando, arrastando ou usando as setas. Depois retoma sozinho.
+    let resumeTimer = null;
+    const pause = () => {
+      stopCarouselTimer(String(productId));
+      if (resumeTimer) clearTimeout(resumeTimer);
+    };
+    const resume = () => {
+      if (resumeTimer) clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => startCarouselTimer(String(productId)), 4500);
+    };
+    el.addEventListener("pointerenter", pause);
+    el.addEventListener("pointerleave", resume);
+    el.addEventListener("touchstart", pause, { passive: true });
+    el.addEventListener("touchend", resume, { passive: true });
+    el.addEventListener("touchcancel", resume, { passive: true });
+  });
+
+  productIds.forEach((productId) => startCarouselTimer(productId));
 }
+
+let campaignCountdownTimer = null;
+function stopCampaignCountdownTimer() {
+  if (campaignCountdownTimer) {
+    clearInterval(campaignCountdownTimer);
+    campaignCountdownTimer = null;
+  }
+}
+function updateCampaignCountdowns() {
+  let anyVisible = false;
+  document.querySelectorAll("[data-campaign-countdown]").forEach((box) => {
+    anyVisible = true;
+    const end = new Date(box.dataset.campaignEnd || "").getTime();
+    if (!Number.isFinite(end)) return;
+    let diff = Math.max(0, end - Date.now());
+    const days = Math.floor(diff / 86400000); diff -= days * 86400000;
+    const hours = Math.floor(diff / 3600000); diff -= hours * 3600000;
+    const minutes = Math.floor(diff / 60000); diff -= minutes * 60000;
+    const seconds = Math.floor(diff / 1000);
+    const values = { days, hours, minutes, seconds };
+    Object.entries(values).forEach(([key, value]) => {
+      const el = box.querySelector(`[data-countdown-${key}]`);
+      if (el) el.textContent = String(value).padStart(2, "0");
+    });
+    const dayLabel = box.querySelector("[data-countdown-days] + span");
+    if (dayLabel) dayLabel.textContent = days === 1 ? "dia" : "dias";
+  });
+  if (!anyVisible) stopCampaignCountdownTimer();
+}
+function setupCampaignCountdown() {
+  stopCampaignCountdownTimer();
+  if (!document.querySelector("[data-campaign-countdown]")) return;
+  updateCampaignCountdowns();
+  campaignCountdownTimer = setInterval(updateCampaignCountdowns, 1000);
+}
+
 
 /* Normaliza texto pra comparação de busca: minúsculo + sem acento, pra
    "terço" bater com "terco" e vice-versa (comum digitar sem acento no
@@ -1882,8 +1945,9 @@ function campaignCountdownParts(c) {
   let diff = Math.max(0, end - Date.now());
   const days = Math.floor(diff / 86400000); diff -= days * 86400000;
   const hours = Math.floor(diff / 3600000); diff -= hours * 3600000;
-  const minutes = Math.floor(diff / 60000);
-  return { days, hours, minutes };
+  const minutes = Math.floor(diff / 60000); diff -= minutes * 60000;
+  const seconds = Math.floor(diff / 1000);
+  return { days, hours, minutes, seconds };
 }
 function campaignVisualDiscount(c) {
   if (!c) return "Oferta especial";
@@ -1913,10 +1977,11 @@ function renderCampaignShowcase() {
           </div>
           <div>
             <p class="mb-2 text-sm font-semibold uppercase tracking-[0.12em] text-cream-50/80">Termina em</p>
-            ${countdown ? `<div class="campaign-countdown">
-              <div class="campaign-countdown-box"><strong>${String(countdown.days).padStart(2, "0")}</strong><span>${countdown.days === 1 ? "dia" : "dias"}</span></div>
-              <div class="campaign-countdown-box"><strong>${String(countdown.hours).padStart(2, "0")}</strong><span>horas</span></div>
-              <div class="campaign-countdown-box"><strong>${String(countdown.minutes).padStart(2, "0")}</strong><span>minutos</span></div>
+            ${countdown ? `<div class="campaign-countdown" data-campaign-countdown="${c.id}" data-campaign-end="${escapeHtml(c.ends_at || "")}">
+              <div class="campaign-countdown-box"><strong data-countdown-days>${String(countdown.days).padStart(2, "0")}</strong><span>${countdown.days === 1 ? "dia" : "dias"}</span></div>
+              <div class="campaign-countdown-box"><strong data-countdown-hours>${String(countdown.hours).padStart(2, "0")}</strong><span>horas</span></div>
+              <div class="campaign-countdown-box"><strong data-countdown-minutes>${String(countdown.minutes).padStart(2, "0")}</strong><span>minutos</span></div>
+              <div class="campaign-countdown-box"><strong data-countdown-seconds>${String(countdown.seconds).padStart(2, "0")}</strong><span>segundos</span></div>
             </div>` : ""}
             <a href="#catalog-products" class="mt-4 inline-flex rounded-full bg-gold-500 px-5 py-3 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">Ver produtos da campanha</a>
           </div>
@@ -3973,6 +4038,7 @@ function wireCatalogEvents() {
     });
   });
   setupCarousels();
+  setupCampaignCountdown();
 }
 
 /* =====================================================================
