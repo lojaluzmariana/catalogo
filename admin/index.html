@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.13-product-search-order-routing-2026-09-14" />
+<meta name="luz-mariana-admin-version" content="professional-v9.14-campaign-manager-2026-09-14" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -2162,6 +2162,10 @@ const state = {
   suppliers: [],
   customers: [],
   coupons: [],
+  campaigns: [],
+  campaignProducts: [],
+  campaignsAvailable: true,
+  campaignsError: null,
   couponAllowedPhones: [], // números de telefone com direito a um cupom restrito (ver aba Cupons)
   orcamentos: [], // orçamentos salvos no Supabase (compartilhados entre os admins)
   orders: [],
@@ -2603,7 +2607,7 @@ async function finishAppEntry() {
 // Recarrega todos os dados do app de uma vez (usado ao entrar, no botão
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
-  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews(), loadCatalogEvents()]);
+  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCampaigns(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews(), loadCatalogEvents()]);
   state.lastRefreshedAt = new Date();
 }
 
@@ -5661,6 +5665,7 @@ function renderActiveSection(container) {
     materiais: renderMateriais,
     fornecedores: renderFornecedores,
     clientes: renderClientes,
+    campanhas: renderCampanhas,
     cupons: renderCupons,
     orcamentos: renderOrcamentos,
     pedidos: renderPedidos,
@@ -5826,6 +5831,7 @@ function renderApp() {
             <span class="admin-nav-label">Vendas</span>
             ${navBtn("pedidos","🧾","Pedidos",newOrdersCount)}
             ${navBtn("orcamentos","📝","Orçamentos")}
+            ${navBtn("campanhas","🎯","Campanhas")}
             ${navBtn("clientes","👤","Clientes")}
             ${navBtn("posvenda","💬","Pós-venda",postSaleRows().filter((r) => !r.done).length)}
             ${navBtn("ocorrencias","⚠","Ocorrências",allOrderIssues().filter((i)=>!i.resolved).length)}
@@ -9359,6 +9365,237 @@ function renderSupplierForm() {
     fornecedoresState.formOpen = false;
     await loadSuppliers();
     renderFornecedores(document.getElementById("main-content"));
+  });
+}
+
+
+/* =====================================================================
+   ABA: CAMPANHAS — promoções automáticas por período/produto/pagamento
+   ===================================================================== */
+let campanhasState = {
+  formOpen:false,
+  editingId:null,
+  selectedProductIds:new Set(),
+  productSearch:"",
+};
+
+async function loadCampaigns() {
+  const [campaignRes, productRes] = await Promise.all([
+    supabaseClient.from("campaigns").select("*").order("priority", { ascending:false }).order("starts_at", { ascending:false }),
+    supabaseClient.from("campaign_products").select("campaign_id, product_id"),
+  ]);
+  if (campaignRes.error) {
+    state.campaignsAvailable = false;
+    state.campaignsError = campaignRes.error.message || "Tabela campaigns indisponível";
+    state.campaigns = [];
+    state.campaignProducts = [];
+    return;
+  }
+  state.campaignsAvailable = true;
+  state.campaignsError = productRes.error ? productRes.error.message : null;
+  state.campaigns = campaignRes.data || [];
+  state.campaignProducts = productRes.error ? [] : (productRes.data || []);
+}
+
+function campaignStatus(c) {
+  if (!c?.active) return { key:"disabled", label:"Desativada", cls:"bg-navy-100 text-navy-600" };
+  const now = Date.now();
+  const start = new Date(c.starts_at).getTime();
+  const end = new Date(c.ends_at).getTime();
+  if (Number.isFinite(start) && now < start) return { key:"scheduled", label:"Agendada", cls:"bg-gold-100 text-gold-800" };
+  if (Number.isFinite(end) && now > end) return { key:"ended", label:"Encerrada", cls:"bg-navy-100 text-navy-500" };
+  return { key:"active", label:"Ativa", cls:"bg-emerald-100 text-emerald-800" };
+}
+
+function campaignDiscountLabel(c) {
+  if (c.discount_type === "valor_fixo") return `${formatBRL(Number(c.discount_value || 0))} por item`;
+  return `${Number(c.discount_value || 0).toLocaleString("pt-BR", { maximumFractionDigits:2 })}%`;
+}
+function campaignPaymentLabel(c) {
+  const labels = { pix:"Pix/à vista", credito:"Crédito", debito:"Débito", dinheiro:"Dinheiro" };
+  const values = Array.isArray(c.payment_methods) ? c.payment_methods : [];
+  return values.length ? values.map((x)=>labels[x] || x).join(", ") : "Nenhuma";
+}
+function campaignProductsForId(id) {
+  return state.campaignProducts.filter((x)=>String(x.campaign_id)===String(id)).map((x)=>String(x.product_id));
+}
+function campaignDateTimeBR(value) {
+  if (!value) return "—";
+  try {
+    return new Intl.DateTimeFormat("pt-BR", { timeZone:"America/Fortaleza", day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" }).format(new Date(value));
+  } catch (_err) { return String(value); }
+}
+function campaignToDatetimeLocal(value) {
+  if (!value) return "";
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone:"America/Fortaleza", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).formatToParts(new Date(value));
+    const o = Object.fromEntries(parts.map((p)=>[p.type,p.value]));
+    return `${o.year}-${o.month}-${o.day}T${o.hour}:${o.minute}`;
+  } catch (_err) { return String(value).slice(0,16); }
+}
+function campaignLocalToIso(value) {
+  if (!value) return null;
+  return new Date(`${value}:00-03:00`).toISOString();
+}
+function campaignIsLiveNow(c, payment=null) {
+  if (!c?.active) return false;
+  const now=Date.now(), start=new Date(c.starts_at).getTime(), end=new Date(c.ends_at).getTime();
+  if ((Number.isFinite(start)&&now<start)||(Number.isFinite(end)&&now>end)) return false;
+  if (payment && !(Array.isArray(c.payment_methods) && c.payment_methods.includes(payment))) return false;
+  return true;
+}
+function campaignMatchesProduct(c, productId) {
+  if (c?.all_products) return true;
+  return state.campaignProducts.some((x)=>String(x.campaign_id)===String(c.id) && String(x.product_id)===String(productId));
+}
+function campaignUnitDiscount(c, unitPrice) {
+  const price=Math.max(0,Number(unitPrice||0));
+  if (c.discount_type === "valor_fixo") return Math.min(price, Math.max(0,Number(c.discount_value||0)));
+  return Math.min(price, price * Math.max(0,Number(c.discount_value||0))/100);
+}
+function campaignSummaryForResolvedItems(resolved, payment) {
+  if (!state.campaignsAvailable || !Array.isArray(resolved) || !resolved.length || payment === "brinde") return { total:0, applications:[], canStackCoupon:true };
+  const live = state.campaigns.filter((c)=>campaignIsLiveNow(c,payment));
+  const qualified = live.filter((c)=>{
+    const eligibleSubtotal = resolved.filter((it)=>!it.courtesy && campaignMatchesProduct(c,it.product_id)).reduce((s,it)=>s+Number(it.lineTotal||0),0);
+    return eligibleSubtotal > 0 && eligibleSubtotal + 0.0001 >= Number(c.min_order_amount||0);
+  });
+  const apps = new Map();
+  resolved.forEach((it)=>{
+    if (it.courtesy || Number(it.lineTotal||0)<=0) return;
+    const candidates = qualified.filter((c)=>campaignMatchesProduct(c,it.product_id));
+    if (!candidates.length) return;
+    candidates.sort((a,b)=>Number(b.priority||0)-Number(a.priority||0) || campaignUnitDiscount(b,it.unitPrice)-campaignUnitDiscount(a,it.unitPrice));
+    const chosen=candidates[0];
+    const value=campaignUnitDiscount(chosen,it.unitPrice)*Number(it.quantity||0);
+    if (value<=0) return;
+    const current=apps.get(chosen.id)||{ campaign:chosen, discount:0 };
+    current.discount += value;
+    apps.set(chosen.id,current);
+  });
+  const applications=[...apps.values()].map((a)=>{
+    let discount=round2(a.discount);
+    if (a.campaign.max_discount_amount != null && Number(a.campaign.max_discount_amount)>0) discount=Math.min(discount,Number(a.campaign.max_discount_amount));
+    return { ...a.campaign, discount:round2(discount) };
+  }).filter((a)=>a.discount>0);
+  return {
+    total:round2(applications.reduce((s,a)=>s+a.discount,0)),
+    applications,
+    canStackCoupon:applications.every((a)=>!!a.allow_coupon_stack),
+  };
+}
+
+function renderCampanhas(container) {
+  if (!state.campaignsAvailable) {
+    container.innerHTML = `
+      <div class="pro-page-header"><div><span class="admin-kicker">Vendas</span><h1>Campanhas</h1><p>Promoções automáticas com data, produtos elegíveis e formas de pagamento.</p></div></div>
+      <section class="management-card">
+        <h2>Banco ainda não preparado para campanhas</h2>
+        <p class="caption">Execute o arquivo <b>migration_campaigns.sql</b> uma única vez no SQL Editor do Supabase e depois clique em Atualizar.</p>
+        <div class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">${escapeHtml(state.campaignsError || "Tabela campaigns não encontrada.")}</div>
+      </section>`;
+    return;
+  }
+
+  const rows=[...state.campaigns].sort((a,b)=>Number(b.priority||0)-Number(a.priority||0) || new Date(b.starts_at)-new Date(a.starts_at));
+  const active=rows.filter((c)=>campaignStatus(c).key==="active").length;
+  const scheduled=rows.filter((c)=>campaignStatus(c).key==="scheduled").length;
+  const ended=rows.filter((c)=>campaignStatus(c).key==="ended").length;
+  container.innerHTML = `
+    <div>
+      <div class="pro-page-header">
+        <div><span class="admin-kicker">Comercial</span><h1>Campanhas</h1><p>Crie promoções automáticas por período, produtos e formas de pagamento. O catálogo aplica sozinho quando a campanha entra no horário.</p></div>
+        <button id="new-campaign-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900">+ Nova campanha</button>
+      </div>
+      <div class="pro-kpi-grid">
+        <div class="pro-kpi"><div class="label">Campanhas</div><div class="value">${rows.length}</div><div class="hint">Total cadastrado.</div></div>
+        <div class="pro-kpi"><div class="label">Ativas agora</div><div class="value">${active}</div><div class="hint">Aplicadas automaticamente no catálogo.</div></div>
+        <div class="pro-kpi"><div class="label">Agendadas</div><div class="value">${scheduled}</div><div class="hint">Entram no ar no horário programado.</div></div>
+        <div class="pro-kpi"><div class="label">Encerradas</div><div class="value">${ended}</div><div class="hint">Histórico preservado.</div></div>
+      </div>
+      <div id="campaign-form-slot"></div>
+      <section class="management-card" style="margin-top:16px">
+        <div class="admin-section-heading"><div><h2>Campanhas cadastradas</h2><p>Horários exibidos em Natal/RN · GMT−3.</p></div></div>
+        ${rows.length ? `<div class="mobile-card-table"><table class="w-full min-w-[860px] text-left text-xs"><thead><tr class="border-b border-navy-100 text-navy-500"><th class="px-3 py-2">Campanha</th><th class="px-3 py-2">Desconto</th><th class="px-3 py-2">Período</th><th class="px-3 py-2">Produtos</th><th class="px-3 py-2">Pagamento</th><th class="px-3 py-2">Status</th><th class="px-3 py-2 text-right">Ações</th></tr></thead><tbody>
+          ${rows.map((c)=>{ const st=campaignStatus(c); const count=campaignProductsForId(c.id).length; return `<tr class="border-b border-navy-50 last:border-0"><td class="px-3 py-3"><strong class="text-navy-900">${escapeHtml(c.name)}</strong>${c.description?`<small class="mt-1 block text-navy-400">${escapeHtml(c.description)}</small>`:""}</td><td class="px-3 py-3 font-semibold text-navy-900">${campaignDiscountLabel(c)}</td><td class="px-3 py-3">${campaignDateTimeBR(c.starts_at)}<br><span class="text-navy-400">até ${campaignDateTimeBR(c.ends_at)}</span></td><td class="px-3 py-3">${c.all_products?"Todos os produtos":`${count} produto(s)`}</td><td class="px-3 py-3">${escapeHtml(campaignPaymentLabel(c))}</td><td class="px-3 py-3"><span class="rounded-full px-2 py-1 text-[10px] font-semibold ${st.cls}">${st.label}</span></td><td class="px-3 py-3"><div class="flex justify-end gap-1"><button data-edit-campaign="${c.id}" class="rounded-lg border border-navy-200 px-2.5 py-1.5 text-xs font-semibold text-navy-700">Editar</button><button data-toggle-campaign="${c.id}" data-active="${c.active}" class="rounded-lg border border-navy-200 px-2.5 py-1.5 text-xs font-semibold ${c.active?"text-red-600":"text-emerald-700"}">${c.active?"Desativar":"Reativar"}</button></div></td></tr>`; }).join("")}
+        </tbody></table></div>` : `<p class="text-sm text-navy-400">Nenhuma campanha cadastrada ainda.</p>`}
+      </section>
+    </div>`;
+
+  document.getElementById("new-campaign-btn")?.addEventListener("click",()=>{
+    campanhasState={formOpen:true,editingId:null,selectedProductIds:new Set(),productSearch:""};
+    renderCampaignForm();
+  });
+  container.querySelectorAll("[data-edit-campaign]").forEach((btn)=>btn.addEventListener("click",()=>{
+    campanhasState={formOpen:true,editingId:btn.dataset.editCampaign,selectedProductIds:new Set(campaignProductsForId(btn.dataset.editCampaign)),productSearch:""};
+    renderCampaignForm();
+  }));
+  container.querySelectorAll("[data-toggle-campaign]").forEach((btn)=>btn.addEventListener("click",async()=>{
+    const {error}=await supabaseClient.from("campaigns").update({active:btn.dataset.active!=="true",updated_at:new Date().toISOString(),updated_by:state.currentUser.id}).eq("id",btn.dataset.toggleCampaign);
+    if(error){alert("Não foi possível alterar a campanha: "+error.message);return;}
+    await loadCampaigns(); renderCampanhas(container);
+  }));
+  if (campanhasState.formOpen) renderCampaignForm();
+}
+
+function renderCampaignProductPicker() {
+  const box=document.getElementById("campaign-product-picker");
+  if(!box) return;
+  const q=String(campanhasState.productSearch||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  const visible=[...state.products].filter((p)=>p.active!==false).filter((p)=>!q || `${p.name||""} ${p.category||""}`.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().includes(q)).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"pt-BR"));
+  box.innerHTML=visible.length?visible.map((p)=>`<label class="flex items-center gap-2 border-b border-navy-50 px-2 py-2 text-sm last:border-0"><input type="checkbox" data-campaign-product="${p.id}" ${campanhasState.selectedProductIds.has(String(p.id))?"checked":""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400"/><span class="min-w-0 flex-1"><b class="text-navy-900">${escapeHtml(p.name)}</b>${p.category?`<small class="ml-2 text-navy-400">${escapeHtml(p.category)}</small>`:""}</span></label>`).join(""):`<p class="px-3 py-4 text-sm text-navy-400">Nenhum produto encontrado.</p>`;
+  box.querySelectorAll("[data-campaign-product]").forEach((cb)=>cb.addEventListener("change",()=>{ const id=String(cb.dataset.campaignProduct); if(cb.checked) campanhasState.selectedProductIds.add(id); else campanhasState.selectedProductIds.delete(id); const count=document.getElementById("campaign-product-count"); if(count) count.textContent=`${campanhasState.selectedProductIds.size} selecionado(s)`; }));
+}
+
+function renderCampaignForm() {
+  const slot=document.getElementById("campaign-form-slot"); if(!slot) return;
+  const c=campanhasState.editingId?state.campaigns.find((x)=>String(x.id)===String(campanhasState.editingId)):null;
+  const tomorrow=(()=>{ const d=new Date(); d.setDate(d.getDate()+1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}T00:00`; })();
+  const tomorrowEnd=tomorrow.slice(0,10)+"T23:59";
+  const payments=Array.isArray(c?.payment_methods)?c.payment_methods:["pix","credito"];
+  const allProducts=c?!!c.all_products:true;
+  slot.innerHTML=`<section class="management-card" style="margin-top:16px;border-color:#e7c55e">
+    <div class="admin-section-heading"><div><h2>${c?"Editar campanha":"Nova campanha"}</h2><p>O horário é salvo considerando Natal/RN · GMT−3.</p></div><button id="campaign-form-close" type="button" class="admin-order-open">Fechar</button></div>
+    <form id="campaign-form" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <label class="block"><span class="mb-1 block text-sm font-medium text-navy-800">Nome da campanha *</span><input id="campaign-name" required value="${c?escapeHtml(c.name):""}" class="w-full rounded-lg border border-navy-200 px-3 py-2" placeholder="Ex.: Dia do Cliente"/></label>
+      <label class="block"><span class="mb-1 block text-sm font-medium text-navy-800">Prioridade</span><input id="campaign-priority" type="number" value="${Number(c?.priority||0)}" class="w-full rounded-lg border border-navy-200 px-3 py-2"/><span class="mt-1 block text-xs text-navy-400">Se campanhas se sobrepuserem, a maior prioridade vence no mesmo produto.</span></label>
+      <label class="block"><span class="mb-1 block text-sm font-medium text-navy-800">Início *</span><input id="campaign-start" type="datetime-local" required value="${c?campaignToDatetimeLocal(c.starts_at):tomorrow}" class="w-full rounded-lg border border-navy-200 px-3 py-2"/></label>
+      <label class="block"><span class="mb-1 block text-sm font-medium text-navy-800">Fim *</span><input id="campaign-end" type="datetime-local" required value="${c?campaignToDatetimeLocal(c.ends_at):tomorrowEnd}" class="w-full rounded-lg border border-navy-200 px-3 py-2"/></label>
+      <label class="block"><span class="mb-1 block text-sm font-medium text-navy-800">Tipo de desconto</span><select id="campaign-discount-type" class="w-full rounded-lg border border-navy-200 px-3 py-2"><option value="percentual" ${!c||c.discount_type==="percentual"?"selected":""}>Percentual (%)</option><option value="valor_fixo" ${c?.discount_type==="valor_fixo"?"selected":""}>Valor fixo por item (R$)</option></select></label>
+      <label class="block"><span class="mb-1 block text-sm font-medium text-navy-800">Valor do desconto *</span><input id="campaign-discount-value" type="number" step="0.01" min="0.01" required value="${c?Number(c.discount_value):"15"}" class="w-full rounded-lg border border-navy-200 px-3 py-2"/></label>
+      <label class="block"><span class="mb-1 block text-sm font-medium text-navy-800">Compra mínima (R$, opcional)</span><input id="campaign-min-order" type="number" step="0.01" min="0" value="${Number(c?.min_order_amount||0)||""}" class="w-full rounded-lg border border-navy-200 px-3 py-2" placeholder="0,00"/></label>
+      <label class="block"><span class="mb-1 block text-sm font-medium text-navy-800">Desconto máximo por campanha/pedido (R$, opcional)</span><input id="campaign-max-discount" type="number" step="0.01" min="0" value="${c?.max_discount_amount!=null?Number(c.max_discount_amount):""}" class="w-full rounded-lg border border-navy-200 px-3 py-2"/></label>
+      <div class="md:col-span-2"><span class="mb-2 block text-sm font-medium text-navy-800">Formas de pagamento elegíveis *</span><div class="flex flex-wrap gap-3">${[["pix","Pix / à vista"],["credito","Crédito"],["debito","Débito"],["dinheiro","Dinheiro"]].map(([v,l])=>`<label class="flex items-center gap-2 rounded-lg border border-navy-100 px-3 py-2 text-sm"><input type="checkbox" data-campaign-payment="${v}" ${payments.includes(v)?"checked":""} class="rounded border-navy-300 text-gold-500"/>${l}</label>`).join("")}</div><p class="mt-1 text-xs text-navy-400">No catálogo público hoje aparecem Pix/à vista e crédito; débito/dinheiro ficam disponíveis para vendas assistidas.</p></div>
+      <div class="md:col-span-2"><label class="flex items-center gap-2 text-sm font-semibold text-navy-800"><input id="campaign-all-products" type="checkbox" ${allProducts?"checked":""} class="rounded border-navy-300 text-gold-500"/>Aplicar a todos os produtos</label></div>
+      <div id="campaign-specific-products" class="md:col-span-2 ${allProducts?"hidden":""}"><div class="mb-2 flex flex-wrap items-center justify-between gap-2"><label class="flex-1"><span class="mb-1 block text-sm font-medium text-navy-800">Produtos elegíveis</span><input id="campaign-product-search" value="${escapeHtml(campanhasState.productSearch||"")}" class="w-full rounded-lg border border-navy-200 px-3 py-2" placeholder="Buscar produto..."/></label><span id="campaign-product-count" class="text-xs text-navy-500">${campanhasState.selectedProductIds.size} selecionado(s)</span></div><div id="campaign-product-picker" class="max-h-64 overflow-auto rounded-xl border border-navy-100 bg-white"></div></div>
+      <label class="block md:col-span-2"><span class="mb-1 block text-sm font-medium text-navy-800">Condições / observações</span><textarea id="campaign-description" rows="3" class="w-full rounded-lg border border-navy-200 px-3 py-2" placeholder="Ex.: válido somente enquanto durar o estoque; não acumulativo...">${c?.description?escapeHtml(c.description):""}</textarea></label>
+      <label class="block md:col-span-2"><span class="mb-1 block text-sm font-medium text-navy-800">Texto da faixa no catálogo (opcional)</span><input id="campaign-banner-text" value="${c?.banner_text?escapeHtml(c.banner_text):""}" class="w-full rounded-lg border border-navy-200 px-3 py-2" placeholder="Ex.: Dia do Cliente: 15% OFF em toda a loja, só hoje!"/></label>
+      <div class="md:col-span-2 flex flex-wrap gap-4"><label class="flex items-center gap-2 text-sm text-navy-700"><input id="campaign-show-banner" type="checkbox" ${c?.show_banner===false?"":"checked"} class="rounded border-navy-300 text-gold-500"/>Mostrar faixa da campanha no catálogo</label><label class="flex items-center gap-2 text-sm text-navy-700"><input id="campaign-coupon-stack" type="checkbox" ${c?.allow_coupon_stack?"checked":""} class="rounded border-navy-300 text-gold-500"/>Permitir acumular com cupom</label><label class="flex items-center gap-2 text-sm text-navy-700"><input id="campaign-active" type="checkbox" ${c?.active===false?"":"checked"} class="rounded border-navy-300 text-gold-500"/>Campanha habilitada</label></div>
+      <div id="campaign-error" class="md:col-span-2 text-sm text-red-600"></div>
+      <div class="md:col-span-2 flex gap-2"><button type="submit" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white">Salvar campanha</button><button type="button" id="campaign-cancel" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-semibold text-navy-700">Cancelar</button></div>
+    </form></section>`;
+  renderCampaignProductPicker();
+  const allCb=document.getElementById("campaign-all-products");
+  const specific=document.getElementById("campaign-specific-products");
+  allCb?.addEventListener("change",()=>specific?.classList.toggle("hidden",allCb.checked));
+  document.getElementById("campaign-product-search")?.addEventListener("input",(e)=>{ campanhasState.productSearch=e.target.value; renderCampaignProductPicker(); });
+  const close=()=>{campanhasState.formOpen=false;campanhasState.editingId=null;renderCampanhas(document.getElementById("main-content"));};
+  document.getElementById("campaign-form-close")?.addEventListener("click",close); document.getElementById("campaign-cancel")?.addEventListener("click",close);
+  document.getElementById("campaign-form")?.addEventListener("submit",async(e)=>{
+    e.preventDefault(); const errorEl=document.getElementById("campaign-error");
+    const name=document.getElementById("campaign-name").value.trim();
+    const startsAt=campaignLocalToIso(document.getElementById("campaign-start").value); const endsAt=campaignLocalToIso(document.getElementById("campaign-end").value);
+    const discountType=document.getElementById("campaign-discount-type").value; const discountValue=Number(document.getElementById("campaign-discount-value").value);
+    const paymentMethods=[...document.querySelectorAll("[data-campaign-payment]:checked")].map((x)=>x.dataset.campaignPayment);
+    const useAll=document.getElementById("campaign-all-products").checked;
+    if(!name){errorEl.textContent="Informe o nome da campanha.";return;} if(!startsAt||!endsAt||new Date(endsAt)<=new Date(startsAt)){errorEl.textContent="O fim da campanha precisa ser posterior ao início.";return;} if(!(discountValue>0)){errorEl.textContent="Informe um desconto maior que zero.";return;} if(discountType==="percentual"&&discountValue>100){errorEl.textContent="O desconto percentual não pode ultrapassar 100%.";return;} if(!paymentMethods.length){errorEl.textContent="Selecione ao menos uma forma de pagamento.";return;} if(!useAll&&!campanhasState.selectedProductIds.size){errorEl.textContent="Selecione ao menos um produto ou marque todos os produtos.";return;}
+    const payload={name,description:document.getElementById("campaign-description").value.trim()||null,discount_type:discountType,discount_value:discountValue,max_discount_amount:(()=>{const v=document.getElementById("campaign-max-discount").value;return v?Number(v):null;})(),min_order_amount:Number(document.getElementById("campaign-min-order").value||0),starts_at:startsAt,ends_at:endsAt,all_products:useAll,payment_methods:paymentMethods,allow_coupon_stack:document.getElementById("campaign-coupon-stack").checked,show_banner:document.getElementById("campaign-show-banner").checked,banner_text:document.getElementById("campaign-banner-text").value.trim()||null,priority:Number(document.getElementById("campaign-priority").value||0),active:document.getElementById("campaign-active").checked,updated_at:new Date().toISOString(),updated_by:state.currentUser.id};
+    let id=c?.id||null; let result;
+    if(id) result=await supabaseClient.from("campaigns").update(payload).eq("id",id).select("id").single(); else result=await supabaseClient.from("campaigns").insert({...payload,created_by:state.currentUser.id}).select("id").single();
+    if(result.error){errorEl.textContent=result.error.message;return;} id=result.data?.id||id;
+    const del=await supabaseClient.from("campaign_products").delete().eq("campaign_id",id); if(del.error){errorEl.textContent="Campanha salva, mas não foi possível atualizar os produtos: "+del.error.message;return;}
+    if(!useAll&&campanhasState.selectedProductIds.size){const links=[...campanhasState.selectedProductIds].map((product_id)=>({campaign_id:id,product_id})); const ins=await supabaseClient.from("campaign_products").insert(links); if(ins.error){errorEl.textContent="Campanha salva, mas não foi possível vincular os produtos: "+ins.error.message;return;}}
+    campanhasState={formOpen:false,editingId:null,selectedProductIds:new Set(),productSearch:""}; await loadCampaigns(); renderCampanhas(document.getElementById("main-content"));
   });
 }
 
@@ -14749,17 +14986,20 @@ function vendaManualTotals() {
   const itemSubtotal = round2(resolved.reduce((s, it) => s + it.lineTotal, 0));
   const giftWrapTotal = round2(vendaManualState.giftWraps.reduce((s,g) => s + Number(g.unit_price || 0) * Number(g.quantity || 0), 0));
   const subtotal = round2(itemSubtotal + giftWrapTotal);
+  const campaignSummary = campaignSummaryForResolvedItems(resolved, vendaManualState.payment);
+  const campaignDiscount = campaignSummary.total;
   const coupon = vendaManualState.appliedCoupon;
   let couponDiscount = 0;
-  if (coupon) {
-    if (coupon.discount_type === "percentual") couponDiscount = subtotal * (Number(coupon.discount_value) / 100);
+  if (coupon && (campaignDiscount <= 0 || campaignSummary.canStackCoupon)) {
+    const couponBase = Math.max(0, subtotal - campaignDiscount);
+    if (coupon.discount_type === "percentual") couponDiscount = couponBase * (Number(coupon.discount_value) / 100);
     else if (coupon.discount_type === "valor_fixo") couponDiscount = Number(coupon.discount_value);
     if (coupon.max_discount_amount != null) couponDiscount = Math.min(couponDiscount, Number(coupon.max_discount_amount));
-    couponDiscount = Math.max(0, Math.min(couponDiscount, subtotal));
+    couponDiscount = Math.max(0, Math.min(couponDiscount, couponBase));
   }
-  const manualDiscount = Math.max(0, Math.min(Number(String(vendaManualState.manualDiscount || "0").replace(",",".")) || 0, Math.max(0, subtotal - couponDiscount)));
+  const manualDiscount = Math.max(0, Math.min(Number(String(vendaManualState.manualDiscount || "0").replace(",",".")) || 0, Math.max(0, subtotal - campaignDiscount - couponDiscount)));
   const deliveryFee = vendaManualState.payment === "brinde" ? 0 : Math.max(0, Number(String(vendaManualState.deliveryFee || "0").replace(",",".")) || 0);
-  const baseTotal = vendaManualState.payment === "brinde" ? 0 : round2(Math.max(0, subtotal - couponDiscount - manualDiscount + deliveryFee));
+  const baseTotal = vendaManualState.payment === "brinde" ? 0 : round2(Math.max(0, subtotal - campaignDiscount - couponDiscount - manualDiscount + deliveryFee));
   const installments = vendaManualState.payment === "credito" ? Math.max(1, Math.min(12, Number(vendaManualState.installments || 1))) : 1;
   const total = vendaManualState.payment === "brinde" ? 0 : paymentGrossFromBase(baseTotal, vendaManualState.payment, installments);
   const paymentAdjustment = round2(total - baseTotal);
@@ -14772,7 +15012,7 @@ function vendaManualTotals() {
   };
   const cost = orderCost(pseudoOrder);
   const split = orderMoneySplit(pseudoOrder, cost);
-  return { resolved, itemSubtotal, giftWrapTotal, subtotal, couponDiscount:round2(couponDiscount), manualDiscount:round2(manualDiscount), deliveryFee:round2(deliveryFee), baseTotal, paymentAdjustment, installments, total, cost, split };
+  return { resolved, itemSubtotal, giftWrapTotal, subtotal, campaignSummary, campaignDiscount:round2(campaignDiscount), couponDiscount:round2(couponDiscount), manualDiscount:round2(manualDiscount), deliveryFee:round2(deliveryFee), baseTotal, paymentAdjustment, installments, total, cost, split };
 }
 function vendaManualInventoryWarnings() {
   const warnings = [];
@@ -15060,6 +15300,7 @@ function renderVendaManualOverlay() {
                   <div class="text-[9px] font-extrabold uppercase tracking-[.12em] text-gold-300">4. Resumo final</div>
                   <div class="mt-2 vm-money-line"><span>Itens</span><strong>${formatBRL(totals.itemSubtotal)}</strong></div>
                   ${totals.giftWrapTotal?`<div class="vm-money-line"><span>Embalagem</span><strong>${formatBRL(totals.giftWrapTotal)}</strong></div>`:""}
+                  ${totals.campaignDiscount?`<div class="vm-money-line"><span>Campanha ${escapeHtml(totals.campaignSummary.applications.map(c=>c.name).join(" + "))}</span><strong>− ${formatBRL(totals.campaignDiscount)}</strong></div>`:""}
                   ${totals.couponDiscount?`<div class="vm-money-line"><span>Cupom</span><strong>− ${formatBRL(totals.couponDiscount)}</strong></div>`:""}
                   ${totals.manualDiscount?`<div class="vm-money-line"><span>Desconto manual</span><strong>− ${formatBRL(totals.manualDiscount)}</strong></div>`:""}
                   ${totals.deliveryFee?`<div class="vm-money-line"><span>Entrega</span><strong>+ ${formatBRL(totals.deliveryFee)}</strong></div>`:""}
@@ -15344,7 +15585,10 @@ async function submeterVendaManual(e) {
     total:totals.total,
     coupon_id:coupon?coupon.id:null,
     coupon_code:coupon?coupon.code:null,
-    discount_amount:(totals.couponDiscount+totals.manualDiscount)>0?round2(totals.couponDiscount+totals.manualDiscount):null,
+    discount_amount:(totals.campaignDiscount+totals.couponDiscount+totals.manualDiscount)>0?round2(totals.campaignDiscount+totals.couponDiscount+totals.manualDiscount):null,
+    campaign_ids:totals.campaignSummary.applications.length?totals.campaignSummary.applications.map((c)=>c.id):null,
+    campaign_names:totals.campaignSummary.applications.length?totals.campaignSummary.applications.map((c)=>c.name):null,
+    campaign_discount_amount:totals.campaignDiscount>0?totals.campaignDiscount:null,
     paid_at:(vendaManualState.paymentStatus==="paid" || vendaManualState.payment==="brinde")?now:null,
     custom_deadline_date:vendaManualState.deliveryDeadline||null,
     status:vendaManualState.payment==="brinde"?"concluido":"novo",
