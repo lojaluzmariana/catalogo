@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v9.7-campaigns-visual-avista-2026-09-15" />
+  <meta name="luz-mariana-catalog-version" content="professional-v9.8-campaign-price-priority-2026-09-15" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
@@ -3136,11 +3136,15 @@ function renderProductCard(p, opts = {}) {
         </div>
 
         <div class="leading-tight" data-price-block="${p.id}">
-          ${summary.campaign ? `<p class="mb-1 text-[11px] font-semibold text-emerald-700">🎉 ${escapeHtml(summary.campaign.name)} · ${escapeHtml(campaignDiscountText(summary.campaign))}</p>` : ""}
-          ${summary.campaign && Number(summary.originalCreditPrice)>Number(summary.creditPrice) ? `<p class="text-[11px] text-navy-400 line-through">${formatBRL(summary.originalCreditPrice)} no crédito</p>` : ""}
-          <p>${summary.variable ? `<span class="text-xs font-medium text-navy-500">A partir de </span>` : ""}<span class="text-lg font-semibold text-navy-900">${formatBRL(summary.creditPrice)}</span> <span class="text-[11px] font-normal text-navy-400">em até 3x no crédito</span></p>
-          ${summary.campaign && Number(summary.originalPromoPrice)>Number(summary.promoPrice) ? `<p class="mt-1 text-[11px] text-navy-400 line-through">${formatBRL(summary.originalPromoPrice)} no Pix</p>` : ""}
-          <p class="mt-1 text-sm text-navy-500">ou ${summary.variable ? "a partir de " : ""}<b>${formatBRL(summary.promoPrice)}</b> à vista (Pix ou espécie)</p>
+          ${cardCampaign ? `<p class="mb-1 text-[11px] font-semibold text-emerald-700">🎉 ${escapeHtml(cardCampaign.name)} · ${escapeHtml(campaignDiscountText(cardCampaign))}</p>` : ""}
+          ${highlightCashCampaign ? `
+            <p>${summary.variable ? `<span class="text-xs font-medium text-navy-500">A partir de </span>` : ""}<span class="text-xl font-semibold text-navy-900">${formatBRL(summary.promoPrice)}</span> <span class="text-[11px] font-normal text-navy-500">à vista</span></p>
+            <p class="mt-1 text-xs font-semibold text-emerald-700">${escapeHtml(campaignAtSightLabel(cardCampaign))}</p>
+            <p class="mt-2 text-sm text-navy-500">Crédito: <b>${formatBRL(summary.creditPrice)}</b> em até 3x</p>
+          ` : `
+            <p>${summary.variable ? `<span class="text-xs font-medium text-navy-500">A partir de </span>` : ""}<span class="text-lg font-semibold text-navy-900">${formatBRL(summary.creditPrice)}</span> <span class="text-[11px] font-normal text-navy-400">em até 3x no crédito</span></p>
+            <p class="mt-1 text-sm text-navy-500">ou ${summary.variable ? "a partir de " : ""}<b>${formatBRL(summary.promoPrice)}</b> à vista (Pix ou espécie)</p>
+          `}
         </div>
         ${variants.length === 0 && (!p.in_stock || stockQuantity(p) === 0 || p.esgotado) ? `<p class="text-xs font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
         ${addBlock}
@@ -3428,8 +3432,8 @@ function renderProductDetail() {
               <div class="headline">${escapeHtml(detailPricing.campaign.name)} · ${escapeHtml(campaignVisualDiscount(detailPricing.campaign))}</div>
               <div class="meta">Válida até ${escapeHtml(campaignDateEndText(detailCampaign))}${campaignPaymentText(detailCampaign) ? ` · ${escapeHtml(campaignPaymentText(detailCampaign))}` : ""}.</div>
               <div class="savings">
-                <span>De ${formatBRL(detailPricing.originalPromoPrice)} por ${formatBRL(detailPricing.promoPrice)} à vista${campaignAtSightLabel(detailCampaign) ? ` (${escapeHtml(campaignAtSightLabel(detailCampaign))})` : ""}</span>
-                <span>Você economiza ${formatBRL(Math.max(0, Number(detailPricing.originalPromoPrice) - Number(detailPricing.promoPrice)))} por unidade</span>
+                <span>Preço promocional: ${formatBRL(detailPricing.promoPrice)} à vista${campaignAtSightLabel(detailCampaign) ? ` (${escapeHtml(campaignAtSightLabel(detailCampaign))})` : ""}</span>
+                <span>Crédito: ${formatBRL(detailPricing.creditPrice)} em até 3x</span>
               </div>
             </div>
           ` : ""}
@@ -3437,14 +3441,11 @@ function renderProductDetail() {
           <div class="leading-tight">
             ${detailCampaign ? `<p class="mb-1 text-xs font-semibold text-emerald-700">🎉 ${escapeHtml(detailCampaign.name)} · ${escapeHtml(campaignDiscountText(detailCampaign))}</p>` : ""}
             ${highlightDetailCashCampaign ? `
-              ${Number(detailPricing.originalPromoPrice)>Number(detailPricing.promoPrice) ? `<p class="text-xs text-navy-400 line-through">${variants.length > 0 && !variant && detailPricing.variable ? "A partir de " : ""}${formatBRL(detailPricing.originalPromoPrice)} à vista</p>` : ""}
-              <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.promoPrice)}</span> <span class="text-sm font-normal text-navy-500">à vista (${escapeHtml(campaignAtSightLabel(detailCampaign))})</span></p>
-              <p class="mt-1 text-sm font-medium text-emerald-700">Preço promocional em ${escapeHtml(campaignAtSightLabel(detailCampaign))}</p>
-              <p class="mt-2 text-sm text-navy-500">No crédito${variants.length > 0 && !variant && detailPricing.variable ? " a partir de" : ""}: <b>${formatBRL(detailPricing.creditPrice)}</b> em até 3x</p>
+              <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.promoPrice)}</span> <span class="text-sm font-normal text-navy-500">à vista</span></p>
+              <p class="mt-1 text-sm font-semibold text-emerald-700">${escapeHtml(campaignAtSightLabel(detailCampaign))}</p>
+              <p class="mt-2 text-sm text-navy-500">Crédito${variants.length > 0 && !variant && detailPricing.variable ? " a partir de" : ""}: <b>${formatBRL(detailPricing.creditPrice)}</b> em até 3x</p>
             ` : `
-              ${detailCampaign && Number(detailPricing.originalCreditPrice)>Number(detailPricing.creditPrice) ? `<p class="text-xs text-navy-400 line-through">${formatBRL(detailPricing.originalCreditPrice)} no crédito</p>` : ""}
               <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.creditPrice)}</span> <span class="text-xs font-normal text-navy-400">em até 3x no crédito</span></p>
-              ${detailCampaign && Number(detailPricing.originalPromoPrice)>Number(detailPricing.promoPrice) ? `<p class="mt-1 text-xs text-navy-400 line-through">${formatBRL(detailPricing.originalPromoPrice)} à vista</p>` : ""}
               <p class="mt-1 text-sm text-navy-500">ou ${variants.length > 0 && !variant && detailPricing.variable ? "a partir de " : ""}<b>${formatBRL(detailPricing.promoPrice)}</b> à vista (Pix ou espécie)</p>
             `}
           </div>
