@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.14-campaign-manager-2026-09-14" />
+<meta name="luz-mariana-admin-version" content="professional-v9.15-variant-reference-price-2026-09-16" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -8516,20 +8516,33 @@ function renderProductForm() {
     const leadTimeDays = Math.trunc(Number(document.getElementById("pf-lead-time").value.replace(",", ".")));
     if (!Number.isFinite(leadTimeDays) || leadTimeDays < 0) { errorEl.textContent = "Prazo (dias) inválido."; return; }
 
-    // Custo/preço de referência do produto principal:
-    // - sem variações: custo base + materiais, como sempre;
-    // - com variações e custo padrão preenchido: usa esse fallback;
-    // - com variações e custo padrão em branco: usa o MENOR custo próprio
-    //   apenas como referência do produto. As combinações continuam com
-    //   custos/preços independentes em product_variants.
+    // Preço de referência do produto principal:
+    // - sem variações: usa o custo/preço do próprio produto, como sempre;
+    // - com variações: o card principal deve refletir o MENOR PREÇO DE VENDA
+    //   entre as combinações, e não recalcular a partir do menor custo.
+    //   Isso evita casos como uma combinação cadastrada manualmente a R$ 35
+    //   aparecer no catálogo como "a partir de R$ 30" só porque o custo dela
+    //   permitiria um preço automático menor.
     const fallbackTotalCost = round2(baseCost + materialsTotal());
-    const validVariantCosts = formVariants
-      .filter((v) => v.ownPrice && v.cost != null && Number.isFinite(v.cost) && v.cost > 0)
-      .map((v) => Number(v.cost));
-    const totalCost = formVariants.length > 0 && !hasBaseCost && validVariantCosts.length
-      ? round2(Math.min(...validVariantCosts))
-      : fallbackTotalCost;
-    const pricing = promoManual != null ? calculatePricingFromManualPromo(totalCost, promoManual) : calculatePricing(totalCost);
+    const fallbackPricing = promoManual != null
+      ? calculatePricingFromManualPromo(fallbackTotalCost, promoManual)
+      : calculatePricing(fallbackTotalCost);
+
+    const variantReferencePricings = formVariants.map((v) => {
+      if (v.ownPrice && v.cost != null && Number.isFinite(v.cost) && v.cost > 0) {
+        return v.promoManualPrice != null
+          ? calculatePricingFromManualPromo(Number(v.cost), Number(v.promoManualPrice))
+          : calculatePricing(Number(v.cost));
+      }
+      return fallbackPricing;
+    }).filter(Boolean);
+
+    const pricing = formVariants.length > 0 && variantReferencePricings.length > 0
+      ? variantReferencePricings.reduce((best, current) =>
+          Number(current.promoPrice) < Number(best.promoPrice) ? current : best
+        )
+      : fallbackPricing;
+    const totalCost = Number(pricing.cost ?? fallbackTotalCost);
     const showInCatalog = document.getElementById("pf-show-catalog").checked;
     const featured = document.getElementById("pf-featured").checked;
 
