@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v9.9-countdown-carousel-2026-09-15" />
+  <meta name="luz-mariana-catalog-version" content="professional-v9.10-variant-price-reference-2026-09-16" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
@@ -1880,9 +1880,31 @@ function catalogBootstrapVariantPricing(product, variant) {
 function effectivePricing(product, variant) {
   const bootstrap = catalogBootstrapVariantPricing(product, variant);
   if (bootstrap) return bootstrap;
-  if (variant && variant.credit_price != null && variant.promo_price != null) {
-    return { creditPrice: Number(variant.credit_price), promoPrice: Number(variant.promo_price) };
+
+  // Quando a combinação tem preço próprio, ele SEMPRE prevalece sobre o
+  // preço de referência do produto. Aceitamos também promo_manual_price
+  // caso a view pública ainda esteja entregando esse campo antes do
+  // promo_price calculado. Assim o catálogo nunca volta para um valor
+  // menor do produto principal quando o Admin já definiu R$ 35, R$ 44 etc.
+  if (variant) {
+    const promo = Number(variant.promo_price);
+    const promoManual = Number(variant.promo_manual_price);
+    const credit = Number(variant.credit_price);
+    const effectivePromo = Number.isFinite(promo) && promo > 0
+      ? promo
+      : Number.isFinite(promoManual) && promoManual > 0
+        ? promoManual
+        : null;
+    const effectiveCredit = Number.isFinite(credit) && credit > 0
+      ? credit
+      : effectivePromo != null
+        ? Math.round(effectivePromo * 1.05 * 100) / 100
+        : null;
+    if (effectivePromo != null) {
+      return { creditPrice: effectiveCredit, promoPrice: effectivePromo };
+    }
   }
+
   return { creditPrice: Number(product.credit_price), promoPrice: Number(product.promo_price) };
 }
 
