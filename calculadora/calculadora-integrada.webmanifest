@@ -1,0 +1,14 @@
+{
+  "name": "Calculadora Integrada | Iluminart",
+  "short_name": "Calculadora 3D",
+  "description": "Calculadora integrada de custos e precificação 3D da Iluminart.",
+  "start_url": "./calculadora-integrada.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f5ef",
+  "theme_color": "#08294c",
+  "icons": [
+    {"src":"calculadora-integrada-icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"calculadora-integrada-icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
