@@ -1,0 +1,35 @@
+CALCULADORA INTEGRADA — APP SEPARADO DO PAINEL
+
+IMPORTANTE: para o Android reconhecer a Calculadora como um app diferente do Painel,
+ela precisa ficar em uma rota/pasta própria.
+
+ESTRUTURA NO GITHUB:
+/catalogo/
+  /admin/                    <- seu painel atual
+  /calculadora-integrada/    <- envie ESTA pasta inteira aqui
+      index.html
+      manifest.webmanifest
+      sw.js
+      icon-192.png
+      icon-512.png
+      apple-touch-icon.png
+      01-supabase-calculadora-integrada.sql
+
+URL DA CALCULADORA:
+https://lojaluzmariana.github.io/catalogo/calculadora-integrada/
+
+Por que agora instala separado?
+- Manifesto próprio com ID exclusivo: ./calculadora-integrada-app
+- start_url exclusivo dentro de /calculadora-integrada/
+- scope exclusivo ./ (somente a pasta da calculadora)
+- service worker registrado somente para a pasta da calculadora
+
+Assim, Painel e Calculadora podem coexistir como dois apps instalados no mesmo aparelho.
+
+ANDROID:
+Abra a URL acima no Chrome. O aviso de instalação da calculadora aparecerá novamente
+porque esta versão usa uma chave nova de primeira exibição e um manifesto próprio.
+
+IPHONE:
+Abra a URL acima no Safari > Compartilhar > Adicionar à Tela de Início.
+Como a rota é distinta, ela pode coexistir com o atalho/app do Painel.
