@@ -1,0 +1,30 @@
+LUZ MARIANA • EXPOSITOR v1.3
+
+1) No GitHub, substitua os arquivos de /expositor/ pelos arquivos desta pasta.
+2) No Supabase > SQL Editor, execute 01-supabase-expositor.sql.
+   Ele pode ser executado novamente mesmo que você já tenha rodado a versão anterior.
+3) Acesse https://lojaluzmariana.com.br/expositor/
+
+NOVIDADE v1.3
+- Produto da FESTA: o botão agora é “Registrar venda”.
+- A venda pede quantidade + forma de pagamento (Pix, Débito ou Dinheiro).
+- Ao confirmar, o Supabase registra uma ENTRADA em cash_entries com:
+  categoria = Venda evento
+  event_tag = Festa de Santa Teresinha 2026
+- Portanto ela entra no mesmo agrupamento usado pelo Modo Evento do painel.
+- Também é guardada em event_kiosk_sales para auditoria e dados do cliente.
+- O valor não é aceito do navegador: a RPC consulta o preço oficial em event_kiosk_catalog.
+- Produtos do catálogo geral continuam em “Sob encomenda” e geram solicitação/WhatsApp, não venda.
+
+ESTOQUE DO EVENTO
+- A estrutura já suporta stock_qty por item/opção.
+- Nesta versão os estoques estão como NULL (sem controle numérico), pois as quantidades da festa ainda não foram informadas.
+- Quando você me passar as quantidades, posso deixar o tablet abatendo estoque automaticamente a cada venda.
+
+
+ADMIN DO EXPOSITOR
+------------------
+Depois de publicar, acesse: https://lojaluzmariana.com.br/expositor/admin/
+Use a mesma conta Supabase da Luz Mariana.
+Ali você pode editar nome, opção, preço, estoque e visibilidade, além de acompanhar vendas recentes.
+Estoque em branco = sem controle automático. Ao informar uma quantidade, cada venda registrada pelo expositor baixa o estoque automaticamente.

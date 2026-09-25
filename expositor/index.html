@@ -66,6 +66,8 @@ body{font-size:17px}
 
 /* V1.2 — catálogo próprio da festa + acesso discreto ao catálogo geral. */
 .footer-catalog{display:flex;align-items:center;gap:4px;flex-wrap:wrap}.footer-catalog button{border:1px solid #d6c4aa!important;border-radius:999px!important;background:#fffaf2!important;padding:8px 11px!important;color:#7b2430!important;font-weight:900!important}.festival-note{background:#fff4df;border:1px solid #e8c98f;color:#6a4d1f;border-radius:14px;padding:12px 14px;margin-bottom:14px;font-weight:800}.order-only .stock-chip{background:#fff0e1;color:#9a5b19}.order-only .product-price{color:#6d3340}.product-meta{font-size:13px!important;line-height:1.35}.product-price{font-size:18px!important}.product-name{font-size:18px!important;min-height:auto!important}.product-body{padding:12px 12px 14px!important}.stock-chip{font-size:12px!important;padding:6px 9px!important}.detail-kiosk-meta{font-size:17px;color:#6c5a42;margin:6px 0 0}.festival-badge{display:inline-flex;align-items:center;gap:7px;background:#edf7ee;color:#2f6d3a;border:1px solid #b9d8be;border-radius:999px;padding:7px 11px;font-weight:900;font-size:14px}.general-order-badge{display:inline-flex;align-items:center;gap:7px;background:#fff2e6;color:#8f561c;border:1px solid #e4c49e;border-radius:999px;padding:7px 11px;font-weight:900;font-size:14px}
+
+.stock-chip.soldout{background:#6d6d6d;color:#fff}.stock-inline{font-size:13px;font-weight:800;color:#6b5a45;margin-top:4px}.stock-inline strong{color:#7d1622}.cta.primary[disabled]{opacity:.45;cursor:not-allowed}.event-stock-note{padding:10px 12px;background:#f8f1e6;border:1px solid #ead8bd;border-radius:12px;font-weight:800;color:#765f40;margin:10px 0}
 </style>
 </head>
 <body>
@@ -157,25 +159,65 @@ const MESSAGES=[
   "Que você receba serenidade para o que não pode controlar e disposição para fazer o bem onde estiver."
 ];
 const db=window.supabase?.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-let products=[], variantsByProduct={}, festivalProducts=FESTIVAL_CATALOG;
+let products=[], variantsByProduct={}, festivalProducts=[];
+let eventInventoryRows=[];
 let generalProducts=[];
 let idleTimer=null,idleSlideTimer=null,idleIndex=0;
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const escapeHtml=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));
 const norm=s=>String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 const money=n=>Number.isFinite(Number(n))?Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):"";
-function productVariants(id){return FESTIVAL_VARIANTS[id]||variantsByProduct[id]||[]}
+function productVariants(id){return (FESTIVAL_VARIANTS[id]||variantsByProduct[id]||[]).filter(v=>v._event_active!==false)}
 function validPrice(v){const n=Number(v);return Number.isFinite(n)&&n>0?n:null}
 function priceInfo(p){const vals=[];const pp=validPrice(p.promo_price);if(pp)vals.push(pp);productVariants(p.id).forEach(v=>{const x=validPrice(v.promo_price);if(x)vals.push(x)});if(!vals.length){const cp=validPrice(p.credit_price);if(cp)vals.push(cp)};return vals.length?Math.min(...vals):null}
 function stockQty(x){const n=Number(x?.stock_qty);return Number.isFinite(n)?n:null}
 function availableNow(p){if(p.in_stock===true){const q=stockQty(p);if(q==null||q>0)return true}return productVariants(p.id).some(v=>v.in_stock===true&&(stockQty(v)==null||stockQty(v)>0))}
 function cover(p){const preferred=productVariants(p.id).find(v=>v.photo_url)?.photo_url;return p.photo_url||preferred||""}
 function variantPrice(p,v){return validPrice(v?.promo_price)||validPrice(p?.promo_price)||validPrice(v?.credit_price)||validPrice(p?.credit_price)||null}
-function variantReady(v,p){if(!v)return availableNow(p);if(v.in_stock===true){const q=stockQty(v);return q==null||q>0}return false}
+function variantReady(v,p){if(!v)return availableNow(p);if(v._event_active===false)return false;if(v.in_stock===true){const q=stockQty(v);return q==null||q>0}return false}
 function variantPhoto(p,v){return v?.photo_url||cover(p)}
-function productCard(p,opts={}){const pr=priceInfo(p), isFest=String(p.id).startsWith("festa-"), ready=isFest?true:availableNow(p), img=cover(p), orderOnly=opts.forceOrder===true;const status=orderOnly?"Sob encomenda":(ready?"Pronta entrega":"Sob encomenda");const meta=p.kiosk_meta||p.category||"Artigo religioso";return `<article class="product ${orderOnly?"order-only":""}" data-product-id="${escapeHtml(p.id)}" data-order-only="${orderOnly?"1":"0"}"><div class="product-media">${img?`<img loading="lazy" src="${escapeHtml(img)}" alt="${escapeHtml(p.name)}">`:`<span style="font-size:42px">✦</span>`}<span class="stock-chip ${status!=="Pronta entrega"?"order":""}">${status}</span></div><div class="product-body"><div class="product-name">${escapeHtml(p.name)}</div><div class="product-meta">${escapeHtml(meta)}</div><div class="product-price">${pr?`${productVariants(p.id).length?"a partir de ":""}${money(pr)} à vista`:"Consulte"}</div></div></article>`}
+function productCard(p,opts={}){const pr=priceInfo(p), isFest=String(p.id).startsWith("festa-"), ready=availableNow(p), img=cover(p), orderOnly=opts.forceOrder===true;const qty=stockQty(p), hasVars=productVariants(p.id).length>0;let status=orderOnly?"Sob encomenda":(ready?"Pronta entrega":"Esgotado");const cls=orderOnly?"order":(!ready?"soldout":"");const meta=p.kiosk_meta||p.category||"Artigo religioso";const stockText=isFest&&!hasVars&&qty!=null?`<div class="stock-inline"><strong>${qty}</strong> ${qty===1?"unidade disponível":"unidades disponíveis"}</div>`:"";return `<article class="product ${orderOnly?"order-only":""}" data-product-id="${escapeHtml(p.id)}" data-order-only="${orderOnly?"1":"0"}"><div class="product-media">${img?`<img loading="lazy" src="${escapeHtml(img)}" alt="${escapeHtml(p.name)}">`:`<span style="font-size:42px">✦</span>`}<span class="stock-chip ${cls}">${status}</span></div><div class="product-body"><div class="product-name">${escapeHtml(p.name)}</div><div class="product-meta">${escapeHtml(meta)}</div><div class="product-price">${pr?`${hasVars?"a partir de ":""}${money(pr)} à vista`:"Consulte"}</div>${stockText}</div></article>`}
 function renderTrack(list){$("#productTrack").innerHTML=list.length?list.map(productCard).join(""):`<div style="padding:28px;color:#746858">Nenhum produto correspondente foi encontrado no catálogo agora.</div>`;wireProductCards()}
-async function loadCatalog(){festivalProducts=FESTIVAL_CATALOG;renderTrack(festivalProducts);try{if(!db)throw new Error("Biblioteca Supabase indisponível");const [{data:p,error:pe},{data:v,error:ve}]=await Promise.all([db.from("catalog_products").select("*").order("name"),db.from("catalog_product_variants").select("*").order("sort_order")]);if(pe)throw pe;if(ve)throw ve;generalProducts=p||[];products=[...festivalProducts,...generalProducts];variantsByProduct={};(v||[]).forEach(x=>(variantsByProduct[x.product_id]??=[]).push(x));localStorage.setItem("lm-expositor-general-products",JSON.stringify({products:generalProducts,variantsByProduct,ts:Date.now()}));setSync(true,"Catálogo da festa pronto • catálogo geral conectado");}catch(err){console.error(err);products=[...festivalProducts];try{const cache=JSON.parse(localStorage.getItem("lm-expositor-general-products")||"null");if(cache?.products){generalProducts=cache.products;variantsByProduct=cache.variantsByProduct||{};products=[...festivalProducts,...generalProducts];setSync(false,"Festa pronta • catálogo geral em modo offline");return}}catch(_){}setSync(false,"Catálogo da festa pronto");}}
+async function loadCatalog(){
+  // Começa pela definição visual local e, quando o Supabase responde, aplica preço/estoque/ativo do painel do evento.
+  festivalProducts=FESTIVAL_CATALOG.map(p=>({...p}));
+  Object.keys(FESTIVAL_VARIANTS).forEach(pid=>FESTIVAL_VARIANTS[pid].forEach(v=>{v._event_active=true}));
+  renderTrack(festivalProducts);
+  try{
+    if(!db)throw new Error("Biblioteca Supabase indisponível");
+    const [{data:inv,error:ie},{data:p,error:pe},{data:v,error:ve}]=await Promise.all([
+      db.from("event_kiosk_catalog").select("*").eq("event_slug",EVENT_SLUG).order("id"),
+      db.from("catalog_products").select("*").order("name"),
+      db.from("catalog_product_variants").select("*").order("sort_order")
+    ]);
+    if(ie)throw ie;if(pe)throw pe;if(ve)throw ve;
+    eventInventoryRows=inv||[];
+    const rowMap=new Map(eventInventoryRows.map(r=>[`${r.product_id}::${r.variant_id||""}`,r]));
+    // Produtos sem variante
+    festivalProducts=FESTIVAL_CATALOG.map(base=>{
+      const x={...base};
+      const row=rowMap.get(`${base.id}::`);
+      if(row){x.name=row.product_name||x.name;x.promo_price=Number(row.unit_price)||x.promo_price;x.stock_qty=row.stock_qty;x.in_stock=row.active!==false&&(row.stock_qty==null||Number(row.stock_qty)>0);x._event_active=row.active!==false}
+      return x;
+    });
+    // Variantes
+    Object.entries(FESTIVAL_VARIANTS).forEach(([pid,list])=>list.forEach(vv=>{
+      const row=rowMap.get(`${pid}::${vv.id}`);
+      if(row){vv.name=row.variant_name||vv.name;vv.promo_price=Number(row.unit_price)||vv.promo_price;vv.stock_qty=row.stock_qty;vv.in_stock=row.active!==false&&(row.stock_qty==null||Number(row.stock_qty)>0);vv._event_active=row.active!==false}else{vv._event_active=true}
+    }));
+    // Se há linhas do Supabase para um produto com variantes, esconde o produto quando todas as opções estiverem inativas.
+    festivalProducts=festivalProducts.filter(fp=>{
+      const allRows=eventInventoryRows.filter(r=>r.product_id===fp.id);
+      if(!allRows.length)return true;
+      const hasVariantRows=allRows.some(r=>(r.variant_id||"")!=="");
+      return hasVariantRows?allRows.some(r=>r.active!==false):((fp._event_active??true)!==false);
+    });
+    generalProducts=p||[];products=[...festivalProducts,...generalProducts];variantsByProduct={};(v||[]).forEach(x=>(variantsByProduct[x.product_id]??=[]).push(x));
+    renderTrack(festivalProducts);
+    localStorage.setItem("lm-expositor-general-products",JSON.stringify({products:generalProducts,variantsByProduct,ts:Date.now()}));
+    setSync(true,"Catálogo da festa atualizado • estoque conectado");
+  }catch(err){console.error(err);products=[...festivalProducts];try{const cache=JSON.parse(localStorage.getItem("lm-expositor-general-products")||"null");if(cache?.products){generalProducts=cache.products;variantsByProduct=cache.variantsByProduct||{};products=[...festivalProducts,...generalProducts];setSync(false,"Festa pronta • catálogo geral em modo offline");return}}catch(_){}setSync(false,"Catálogo da festa pronto")}
+}
 function setSync(ok,text){$("#statusDot").classList.toggle("offline",!ok);$("#syncText").textContent=text}
 function openModal(title,html){$("#modalTitle").textContent=title;$("#modalBody").innerHTML=html;$("#genericModal").classList.add("open");$("#genericModal").setAttribute("aria-hidden","false");resetIdle()}
 function closeModal(){$("#genericModal").classList.remove("open");$("#genericModal").setAttribute("aria-hidden","true");resetIdle()}
@@ -186,9 +228,10 @@ function showProduct(id,selectedVariantId=null){
   let selected=vars.find(v=>String(v.id)===String(selectedVariantId));
   if(!selected&&vars.length===1)selected=vars[0];
   const isFest=String(p.id).startsWith("festa-");
-  const img=variantPhoto(p,selected),pr=selected?variantPrice(p,selected):priceInfo(p),ready=isFest?true:(selected?variantReady(selected,p):availableNow(p));
+  const img=variantPhoto(p,selected),pr=selected?variantPrice(p,selected):priceInfo(p),ready=selected?variantReady(selected,p):availableNow(p);
   const selectedLabel=selected?selected.name:"";
-  openModal("Detalhes do produto",`<div class="detail-grid"><div class="detail-photo" id="detailPhotoBox">${img?`<img id="detailProductImage" src="${escapeHtml(img)}" alt="${escapeHtml(selectedLabel||p.name)}">`:`<span style="font-size:70px">✦</span>`}</div><div class="detail-info"><h3>${escapeHtml(p.name)}</h3><div class="detail-price" id="detailPrice">${pr?`${!selected&&vars.length?"a partir de ":""}${money(pr)}`:"Consulte o valor"}</div><p class="detail-status" id="detailStatus">${isFest?`<span class="festival-badge">✓ Pronta entrega no stand</span>`:`<span class="general-order-badge">Sob encomenda</span>`}</p>${p.kiosk_meta?`<div class="detail-kiosk-meta">${escapeHtml(p.kiosk_meta)}</div>`:""}${selected?`<div class="detail-selected" id="detailSelected">Opção selecionada: ${escapeHtml(selectedLabel)}</div>`:`<div class="detail-selected" id="detailSelected" ${vars.length?"":"hidden"}>${vars.length>1?"Toque em uma opção abaixo para ver foto, preço e disponibilidade.":""}</div>`}${p.description?`<p>${escapeHtml(p.description)}</p>`:""}${vars.length?`<div class="variant-label">Escolha a opção</div><div class="variant-help">Toque em um modelo, cor ou tamanho. A foto e o valor mudam na hora.</div><div class="variant-grid">${vars.map(v=>{const vp=variantPrice(p,v),vr=variantReady(v,p),vi=variantPhoto(p,v);return `<button class="variant-btn ${selected&&String(selected.id)===String(v.id)?"active":""}" type="button" data-variant-choice="${escapeHtml(v.id)}" aria-pressed="${selected&&String(selected.id)===String(v.id)?"true":"false"}">${vi?`<img src="${escapeHtml(vi)}" alt="">`:`<span style="width:52px;height:52px;display:grid;place-items:center;background:#f5ecdd;border-radius:10px">✦</span>`}<span class="variant-copy"><span class="variant-name">${escapeHtml(v.name)}</span><span class="variant-mini">${vp?money(vp):"Consulte"} · ${isFest?"Pronta entrega":(vr?"Disponível":"Encomenda")}</span></span></button>`}).join("")}</div></div>`:""}<div class="cta-row"><button class="cta primary" data-enquire-product="${escapeHtml(p.id)}" ${isFest&&vars.length>1&&!selected?"disabled":""}>${isFest?(vars.length>1&&!selected?"Escolha uma opção acima":"Registrar venda"):("Quero encomendar")}${selected?` · ${escapeHtml(selectedLabel)}`:""}</button>${isFest?"":`<button class="cta secondary" data-open-catalog-product="${escapeHtml(p.id)}">Ver no catálogo completo</button>`}</div></div></div>`);
+  const selectedQty=selected?stockQty(selected):stockQty(p);
+  openModal("Detalhes do produto",`<div class="detail-grid"><div class="detail-photo" id="detailPhotoBox">${img?`<img id="detailProductImage" src="${escapeHtml(img)}" alt="${escapeHtml(selectedLabel||p.name)}">`:`<span style="font-size:70px">✦</span>`}</div><div class="detail-info"><h3>${escapeHtml(p.name)}</h3><div class="detail-price" id="detailPrice">${pr?`${!selected&&vars.length?"a partir de ":""}${money(pr)}`:"Consulte o valor"}</div><p class="detail-status" id="detailStatus">${isFest?(ready?`<span class="festival-badge">✓ Pronta entrega no stand</span>`:`<span class="general-order-badge">Esgotado no stand</span>`):`<span class="general-order-badge">Sob encomenda</span>`}</p>${p.kiosk_meta?`<div class="detail-kiosk-meta">${escapeHtml(p.kiosk_meta)}</div>`:""}${isFest&&selectedQty!=null?`<div class="event-stock-note">Estoque no stand: ${selectedQty} ${selectedQty===1?"unidade":"unidades"}</div>`:""}${selected?`<div class="detail-selected" id="detailSelected">Opção selecionada: ${escapeHtml(selectedLabel)}</div>`:`<div class="detail-selected" id="detailSelected" ${vars.length?"":"hidden"}>${vars.length>1?"Toque em uma opção abaixo para ver foto, preço e disponibilidade.":""}</div>`}${p.description?`<p>${escapeHtml(p.description)}</p>`:""}${vars.length?`<div class="variant-label">Escolha a opção</div><div class="variant-help">Toque em um modelo, cor ou tamanho. A foto e o valor mudam na hora.</div><div class="variant-grid">${vars.map(v=>{const vp=variantPrice(p,v),vr=variantReady(v,p),vi=variantPhoto(p,v);return `<button class="variant-btn ${selected&&String(selected.id)===String(v.id)?"active":""}" type="button" data-variant-choice="${escapeHtml(v.id)}" aria-pressed="${selected&&String(selected.id)===String(v.id)?"true":"false"}">${vi?`<img src="${escapeHtml(vi)}" alt="">`:`<span style="width:52px;height:52px;display:grid;place-items:center;background:#f5ecdd;border-radius:10px">✦</span>`}<span class="variant-copy"><span class="variant-name">${escapeHtml(v.name)}</span><span class="variant-mini">${vp?money(vp):"Consulte"} · ${isFest?(vr?(stockQty(v)!=null?`${stockQty(v)} em estoque`:"Pronta entrega"):"Esgotado"):(vr?"Disponível":"Encomenda")}</span></span></button>`}).join("")}</div></div>`:""}<div class="cta-row"><button class="cta primary" data-enquire-product="${escapeHtml(p.id)}" ${isFest&&((vars.length>1&&!selected)||!ready)?"disabled":""}>${isFest?(!ready?"Esgotado":(vars.length>1&&!selected?"Escolha uma opção acima":"Registrar venda")):("Quero encomendar")}${selected?` · ${escapeHtml(selectedLabel)}`:""}</button>${isFest?"":`<button class="cta secondary" data-open-catalog-product="${escapeHtml(p.id)}">Ver no catálogo completo</button>`}</div></div></div>`);
   $$('[data-variant-choice]').forEach(btn=>btn.addEventListener('click',()=>showProduct(p.id,btn.dataset.variantChoice)));
   $("[data-enquire-product]")?.addEventListener("click",()=>isFest?openEventSale(p,selected):openEnquiry(p,selected));
   $("[data-open-catalog-product]")?.addEventListener("click",()=>window.open(`${CATALOG_URL}?produto=${encodeURIComponent(p.name)}${selected?`&modelo=${encodeURIComponent(selected.name)}`:""}`,"_blank"));
