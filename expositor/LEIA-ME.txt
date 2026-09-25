@@ -40,3 +40,11 @@ icon-512.png
 apple-touch-icon.png
 qr-instagram.png
 01-supabase-expositor.sql
+
+
+V1.2 — CATÁLOGO EXCLUSIVO DA FESTA
+- Os produtos principais do expositor agora são os itens enviados para a Festa de Santa Teresinha.
+- Todos aparecem como PRONTA ENTREGA / disponíveis no stand.
+- As fotos tratadas estão dentro da própria pasta do expositor.
+- Produtos com opções (Teresinha, Anjinho Luminoso, Mãezinha e Ele Vive) trocam foto/preço/modelo ao tocar.
+- O catálogo geral da Luz Mariana fica em um acesso discreto no rodapé e é identificado como SOB ENCOMENDA.
