@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Luz Mariana Expositor">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="description" content="Expositor interativo da Luz Mariana para a Festa de Santa Teresinha.">
-<meta name="luz-mariana-expositor-version" content="v1.7-carrinho-checkout-vendedor-2026-09-25">
+<meta name="luz-mariana-expositor-version" content="v1.8-carousel-cart-fix-2026-09-25">
 <title>Luz Mariana • Expositor</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -188,7 +188,7 @@ function cover(p){const preferred=productVariants(p.id).find(v=>v.photo_url)?.ph
 function variantPrice(p,v){return validPrice(v?.promo_price)||validPrice(p?.promo_price)||validPrice(v?.credit_price)||validPrice(p?.credit_price)||null}
 function variantReady(v,p){if(!v)return availableNow(p);if(v._event_active===false)return false;if(v.in_stock===true){const q=stockQty(v);return q==null||q>0}return false}
 function variantPhoto(p,v){return v?.photo_url||cover(p)}
-function productCard(p,opts={}){const vars=productVariants(p.id),initialV=vars[0]||null,pr=initialV?variantPrice(p,initialV):priceInfo(p), isFest=String(p.id).startsWith("festa-"), ready=initialV?variantReady(initialV,p):availableNow(p), img=initialV?variantPhoto(p,initialV):cover(p), orderOnly=opts.forceOrder===true;const qty=initialV?stockQty(initialV):stockQty(p), hasVars=vars.length>0;let status=orderOnly?"Sob encomenda":(ready?"Pronta entrega":"Esgotado");const cls=orderOnly?"order":(!ready?"soldout":"");const meta=initialV?`${initialV.name}${p.kiosk_meta?` • ${p.kiosk_meta}`:""}`:(p.kiosk_meta||p.category||"Artigo religioso");const stockText=isFest&&!hasVars&&qty!=null?`<div class="stock-inline"><strong>${qty}</strong> ${qty===1?"unidade disponível":"unidades disponíveis"}</div>`:"";return `<article class="product ${orderOnly?"order-only":""}" data-product-id="${escapeHtml(p.id)}" data-order-only="${orderOnly?"1":"0"}"><div class="product-media">${img?`<img class="card-product-image" loading="lazy" src="${escapeHtml(img)}" alt="${escapeHtml(p.name)}">`:`<span style="font-size:42px">✦</span>`}<span class="stock-chip ${cls}" data-card-status>${status}</span>${hasVars?`<span class="card-model-pill" data-card-model>${escapeHtml(initialV.name)}</span>`:""}</div><div class="product-body"><div class="product-name">${escapeHtml(p.name)}</div><div class="product-meta" data-card-meta>${escapeHtml(meta)}</div><div class="product-price" data-card-price>${pr?`${money(pr)} à vista`:"Consulte"}</div>${stockText}</div></article>`}
+function productCard(p,opts={}){const vars=productVariants(p.id),initialV=vars[0]||null,pr=initialV?variantPrice(p,initialV):priceInfo(p), isFest=String(p.id).startsWith("festa-"), ready=initialV?variantReady(initialV,p):availableNow(p), img=initialV?variantPhoto(p,initialV):cover(p), orderOnly=opts.forceOrder===true;const qty=initialV?stockQty(initialV):stockQty(p), hasVars=vars.length>0;let status=orderOnly?"Sob encomenda":(ready?"Pronta entrega":"Esgotado");const cls=orderOnly?"order":(!ready?"soldout":"");const meta=initialV?`${initialV.name}${p.kiosk_meta?` • ${p.kiosk_meta}`:""}`:(p.kiosk_meta||p.category||"Artigo religioso");const stockText=isFest&&!hasVars&&qty!=null?`<div class="stock-inline"><strong>${qty}</strong> ${qty===1?"unidade disponível":"unidades disponíveis"}</div>`:"";return `<article class="product ${orderOnly?"order-only":""}" data-product-id="${escapeHtml(p.id)}" data-current-variant-id="${initialV?escapeHtml(initialV.id):""}" data-order-only="${orderOnly?"1":"0"}"><div class="product-media">${img?`<img class="card-product-image" loading="eager" src="${escapeHtml(img)}" alt="${escapeHtml(initialV?`${p.name} — ${initialV.name}`:p.name)}">`:`<span style="font-size:42px">✦</span>`}<span class="stock-chip ${cls}" data-card-status>${status}</span>${hasVars?`<span class="card-model-pill" data-card-model>${escapeHtml(initialV.name)}</span>`:""}</div><div class="product-body"><div class="product-name">${escapeHtml(p.name)}</div><div class="product-meta" data-card-meta>${escapeHtml(meta)}</div><div class="product-price" data-card-price>${pr?`${money(pr)} à vista`:"Consulte"}</div>${stockText}</div></article>`}
 function renderTrack(list){$("#productTrack").innerHTML=list.length?list.map(productCard).join(""):`<div style="padding:28px;color:#746858">Nenhum produto correspondente foi encontrado no catálogo agora.</div>`;wireProductCards();setupFeaturedCarousel()}
 async function loadCatalog(){
   // Começa pela definição visual local e, quando o Supabase responde, aplica preço/estoque/ativo do painel do evento.
@@ -238,7 +238,7 @@ function addToCart(p,v=null){const vars=productVariants(p.id);if(vars.length>1&&
 function cartCashTotal(){return round2(cart.reduce((a,x)=>a+(Number(x.unit_price)||0)*(Number(x.quantity)||0),0))}
 function openModal(title,html){$("#modalTitle").textContent=title;$("#modalBody").innerHTML=html;$("#genericModal").classList.add("open");$("#genericModal").setAttribute("aria-hidden","false");resetIdle()}
 function closeModal(){$("#genericModal").classList.remove("open");$("#genericModal").setAttribute("aria-hidden","true");resetIdle()}
-function wireProductCards(){$$("[data-product-id]").forEach(el=>el.addEventListener("click",()=>showProduct(el.dataset.productId)))}
+function wireProductCards(){$$("[data-product-id]").forEach(el=>el.addEventListener("click",()=>showProduct(el.dataset.productId,el.dataset.currentVariantId||null)))}
 function showProduct(id,selectedVariantId=null){
   const p=products.find(x=>String(x.id)===String(id));if(!p)return;
   const vars=productVariants(p.id);
@@ -250,7 +250,8 @@ function showProduct(id,selectedVariantId=null){
   const selectedQty=selected?stockQty(selected):stockQty(p);
   openModal("Detalhes do produto",`<div class="detail-grid"><div class="detail-photo" id="detailPhotoBox">${img?`<img id="detailProductImage" src="${escapeHtml(img)}" alt="${escapeHtml(selectedLabel||p.name)}">`:`<span style="font-size:70px">✦</span>`}</div><div class="detail-info"><h3>${escapeHtml(p.name)}</h3><div class="detail-price" id="detailPrice">${pr?`${!selected&&vars.length?"a partir de ":""}${money(pr)}`:"Consulte o valor"}</div><p class="detail-status" id="detailStatus">${isFest?(ready?`<span class="festival-badge">✓ Pronta entrega no stand</span>`:`<span class="general-order-badge">Esgotado no stand</span>`):`<span class="general-order-badge">Sob encomenda</span>`}</p>${p.kiosk_meta?`<div class="detail-kiosk-meta">${escapeHtml(p.kiosk_meta)}</div>`:""}${isFest&&selectedQty!=null?`<div class="event-stock-note">Estoque no stand: ${selectedQty} ${selectedQty===1?"unidade":"unidades"}</div>`:""}${selected?`<div class="detail-selected" id="detailSelected">Opção selecionada: ${escapeHtml(selectedLabel)}</div>`:`<div class="detail-selected" id="detailSelected" ${vars.length?"":"hidden"}>${vars.length>1?"Toque em uma opção abaixo para ver foto, preço e disponibilidade.":""}</div>`}${p.description?`<p>${escapeHtml(p.description)}</p>`:""}${vars.length?`<div class="variant-label">Escolha a opção</div><div class="variant-help">Toque em um modelo, cor ou tamanho. A foto e o valor mudam na hora.</div><div class="variant-grid">${vars.map(v=>{const vp=variantPrice(p,v),vr=variantReady(v,p),vi=variantPhoto(p,v);return `<button class="variant-btn ${selected&&String(selected.id)===String(v.id)?"active":""}" type="button" data-variant-choice="${escapeHtml(v.id)}" aria-pressed="${selected&&String(selected.id)===String(v.id)?"true":"false"}">${vi?`<img src="${escapeHtml(vi)}" alt="">`:`<span style="width:52px;height:52px;display:grid;place-items:center;background:#f5ecdd;border-radius:10px">✦</span>`}<span class="variant-copy"><span class="variant-name">${escapeHtml(v.name)}</span><span class="variant-mini">${vp?money(vp):"Consulte"} · ${isFest?(vr?(stockQty(v)!=null?`${stockQty(v)} em estoque`:"Pronta entrega"):"Esgotado"):(vr?"Disponível":"Encomenda")}</span></span></button>`}).join("")}</div></div>`:""}<div class="cta-row"><button class="cta primary" data-enquire-product="${escapeHtml(p.id)}" ${isFest&&((vars.length>1&&!selected)||!ready)?"disabled":""}>${isFest?(!ready?"Esgotado":(vars.length>1&&!selected?"Escolha uma opção acima":"Adicionar ao carrinho")):("Quero encomendar")}${selected?` · ${escapeHtml(selectedLabel)}`:""}</button>${isFest?`<button class="cta secondary" type="button" data-open-cart>Ver carrinho</button>`:`<button class="cta secondary" data-open-catalog-product="${escapeHtml(p.id)}">Ver no catálogo completo</button>`}</div></div></div>`);
   $$('[data-variant-choice]').forEach(btn=>btn.addEventListener('click',()=>showProduct(p.id,btn.dataset.variantChoice)));
-  $("[data-enquire-product]")?.addEventListener("click",()=>isFest?openEventSale(p,selected):openEnquiry(p,selected));
+  $("[data-enquire-product]")?.addEventListener("click",()=>isFest?addToCart(p,selected):openEnquiry(p,selected));
+  $("[data-open-cart]")?.addEventListener("click",showCart);
   $("[data-open-catalog-product]")?.addEventListener("click",()=>window.open(`${CATALOG_URL}?produto=${encodeURIComponent(p.name)}${selected?`&modelo=${encodeURIComponent(selected.name)}`:""}`,"_blank"));
 }
 function showAll(list,title,opts={}){const note=opts.forceOrder?`<div class="festival-note">Estes itens fazem parte do catálogo geral da Luz Mariana e ficam disponíveis sob encomenda.</div>`:"";openModal(title,`${note}<div class="all-products-grid">${list.map(p=>productCard(p,opts)).join("")}</div>`);wireProductCards()}
@@ -314,11 +315,19 @@ function rotateCardModels(){
     const next=((cardVariantIndex.get(pid)??0)+1)%vars.length;cardVariantIndex.set(pid,next);const v=vars[next];
     const img=card.querySelector(".card-product-image"),model=card.querySelector("[data-card-model]"),meta=card.querySelector("[data-card-meta]"),price=card.querySelector("[data-card-price]"),status=card.querySelector("[data-card-status]");
     const src=variantPhoto(p,v),pr=variantPrice(p,v),ready=variantReady(v,p),q=stockQty(v);
-    if(img&&src&&img.getAttribute("src")!==src){img.classList.add("switching");setTimeout(()=>{img.src=src;img.alt=`${p.name} — ${v.name}`;requestAnimationFrame(()=>img.classList.remove("switching"))},150)}
-    if(model)model.textContent=v.name;
-    if(meta)meta.textContent=`${v.name}${q!=null?` • ${q} ${q===1?"unidade":"unidades"}`:""}`;
-    if(price)price.textContent=pr?`${money(pr)} à vista`:"Consulte";
-    if(status){status.textContent=ready?"Pronta entrega":"Esgotado";status.classList.toggle("soldout",!ready)}
+    const applyVariant=()=>{
+      card.dataset.currentVariantId=String(v.id||"");
+      if(model)model.textContent=v.name;
+      if(meta)meta.textContent=`${v.name}${q!=null?` • ${q} ${q===1?"unidade":"unidades"}`:""}`;
+      if(price)price.textContent=pr?`${money(pr)} à vista`:"Consulte";
+      if(status){status.textContent=ready?"Pronta entrega":"Esgotado";status.classList.toggle("soldout",!ready)}
+    };
+    if(img&&src&&img.getAttribute("src")!==src){
+      const preload=new Image();
+      preload.onload=()=>{img.src=src;img.alt=`${p.name} — ${v.name}`;applyVariant()};
+      preload.onerror=()=>{console.warn("Imagem da variante não carregou:",src)};
+      preload.src=src;
+    }else applyVariant();
   })
 }
 function advanceFeaturedCarousel(direction=1){
