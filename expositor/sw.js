@@ -1,4 +1,4 @@
-const CACHE='luz-mariana-expositor-v1.2';
+const CACHE='luz-mariana-expositor-v1.3';
 const SHELL=["./", "./index.html", "./manifest.webmanifest", "./logo-luz-mariana.png", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./qr-instagram.png", "./produto-teresinha-18.png", "./produto-teresinha-13.png", "./produto-aparecida-14.png", "./produto-santa-teresinha-20.png", "./produto-guadalupe-20.png", "./produto-sagrada-familia-16.png", "./produto-anjinho-branco.png", "./produto-anjinho-pink.png", "./produto-santuario-teresinha.png", "./produto-sao-jose-20.png", "./produto-maezinha-azul-baby.png", "./produto-maezinha-aparecida.png", "./produto-maezinha-rose.png", "./produto-santo-anjo.png", "./produto-ele-vive-laranja.jpg", "./produto-ele-vive-vermelho.jpg"];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).catch(()=>{}))});
 self.addEventListener('activate',e=>{e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))]))});
