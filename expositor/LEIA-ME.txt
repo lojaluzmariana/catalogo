@@ -1,0 +1,42 @@
+LUZ MARIANA • EXPOSITOR PARA TABLET
+==================================
+
+1. No GitHub, dentro do repositório que publica lojaluzmariana.com.br, crie a pasta:
+   expositor
+
+2. Envie TODOS os arquivos deste pacote para dentro dessa pasta.
+
+3. A página ficará em:
+   https://lojaluzmariana.com.br/expositor/
+
+4. No Supabase da Luz Mariana, abra SQL Editor e execute UMA VEZ:
+   01-supabase-expositor.sql
+   Ele cria a tabela que registra as solicitações/encomendas feitas pelo tablet.
+   Se o SQL ainda não tiver sido executado, a página continua funcionando e abre o WhatsApp como fallback.
+
+5. No Positivo Vision Tab 10:
+   - use o tablet em PAISAGEM;
+   - abra https://lojaluzmariana.com.br/expositor/
+   - adicione à tela inicial/instale como app quando o navegador oferecer;
+   - opcionalmente use o botão "Tela cheia" no rodapé.
+
+RECURSOS
+- Produtos e preços são lidos do Supabase da Luz Mariana.
+- Estoque/disponibilidade atualiza automaticamente a cada 90 segundos.
+- A página mantém uma cópia local da última carga para contingência de internet.
+- Produtos da Festa de Santa Teresinha são selecionados por palavras-chave e o item "Ele Vive" é excluído.
+- Mais vendidos usa o campo units_sold do catálogo.
+- Solicitações são salvas em event_kiosk_leads e também seguem para o WhatsApp.
+- Após 45 segundos sem interação, entra automaticamente no modo exposição.
+- Ao tocar na tela, volta para a navegação.
+
+Arquivos:
+index.html
+manifest.webmanifest
+sw.js
+logo-luz-mariana.png
+icon-192.png
+icon-512.png
+apple-touch-icon.png
+qr-instagram.png
+01-supabase-expositor.sql
