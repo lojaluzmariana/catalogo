@@ -28,3 +28,6 @@ Depois de publicar, acesse: https://lojaluzmariana.com.br/expositor/admin/
 Use a mesma conta Supabase da Luz Mariana.
 Ali você pode editar nome, opção, preço, estoque e visibilidade, além de acompanhar vendas recentes.
 Estoque em branco = sem controle automático. Ao informar uma quantidade, cada venda registrada pelo expositor baixa o estoque automaticamente.
+
+
+V1.5: crédito 1x–12x adicionado ao Modo Evento, usando as mesmas taxas/regras do painel principal. Débito e crédito também geram a saída da taxa da maquininha no Caixa.

@@ -167,6 +167,11 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const escapeHtml=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));
 const norm=s=>String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 const money=n=>Number.isFinite(Number(n))?Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):"";
+const CARD_RATE_SETTINGS={provider:"Ton Black",customerSurchargeUpTo3:0.05,debit:0.0136,credit:{1:0.0314,2:0.0538,3:0.0611,4:0.0684,5:0.0756,6:0.0827,7:0.0898,8:0.0968,9:0.1037,10:0.1105,11:0.1173,12:0.1239}};
+const round2=n=>Math.round((Number(n)||0)*100)/100;
+function cardRateFor(payment,installments=1){if(payment==="debito")return CARD_RATE_SETTINGS.debit;if(payment!=="credito")return 0;const n=Math.max(1,Math.min(12,Math.trunc(Number(installments)||1)));return Number(CARD_RATE_SETTINGS.credit[n]||0)}
+function customerCardPriceFromCash(base,installments=1){const b=Math.max(0,Number(base)||0),n=Math.max(1,Math.min(12,Math.trunc(Number(installments)||1)));if(n<=3)return round2(b*(1+CARD_RATE_SETTINGS.customerSurchargeUpTo3));const r=cardRateFor("credito",n);return r>=1?b:round2(b/(1-r))}
+function paymentTotal(base,payment,installments=1){return payment==="credito"?customerCardPriceFromCash(base,installments):round2(base)};
 function productVariants(id){return (FESTIVAL_VARIANTS[id]||variantsByProduct[id]||[]).filter(v=>v._event_active!==false)}
 function validPrice(v){const n=Number(v);return Number.isFinite(n)&&n>0?n:null}
 function priceInfo(p){const vals=[];const pp=validPrice(p.promo_price);if(pp)vals.push(pp);productVariants(p.id).forEach(v=>{const x=validPrice(v.promo_price);if(x)vals.push(x)});if(!vals.length){const cp=validPrice(p.credit_price);if(cp)vals.push(cp)};return vals.length?Math.min(...vals):null}
@@ -260,6 +265,7 @@ function openEventSale(p,v=null){
   if(vars.length>1&&!v){showProduct(p.id);return}
   const unit=variantPrice(p,v)||priceInfo(p);
   const label=v?`${p.name} — ${v.name}`:p.name;
+  const installmentOptions=Array.from({length:12},(_,i)=>i+1).map(n=>`<option value="${n}">${n}x · taxa ${(cardRateFor("credito",n)*100).toFixed(2).replace(".",",")}%${n<=3?" · cliente +5%":" · gross-up"}</option>`).join("");
   openModal("Registrar venda • Festa de Santa Teresinha",`<form class="lead-form" id="eventSaleForm">
     <div class="full" style="background:#f8f1e7;border:1px solid #ead8bd;border-radius:16px;padding:16px 18px">
       <div style="font-size:13px;font-weight:800;color:#8a5b17;text-transform:uppercase;letter-spacing:.04em">Pronta entrega no stand</div>
@@ -267,16 +273,31 @@ function openEventSale(p,v=null){
       <div style="font-size:22px;font-weight:900;color:#a71927;margin-top:5px">${money(unit)} à vista</div>
     </div>
     <div><label>Quantidade<input id="saleQty" name="quantity" type="number" min="1" max="20" value="1" inputmode="numeric" required></label></div>
-    <div><label>Forma de pagamento<select id="salePayment" name="payment" required><option value="pix">Pix</option><option value="debito">Débito</option><option value="dinheiro">Dinheiro</option></select></label></div>
+    <div><label>Forma de pagamento<select id="salePayment" name="payment" required><option value="pix">Pix</option><option value="debito">Débito</option><option value="dinheiro">Dinheiro</option><option value="credito">Crédito</option></select></label></div>
+    <div class="full" id="creditInstallmentsWrap" style="display:none"><label>Parcelas no crédito<select id="saleInstallments" name="installments">${installmentOptions}</select></label><div style="margin-top:-6px;color:#756b5d;font-size:12px">1x a 3x: +5% ao cliente. De 4x a 12x: valor calculado para preservar o líquido à vista.</div></div>
     <div><label>Nome do cliente <span style="font-weight:400;color:#756b5d">(opcional)</span><input name="name" autocomplete="name" placeholder="Nome do cliente"></label></div>
     <div><label>WhatsApp <span style="font-weight:400;color:#756b5d">(opcional)</span><input name="whatsapp" inputmode="tel" autocomplete="tel" placeholder="(84) 99999-9999"></label></div>
-    <div class="full" style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px;border:1px solid #e4d5c0;border-radius:14px;background:#fff"><strong style="color:#0a2d55">Total da venda</strong><strong id="saleTotal" style="font-size:26px;color:#a71927">${money(unit)}</strong></div>
+    <div class="full" style="padding:14px 16px;border:1px solid #e4d5c0;border-radius:14px;background:#fff">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px"><strong style="color:#0a2d55">Total da venda</strong><strong id="saleTotal" style="font-size:26px;color:#a71927">${money(unit)}</strong></div>
+      <div id="salePaymentDetail" style="margin-top:5px;text-align:right;color:#756b5d;font-size:12px">Preço à vista</div>
+    </div>
     <input type="hidden" name="product_id" value="${escapeHtml(p.id)}"><input type="hidden" name="variant_id" value="${v?escapeHtml(v.id):""}"><input type="hidden" name="product_name" value="${escapeHtml(p.name)}"><input type="hidden" name="variant_name" value="${v?escapeHtml(v.name):""}">
     <div class="form-status" id="saleStatus"></div>
     <div class="full cta-row"><button class="cta primary" type="submit" id="saleSubmit">Confirmar venda do evento</button><button class="cta secondary" type="button" id="saleCancel">Cancelar</button></div>
   </form>`);
-  const qty=$("#saleQty"), total=$("#saleTotal");
-  qty.addEventListener("input",()=>{const q=Math.max(1,Math.min(20,Number(qty.value)||1));total.textContent=money(unit*q)});
+  const qty=$("#saleQty"), total=$("#saleTotal"), payment=$("#salePayment"), installments=$("#saleInstallments"), creditWrap=$("#creditInstallmentsWrap"), detail=$("#salePaymentDetail");
+  function refreshSaleTotal(){
+    const q=Math.max(1,Math.min(20,Number(qty.value)||1));
+    const method=payment.value;
+    const n=method==="credito"?Math.max(1,Math.min(12,Number(installments.value)||1)):1;
+    creditWrap.style.display=method==="credito"?"block":"none";
+    const base=round2(unit*q), gross=paymentTotal(base,method,n);
+    total.textContent=money(gross);
+    if(method==="credito") detail.textContent=`${n}x de ${money(round2(gross/n))} • ${n<=3?"acréscimo de 5%":"ajuste pela taxa da maquininha"}`;
+    else if(method==="debito") detail.textContent=`Débito • mesmo preço à vista • taxa Ton ${(cardRateFor("debito")*100).toFixed(2).replace(".",",")}% registrada no Caixa`;
+    else detail.textContent="Preço à vista";
+  }
+  qty.addEventListener("input",refreshSaleTotal);payment.addEventListener("change",refreshSaleTotal);installments.addEventListener("change",refreshSaleTotal);refreshSaleTotal();
   $("#saleCancel").addEventListener("click",closeModal);
   $("#eventSaleForm").addEventListener("submit",submitEventSale)
 }
@@ -285,17 +306,18 @@ async function submitEventSale(e){
   const form=e.currentTarget,f=new FormData(form),status=$("#saleStatus"),btn=$("#saleSubmit");
   const quantity=Math.max(1,Math.min(20,Math.trunc(Number(f.get("quantity"))||1)));
   const payment=String(f.get("payment")||"pix");
+  const installments=payment==="credito"?Math.max(1,Math.min(12,Math.trunc(Number(f.get("installments"))||1))):1;
   const name=String(f.get("name")||"").trim();
   const whatsapp=String(f.get("whatsapp")||"").replace(/\D/g,"");
   const productId=String(f.get("product_id")||"");
   const variantId=String(f.get("variant_id")||"");
   if(!db){status.textContent="Sem conexão com o Supabase. Não foi possível registrar a venda.";return}
   btn.disabled=true;btn.textContent="Registrando venda…";status.textContent="Enviando para o Caixa do modo evento…";
-  const {data,error}=await db.rpc("register_event_kiosk_sale",{p_event_slug:EVENT_SLUG,p_product_id:productId,p_variant_id:variantId||null,p_quantity:quantity,p_payment_method:payment,p_customer_name:name||null,p_customer_whatsapp:whatsapp||null});
+  const {data,error}=await db.rpc("register_event_kiosk_sale",{p_event_slug:EVENT_SLUG,p_product_id:productId,p_variant_id:variantId||null,p_quantity:quantity,p_payment_method:payment,p_installments:installments,p_customer_name:name||null,p_customer_whatsapp:whatsapp||null});
   if(error){console.error("register_event_kiosk_sale",error);status.textContent="Não foi possível registrar a venda: "+error.message;btn.disabled=false;btn.textContent="Confirmar venda do evento";return}
   const row=Array.isArray(data)?data[0]:data;
   const total=Number(row?.total_amount||0);
-  status.innerHTML=`<span style="color:#137333;font-weight:800">✓ Venda registrada no modo evento${total?` • ${money(total)}`:""}.</span>`;
+  status.innerHTML=`<span style="color:#137333;font-weight:800">✓ Venda registrada no modo evento${total?` • ${money(total)}`:""}${payment==="credito"?` • ${installments}x`:""}.</span>`;
   btn.textContent="Venda registrada";
   setTimeout(()=>closeModal(),1200)
 }
