@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Luz Mariana Expositor">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="description" content="Expositor interativo da Luz Mariana para a Festa de Santa Teresinha.">
-<meta name="luz-mariana-expositor-version" content="v1.13-bolso-catalogo-2026-09-25">
+<meta name="luz-mariana-expositor-version" content="v1.14-coroinha-retrato-livre-2026-09-27">
 <title>Luz Mariana • Expositor</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -33,7 +33,7 @@ button,input,textarea{font:inherit}button{touch-action:manipulation}.app{min-hei
 .idle{position:fixed;inset:0;background:#0b2848;z-index:50;display:none;color:#fff;overflow:hidden}.idle.open{display:block}.idle-bg{position:absolute;inset:0;background:radial-gradient(circle at 78% 32%,rgba(244,204,146,.24),transparent 30%),linear-gradient(135deg,#0b2848,#601522)}.idle-photo{position:absolute;right:4vw;top:6vh;width:min(39vw,540px);height:78vh;object-fit:contain;filter:drop-shadow(0 18px 40px rgba(0,0,0,.28));opacity:.95}.idle-copy{position:absolute;left:7vw;top:18vh;width:min(48vw,700px)}.idle-copy .small{color:#e4bd7a;font-weight:900;letter-spacing:.16em;text-transform:uppercase}.idle-copy h2{font-family:Georgia,serif;font-size:clamp(44px,6.3vw,96px);line-height:.95;margin:10px 0;color:#fff3e3}.idle-copy p{font-size:clamp(18px,2vw,30px);line-height:1.45;color:#f6ddd8}.idle-hint{position:absolute;left:7vw;bottom:8vh;border:1px solid rgba(255,255,255,.5);padding:12px 18px;border-radius:999px;font-weight:800;background:rgba(255,255,255,.06)}
 @media (max-width:1050px){.shell{padding:12px}.hero{grid-template-columns:.85fr 1.35fr .7fr;padding:14px 16px;min-height:120px}.brand img{width:70px;height:70px}.nav-grid{gap:9px}.action-card{min-height:118px;padding:14px}.bottom-card{padding:14px;min-height:132px}.products{grid-auto-columns:minmax(145px,1fr)}}
 @media (max-width:820px){.hero{grid-template-columns:1fr 1.4fr}.quote{display:none}.nav-grid{grid-template-columns:repeat(2,1fr)}.bottom-grid{grid-template-columns:1fr 1fr}.bottom-grid .qr-card{grid-column:1/-1}.all-products-grid{grid-template-columns:repeat(3,1fr)}}
-@media (orientation:portrait){body:before{content:"Para usar como expositor, gire o tablet para o modo paisagem.";position:fixed;inset:0;z-index:100;background:#0a2d55;color:white;display:grid;place-items:center;text-align:center;padding:40px;font:700 26px/1.4 Georgia,serif}}
+@media (orientation:portrait){body:before{content:"Dica: o expositor fica melhor em modo paisagem.";position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:12;width:max-content;max-width:calc(100vw - 28px);background:rgba(10,45,85,.94);color:#fff;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:9px 14px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.18);font:800 13px/1.25 Inter,ui-sans-serif,system-ui,sans-serif;pointer-events:none;animation:portraitHint 7s ease forwards}}@keyframes portraitHint{0%,70%{opacity:1}100%{opacity:0;visibility:hidden}}
 @media (max-height:650px) and (orientation:landscape){.shell{padding-top:8px}.hero{min-height:104px}.brand img{width:62px;height:62px}.nav-grid{margin-top:9px}.action-card{min-height:102px}.section{margin-top:9px;padding-top:10px;padding-bottom:10px}.bottom-grid{margin-top:9px}.bottom-card{min-height:112px}.product-media{aspect-ratio:1.55/1}.footer{padding-top:6px}}
 
 
@@ -62,6 +62,7 @@ body{font-size:17px}
 }
 @media (max-width:920px){.nav-grid{grid-template-columns:repeat(2,1fr)}.quote{display:none}.hero{grid-template-columns:1fr 1.45fr}.products{grid-auto-columns:220px}.bottom-grid{grid-template-columns:1fr 1fr}.bottom-grid .qr-card{grid-column:1/-1}.detail-grid{grid-template-columns:1fr}.detail-photo{min-height:320px}.variant-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.all-products-grid{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:600px){.variant-grid{grid-template-columns:1fr}.all-products-grid{grid-template-columns:1fr}.products{grid-auto-columns:78vw}.section-title span{display:none}}
+@media (orientation:portrait) and (max-width:920px){.shell{padding:12px 12px 88px}.hero{grid-template-columns:1fr;padding:14px 16px;gap:10px;text-align:center}.brand{justify-content:center}.event{text-align:center}.nav-grid{grid-template-columns:1fr 1fr;gap:10px}.action-card{min-height:126px}.section-head{align-items:flex-start}.products{grid-auto-columns:min(68vw,260px)}.bottom-grid{grid-template-columns:1fr}.bottom-grid .qr-card{grid-column:auto}.footer{flex-wrap:wrap;justify-content:center;text-align:center}.modal{padding:8px}.modal-card{width:calc(100vw - 16px);max-height:96dvh;padding:18px}.detail-grid{grid-template-columns:1fr}.detail-photo{min-height:270px}.cart-fab{bottom:14px}}
 
 
 /* V1.2 — catálogo próprio da festa + acesso discreto ao catálogo geral. */
@@ -135,7 +136,8 @@ const FESTIVAL_CATALOG=[
   {id:"festa-ore-e-confie",name:"Letreiro ‘Ore e Confie’",category:"Letreiro decorativo",description:"Letreiro devocional em preto com detalhe amarelo e a frase Ore e confie.",kiosk_meta:"Tamanho único • Preto",promo_price:20,stock_qty:2,in_stock:true,photo_url:"produto-ore-e-confie.png",units_sold:76},
   {id:"festa-santa-teresinha-10",name:"Santa Teresinha",category:"Estatueta",description:"Santa Teresinha em acabamento cinza, versão compacta de 10 cm.",kiosk_meta:"PP (10 cm) • Cinza",promo_price:10,stock_qty:6,in_stock:true,photo_url:"produto-santa-teresinha-10.png",units_sold:74},
   {id:"festa-santinho-bolso",name:"Santinho de Bolso",category:"Chaveiros",description:"Coleção de santinhos de bolso em preto e branco, com diversos santos disponíveis no stand.",kiosk_meta:"11 modelos disponíveis",promo_price:10,in_stock:true,photo_url:"produto-santinho-bolso.jpg",variant_cover_mode:"generic",units_sold:140},
-  {id:"festa-maezinha-bolso",name:"Mãezinha de Bolso",category:"Chaveiros",description:"Mãezinha de Bolso em modelos marianos disponíveis no stand.",kiosk_meta:"4 modelos disponíveis",promo_price:10,in_stock:true,photo_url:"produto-maezinha-bolso.jpg",variant_cover_mode:"generic",units_sold:135}
+  {id:"festa-maezinha-bolso",name:"Mãezinha de Bolso",category:"Chaveiros",description:"Mãezinha de Bolso em modelos marianos disponíveis no stand.",kiosk_meta:"4 modelos disponíveis",promo_price:10,in_stock:true,photo_url:"produto-maezinha-bolso.jpg",variant_cover_mode:"generic",units_sold:135},
+  {id:"festa-chaveiro-coroinha",name:"Chaveiro Coroinha",category:"Chaveiros",description:"Chaveiro em formato de veste de coroinha, nas cores branco e vermelho.",kiosk_meta:"Branco e vermelho",promo_price:10,in_stock:true,photo_url:"produto-chaveiro-coroinha.png",units_sold:72}
 ];
 const FESTIVAL_VARIANTS={
   "festa-teresinha-minimalista":[
