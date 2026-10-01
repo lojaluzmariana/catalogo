@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v10.1-radio-cancao-nova-2026-10-01" />
+  <meta name="luz-mariana-catalog-version" content="professional-v10.2-radio-collapsed-volume30-2026-10-01" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.com.br/" />
@@ -1002,7 +1002,7 @@
   <div class="lm-radio-controls">
     <button id="lm-radio-play" class="lm-radio-control primary" type="button" aria-label="Ouvir Rádio Canção Nova" title="Ouvir">▶</button>
     <button id="lm-radio-mute" class="lm-radio-control" type="button" aria-label="Silenciar rádio" title="Silenciar">🔊</button>
-    <input id="lm-radio-volume" class="lm-radio-volume" type="range" min="0" max="1" step="0.05" value="0.55" aria-label="Volume da Rádio Canção Nova" />
+    <input id="lm-radio-volume" class="lm-radio-volume" type="range" min="0" max="1" step="0.05" value="0.30" aria-label="Volume da Rádio Canção Nova" />
     <a class="lm-radio-control lm-radio-official-link" href="https://radio.cancaonova.com/" target="_blank" rel="noopener noreferrer" aria-label="Abrir site oficial da Rádio Canção Nova" title="Site oficial">↗</a>
   </div>
 </div>
@@ -1082,8 +1082,8 @@ const app = document.getElementById("app");
 const LM_RADIO_HLS_URL = "https://d1ixcyc8q1z54i.cloudfront.net/out/v1/582568c0cbc742208e9e8856e569d2e3/index_1.m3u8";
 const LM_RADIO_FALLBACK_URL = "https://streaming.fox.srv.br:8114/stream/;";
 const LM_RADIO_PREF_KEY = "luzmariana_radio_pref_v1";
-const LM_RADIO_VOLUME_KEY = "luzmariana_radio_volume_v1";
-const LM_RADIO_COLLAPSED_KEY = "luzmariana_radio_collapsed_v1";
+const LM_RADIO_VOLUME_KEY = "luzmariana_radio_volume_v2";
+const LM_RADIO_COLLAPSED_KEY = "luzmariana_radio_collapsed_v2";
 
 const lmRadioPlayer = document.getElementById("lm-radio-player");
 const lmRadioAudio = document.getElementById("lm-radio-audio");
@@ -1238,7 +1238,7 @@ function lmRadioApplyCollapsed(value) {
 function lmRadioInit() {
   if (!lmRadioAudio || !lmRadioPlayer) return;
 
-  let savedVolume = 0.55;
+  let savedVolume = 0.30;
   try {
     const raw = Number(localStorage.getItem(LM_RADIO_VOLUME_KEY));
     if (Number.isFinite(raw) && raw >= 0 && raw <= 1) savedVolume = raw;
@@ -1246,8 +1246,11 @@ function lmRadioInit() {
   lmRadioAudio.volume = savedVolume;
   lmRadioVolume.value = String(savedVolume);
 
-  let collapsed = false;
-  try { collapsed = localStorage.getItem(LM_RADIO_COLLAPSED_KEY) === "1"; } catch (_err) {}
+  let collapsed = true;
+  try {
+    const savedCollapsed = localStorage.getItem(LM_RADIO_COLLAPSED_KEY);
+    collapsed = savedCollapsed === null ? true : savedCollapsed === "1";
+  } catch (_err) {}
   lmRadioApplyCollapsed(collapsed);
 
   lmRadioAudio.addEventListener("playing", () => {
