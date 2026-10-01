@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v11.2-product-editor-modal-2026-10-01" />
+<meta name="luz-mariana-admin-version" content="professional-v11.4-variants-visible-2026-10-01" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1861,6 +1861,226 @@ body.product-editor-modal-open { overflow: hidden !important; }
     bottom: -16px;
     margin: 4px -16px -16px;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+
+/* =====================================================================
+   V11.3 — EDITOR DE PRODUTO AMPLO E SEM CORTES
+   Cabeçalho e rodapé ficam fixos; somente o conteúdo central rola.
+   O formulário usa quase toda a viewport e os campos principais têm
+   colunas previsíveis em vez de flexbox comprimido.
+   ===================================================================== */
+#product-form-slot:not(:empty) {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 130 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 10px !important;
+  overflow: hidden !important;
+  background: rgba(4,17,50,.62) !important;
+}
+#product-form-slot .product-editor-v10 {
+  width: min(1320px, calc(100vw - 20px)) !important;
+  height: calc(100dvh - 20px) !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+}
+#product-form-slot .product-editor-v10-head {
+  position: relative !important;
+  top: auto !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 16px 64px 15px 20px !important;
+  background: #fff !important;
+  border-bottom: 1px solid #e5e8ef !important;
+}
+#product-form-slot .product-editor-scrollbody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 18px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+#product-form-slot .product-editor-v10-footer {
+  position: relative !important;
+  bottom: auto !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 12px 20px 14px !important;
+  background: #fff !important;
+  border-top: 1px solid #e5e8ef !important;
+  box-shadow: 0 -7px 20px rgba(0,24,104,.05);
+}
+#product-form-slot .product-editor-v10-footer button {
+  min-height: 42px;
+}
+#product-form-slot #pf-modal-close {
+  top: 11px !important;
+  right: 14px !important;
+}
+
+/* Campos iniciais: largura estável e legível. */
+.product-editor-v11-main-grid {
+  display: grid !important;
+  grid-template-columns:
+    minmax(300px, 2fr)
+    minmax(165px, .8fr)
+    minmax(190px, 1fr)
+    minmax(190px, 1fr)
+    minmax(210px, 1.05fr) !important;
+  gap: 14px !important;
+  align-items: start !important;
+}
+.product-editor-v11-main-grid > div {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+.product-editor-v11-main-grid label {
+  line-height: 1.25;
+}
+.product-editor-v11-main-grid input,
+.product-editor-v11-main-grid select {
+  width: 100% !important;
+}
+#product-form-slot #pf-base-cost-wrap {
+  width: auto !important;
+}
+#product-form-slot .lm-v11-guided-steps {
+  grid-template-columns: repeat(4, minmax(0,1fr)) !important;
+}
+#product-form-slot textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+/* Variantes também ficam legíveis e sem estouro. */
+#product-form-slot #pf-variants-list > div {
+  min-width: 0;
+}
+#product-form-slot #pf-variants-list input[type="file"] {
+  max-width: 230px;
+}
+
+/* Notebook menor: duas colunas, sem comprimir rótulos. */
+@media (max-width: 1100px) {
+  .product-editor-v11-main-grid {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+  }
+  .product-editor-v11-main-grid > div:has(#pf-name) {
+    grid-column: 1 / -1;
+  }
+  #product-form-slot .lm-v11-guided-steps {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+  }
+}
+
+/* Celular/tablet em retrato: editor tela cheia e uma coluna. */
+@media (max-width: 700px) {
+  #product-form-slot:not(:empty) {
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+  #product-form-slot .product-editor-v10 {
+    width: 100vw !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+  }
+  #product-form-slot .product-editor-v10-head {
+    padding: 14px 56px 13px 15px !important;
+  }
+  #product-form-slot .product-editor-scrollbody {
+    padding: 14px 15px 20px !important;
+  }
+  #product-form-slot .product-editor-v10-footer {
+    padding: 10px 15px calc(10px + env(safe-area-inset-bottom)) !important;
+  }
+  .product-editor-v11-main-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .product-editor-v11-main-grid > div:has(#pf-name) {
+    grid-column: auto;
+  }
+  #product-form-slot .lm-v11-guided-steps {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+
+/* V11.4 — modelos/variações ficam visíveis e fáceis de localizar */
+.product-editor-v11-head-meta {
+  display:flex; align-items:center; gap:10px; margin-right:8px;
+}
+.product-editor-v11-variant-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  border:1px solid #cfd8ee; background:#f5f8ff; color:#001868;
+  border-radius:999px; padding:7px 10px; font-size:11px; white-space:nowrap;
+}
+.product-editor-v11-subnav {
+  position:sticky; top:0; z-index:7;
+  display:flex; flex-wrap:wrap; gap:7px;
+  padding:8px 0 10px; background:rgba(255,255,255,.96);
+  border-bottom:1px solid #eef0f5;
+  backdrop-filter:blur(8px);
+}
+.product-editor-v11-subnav button {
+  border:1px solid #d8deeb; background:#fff; color:#203665;
+  border-radius:999px; padding:7px 11px; font-size:11px; font-weight:700;
+  cursor:pointer;
+}
+.product-editor-v11-subnav button:hover { border-color:#d5aa3e; background:#fffaf0; }
+.product-editor-v11-subnav button.important {
+  border-color:#d5aa3e; background:#fff8df; color:#6f4c00;
+}
+.product-editor-v11-subnav button span {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:20px; height:20px; margin-left:4px;
+  border-radius:999px; background:#001868; color:#fff; font-size:10px;
+}
+.product-editor-v11-variants-section {
+  border:2px solid #d8c071 !important;
+  box-shadow:0 5px 18px rgba(213,170,62,.08);
+}
+.product-editor-v11-variants-section > summary {
+  background:#fff9e8;
+}
+.product-editor-v11-variants-summary {
+  margin-bottom:10px;
+  border:1px solid #dce4f4;
+  background:#f7f9fe;
+  border-radius:10px;
+  padding:10px 12px;
+}
+.product-editor-v11-variants-summary strong {
+  display:block; color:#001868; font-size:12px;
+}
+.product-editor-v11-variants-summary span {
+  display:block; margin-top:3px; color:#65708b; font-size:11px; line-height:1.45;
+}
+@media (max-width:900px) {
+  .product-editor-v11-head-meta { flex-direction:column; align-items:flex-end; gap:5px; }
+}
+@media (max-width:700px) {
+  .product-editor-v11-head-meta { display:none; }
+  .product-editor-v11-subnav {
+    margin:0 -2px; overflow-x:auto; flex-wrap:nowrap; white-space:nowrap;
   }
 }
 
@@ -8063,10 +8283,23 @@ function renderProductForm() {
 
   slot.innerHTML = `
     <form id="product-form" class="product-editor-v10 flex flex-col gap-4 rounded-xl border border-gold-300 bg-white p-5 shadow">
-      <div class="product-editor-v10-head"><div><span>CADASTRO DO PRODUTO</span><h2>${product ? "Editar produto" : "Novo produto"}</h2></div><div class="product-editor-v10-min">Lucro mínimo <strong>60% sobre o custo</strong></div><button type="button" id="pf-modal-close" aria-label="Fechar editor" title="Fechar">×</button></div>
+      <div class="product-editor-v10-head">
+        <div><span>CADASTRO DO PRODUTO</span><h2>${product ? "Editar produto" : "Novo produto"}</h2></div>
+        <div class="product-editor-v11-head-meta">
+          <span class="product-editor-v11-variant-badge">Modelos/variações: <strong>${formVariants.length}</strong></span>
+          <div class="product-editor-v10-min">Lucro mínimo <strong>60% sobre o custo</strong></div>
+        </div>
+        <button type="button" id="pf-modal-close" aria-label="Fechar editor" title="Fechar">×</button>
+      </div>
       <div class="lm-v11-guided-steps"><div><b>1. O que é?</b>Nome, categoria e fornecedor</div><div><b>2. Quanto custa?</b>Custo e preço seguro</div><div><b>3. O que está pronto?</b>Modelos e estoque</div><div><b>4. Como aparece?</b>Fotos e catálogo</div></div>
+      <div class="product-editor-v11-subnav">
+        <button type="button" data-pf-jump="pf-section-dados">Dados gerais</button>
+        <button type="button" data-pf-jump="pf-section-variants" class="important">Modelos e variações <span>${formVariants.length}</span></button>
+        <button type="button" data-pf-jump="pf-section-fotos">Fotos</button>
+        <button type="button" data-pf-jump="pf-section-pricing">Preço e lucro</button>
+      </div>
       ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
-      <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <div id="pf-section-dados" class="product-editor-v11-main-grid">
         <div class="min-w-[220px] flex-1">
           <label class="mb-1 block text-sm font-medium text-navy-800">Nome do produto</label>
           <input id="pf-name" value="${product ? escapeHtml(product.name) : escapeHtml(draft?.name ?? "")}" required
@@ -8118,6 +8351,17 @@ function renderProductForm() {
         </div>
       </div>
 
+      <details id="pf-section-variants" class="product-editor-v10-section product-editor-v11-variants-section" open>
+        <summary><span>Modelos, tamanhos e estoque</span><small>cada combinação pode ter custo, preço, foto e quantidade próprios</small></summary>
+        <div class="product-editor-v10-section-body">
+        <p class="mb-1 text-sm font-medium text-navy-800">Tamanhos e modelos (opcional)</p>
+        <p class="mb-3 text-xs text-navy-400">Tamanho e modelo são independentes. Use apenas tamanho, apenas modelo ou os dois juntos. Ex.: um produto pode ter 16 cm, 20 cm e 30 cm em um único modelo; outro pode ter Tradicional e Vazado em um único tamanho; ou pode combinar 16 cm + Tradicional, 16 cm + Vazado, 20 cm + Tradicional etc. Cada combinação pode ter estoque, foto, custo e preço próprios.</p>
+        <div id="pf-variants-summary" class="product-editor-v11-variants-summary"></div>
+        <div id="pf-variants-list" class="flex flex-col gap-2"></div>
+        <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar combinação</button>
+        </div>
+      </details>
+
       <div>
         <label class="mb-1 block text-sm font-medium text-navy-800">Descrição (opcional)</label>
         <textarea id="pf-description" rows="3"
@@ -8126,7 +8370,7 @@ function renderProductForm() {
         <p class="mt-1 text-xs text-navy-400">Aparece no Catálogo público, embaixo do produto (o cliente pode expandir pra ler).</p>
       </div>
 
-      <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+      <div id="pf-section-fotos" class="rounded-lg border border-navy-100 bg-cream-50 p-4">
         <p class="mb-2 text-sm font-medium text-navy-800">Foto principal</p>
         <div class="flex flex-wrap items-center gap-4">
           <img id="pf-photo-preview" src="${product?.photo_url ?? ""}" class="h-20 w-20 rounded-lg border border-navy-200 bg-white object-cover ${product?.photo_url ? "" : "hidden"}" />
@@ -8181,18 +8425,7 @@ function renderProductForm() {
           <p id="pf-gallery-status" class="text-xs text-navy-400">Máximo de 3 imagens no total. Cada foto é redimensionada e comprimida automaticamente.</p>
         </div>
       </div>
-
-      <details class="product-editor-v10-section" open>
-        <summary><span>Modelos, tamanhos e estoque</span><small>cada combinação pode ter custo, preço, foto e quantidade próprios</small></summary>
-        <div class="product-editor-v10-section-body">
-        <p class="mb-1 text-sm font-medium text-navy-800">Tamanhos e modelos (opcional)</p>
-        <p class="mb-3 text-xs text-navy-400">Tamanho e modelo são independentes. Use apenas tamanho, apenas modelo ou os dois juntos. Ex.: um produto pode ter 16 cm, 20 cm e 30 cm em um único modelo; outro pode ter Tradicional e Vazado em um único tamanho; ou pode combinar 16 cm + Tradicional, 16 cm + Vazado, 20 cm + Tradicional etc. Cada combinação pode ter estoque, foto, custo e preço próprios.</p>
-        <div id="pf-variants-list" class="flex flex-col gap-2"></div>
-        <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar combinação</button>
-        </div>
-      </details>
-
-      <details class="product-editor-v10-section">
+<details class="product-editor-v10-section">
         <summary><span>Materiais e composição do custo</span><small>opcional — use para somar materiais ao custo automaticamente</small></summary>
         <div class="product-editor-v10-section-body">
         <p class="mb-2 text-sm font-medium text-navy-800">Materiais usados (opcional)</p>
@@ -8214,7 +8447,7 @@ function renderProductForm() {
         </div>
       </details>
 
-      <div class="product-editor-v10-pricing">
+      <div id="pf-section-pricing" class="product-editor-v10-pricing">
         <div class="w-full sm:w-64">
         <label class="mb-1 block text-sm font-medium text-navy-800">Preço Pix/à vista manual (opcional)</label>
         <input id="pf-promo-manual" value="${product && product.promo_manual_price != null ? Number(product.promo_manual_price) : (draft?.promoManualPrice ?? "")}" inputmode="decimal"
@@ -8232,7 +8465,30 @@ function renderProductForm() {
     </form>
   `;
 
+  const modalForm = slot.querySelector("#product-form");
+  const modalHeader = modalForm?.querySelector(".product-editor-v10-head");
+  const modalFooter = modalForm?.querySelector(".product-editor-v10-footer");
+  if (modalForm && modalHeader && modalFooter && !modalForm.querySelector(".product-editor-scrollbody")) {
+    const scrollBody = document.createElement("div");
+    scrollBody.className = "product-editor-scrollbody";
+    let node = modalHeader.nextSibling;
+    while (node && node !== modalFooter) {
+      const next = node.nextSibling;
+      scrollBody.appendChild(node);
+      node = next;
+    }
+    modalForm.insertBefore(scrollBody, modalFooter);
+  }
+
   document.body.classList.add("product-editor-modal-open");
+  slot.querySelectorAll("[data-pf-jump]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = document.getElementById(btn.dataset.pfJump);
+      if (!target) return;
+      if (target.tagName === "DETAILS") target.open = true;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
   requestAnimationFrame(() => {
     const firstField = document.getElementById("pf-name");
     if (firstField) firstField.focus({ preventScroll: true });
@@ -8376,6 +8632,12 @@ function renderProductForm() {
   }
 
   function renderVariantsList() {
+    const variantsSummaryEl = document.getElementById("pf-variants-summary");
+    if (variantsSummaryEl) {
+      variantsSummaryEl.innerHTML = formVariants.length
+        ? `<div><strong>${formVariants.length} combinação${formVariants.length === 1 ? "" : "ões"} cadastrada${formVariants.length === 1 ? "" : "s"}</strong><span>${formVariants.map((v) => escapeHtml(composeVariantName(v.size, v.model || v.color) || "Sem nome")).join(" • ")}</span></div>`
+        : `<div><strong>Este produto ainda não tem modelos/variações.</strong><span>Use “Adicionar combinação” para cadastrar tamanhos, cores ou modelos.</span></div>`;
+    }
     variantsListEl.innerHTML = formVariants.length === 0
       ? `<p class="text-xs text-navy-400">Nenhuma opção cadastrada — use quando houver mais de um tamanho e/ou modelo.</p>`
       : formVariants.map((v, idx) => `
