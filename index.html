@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v10.0-custom-domain-navigation-2026-10-01" />
+  <meta name="luz-mariana-catalog-version" content="professional-v10.1-radio-cancao-nova-2026-10-01" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.com.br/" />
@@ -786,6 +786,163 @@
   @media (min-width: 768px) { .campaign-hero-card { grid-template-columns: minmax(0,1.25fr) minmax(280px,0.75fr); padding:22px; } }
   @media (max-width: 767px) { .campaign-info-grid { grid-template-columns:1fr; } .campaign-big-discount strong { font-size:28px; } }
 
+
+/* =====================================================================
+   V10.1 — RÁDIO CANÇÃO NOVA
+   Mini-player flutuante. Tenta iniciar automaticamente; navegadores que
+   bloqueiam autoplay com som exibem "Toque para ouvir" e liberam no
+   primeiro gesto do visitante.
+   ===================================================================== */
+.lm-radio-player {
+  position: fixed;
+  left: 14px;
+  bottom: 86px;
+  z-index: 29;
+  width: min(330px, calc(100vw - 28px));
+  border: 1px solid rgba(213,170,62,.55);
+  border-radius: 18px;
+  background: rgba(255,255,255,.97);
+  color: #001868;
+  box-shadow: 0 12px 34px rgba(0,24,104,.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow: hidden;
+  transition: width .18s ease, transform .18s ease, opacity .18s ease;
+}
+.lm-radio-top {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:58px;
+  padding:9px 42px 8px 10px;
+}
+.lm-radio-icon {
+  width:40px;
+  height:40px;
+  flex:0 0 40px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:13px;
+  background:#001868;
+  color:#fff;
+  font-size:20px;
+  box-shadow:0 5px 14px rgba(0,24,104,.18);
+}
+.lm-radio-copy { min-width:0; flex:1; }
+.lm-radio-copy strong {
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:13px;
+  line-height:1.2;
+}
+.lm-radio-status {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-top:4px;
+  color:#65708a;
+  font-size:11px;
+  line-height:1.25;
+}
+.lm-radio-status::before {
+  content:"";
+  width:7px;
+  height:7px;
+  flex:0 0 7px;
+  border-radius:999px;
+  background:#d9a20c;
+}
+.lm-radio-player.is-playing .lm-radio-status::before {
+  background:#20a464;
+  box-shadow:0 0 0 3px rgba(32,164,100,.12);
+}
+.lm-radio-player.is-blocked .lm-radio-status::before { background:#d5aa3e; }
+.lm-radio-player.is-error .lm-radio-status::before { background:#c33; }
+.lm-radio-collapse {
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:30px;
+  height:30px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid #d9ddea;
+  border-radius:999px;
+  background:#fff;
+  color:#001868;
+  font-weight:800;
+  cursor:pointer;
+}
+.lm-radio-controls {
+  display:grid;
+  grid-template-columns:42px 42px minmax(70px,1fr) 34px;
+  gap:7px;
+  align-items:center;
+  padding:0 10px 10px;
+}
+.lm-radio-control {
+  min-height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid #d9ddea;
+  border-radius:12px;
+  background:#fff;
+  color:#001868;
+  font-size:15px;
+  font-weight:800;
+  cursor:pointer;
+}
+.lm-radio-control.primary {
+  border-color:#001868;
+  background:#001868;
+  color:#fff;
+}
+.lm-radio-control:hover { border-color:#d5aa3e; }
+.lm-radio-volume {
+  width:100%;
+  accent-color:#001868;
+}
+.lm-radio-official-link {
+  text-decoration:none;
+  font-size:14px;
+}
+.lm-radio-player.is-collapsed {
+  width:54px;
+  height:54px;
+  border-radius:999px;
+}
+.lm-radio-player.is-collapsed .lm-radio-top,
+.lm-radio-player.is-collapsed .lm-radio-controls { display:none; }
+.lm-radio-player.is-collapsed .lm-radio-collapse {
+  inset:0;
+  width:54px;
+  height:54px;
+  border:0;
+  border-radius:999px;
+  background:#001868;
+  color:#fff;
+  font-size:0;
+}
+.lm-radio-player.is-collapsed .lm-radio-collapse::after {
+  content:"📻";
+  font-size:23px;
+}
+@media (max-width: 639px) {
+  .lm-radio-player {
+    left:10px;
+    bottom:82px;
+    width:min(300px, calc(100vw - 20px));
+  }
+  .lm-radio-controls {
+    grid-template-columns:44px 44px minmax(56px,1fr) 36px;
+  }
+}
+
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen pb-24">
@@ -828,6 +985,25 @@
     </div>
     <button id="help-guide-done" type="button" class="large-touch-action mt-3 w-full rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900">Entendi, quero comprar</button>
     <button id="help-guide-whatsapp" type="button" class="large-touch-action mt-2 w-full rounded-lg border border-navy-200 bg-white px-4 py-3 font-semibold text-navy-700">Ainda preciso de ajuda pelo WhatsApp</button>
+  </div>
+</div>
+
+
+<div id="lm-radio-player" class="lm-radio-player" aria-label="Player da Rádio Canção Nova">
+  <audio id="lm-radio-audio" preload="none" playsinline></audio>
+  <button id="lm-radio-collapse" class="lm-radio-collapse" type="button" aria-label="Recolher player da rádio" title="Recolher">−</button>
+  <div class="lm-radio-top">
+    <div class="lm-radio-icon" aria-hidden="true">📻</div>
+    <div class="lm-radio-copy">
+      <strong>Rádio Canção Nova</strong>
+      <span id="lm-radio-status" class="lm-radio-status">Preparando transmissão ao vivo…</span>
+    </div>
+  </div>
+  <div class="lm-radio-controls">
+    <button id="lm-radio-play" class="lm-radio-control primary" type="button" aria-label="Ouvir Rádio Canção Nova" title="Ouvir">▶</button>
+    <button id="lm-radio-mute" class="lm-radio-control" type="button" aria-label="Silenciar rádio" title="Silenciar">🔊</button>
+    <input id="lm-radio-volume" class="lm-radio-volume" type="range" min="0" max="1" step="0.05" value="0.55" aria-label="Volume da Rádio Canção Nova" />
+    <a class="lm-radio-control lm-radio-official-link" href="https://radio.cancaonova.com/" target="_blank" rel="noopener noreferrer" aria-label="Abrir site oficial da Rádio Canção Nova" title="Site oficial">↗</a>
   </div>
 </div>
 
@@ -899,6 +1075,257 @@ function formatWhatsappBR(raw) {
 }
 
 const app = document.getElementById("app");
+
+/* =====================================================================
+   RÁDIO CANÇÃO NOVA — player ao vivo
+   ===================================================================== */
+const LM_RADIO_HLS_URL = "https://d1ixcyc8q1z54i.cloudfront.net/out/v1/582568c0cbc742208e9e8856e569d2e3/index_1.m3u8";
+const LM_RADIO_FALLBACK_URL = "https://streaming.fox.srv.br:8114/stream/;";
+const LM_RADIO_PREF_KEY = "luzmariana_radio_pref_v1";
+const LM_RADIO_VOLUME_KEY = "luzmariana_radio_volume_v1";
+const LM_RADIO_COLLAPSED_KEY = "luzmariana_radio_collapsed_v1";
+
+const lmRadioPlayer = document.getElementById("lm-radio-player");
+const lmRadioAudio = document.getElementById("lm-radio-audio");
+const lmRadioPlay = document.getElementById("lm-radio-play");
+const lmRadioMute = document.getElementById("lm-radio-mute");
+const lmRadioVolume = document.getElementById("lm-radio-volume");
+const lmRadioStatus = document.getElementById("lm-radio-status");
+const lmRadioCollapse = document.getElementById("lm-radio-collapse");
+
+let lmRadioHls = null;
+let lmRadioSourceReady = false;
+let lmRadioPreparing = null;
+let lmRadioAutoplayBlocked = false;
+let lmRadioUsingFallback = false;
+
+function lmRadioPref() {
+  try { return localStorage.getItem(LM_RADIO_PREF_KEY) || "auto"; }
+  catch (_err) { return "auto"; }
+}
+function lmRadioSavePref(value) {
+  try { localStorage.setItem(LM_RADIO_PREF_KEY, value); } catch (_err) {}
+}
+function lmRadioSetStatus(message, mode = "") {
+  if (!lmRadioStatus || !lmRadioPlayer) return;
+  lmRadioStatus.textContent = message;
+  lmRadioPlayer.classList.toggle("is-playing", mode === "playing");
+  lmRadioPlayer.classList.toggle("is-blocked", mode === "blocked");
+  lmRadioPlayer.classList.toggle("is-error", mode === "error");
+}
+function lmRadioUpdateButtons() {
+  if (!lmRadioAudio || !lmRadioPlay || !lmRadioMute) return;
+  const playing = !lmRadioAudio.paused && !lmRadioAudio.ended;
+  lmRadioPlay.textContent = playing ? "⏸" : "▶";
+  lmRadioPlay.setAttribute("aria-label", playing ? "Pausar Rádio Canção Nova" : "Ouvir Rádio Canção Nova");
+  lmRadioPlay.title = playing ? "Pausar" : "Ouvir";
+  const muted = lmRadioAudio.muted || lmRadioAudio.volume === 0;
+  lmRadioMute.textContent = muted ? "🔇" : "🔊";
+  lmRadioMute.setAttribute("aria-label", muted ? "Ativar som da rádio" : "Silenciar rádio");
+  lmRadioMute.title = muted ? "Ativar som" : "Silenciar";
+}
+function lmRadioLoadHlsLibrary() {
+  if (window.Hls) return Promise.resolve(window.Hls);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-lm-hls]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.Hls), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Falha ao carregar HLS")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
+    script.async = true;
+    script.dataset.lmHls = "1";
+    script.onload = () => resolve(window.Hls);
+    script.onerror = () => reject(new Error("Falha ao carregar HLS"));
+    document.head.appendChild(script);
+  });
+}
+function lmRadioUseFallback() {
+  if (!lmRadioAudio || lmRadioUsingFallback) return;
+  lmRadioUsingFallback = true;
+  lmRadioSourceReady = true;
+  try {
+    lmRadioHls?.destroy();
+  } catch (_err) {}
+  lmRadioHls = null;
+  lmRadioAudio.src = LM_RADIO_FALLBACK_URL;
+  lmRadioAudio.load();
+}
+async function lmRadioPrepareSource() {
+  if (!lmRadioAudio) return false;
+  if (lmRadioSourceReady) return true;
+  if (lmRadioPreparing) return lmRadioPreparing;
+
+  lmRadioPreparing = (async () => {
+    lmRadioSetStatus("Conectando à transmissão…");
+    const nativeHls = lmRadioAudio.canPlayType("application/vnd.apple.mpegurl")
+      || lmRadioAudio.canPlayType("application/x-mpegURL");
+
+    if (nativeHls) {
+      lmRadioAudio.src = LM_RADIO_HLS_URL;
+      lmRadioAudio.load();
+      lmRadioSourceReady = true;
+      return true;
+    }
+
+    try {
+      const HlsLib = await lmRadioLoadHlsLibrary();
+      if (HlsLib?.isSupported?.()) {
+        lmRadioHls = new HlsLib({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 30
+        });
+        lmRadioHls.loadSource(LM_RADIO_HLS_URL);
+        lmRadioHls.attachMedia(lmRadioAudio);
+        lmRadioHls.on(HlsLib.Events.MANIFEST_PARSED, () => {
+          lmRadioSourceReady = true;
+        });
+        lmRadioHls.on(HlsLib.Events.ERROR, (_event, data) => {
+          if (data?.fatal) {
+            lmRadioUseFallback();
+            if (lmRadioPref() !== "off") lmRadioTryPlay();
+          }
+        });
+        lmRadioSourceReady = true;
+        return true;
+      }
+    } catch (_err) {
+      // cai para o stream alternativo abaixo
+    }
+
+    lmRadioUseFallback();
+    return true;
+  })();
+
+  try { return await lmRadioPreparing; }
+  finally { lmRadioPreparing = null; }
+}
+async function lmRadioTryPlay({ userInitiated = false } = {}) {
+  if (!lmRadioAudio) return false;
+  if (!lmRadioSourceReady) await lmRadioPrepareSource();
+  try {
+    await lmRadioAudio.play();
+    lmRadioAutoplayBlocked = false;
+    if (userInitiated) lmRadioSavePref("on");
+    lmRadioSetStatus("Ao vivo", "playing");
+    lmRadioUpdateButtons();
+    return true;
+  } catch (err) {
+    lmRadioAutoplayBlocked = true;
+    lmRadioSetStatus("Toque para ouvir ao vivo", "blocked");
+    lmRadioUpdateButtons();
+    return false;
+  }
+}
+function lmRadioPause({ remember = true } = {}) {
+  if (!lmRadioAudio) return;
+  lmRadioAudio.pause();
+  if (remember) lmRadioSavePref("off");
+  lmRadioSetStatus("Pausada");
+  lmRadioUpdateButtons();
+}
+function lmRadioApplyCollapsed(value) {
+  if (!lmRadioPlayer || !lmRadioCollapse) return;
+  lmRadioPlayer.classList.toggle("is-collapsed", !!value);
+  lmRadioCollapse.textContent = value ? "📻" : "−";
+  lmRadioCollapse.setAttribute("aria-label", value ? "Abrir player da rádio" : "Recolher player da rádio");
+  lmRadioCollapse.title = value ? "Abrir Rádio Canção Nova" : "Recolher";
+  try { localStorage.setItem(LM_RADIO_COLLAPSED_KEY, value ? "1" : "0"); } catch (_err) {}
+}
+function lmRadioInit() {
+  if (!lmRadioAudio || !lmRadioPlayer) return;
+
+  let savedVolume = 0.55;
+  try {
+    const raw = Number(localStorage.getItem(LM_RADIO_VOLUME_KEY));
+    if (Number.isFinite(raw) && raw >= 0 && raw <= 1) savedVolume = raw;
+  } catch (_err) {}
+  lmRadioAudio.volume = savedVolume;
+  lmRadioVolume.value = String(savedVolume);
+
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(LM_RADIO_COLLAPSED_KEY) === "1"; } catch (_err) {}
+  lmRadioApplyCollapsed(collapsed);
+
+  lmRadioAudio.addEventListener("playing", () => {
+    lmRadioSetStatus("Ao vivo", "playing");
+    lmRadioUpdateButtons();
+  });
+  lmRadioAudio.addEventListener("pause", () => {
+    if (!lmRadioAutoplayBlocked) lmRadioSetStatus("Pausada");
+    lmRadioUpdateButtons();
+  });
+  lmRadioAudio.addEventListener("waiting", () => lmRadioSetStatus("Carregando transmissão…"));
+  lmRadioAudio.addEventListener("stalled", () => lmRadioSetStatus("Reconectando…"));
+  lmRadioAudio.addEventListener("error", () => {
+    if (!lmRadioUsingFallback) {
+      lmRadioUseFallback();
+      if (lmRadioPref() !== "off") lmRadioTryPlay();
+    } else {
+      lmRadioSetStatus("Transmissão indisponível no momento", "error");
+    }
+  });
+
+  lmRadioPlay.addEventListener("click", async () => {
+    if (!lmRadioAudio.paused) {
+      lmRadioPause({ remember: true });
+      return;
+    }
+    lmRadioSavePref("on");
+    await lmRadioTryPlay({ userInitiated: true });
+  });
+
+  lmRadioMute.addEventListener("click", () => {
+    lmRadioAudio.muted = !lmRadioAudio.muted;
+    lmRadioUpdateButtons();
+  });
+
+  lmRadioVolume.addEventListener("input", () => {
+    const value = Math.max(0, Math.min(1, Number(lmRadioVolume.value) || 0));
+    lmRadioAudio.volume = value;
+    if (value > 0) lmRadioAudio.muted = false;
+    try { localStorage.setItem(LM_RADIO_VOLUME_KEY, String(value)); } catch (_err) {}
+    lmRadioUpdateButtons();
+  });
+
+  lmRadioCollapse.addEventListener("click", () => {
+    lmRadioApplyCollapsed(!lmRadioPlayer.classList.contains("is-collapsed"));
+  });
+
+  // Prepara o stream desde a abertura para que, se o navegador bloquear
+  // o autoplay, o primeiro toque do visitante consiga liberar o áudio
+  // imediatamente sem precisar esperar o player carregar.
+  lmRadioPrepareSource().then(() => {
+    if (lmRadioPref() !== "off") {
+      setTimeout(() => lmRadioTryPlay(), 250);
+    } else {
+      lmRadioSetStatus("Toque em ▶ para ouvir");
+    }
+  });
+
+  // Fallback de autoplay: Chrome/Safari costumam bloquear som antes da
+  // primeira interação. Se isso ocorrer, o primeiro toque/tecla no site
+  // tenta iniciar a rádio novamente.
+  const unlockOnGesture = () => {
+    if (lmRadioAutoplayBlocked && lmRadioPref() !== "off" && lmRadioSourceReady) {
+      const playPromise = lmRadioAudio.play();
+      if (playPromise && typeof playPromise.then === "function") {
+        playPromise.then(() => {
+          lmRadioAutoplayBlocked = false;
+          lmRadioSetStatus("Ao vivo", "playing");
+          lmRadioUpdateButtons();
+        }).catch(() => {});
+      }
+    }
+  };
+  document.addEventListener("pointerdown", unlockOnGesture, { passive: true });
+  document.addEventListener("keydown", unlockOnGesture);
+  lmRadioUpdateButtons();
+}
+
 
 const FONT_SIZE_PREF_KEY = "luzmariana_font_size_v1";
 const PAYMENT_PREF_KEY = "luzmariana_payment_v1";
@@ -5576,6 +6003,8 @@ window.addEventListener("beforeunload", (e) => {
     e.returnValue = "";
   }
 });
+
+lmRadioInit();
 
 render();
 loadCatalog()
