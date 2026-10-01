@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v11.7-clean-tabbed-product-editor-2026-10-01" />
+<meta name="luz-mariana-admin-version" content="professional-v11.8-delete-product-2026-10-01" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -2500,6 +2500,26 @@ body.product-editor-modal-open { overflow: hidden !important; }
   .pf-variant-price-grid { grid-template-columns:1fr !important; }
   .pf-variant-result { grid-column:auto; }
   .pf-variant-photo { align-items:flex-start; }
+}
+
+
+/* V11.8 — exclusão permanente de produto */
+.pricing-v10-product-actions .delete-product-btn {
+  margin-left:auto;
+  color:#a7192a !important;
+  border-color:#e8b8bf !important;
+  background:#fff7f8 !important;
+}
+.pricing-v10-product-actions .delete-product-btn:hover {
+  background:#fdecee !important;
+  border-color:#d98d99 !important;
+}
+.pricing-v10-product-actions .delete-product-btn:disabled {
+  opacity:.55;
+  cursor:wait;
+}
+@media(max-width:720px){
+  .pricing-v10-product-actions .delete-product-btn { margin-left:0; }
 }
 
 </style>
@@ -8144,6 +8164,84 @@ function productPhotoCount(product) {
   return (product?.photo_url ? 1 : 0) + (product?.product_photos?.length || 0);
 }
 
+
+function productStoragePathFromUrl(url) {
+  if (!url) return null;
+  try {
+    const raw = String(url);
+    const publicMarker = "/storage/v1/object/public/product-photos/";
+    const signedMarker = "/storage/v1/object/sign/product-photos/";
+    let idx = raw.indexOf(publicMarker);
+    let offset = publicMarker.length;
+    if (idx < 0) {
+      idx = raw.indexOf(signedMarker);
+      offset = signedMarker.length;
+    }
+    if (idx >= 0) return decodeURIComponent(raw.slice(idx + offset).split("?")[0]);
+    const legacy = raw.split("/product-photos/")[1];
+    return legacy ? decodeURIComponent(legacy.split("?")[0]) : null;
+  } catch (_err) {
+    return null;
+  }
+}
+
+function productPhotoPaths(product) {
+  const urls = new Set();
+  if (product?.photo_url) urls.add(product.photo_url);
+  (product?.product_photos || []).forEach((row) => row?.url && urls.add(row.url));
+  (product?.product_variants || []).forEach((row) => row?.photo_url && urls.add(row.photo_url));
+  return [...urls].map(productStoragePathFromUrl).filter(Boolean);
+}
+
+async function deleteProductPermanently(product) {
+  if (!product?.id) return false;
+
+  const first = confirm(
+    `Excluir permanentemente "${product.name}"?\n\n` +
+    `Essa ação remove o cadastro, modelos, fotos, materiais vinculados, avaliações e histórico de preço do produto.\n\n` +
+    `Se o produto já fizer parte de uma venda/lançamento financeiro, a exclusão será bloqueada para preservar o histórico do negócio. Nesse caso, use "Desativar".`
+  );
+  if (!first) return false;
+
+  const typed = prompt('Para confirmar, digite EXCLUIR:');
+  if (typed !== "EXCLUIR") {
+    if (typed !== null) alert("Exclusão cancelada: a confirmação não corresponde a EXCLUIR.");
+    return false;
+  }
+
+  const photoPaths = productPhotoPaths(product);
+  const { error } = await supabaseClient.rpc("delete_product_permanently", {
+    p_product_id: product.id,
+  });
+
+  if (error) {
+    console.error("delete_product_permanently:", error);
+    const msg = String(error.message || "");
+    if (/hist[oó]rico|venda|financeir/i.test(msg)) {
+      alert("Este produto possui histórico de venda/financeiro e não pode ser excluído permanentemente.\n\nUse DESATIVAR para tirá-lo do uso sem perder seu histórico.");
+    } else if (/function.*does not exist|delete_product_permanently/i.test(msg)) {
+      alert("A função de exclusão ainda não está instalada no Supabase. Execute o arquivo migration-admin-v11.8-excluir-produto.sql e tente novamente.");
+    } else {
+      alert("Não foi possível excluir o produto: " + msg);
+    }
+    return false;
+  }
+
+  if (photoPaths.length) {
+    try {
+      await supabaseClient.storage.from("product-photos").remove(photoPaths);
+    } catch (storageErr) {
+      console.warn("Produto excluído, mas algumas fotos podem ter permanecido no Storage:", storageErr);
+    }
+  }
+
+  const favorites = v11FavoriteIds();
+  favorites.delete(String(product.id));
+  v11SaveJson(LM_V11_FAVORITES_KEY, [...favorites]);
+
+  return true;
+}
+
 function renderPrecificacao(container) {
   const baseVisible = state.products.filter((p) => precifState.showInactive || p.active);
   const productSearch = normalizeSearchText(precifState.search || "");
@@ -8305,6 +8403,7 @@ function renderPrecificacao(container) {
               <button data-edit="${p.id}" class="edit-product-btn">Editar produto</button>
               <button data-duplicate="${p.id}" class="duplicate-product-btn" title="Duplicar">⧉</button>
               <button data-toggle="${p.id}" data-active="${p.active}" class="toggle-product-btn ${p.active ? "danger" : ""}" title="${p.active ? "Desativar" : "Reativar"}">${p.active ? "✕" : "↺"}</button>
+              <button data-delete-product="${p.id}" class="delete-product-btn danger" title="Excluir permanentemente este produto">🗑 Excluir</button>
             </div>
           </article>`;
         }).join("")}
@@ -8374,6 +8473,30 @@ function renderPrecificacao(container) {
       await supabaseClient.from("products").update({ active: !active, updated_by: state.currentUser.id, updated_at: new Date().toISOString() }).eq("id", id);
       await loadProducts();
       renderPrecificacao(container);
+    });
+  });
+  container.querySelectorAll(".delete-product-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const product = state.products.find((p) => String(p.id) === String(btn.dataset.deleteProduct));
+      if (!product) return;
+      btn.disabled = true;
+      const oldLabel = btn.textContent;
+      btn.textContent = "Excluindo…";
+      try {
+        const deleted = await deleteProductPermanently(product);
+        if (!deleted) {
+          btn.disabled = false;
+          btn.textContent = oldLabel;
+          return;
+        }
+        await loadProducts();
+        renderPrecificacao(container);
+      } catch (err) {
+        console.error("Excluir produto:", err);
+        alert("Não foi possível excluir o produto: " + (err?.message || "erro desconhecido"));
+        btn.disabled = false;
+        btn.textContent = oldLabel;
+      }
     });
   });
   container.querySelectorAll(".stock-qty-input").forEach((input) => {
