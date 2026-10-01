@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v11.5-variants-editor-fixed-2026-10-01" />
+<meta name="luz-mariana-admin-version" content="professional-v11.6-variants-always-visible-2026-10-01" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -2126,6 +2126,159 @@ body.product-editor-modal-open { overflow: hidden !important; }
   #pf-variants-list > div > .flex.flex-wrap.items-center.gap-2 {
     align-content: flex-start;
   }
+}
+
+
+/* =====================================================================
+   V11.6 — editor real de modelos/variações, sempre visível.
+   ===================================================================== */
+#pf-section-variants {
+  order: 0 !important;
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  min-height:150px;
+  border:2px solid #d9b648;
+  border-radius:14px;
+  background:#fffdf7;
+  overflow:visible;
+}
+.product-editor-v11-variants-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  padding:14px 16px;
+  border-bottom:1px solid #efdfae;
+  background:#fff8df;
+}
+.product-editor-v11-variants-head span {
+  display:block;
+  color:#946400;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.11em;
+}
+.product-editor-v11-variants-head h3 {
+  margin-top:3px;
+  color:#001868;
+  font-size:16px;
+  font-weight:850;
+}
+.product-editor-v11-variants-head p {
+  margin-top:3px;
+  color:#69758c;
+  font-size:11px;
+}
+.product-editor-v11-variants-head > strong {
+  flex:0 0 auto;
+  border-radius:999px;
+  background:#001868;
+  color:#fff;
+  padding:6px 9px;
+  font-size:10px;
+}
+.product-editor-v11-variants-body { padding:14px; }
+.product-editor-v11-add-variant {
+  width:100%;
+  min-height:43px;
+  margin-top:12px;
+  border:1.5px dashed #c99b24;
+  border-radius:10px;
+  background:#fff9e9;
+  color:#704c00;
+  font-size:12px;
+  font-weight:850;
+  cursor:pointer;
+}
+.product-editor-v11-add-variant:hover { background:#fff2c7; }
+
+/* Cada modelo/tamanho é um cartão independente e legível. */
+#pf-variants-list > div {
+  display:grid !important;
+  grid-template-columns:72px minmax(0,1fr) minmax(210px,280px) !important;
+  gap:14px !important;
+  align-items:start !important;
+  padding:14px !important;
+  border:1px solid #dce3ef !important;
+  border-left:4px solid #d5aa3e !important;
+  border-radius:12px !important;
+  background:#fff !important;
+  box-shadow:0 3px 10px rgba(0,24,104,.045) !important;
+}
+.variant-price-editor {
+  margin-top:10px;
+  border:1px solid #e4d49d;
+  border-radius:10px;
+  background:#fffaf0;
+  padding:10px;
+}
+.variant-price-editor-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:8px;
+}
+.variant-price-editor-head > strong {
+  color:#6f4b00;
+  font-size:11px;
+}
+.variant-price-editor-grid {
+  display:grid;
+  grid-template-columns:150px 150px minmax(180px,1fr);
+  gap:8px;
+  align-items:end;
+}
+.variant-price-editor-grid > div > label {
+  display:block;
+  margin-bottom:4px;
+  color:#68758c;
+  font-size:9px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.variant-price-editor-grid input { width:100%; background:#fff; }
+.variant-price-editor-grid.is-inherited {
+  opacity:.72;
+}
+.variant-price-editor-grid.is-inherited input {
+  background:#f1f3f6;
+  cursor:not-allowed;
+}
+.variant-price-result {
+  min-height:58px;
+  padding:8px 9px;
+  border-radius:8px;
+  background:#fff;
+  border:1px solid #ece8da;
+}
+.variant-price-help {
+  margin-top:7px;
+  color:#7c879a;
+  font-size:10px;
+}
+@media (max-width:980px) {
+  #pf-variants-list > div {
+    grid-template-columns:64px minmax(0,1fr) !important;
+  }
+  #pf-variants-list > div > .flex.flex-wrap.items-center.gap-2 {
+    grid-column:1 / -1;
+  }
+  .variant-price-editor-grid {
+    grid-template-columns:1fr 1fr;
+  }
+  .variant-price-result { grid-column:1 / -1; }
+}
+@media (max-width:640px) {
+  .product-editor-v11-variants-head { flex-direction:column; }
+  #pf-variants-list > div {
+    grid-template-columns:1fr !important;
+  }
+  #pf-variants-list .lm-color-row { display:none; }
+  .variant-price-editor-grid { grid-template-columns:1fr; }
+  .variant-price-result { grid-column:auto; }
 }
 
 </style>
@@ -8342,16 +8495,22 @@ function renderProductForm() {
         <button type="button" data-pf-jump="pf-section-fotos">Fotos</button>
         <button type="button" data-pf-jump="pf-section-pricing">Preço e lucro</button>
       </div>
-<details id="pf-section-variants" class="product-editor-v10-section product-editor-v11-variants-section" open>
-        <summary><span>Modelos, tamanhos e estoque</span><small>cada combinação pode ter custo, preço, foto e quantidade próprios</small></summary>
-        <div class="product-editor-v10-section-body">
-        <p class="mb-1 text-sm font-medium text-navy-800">Tamanhos e modelos (opcional)</p>
-        <p class="mb-3 text-xs text-navy-400">Tamanho e modelo são independentes. Use apenas tamanho, apenas modelo ou os dois juntos. Ex.: um produto pode ter 16 cm, 20 cm e 30 cm em um único modelo; outro pode ter Tradicional e Vazado em um único tamanho; ou pode combinar 16 cm + Tradicional, 16 cm + Vazado, 20 cm + Tradicional etc. Cada combinação pode ter estoque, foto, custo e preço próprios.</p>
-        <div id="pf-variants-summary" class="product-editor-v11-variants-summary"></div>
-        <div id="pf-variants-list" class="flex flex-col gap-2"></div>
-        <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar combinação</button>
-        </div>
-      </details>
+
+<section id="pf-section-variants" class="product-editor-v11-variants-panel">
+  <div class="product-editor-v11-variants-head">
+    <div>
+      <span>MODELOS, TAMANHOS E ESTOQUE</span>
+      <h3>Edite cada variação deste produto</h3>
+      <p>Cada tamanho/modelo pode ter estoque, custo, preço à vista e foto próprios.</p>
+    </div>
+    <strong>${formVariants.length} cadastrada${formVariants.length === 1 ? "" : "s"}</strong>
+  </div>
+  <div class="product-editor-v11-variants-body">
+    <div id="pf-variants-summary" class="product-editor-v11-variants-summary"></div>
+    <div id="pf-variants-list" class="flex flex-col gap-3"></div>
+    <button type="button" id="pf-variant-add" class="product-editor-v11-add-variant">+ Adicionar tamanho/modelo</button>
+  </div>
+</section>
       ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
       <div id="pf-section-dados" class="product-editor-v11-main-grid">
         <div class="min-w-[220px] flex-1">
@@ -8529,7 +8688,6 @@ function renderProductForm() {
     btn.addEventListener("click", () => {
       const target = document.getElementById(btn.dataset.pfJump);
       if (!target || !productEditorScrollBody) return;
-      if (target.tagName === "DETAILS") target.open = true;
       const stickyNav = productEditorScrollBody.querySelector(".product-editor-v11-subnav");
       const navH = stickyNav ? stickyNav.offsetHeight : 0;
       const top = Math.max(0, target.offsetTop - navH - 10);
@@ -8716,24 +8874,31 @@ function renderProductForm() {
                   <input type="number" min="0" step="1" data-variant-qty="${idx}" value="${v.stockQty ?? 0}" class="w-24 rounded-lg border border-navy-200 bg-white px-2 py-2 text-center text-sm font-semibold text-navy-800 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
                 </div>
               </div>
-              <div class="mt-2 border-t border-navy-50 pt-2">
-                <label class="flex items-center gap-1.5 text-xs text-navy-700">
-                  <input type="checkbox" data-variant-own-price="${idx}" ${v.ownPrice ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-                  Usar custo/preço próprio nesta combinação
-                </label>
-                <div data-variant-price-block="${idx}" class="mt-1.5 flex flex-wrap items-end gap-2 ${v.ownPrice ? "" : "hidden"}">
-                  <div>
-                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Custo total desta combinação (R$)</label>
-                    <input type="number" min="0" step="0.01" data-variant-cost="${idx}" value="${v.cost ?? ""}" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                  </div>
-                  <div>
-                    <label class="mb-0.5 block text-[10px] font-medium text-navy-500">Preço Pix/à vista (opcional)</label>
-                    <input type="number" min="0" step="0.01" data-variant-promo-manual="${idx}" value="${v.promoManualPrice ?? ""}" placeholder="auto" class="w-24 rounded-lg border border-navy-200 px-2 py-1 text-xs outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                  </div>
-                  <p data-variant-price-preview="${idx}" class="text-xs text-navy-600"></p>
-                  <p class="w-full text-[10px] text-navy-400">O crédito é recalculado automaticamente a partir do preço Pix/à vista informado.</p>
+              <div class="variant-price-editor">
+                <div class="variant-price-editor-head">
+                  <strong>Preço desta opção</strong>
+                  <label class="flex items-center gap-1.5 text-xs text-navy-700">
+                    <input type="checkbox" data-variant-own-price="${idx}" ${v.ownPrice ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
+                    Usar valores próprios
+                  </label>
                 </div>
-                <p class="mt-1 text-[10px] text-navy-400">${v.ownPrice ? "Esta combinação pode usar custo e preço próprios." : "Sem custo/preço próprio: herda os valores padrão do produto."}</p>
+                <div data-variant-price-block="${idx}" class="variant-price-editor-grid ${v.ownPrice ? "" : "is-inherited"}">
+                  <div>
+                    <label>Custo desta opção</label>
+                    <input type="number" min="0" step="0.01" data-variant-cost="${idx}" value="${v.cost ?? ""}" placeholder="R$ 0,00" ${v.ownPrice ? "" : "disabled"}
+                      class="rounded-lg border border-navy-200 px-2 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                  </div>
+                  <div>
+                    <label>Preço Pix/à vista</label>
+                    <input type="number" min="0" step="0.01" data-variant-promo-manual="${idx}" value="${v.promoManualPrice ?? ""}" placeholder="${v.ownPrice ? "automático" : "herda do produto"}" ${v.ownPrice ? "" : "disabled"}
+                      class="rounded-lg border border-navy-200 px-2 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
+                  </div>
+                  <div class="variant-price-result">
+                    <label>Resultado</label>
+                    <p data-variant-price-preview="${idx}" class="text-xs text-navy-600">${v.ownPrice ? "" : "Usando o preço padrão do produto."}</p>
+                  </div>
+                </div>
+                <p class="variant-price-help">${v.ownPrice ? "O crédito é calculado automaticamente a partir deste preço à vista." : "Ative “Usar valores próprios” para definir um preço diferente para esta opção."}</p>
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -8752,7 +8917,8 @@ function renderProductForm() {
       const v = formVariants[idx];
       const previewEl = variantsListEl.querySelector(`[data-variant-price-preview="${idx}"]`);
       if (!previewEl) return;
-      if (!v.ownPrice || v.cost == null || !Number.isFinite(v.cost)) { previewEl.textContent = ""; return; }
+      if (!v.ownPrice) { previewEl.textContent = "Usando o preço padrão do produto."; return; }
+      if (v.cost == null || !Number.isFinite(v.cost)) { previewEl.textContent = "Informe o custo desta opção para calcular o lucro."; return; }
       const pricing = v.promoManualPrice != null && Number.isFinite(v.promoManualPrice)
         ? calculatePricingFromManualPromo(v.cost, v.promoManualPrice)
         : calculatePricing(v.cost);
@@ -8765,7 +8931,15 @@ function renderProductForm() {
         const idx = Number(input.dataset.variantOwnPrice);
         formVariants[idx].ownPrice = input.checked;
         const block = variantsListEl.querySelector(`[data-variant-price-block="${idx}"]`);
-        if (block) block.classList.toggle("hidden", !input.checked);
+        if (block) block.classList.toggle("is-inherited", !input.checked);
+        const costInput = variantsListEl.querySelector(`[data-variant-cost="${idx}"]`);
+        const promoInput = variantsListEl.querySelector(`[data-variant-promo-manual="${idx}"]`);
+        if (costInput) costInput.disabled = !input.checked;
+        if (promoInput) promoInput.disabled = !input.checked;
+        const help = block?.parentElement?.querySelector(".variant-price-help");
+        if (help) help.textContent = input.checked
+          ? "O crédito é calculado automaticamente a partir deste preço à vista."
+          : "Ative “Usar valores próprios” para definir um preço diferente para esta opção.";
         updateVariantPricePreview(idx);
         updatePreview();
       });
