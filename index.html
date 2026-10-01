@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v10.3-radio-sound-unlock-2026-10-01" />
+  <meta name="luz-mariana-catalog-version" content="professional-v10.4-variant-pricing-2026-10-01" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.com.br/" />
@@ -2351,10 +2351,31 @@ function catalogBootstrapVariantPricing(product, variant) {
 function effectivePricing(product, variant) {
   const bootstrap = catalogBootstrapVariantPricing(product, variant);
   if (bootstrap) return bootstrap;
-  if (variant && variant.credit_price != null && variant.promo_price != null) {
-    return { creditPrice: Number(variant.credit_price), promoPrice: Number(variant.promo_price) };
+
+  // V10.4 — preço pertence à combinação escolhida.
+  // A view pública expõe apenas os preços de VENDA da variação; custo e
+  // margem continuam privados no Admin.
+  if (variant) {
+    const variantPromo = variant.promo_price != null ? Number(variant.promo_price) : NaN;
+    const variantCredit = variant.credit_price != null ? Number(variant.credit_price) : NaN;
+    const hasVariantPromo = Number.isFinite(variantPromo) && variantPromo > 0;
+    const hasVariantCredit = Number.isFinite(variantCredit) && variantCredit > 0;
+
+    if (hasVariantPromo || hasVariantCredit) {
+      const promoPrice = hasVariantPromo
+        ? variantPromo
+        : Math.round((variantCredit / 1.05) * 100) / 100;
+      const creditPrice = hasVariantCredit
+        ? variantCredit
+        : Math.round((promoPrice * 1.05) * 100) / 100;
+      return { creditPrice, promoPrice };
+    }
   }
-  return { creditPrice: Number(product.credit_price), promoPrice: Number(product.promo_price) };
+
+  return {
+    creditPrice: Number(product.credit_price),
+    promoPrice: Number(product.promo_price)
+  };
 }
 
 
