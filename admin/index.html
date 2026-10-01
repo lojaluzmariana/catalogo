@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v10.0-clean-products-profit60-2026-10-01" />
+<meta name="luz-mariana-admin-version" content="professional-v11.0-simple-business-management-2026-10-01" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1689,6 +1689,19 @@
 html.dark .pricing-v10-head h1,html.dark .pricing-v10-product-title-line h3,html.dark .pricing-v10-finance strong,html.dark .pricing-v10-stock-summary strong{color:#f5f7fc}.dark .pricing-v10-product,.dark .pricing-v10-filters,.dark .pricing-v10-kpis>div{background:#131c2d;border-color:#263249}.dark .pricing-v10-finance>div,.dark .pricing-v10-stock-summary>div:not(.pricing-v10-quick-toggles){background:#182338;border-color:#28354d}.dark .pricing-v10-meta span{background:#1a273d;color:#aeb8ca}
 @media(max-width:1100px){.pricing-v10-product{grid-template-columns:1fr 1fr;grid-template-areas:"main main" "finance stock" "actions actions"}.pricing-v10-filters{grid-template-columns:1fr 170px 160px}.pricing-v10-result-count,.pricing-v10-clear{grid-row:2}.pricing-v10-stock-editor{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.pricing-v10-kpis{grid-template-columns:1fr 1fr}.pricing-v10-filters{grid-template-columns:1fr}.pricing-v10-result-count,.pricing-v10-clear{grid-row:auto}.pricing-v10-product{grid-template-columns:1fr;grid-template-areas:"main" "finance" "stock" "actions"}.pricing-v10-finance{grid-template-columns:1fr 1fr}.pricing-v10-product-actions{flex-wrap:wrap}.pricing-v10-stock-details[open]{flex-basis:100%}.pricing-v10-stock-editor{grid-template-columns:1fr}.product-editor-v10-pricing{grid-template-columns:1fr}.pricing-v10-rule{align-items:flex-start;flex-direction:column}.pricing-v10-head{align-items:flex-start}.pricing-v10-head h1{font-size:24px}}
+
+/* =====================================================================
+   V11 — gestão simples: "Hoje > Operação > Gestão".
+   O painel continua completo por dentro, mas mostra primeiro o que exige
+   uma decisão. Tabelas e detalhes ficam nas telas específicas.
+   ===================================================================== */
+.lm-v11-home{display:flex;flex-direction:column;gap:16px}.lm-v11-hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;padding:20px;border:1px solid #e4e8f0;border-radius:18px;background:linear-gradient(135deg,#fff 0%,#fffaf0 100%);box-shadow:0 5px 18px rgba(0,24,104,.045)}.lm-v11-hero h1{font-size:30px;line-height:1.05;font-weight:850;color:#001868}.lm-v11-hero p{margin-top:7px;max-width:720px;font-size:13px;color:#657089;line-height:1.5}.lm-v11-actions{display:flex;gap:8px;flex-wrap:wrap}.lm-v11-action{min-height:42px;border-radius:11px;border:1px solid #dce2ed;background:#fff;padding:0 14px;font-size:12px;font-weight:800;color:#173566}.lm-v11-action.primary{background:#f7b500;border-color:#f7b500;color:#001868}.lm-v11-action.danger{border-color:#f3c4ca;color:#a92837;background:#fff7f8}.lm-v11-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:14px}.lm-v11-card{background:#fff;border:1px solid #e4e8f0;border-radius:16px;padding:16px;box-shadow:0 3px 12px rgba(0,24,104,.035)}.lm-v11-card h2{font-size:15px;font-weight:850;color:#102e63}.lm-v11-card .caption{font-size:10px;color:#8a94a8;margin-top:3px;line-height:1.4}.lm-v11-priority-list{display:flex;flex-direction:column;gap:7px;margin-top:12px}.lm-v11-priority{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #edf0f5;border-radius:12px;padding:10px 11px;background:#fbfcfe;text-align:left}.lm-v11-priority:hover{background:#f7f9fd}.lm-v11-priority .dot{width:9px;height:9px;border-radius:999px;background:#e5aa12;box-shadow:0 0 0 4px #fff4d7}.lm-v11-priority.urgent .dot{background:#c93645;box-shadow:0 0 0 4px #fdebee}.lm-v11-priority.good .dot{background:#238361;box-shadow:0 0 0 4px #e7f7ef}.lm-v11-priority strong{display:block;font-size:12px;color:#183563}.lm-v11-priority small{display:block;font-size:10px;color:#7e899d;margin-top:2px}.lm-v11-priority b{min-width:29px;height:29px;border-radius:999px;display:grid;place-items:center;background:#eef2f8;color:#173566;font-size:11px}.lm-v11-money{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px}.lm-v11-money>div{border:1px solid #e8ebf2;border-radius:12px;background:#f9fafc;padding:10px}.lm-v11-money span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#8792a7;font-weight:800}.lm-v11-money strong{display:block;font-size:17px;color:#163363;margin-top:5px}.lm-v11-money .salary{background:#fff8e6;border-color:#ecd594}.lm-v11-money .salary strong{color:#875d00}.lm-v11-plain-summary{margin-top:11px;border-radius:12px;background:#f3f6fb;padding:11px 12px;font-size:11px;line-height:1.55;color:#40516f}.lm-v11-health{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}.lm-v11-health>div{border:1px solid #e7eaf1;border-radius:12px;padding:10px;background:#fbfcfe}.lm-v11-health span{font-size:9px;text-transform:uppercase;color:#8893a8;font-weight:800}.lm-v11-health strong{display:block;margin-top:5px;font-size:12px;color:#193867}.lm-v11-health .good strong{color:#1c7655}.lm-v11-health .attention strong{color:#9a6500}.lm-v11-health .danger strong{color:#b52c3a}.lm-v11-changes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.lm-v11-changes>div{border-radius:12px;background:#f8f9fc;padding:10px}.lm-v11-changes span{display:block;font-size:9px;color:#8792a7}.lm-v11-changes strong{display:block;color:#173566;font-size:16px;margin-top:3px}.lm-v11-checklist{display:flex;flex-direction:column;gap:7px;margin-top:12px}.lm-v11-checkitem{display:flex;gap:9px;align-items:center;padding:8px 9px;border:1px solid #edf0f4;border-radius:10px;background:#fbfcfe;font-size:11px;color:#324768}.lm-v11-checkitem input{width:16px;height:16px}.lm-v11-recent{display:flex;flex-direction:column;gap:7px;margin-top:12px}.lm-v11-recent-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;border-bottom:1px solid #eff1f5;padding:8px 0}.lm-v11-recent-row:last-child{border-bottom:0}.lm-v11-recent-row strong{font-size:11px;color:#183563}.lm-v11-recent-row small{display:block;font-size:9px;color:#8993a6}.lm-v11-recent-row b{font-size:11px;color:#183563}.lm-v11-link{border:0;background:transparent;color:#875d00;font-size:10px;font-weight:800;padding:4px 5px}.lm-v11-mode-banner{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#fff5d6;border:1px solid #eed18a;color:#745100;font-size:11px}.lm-v11-mode-banner b{color:#563c00}
+.lm-v11-overlay{position:fixed;inset:0;z-index:80;background:rgba(5,16,48,.58);display:flex;align-items:center;justify-content:center;padding:18px}.lm-v11-modal{width:min(720px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.24);border:1px solid #e4e8ef}.lm-v11-modal-head{display:flex;justify-content:space-between;gap:15px;align-items:flex-start;padding:18px 20px;border-bottom:1px solid #eceff4}.lm-v11-modal-head h2{font-size:20px;font-weight:850;color:#001868}.lm-v11-modal-head p{font-size:11px;color:#7e899c;margin-top:4px;line-height:1.45}.lm-v11-modal-body{padding:18px 20px}.lm-v11-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.lm-v11-field label{display:block;font-size:10px;font-weight:800;color:#59677f;margin-bottom:5px}.lm-v11-field input,.lm-v11-field select,.lm-v11-field textarea{width:100%;border:1px solid #dbe1ec;border-radius:10px;padding:10px 11px;font-size:13px;color:#1b345f;outline:none;background:#fff}.lm-v11-field input:focus,.lm-v11-field select:focus,.lm-v11-field textarea:focus{border-color:#e5aa12;box-shadow:0 0 0 3px rgba(229,170,18,.15)}.lm-v11-modal-actions{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid #eceff4}.lm-v11-summary-lines{display:flex;flex-direction:column;gap:7px;margin-top:12px}.lm-v11-summary-line{display:flex;justify-content:space-between;gap:14px;padding:8px 10px;background:#f7f8fb;border-radius:9px;font-size:11px;color:#52617a}.lm-v11-summary-line strong{color:#173566}.lm-v11-summary-line.total{background:#fff6dd;border:1px solid #ead18d;font-weight:800}.lm-v11-toast{position:fixed;right:18px;bottom:22px;z-index:120;min-width:280px;max-width:420px;background:#0f285a;color:#fff;border-radius:13px;padding:12px 14px;box-shadow:0 14px 35px rgba(0,0,0,.2);display:flex;gap:12px;align-items:center;font-size:11px}.lm-v11-toast button{margin-left:auto;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:6px 9px;color:#fff;font-weight:800}.lm-v11-stock-shell{display:flex;flex-direction:column;gap:14px}.lm-v11-stock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.lm-v11-stock-card{background:#fff;border:1px solid #e4e8ef;border-radius:14px;padding:13px;display:flex;flex-direction:column;gap:9px}.lm-v11-stock-top{display:flex;gap:9px;align-items:center}.lm-v11-stock-top img,.lm-v11-stock-photo{width:50px;height:50px;object-fit:cover;border:1px solid #e3e7ee;border-radius:10px;background:#f6f7fa}.lm-v11-stock-top strong{font-size:12px;color:#163362}.lm-v11-stock-top small{display:block;font-size:9px;color:#8791a3;margin-top:2px}.lm-v11-stock-controls{display:flex;align-items:center;gap:7px}.lm-v11-stock-controls button{width:35px;height:35px;border:1px solid #dce2ec;border-radius:9px;background:#fff;color:#173665;font-weight:900}.lm-v11-stock-controls b{min-width:48px;text-align:center;font-size:15px;color:#173665}.lm-v11-stock-status{border-radius:999px;padding:4px 7px;font-size:9px;font-weight:800;background:#eff3f8;color:#5e6d85}.lm-v11-stock-status.low{background:#fff2cc;color:#8c5d00}.lm-v11-stock-status.zero{background:#fdebed;color:#a82d3a}.lm-v11-stock-status.ready{background:#e7f7ef;color:#1d7655}.lm-v11-stock-card-actions{display:flex;gap:6px;flex-wrap:wrap}.lm-v11-stock-card-actions button{border:1px solid #dce2ec;border-radius:8px;background:#fff;padding:6px 8px;font-size:9px;font-weight:800;color:#27436f}.lm-v11-complete{background:#e7f7ef!important;color:#18704e!important}.lm-v11-incomplete{background:#fff1cf!important;color:#8b5b00!important}.lm-v11-fav{border:0!important;background:transparent!important;padding:2px 3px!important;font-size:15px!important;color:#b7bdc9!important}.lm-v11-fav.active{color:#e5aa12!important}.lm-v11-quickview{border-color:#d7c17b!important;background:#fffaf0!important;color:#785300!important}.lm-v11-help{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:999px;background:#eef2f7;color:#58708d;font-size:10px;font-weight:900;cursor:help}.lm-v11-drawer-gallery{display:flex;gap:7px;overflow:auto;margin:10px 0}.lm-v11-drawer-gallery img{width:92px;height:92px;border-radius:11px;object-fit:cover;border:1px solid #e3e7ee}.lm-v11-drawer-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:10px 0}.lm-v11-drawer-kpis>div{padding:9px;border-radius:10px;background:#f7f8fb}.lm-v11-drawer-kpis span{display:block;font-size:9px;color:#8b95a7}.lm-v11-drawer-kpis strong{display:block;font-size:12px;color:#173665;margin-top:3px}.lm-v11-drawer-stock{display:flex;flex-direction:column;gap:6px}.lm-v11-drawer-stock-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #edf0f4;border-radius:10px;padding:8px}.lm-v11-drawer-stock-row strong{font-size:10px;color:#183563}.lm-v11-drawer-stock-row small{display:block;font-size:9px;color:#8792a6}.lm-v11-drawer-stock-row .controls{display:flex;align-items:center;gap:6px}.lm-v11-drawer-stock-row button{width:30px;height:30px;border:1px solid #dce2ec;border-radius:8px;background:#fff;font-weight:900;color:#173665}.lm-v11-drawer-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.lm-v11-drawer-actions button{border:1px solid #dbe1ec;border-radius:9px;background:#fff;padding:8px 10px;font-size:10px;font-weight:800;color:#173665}.lm-v11-drawer-actions .primary{background:#f7b500;border-color:#f7b500;color:#001868}.lm-v11-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.lm-v11-flow button{border:1px solid #e3e7ef;border-radius:12px;background:#fff;padding:10px;text-align:left}.lm-v11-flow span{display:block;font-size:9px;color:#8993a7;text-transform:uppercase;font-weight:800}.lm-v11-flow strong{display:block;font-size:20px;color:#173665;margin-top:3px}.lm-v11-flow button.active{border-color:#e5aa12;background:#fffaf0}.lm-v11-guided-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:0 0 3px}.lm-v11-guided-steps div{border-radius:9px;background:#f6f8fb;padding:7px 8px;font-size:9px;color:#6b7890}.lm-v11-guided-steps b{display:block;color:#173665;font-size:10px;margin-bottom:2px}
+@media(max-width:1100px){.lm-v11-money{grid-template-columns:repeat(3,1fr)}.lm-v11-stock-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:820px){.lm-v11-grid{grid-template-columns:1fr}.lm-v11-hero{align-items:flex-start;flex-direction:column}.lm-v11-money{grid-template-columns:1fr 1fr}.lm-v11-health{grid-template-columns:1fr 1fr}.lm-v11-stock-grid{grid-template-columns:1fr}.lm-v11-flow{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.lm-v11-hero{padding:15px}.lm-v11-hero h1{font-size:24px}.lm-v11-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.lm-v11-action{padding:0 9px}.lm-v11-money{grid-template-columns:1fr 1fr}.lm-v11-money>div:first-child{grid-column:1/-1}.lm-v11-changes{grid-template-columns:1fr}.lm-v11-field-grid{grid-template-columns:1fr}.lm-v11-drawer-kpis{grid-template-columns:1fr 1fr}.lm-v11-guided-steps{grid-template-columns:1fr 1fr}}
+html.dark .lm-v11-card,html.dark .lm-v11-hero,html.dark .lm-v11-stock-card,html.dark .lm-v11-modal{background:#111a2b;border-color:#27344b}html.dark .lm-v11-hero h1,html.dark .lm-v11-card h2,html.dark .lm-v11-stock-top strong,html.dark .lm-v11-modal-head h2{color:#f5f7fc}html.dark .lm-v11-priority,html.dark .lm-v11-money>div,html.dark .lm-v11-health>div,html.dark .lm-v11-changes>div{background:#172238;border-color:#29364e}
+
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
@@ -2249,6 +2262,9 @@ const state = {
   error: null,
   lastRefreshedAt: null, // Date da última vez que os dados foram recarregados (manual ou automático)
   dataLoadWarnings: [], // nomes (em português, pra mostrar na tela) do que falhou ao carregar em segundo plano — ver noteLoadResult()
+  v11DailyClosings: [],
+  v11StockMovements: [],
+  v11Checklists: [],
 };
 
 const app = document.getElementById("app");
@@ -2677,7 +2693,7 @@ async function finishAppEntry() {
 // Recarrega todos os dados do app de uma vez (usado ao entrar, no botão
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
-  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCampaigns(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews(), loadCatalogEvents()]);
+  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCampaigns(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews(), loadCatalogEvents(), loadV11OpsData()]);
   state.lastRefreshedAt = new Date();
 }
 
@@ -2720,7 +2736,7 @@ function isAnyFormOpen() {
     stockPurchaseState.open || stockEntryEditState.open || pedidoState.open ||
     editOrderState.open || calc3dState.open || simulateState.open ||
     eventoVendaState.open || vendaManualState.open || securityState.open ||
-    priceHistoryState.open
+    priceHistoryState.open || v11State.expenseOpen || v11State.dailyCloseOpen
   );
 }
 
@@ -3968,236 +3984,194 @@ function todayManagementTasks() {
   return tasks;
 }
 
+
+/* =====================================================================
+   V11 — CAMADA DE GESTÃO SIMPLES
+   ===================================================================== */
+const LM_V11_FAVORITES_KEY = "luz-mariana-admin-favorite-products-v1";
+const LM_V11_DAILY_CLOSE_KEY = "luz-mariana-admin-daily-closing-v1";
+const LM_V11_CHECKLIST_KEY = "luz-mariana-admin-month-checklist-v1";
+let v11State = { expenseOpen:false, dailyCloseOpen:false, stockFilter:"all", stockSearch:"", lastStockUndo:null };
+
+function v11LoadJson(key, fallback) {
+  try { const v=JSON.parse(localStorage.getItem(key)||"null"); return v ?? fallback; } catch(_e){ return fallback; }
+}
+function v11SaveJson(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch(_e){} }
+function v11FavoriteIds(){ return new Set(v11LoadJson(LM_V11_FAVORITES_KEY, [])); }
+function v11IsFavorite(id){ return v11FavoriteIds().has(String(id)); }
+function v11ToggleFavorite(id){ const set=v11FavoriteIds(); const k=String(id); set.has(k)?set.delete(k):set.add(k); v11SaveJson(LM_V11_FAVORITES_KEY,[...set]); }
+
+async function loadV11OpsData() {
+  try {
+    const [daily, movements, checklist] = await Promise.all([
+      supabaseClient.from("admin_daily_closings").select("*").order("close_date",{ascending:false}).limit(90),
+      supabaseClient.from("product_stock_movements").select("*").order("created_at",{ascending:false}).limit(500),
+      supabaseClient.from("admin_checklists").select("*").order("updated_at",{ascending:false}).limit(500),
+    ]);
+    if (!daily.error) state.v11DailyClosings = daily.data || [];
+    if (!movements.error) state.v11StockMovements = movements.data || [];
+    if (!checklist.error) state.v11Checklists = checklist.data || [];
+  } catch (_err) { /* migration opcional: o painel usa localStorage como fallback */ }
+}
+
+function v11MoneyBuckets(month = todayISO().slice(0,7)) {
+  const paid = state.orders.filter((o)=>o.status!=="cancelado" && o.payment_method!=="brinde" && o.paid_at && String(o.paid_at).slice(0,7)===month);
+  let gross=0,cost=0,fees=0,profit=0,reinvestment=0,salary=0;
+  paid.forEach((o)=>{ const sp=orderMoneySplit(o); gross+=Number(o.total||0); cost+=Number(sp.costToKeep||0); fees+=Number(sp.cardFee||0); profit+=Number(sp.profit||0); reinvestment+=Number(sp.reinvestment||0); salary+=Number(sp.ownerShare||0); });
+  return {paid,gross:round2(gross),cost:round2(cost),fees:round2(fees),profit:round2(profit),reinvestment:round2(reinvestment),salary:round2(salary)};
+}
+function v11DayStats(date=todayISO()) {
+  const orders = state.orders.filter((o)=>o.status!=="cancelado" && toLocalISODate(new Date(o.created_at))===date);
+  const cash = state.cashEntries.filter((e)=>String(e.entry_date)===date && e.paid_at);
+  const sales = round2(cash.filter((e)=>e.entry_type==="entrada").reduce((s,e)=>s+Number(e.amount||0),0));
+  const expenses = round2(cash.filter((e)=>e.entry_type==="saida").reduce((s,e)=>s+Number(e.amount||0),0));
+  const moves=(state.v11StockMovements||[]).filter((m)=>String(m.created_at||"").slice(0,10)===date).length;
+  return {orders:orders.length,sales,expenses,moves};
+}
+function v11ProductCompleteness(p) {
+  const missing=[];
+  if (!p.photo_url) missing.push("foto");
+  const vars=p.product_variants||[];
+  const costs=vars.length ? vars.map((v)=>Number(v.cost||p.cost||0)) : [Number(p.cost||0)];
+  if (!costs.some((c)=>c>0)) missing.push("custo");
+  if (!(Number(p.promo_price)>0)) missing.push("preço");
+  if (p.stock_qty==null && !vars.some((v)=>v.stock_qty!=null)) missing.push("estoque");
+  return {complete:missing.length===0, missing, label:missing.length?`Falta ${missing.slice(0,2).join("/")}`:"Cadastro completo"};
+}
+function v11ProductSalesQty(productId, variantName="", days=30) {
+  const cutoff=Date.now()-days*86400000; let qty=0;
+  state.orders.filter((o)=>o.status!=="cancelado" && o.paid_at && new Date(o.paid_at).getTime()>=cutoff).forEach((o)=>{
+    (o.items||[]).forEach((it)=>{ if(String(it.product_id)===String(productId) && (!variantName || String(it.variant_name||"")===String(variantName))) qty+=Number(it.quantity||0); });
+  });
+  return qty;
+}
+function v11StockForecast(productId, variantName, qty) {
+  const sold=v11ProductSalesQty(productId,variantName,30); if (!(sold>0) || !(qty>0)) return null;
+  const daily=sold/30; return daily>0 ? Math.max(1,Math.round(qty/daily)) : null;
+}
+function v11ChecklistDefaults(){ return [
+  ["stock","Conferir estoque físico e itens baixos"],
+  ["expenses","Registrar despesas que ficaram pendentes"],
+  ["card","Conferir taxas de cartão"],
+  ["reinvest","Separar valor para reinvestimento"],
+  ["salary","Conferir salário/retirada disponível"],
+  ["close","Fechar o mês e salvar a fotografia gerencial"],
+]; }
+function v11ChecklistState(month=todayISO().slice(0,7)) {
+  const local=v11LoadJson(LM_V11_CHECKLIST_KEY,{}); const out={...(local[month]||{})};
+  (state.v11Checklists||[]).filter((r)=>r.period_key===month).forEach((r)=>out[r.item_key]=!!r.done);
+  return out;
+}
+async function v11SetChecklist(month,key,done){
+  const local=v11LoadJson(LM_V11_CHECKLIST_KEY,{}); local[month]={...(local[month]||{}),[key]:!!done}; v11SaveJson(LM_V11_CHECKLIST_KEY,local);
+  try { await supabaseClient.from("admin_checklists").upsert({period_key:month,item_key:key,done:!!done,updated_by:state.currentUser?.id||null,updated_at:new Date().toISOString()},{onConflict:"period_key,item_key"}); } catch(_e){}
+}
+function v11PaymentLabel(v){ return ({pix:"Pix",debito:"Débito",credito:"Crédito",dinheiro:"Dinheiro",especie:"Dinheiro"})[v]||v||"Não informado"; }
+function v11TodayPaymentExpected(date=todayISO()) {
+  const rows=state.cashEntries.filter((e)=>String(e.entry_date)===date && e.entry_type==="entrada" && e.paid_at);
+  const result={pix:0,debito:0,credito:0,dinheiro:0};
+  rows.forEach((e)=>{ let k=String(e.payment_method||"").toLowerCase(); if(k==="especie")k="dinheiro"; if(result[k]!=null)result[k]+=Number(e.amount||0); });
+  Object.keys(result).forEach((k)=>result[k]=round2(result[k])); return result;
+}
+function v11ShowToast(message, undoFn=null) {
+  document.getElementById("lm-v11-toast")?.remove();
+  const el=document.createElement("div"); el.id="lm-v11-toast"; el.className="lm-v11-toast"; el.innerHTML=`<span>${escapeHtml(message)}</span>${undoFn?`<button type="button">Desfazer</button>`:""}`; document.body.appendChild(el);
+  if(undoFn) el.querySelector("button").onclick=async()=>{el.remove();await undoFn();};
+  setTimeout(()=>el.remove(),6500);
+}
+async function v11RecordStockMovement({productId,variantId,beforeQty,afterQty,reason="Ajuste manual",source="painel"}) {
+  const row={product_id:productId||null,variant_id:variantId||null,before_qty:beforeQty,after_qty:afterQty,delta:afterQty-beforeQty,reason,source,created_by:state.currentUser?.id||null,created_at:new Date().toISOString()};
+  state.v11StockMovements=[row,...(state.v11StockMovements||[])].slice(0,500);
+  try { await supabaseClient.from("product_stock_movements").insert(row); } catch(_e){}
+}
+async function v11SetStock(productId,variantId,newQty,{reason="Ajuste rápido",allowUndo=true}={}) {
+  const p=state.products.find((x)=>String(x.id)===String(productId)); if(!p)return;
+  const v=variantId?(p.product_variants||[]).find((x)=>String(x.id)===String(variantId)):null;
+  const before=Math.max(0,Number(v? v.stock_qty : p.stock_qty)||0); const after=Math.max(0,Math.trunc(Number(newQty)||0));
+  const table=v?"product_variants":"products"; const id=v?.id||p.id;
+  const payload={stock_qty:after,in_stock:after>0,esgotado:false}; if(!v){payload.updated_by=state.currentUser?.id||null;payload.updated_at=new Date().toISOString();}
+  const {error}=await supabaseClient.from(table).update(payload).eq("id",id); if(error){alert("Não foi possível alterar o estoque: "+error.message);return;}
+  await v11RecordStockMovement({productId:p.id,variantId:v?.id||null,beforeQty:before,afterQty:after,reason,source:"painel-rápido"});
+  await loadProducts();
+  if(allowUndo){ v11State.lastStockUndo={productId:p.id,variantId:v?.id||null,qty:before}; v11ShowToast(`Estoque alterado de ${before} para ${after}.`,()=>v11SetStock(p.id,v?.id||null,before,{reason:"Desfazer ajuste",allowUndo:false}).then(()=>{ if(state.tab==="precificacao")renderPrecificacao(document.getElementById("main-content")); if(state.tab==="estoqueprodutos")renderEstoqueProdutos(document.getElementById("main-content")); })); }
+}
+async function v11ChangeStock(productId,variantId,delta,reason="Ajuste rápido") {
+  const p=state.products.find((x)=>String(x.id)===String(productId)); if(!p)return; const v=variantId?(p.product_variants||[]).find((x)=>String(x.id)===String(variantId)):null; const cur=Math.max(0,Number(v?v.stock_qty:p.stock_qty)||0); await v11SetStock(productId,variantId,cur+delta,{reason});
+}
+function v11ProductRecentSales(p,limit=5){
+  const rows=[]; state.orders.filter((o)=>o.status!=="cancelado"&&o.paid_at).forEach((o)=>{(o.items||[]).forEach((it)=>{if(String(it.product_id)===String(p.id))rows.push({order:o,item:it});});}); return rows.sort((a,b)=>new Date(b.order.paid_at)-new Date(a.order.paid_at)).slice(0,limit);
+}
+function v11ProductQuickHtml(p){
+  const pricing=effectivePricing(p,null), comp=v11ProductCompleteness(p), vars=p.product_variants||[], photos=[p.photo_url,...(p.product_photos||[]).map((x)=>x.url)].filter(Boolean).slice(0,3); const recent=v11ProductRecentSales(p); const movements=(state.v11StockMovements||[]).filter((m)=>String(m.product_id)===String(p.id)).slice(0,6); const total=productTotalStock(p); const forecast=v11StockForecast(p.id,"",total);
+  return `<div>
+    <div class="flex items-center justify-between gap-2"><span class="pricing-v10-pill ${comp.complete?"lm-v11-complete":"lm-v11-incomplete"}">${escapeHtml(comp.label)}</span><button type="button" data-v11-favorite-drawer="${p.id}" class="lm-v11-fav ${v11IsFavorite(p.id)?"active":""}">★</button></div>
+    ${photos.length?`<div class="lm-v11-drawer-gallery">${photos.map((x)=>`<img src="${x}" alt="" />`).join("")}</div>`:""}
+    <div class="lm-v11-drawer-kpis"><div><span>Custo</span><strong>${formatBRL(pricing.cost)}</strong></div><div><span>Pix / à vista</span><strong>${formatBRL(pricing.promoPrice)}</strong></div><div><span>Lucro sobre custo</span><strong>${productProfitHealth(p).noCost?"—":`${productProfitHealth(p).minPercent.toLocaleString("pt-BR",{maximumFractionDigits:1})}%`}</strong></div><div><span>Estoque total</span><strong>${total} un.</strong></div><div><span>Vendeu em 30 dias</span><strong>${v11ProductSalesQty(p.id,"",30)} un.</strong></div><div><span>Previsão</span><strong>${forecast?`~ ${forecast} dias`:"Sem base"}</strong></div></div>
+    <h3 class="mt-3 text-xs font-extrabold text-navy-800">Estoque rápido</h3><div class="lm-v11-drawer-stock mt-2">${vars.length?vars.map((v)=>`<div class="lm-v11-drawer-stock-row"><div><strong>${escapeHtml(v.name)}</strong><small>${v.stock_qty??0} unidade(s)</small></div><div class="controls"><button data-v11-stock-minus="${p.id}" data-variant="${v.id}">−</button><b>${v.stock_qty??0}</b><button data-v11-stock-plus="${p.id}" data-variant="${v.id}">+</button></div></div>`).join(""):`<div class="lm-v11-drawer-stock-row"><div><strong>${escapeHtml(p.name)}</strong><small>${p.stock_qty??0} unidade(s)</small></div><div class="controls"><button data-v11-stock-minus="${p.id}">−</button><b>${p.stock_qty??0}</b><button data-v11-stock-plus="${p.id}">+</button></div></div>`}</div>
+    ${recent.length?`<h3 class="mt-4 text-xs font-extrabold text-navy-800">Vendas recentes</h3><div class="lm-v11-summary-lines">${recent.map((r)=>`<div class="lm-v11-summary-line"><span>${formatDate(String(r.order.paid_at).slice(0,10))} · ${escapeHtml(r.item.variant_name||"Padrão")}</span><strong>${r.item.quantity} un.</strong></div>`).join("")}</div>`:""}
+    ${movements.length?`<h3 class="mt-4 text-xs font-extrabold text-navy-800">Movimentos de estoque</h3><div class="lm-v11-summary-lines">${movements.map((m)=>`<div class="lm-v11-summary-line"><span>${escapeHtml(m.reason||"Ajuste")} · ${formatDateTime(m.created_at)}</span><strong>${Number(m.delta)>0?"+":""}${m.delta}</strong></div>`).join("")}</div>`:""}
+    <div class="lm-v11-drawer-actions"><button type="button" data-v11-sell-product="${p.id}" class="primary">Nova venda</button><button type="button" data-v11-edit-product="${p.id}">Editar cadastro</button><button type="button" data-v11-go-production="${p.id}">Produção</button></div>
+  </div>`;
+}
+function v11OpenProductQuickView(productId){
+  const p=state.products.find((x)=>String(x.id)===String(productId)); if(!p)return; v8OpenDrawer(p.name,v11ProductQuickHtml(p));
+  const body=document.querySelector("#v8-detail-drawer [data-v8-drawer-body]"); if(!body)return;
+  body.querySelectorAll("[data-v11-stock-minus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11StockMinus,b.dataset.variant||null,-1,"Ajuste rápido na ficha");v11OpenProductQuickView(productId);});
+  body.querySelectorAll("[data-v11-stock-plus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11StockPlus,b.dataset.variant||null,1,"Ajuste rápido na ficha");v11OpenProductQuickView(productId);});
+  body.querySelector("[data-v11-edit-product]")?.addEventListener("click",()=>{v8CloseDrawer();state.tab="precificacao";precifState.editingId=p.id;precifState.formOpen=true;renderApp();setTimeout(()=>renderProductForm(),10);});
+  body.querySelector("[data-v11-go-production]")?.addEventListener("click",()=>{v8CloseDrawer();state.tab="producao";renderApp();});
+  body.querySelector("[data-v11-sell-product]")?.addEventListener("click",()=>{v8CloseDrawer();vendaManualState=newVendaManualState({open:true,mode:"full",_selectedProductId:p.id});renderVendaManualOverlay();});
+  body.querySelector("[data-v11-favorite-drawer]")?.addEventListener("click",()=>{v11ToggleFavorite(p.id);v11OpenProductQuickView(p.id);});
+}
+function v11RepeatOrder(orderId){
+  const o=state.orders.find((x)=>String(x.id)===String(orderId)); if(!o)return;
+  const items=(o.items||[]).map((it)=>{const p=state.products.find((x)=>String(x.id)===String(it.product_id));const v=p?variantByName(p,it.variant_name):null;return p?{product_id:p.id,product_name:p.name,variant_id:v?.id||null,variant_name:v?.name||it.variant_name||null,quantity:Number(it.quantity||1),courtesy:false,fixed_unit_price_pix:round2(Number(salePriceFor(p,"pix",v)||0)),fixed_unit_price_credit:null,fulfillmentSource:"own",supplierId:"",supplierName:"",supplierPaid:false,supplierDelivered:false,alreadyProduced:false}:null;}).filter(Boolean);
+  vendaManualState=newVendaManualState({open:true,mode:"full",items,customerName:o.customer_name||"",customerWhatsapp:o.customer_whatsapp||"",payment:o.payment_method==="credito"?"credito":"pix",installments:orderInstallments(o)||1,origin:"repetir-pedido"}); renderVendaManualOverlay();
+}
+function renderQuickExpenseOverlay(){
+  const slot=document.getElementById("v11-expense-overlay-slot"); if(!slot)return; if(!v11State.expenseOpen){slot.innerHTML="";return;}
+  slot.innerHTML=`<div class="lm-v11-overlay"><div class="lm-v11-modal"><div class="lm-v11-modal-head"><div><h2>Registrar gasto</h2><p>Responda só o essencial. O painel registra a saída no Caixa por você.</p></div><button id="v11-expense-close" class="lm-v11-action">✕</button></div><form id="v11-expense-form"><div class="lm-v11-modal-body"><div class="lm-v11-field-grid"><div class="lm-v11-field"><label>Quanto foi?</label><input id="v11-expense-amount" inputmode="decimal" placeholder="0,00" required></div><div class="lm-v11-field"><label>Em quê?</label><select id="v11-expense-category"><option>Filamento</option><option>Embalagem</option><option>Transporte</option><option>Ferramentas</option><option>Impressora / manutenção</option><option>Taxas</option><option>Marketing</option><option>Outro</option></select></div><div class="lm-v11-field"><label>Como pagou?</label><select id="v11-expense-payment"><option value="pix">Pix</option><option value="debito">Débito</option><option value="credito">Crédito</option><option value="dinheiro">Dinheiro</option></select></div><div class="lm-v11-field"><label>Data</label><input id="v11-expense-date" type="date" value="${todayISO()}"></div></div><div class="lm-v11-field mt-3"><label>Observação (opcional)</label><input id="v11-expense-desc" placeholder="Ex.: 2 rolos de filamento branco"></div><p id="v11-expense-error" class="mt-2 text-xs text-red-600"></p></div><div class="lm-v11-modal-actions"><button type="button" id="v11-expense-cancel" class="lm-v11-action">Cancelar</button><button type="submit" class="lm-v11-action primary">Registrar gasto</button></div></form></div></div>`;
+  const close=()=>{v11State.expenseOpen=false;renderQuickExpenseOverlay();}; document.getElementById("v11-expense-close").onclick=close;document.getElementById("v11-expense-cancel").onclick=close;
+  document.getElementById("v11-expense-form").onsubmit=async(e)=>{e.preventDefault();const raw=document.getElementById("v11-expense-amount").value.trim().replace(/\./g,"").replace(",",".");const amount=Number(raw);const err=document.getElementById("v11-expense-error");if(!(amount>0)){err.textContent="Informe um valor válido.";return;}const cat=document.getElementById("v11-expense-category").value,pay=document.getElementById("v11-expense-payment").value,date=document.getElementById("v11-expense-date").value,desc=document.getElementById("v11-expense-desc").value.trim();const {error}=await supabaseClient.from("cash_entries").insert({entry_type:"saida",entry_date:date,amount:round2(amount),category:cat,description:`${desc||cat} · pago via ${v11PaymentLabel(pay)}`,payment_method:pay,paid_at:new Date().toISOString(),created_by:state.currentUser?.id||null});if(error){err.textContent=error.message;return;}await loadCashEntries();close();v11ShowToast(`Gasto de ${formatBRL(amount)} registrado.`);if(state.tab==="inicio")renderInicio(document.getElementById("main-content"));};
+}
+function renderDailyCloseOverlay(){
+  const slot=document.getElementById("v11-daily-close-overlay-slot");if(!slot)return;if(!v11State.dailyCloseOpen){slot.innerHTML="";return;} const date=todayISO(), exp=v11TodayPaymentExpected(date); const saved=(state.v11DailyClosings||[]).find((x)=>String(x.close_date)===date)||v11LoadJson(LM_V11_DAILY_CLOSE_KEY,{})[date]||null; const counted=saved?.counted||exp;
+  slot.innerHTML=`<div class="lm-v11-overlay"><div class="lm-v11-modal"><div class="lm-v11-modal-head"><div><h2>Fechar o dia</h2><p>Confira o que o painel esperava receber e informe o que você realmente encontrou em cada forma de pagamento.</p></div><button id="v11-close-day-x" class="lm-v11-action">✕</button></div><form id="v11-close-day-form"><div class="lm-v11-modal-body"><div class="lm-v11-field-grid">${["pix","debito","credito","dinheiro"].map((k)=>`<div class="lm-v11-field"><label>${v11PaymentLabel(k)} · esperado ${formatBRL(exp[k])}</label><input data-v11-counted="${k}" inputmode="decimal" value="${Number(counted?.[k]??exp[k]).toFixed(2).replace(".",",")}"></div>`).join("")}</div><div id="v11-close-day-summary" class="lm-v11-summary-lines"></div><div class="lm-v11-field mt-3"><label>Observação (opcional)</label><textarea id="v11-close-day-notes" rows="2" placeholder="Ex.: diferença de troco, venda pendente...">${escapeHtml(saved?.notes||"")}</textarea></div><p class="mt-2 text-[10px] text-navy-400">O fechamento é gerencial. Ele não altera suas vendas; apenas registra a conferência do dia.</p></div><div class="lm-v11-modal-actions"><button type="button" id="v11-close-day-cancel" class="lm-v11-action">Cancelar</button><button type="submit" class="lm-v11-action primary">Salvar fechamento</button></div></form></div></div>`;
+  const read=()=>{const c={};document.querySelectorAll("[data-v11-counted]").forEach((i)=>{c[i.dataset.v11Counted]=Number(String(i.value||0).replace(/\./g,"").replace(",","."))||0;});return c;}; const update=()=>{const c=read(), diff=round2(Object.keys(exp).reduce((s,k)=>s+(c[k]-exp[k]),0));document.getElementById("v11-close-day-summary").innerHTML=Object.keys(exp).map((k)=>`<div class="lm-v11-summary-line"><span>${v11PaymentLabel(k)} · diferença</span><strong>${formatBRL(round2(c[k]-exp[k]))}</strong></div>`).join("")+`<div class="lm-v11-summary-line total"><span>Diferença total</span><strong>${formatBRL(diff)}</strong></div>`;};document.querySelectorAll("[data-v11-counted]").forEach((i)=>i.oninput=update);update(); const close=()=>{v11State.dailyCloseOpen=false;renderDailyCloseOverlay();};document.getElementById("v11-close-day-x").onclick=close;document.getElementById("v11-close-day-cancel").onclick=close;
+  document.getElementById("v11-close-day-form").onsubmit=async(e)=>{e.preventDefault();const c=read(),diff=round2(Object.keys(exp).reduce((sum,k)=>sum+(c[k]-exp[k]),0)),notes=document.getElementById("v11-close-day-notes").value.trim();const row={close_date:date,expected:exp,counted:c,difference:diff,notes:notes||null,closed_by:state.currentUser?.id||null,closed_at:new Date().toISOString()};const local=v11LoadJson(LM_V11_DAILY_CLOSE_KEY,{});local[date]=row;v11SaveJson(LM_V11_DAILY_CLOSE_KEY,local);try{const {data,error}=await supabaseClient.from("admin_daily_closings").upsert(row,{onConflict:"close_date"}).select().single();if(!error){state.v11DailyClosings=[data,...(state.v11DailyClosings||[]).filter((x)=>String(x.close_date)!==date)];}}catch(_e){}close();v11ShowToast(`Fechamento de hoje salvo. Diferença: ${formatBRL(diff)}.`);};
+}
+function v11OpenExpense(){v11State.expenseOpen=true;renderQuickExpenseOverlay();}
+function v11OpenDailyClose(){v11State.dailyCloseOpen=true;renderDailyCloseOverlay();}
+
+function renderEstoqueProdutos(container){
+  const query=normalizeSearchText(v11State.stockSearch||""); const prodTasks=ownProductionTasks(); const prodSet=new Set(prodTasks.filter((t)=>t.remaining>0).map((t)=>`${t.product?.id||""}::${t.variantName||""}`)); let rows=[];
+  state.products.filter((p)=>p.active).forEach((p)=>{const vars=p.product_variants||[];if(vars.length)vars.forEach((v)=>{const q=v.stock_qty==null?0:Number(v.stock_qty||0);rows.push({p,v,q,key:`${p.id}::${v.name||""}`});});else rows.push({p,v:null,q:p.stock_qty==null?0:Number(p.stock_qty||0),key:`${p.id}::`});});
+  rows=rows.filter((r)=>!query||normalizeSearchText(`${r.p.name} ${r.v?.name||""} ${r.p.category||""}`).includes(query)); if(v11State.stockFilter==="ready")rows=rows.filter((r)=>r.q>2);if(v11State.stockFilter==="low")rows=rows.filter((r)=>r.q>0&&r.q<=2);if(v11State.stockFilter==="zero")rows=rows.filter((r)=>r.q===0);if(v11State.stockFilter==="production")rows=rows.filter((r)=>prodSet.has(r.key));
+  container.innerHTML=`<div class="lm-v11-stock-shell"><div class="pro-page-header"><div><span class="admin-kicker">Operação</span><h1>Estoque de produtos</h1><p>Veja o que está pronto, o que está acabando e ajuste quantidades sem abrir o cadastro completo.</p></div><button id="v11-stock-go-production" class="lm-v11-action primary">Abrir produção</button></div><div class="pricing-v10-filters"><div class="pricing-v10-search"><span>⌕</span><input id="v11-stock-search" value="${escapeHtml(v11State.stockSearch||"")}" placeholder="Buscar produto ou modelo..."></div><select id="v11-stock-filter"><option value="all">Todo estoque</option><option value="ready" ${v11State.stockFilter==="ready"?"selected":""}>Pronta entrega</option><option value="low" ${v11State.stockFilter==="low"?"selected":""}>Estoque baixo</option><option value="zero" ${v11State.stockFilter==="zero"?"selected":""}>Zerados / encomenda</option><option value="production" ${v11State.stockFilter==="production"?"selected":""}>Em produção</option></select><span class="pricing-v10-result-count">${rows.length} item(ns)</span></div><div class="lm-v11-stock-grid">${rows.map((r)=>{const status=r.q===0?"zero":r.q<=2?"low":"ready", forecast=v11StockForecast(r.p.id,r.v?.name||"",r.q);return `<article class="lm-v11-stock-card"><div class="lm-v11-stock-top">${r.v?.photo_url||r.p.photo_url?`<img src="${r.v?.photo_url||r.p.photo_url}" alt="">`:`<span class="lm-v11-stock-photo"></span>`}<div><strong>${escapeHtml(r.p.name)}</strong><small>${escapeHtml(r.v?.name||"Padrão")}</small></div><span class="lm-v11-stock-status ${status}">${r.q===0?"Zerado":r.q<=2?"Baixo":"Pronta entrega"}</span></div><div class="lm-v11-stock-controls"><button data-v11-center-minus="${r.p.id}" data-variant="${r.v?.id||""}">−</button><b>${r.q}</b><button data-v11-center-plus="${r.p.id}" data-variant="${r.v?.id||""}">+</button><span class="text-[9px] text-navy-400">${forecast?`nesse ritmo: ~${forecast} dias`:"sem previsão"}</span></div><div class="lm-v11-stock-card-actions"><button data-v11-center-view="${r.p.id}">Visão rápida</button><button data-v11-center-production="${r.p.id}">Produzir</button></div></article>`;}).join("")||`<div class="pricing-v10-empty">Nenhum item com esse filtro.</div>`}</div></div>`;
+  document.getElementById("v11-stock-search")?.addEventListener("input",(e)=>{v11State.stockSearch=e.target.value;renderEstoqueProdutos(container);requestAnimationFrame(()=>{const n=document.getElementById("v11-stock-search");n?.focus();try{n?.setSelectionRange(n.value.length,n.value.length)}catch(_e){}});});document.getElementById("v11-stock-filter")?.addEventListener("change",(e)=>{v11State.stockFilter=e.target.value;renderEstoqueProdutos(container);});document.getElementById("v11-stock-go-production")?.addEventListener("click",()=>{state.tab="producao";renderApp();});container.querySelectorAll("[data-v11-center-minus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11CenterMinus,b.dataset.variant||null,-1,"Ajuste na Central de Estoque");renderEstoqueProdutos(container);});container.querySelectorAll("[data-v11-center-plus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11CenterPlus,b.dataset.variant||null,1,"Ajuste na Central de Estoque");renderEstoqueProdutos(container);});container.querySelectorAll("[data-v11-center-view]").forEach((b)=>b.onclick=()=>v11OpenProductQuickView(b.dataset.v11CenterView));container.querySelectorAll("[data-v11-center-production]").forEach((b)=>b.onclick=()=>{state.tab="producao";renderApp();});
+}
+
 function renderInicio(container) {
-  const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const paidMonth = state.orders.filter((o) =>
-    o.status !== "cancelado" &&
-    o.payment_method !== "brinde" &&
-    !!o.paid_at &&
-    String(o.paid_at).slice(0, 7) === ym
-  );
-
-  const salesMonth = round2(paidMonth.reduce((sum, o) => sum + Number(o.total || 0), 0));
-  const profitMonth = round2(paidMonth.reduce((sum, o) => sum + orderMoneySplit(o).profit, 0));
-  const receivable = round2(state.orders
-    .filter((o) => o.status !== "cancelado" && o.payment_method !== "brinde" && !o.paid_at)
-    .reduce((sum, o) => sum + Number(o.total || 0), 0));
-  const currentBalance = cashOperationalBalance();
-  const plan = cashReservePlan(currentBalance, ym);
-  const prod = productionMetrics();
-
-  const newOrders = state.orders.filter((o) => o.status === "novo").length;
-  const inProgress = state.orders.filter((o) => o.status === "em_andamento").length;
-  const lowStock = countLowStockProducts() + countLowStockMaterials();
-  const pendingReviews = state.reviews.filter((r) => !r.approved).length;
-  const unpaidStock = state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length;
-  const supplierPending = state.orders.filter((o) => o.status !== "cancelado").reduce((n,o) => n + orderSupplierPendingItems(o).length, 0);
-  const urgentTasks = prod.own.filter((t) => t.priority.rank <= 1 && t.remaining > 0);
-  const overdueTasks = prod.own.filter((t) => t.deadline.days != null && t.deadline.days < 0 && t.remaining > 0);
-  const recentOrders = [...state.orders]
-    .filter((o) => o.status !== "cancelado")
-    .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
-    .slice(0,5);
-
-  const cfg = professionalState.config;
-  const firstName = (state.currentUser?.name || "Olá").split(/\s+/)[0];
-  const orderCountMonth = paidMonth.length;
-  const revenueGoalPct = Number(cfg.revenueGoal) > 0 ? Math.min(100, Math.round(salesMonth / Number(cfg.revenueGoal) * 100)) : 0;
-  const profitGoalPct = Number(cfg.profitGoal) > 0 ? Math.min(100, Math.round(profitMonth / Number(cfg.profitGoal) * 100)) : 0;
-  const orderGoalPct = Number(cfg.orderGoal) > 0 ? Math.min(100, Math.round(orderCountMonth / Number(cfg.orderGoal) * 100)) : 0;
-
-  container.innerHTML = `
-    <div>
-      <section class="admin-dashboard-hero">
-        <div style="flex:1">
-          <span class="admin-kicker">Centro de gestão</span>
-          <h1>Olá, ${escapeHtml(firstName)}.</h1>
-          <p>O painel agora organiza o que precisa ser resolvido hoje, produção, financeiro e crescimento da Luz Mariana em um só lugar.</p>
-
-          <div class="today-strip">
-            <button type="button" data-dashboard-tab="producao" class="today-chip">
-              <b>${prod.remainingUnits}</b><span>unidade(s) ainda para fabricar</span>
-            </button>
-            <button type="button" data-dashboard-tab="producao" class="today-chip">
-              <b>${urgentTasks.length}</b><span>tarefa(s) de produção prioritária(s)</span>
-            </button>
-            <button type="button" data-dashboard-tab="pedidos" class="today-chip">
-              <b>${state.orders.filter((o) => o.status !== "cancelado" && o.payment_method !== "brinde" && !o.paid_at).length}</b><span>pedido(s) ainda a receber</span>
-            </button>
-            <button type="button" data-dashboard-tab="fornecedores" class="today-chip">
-              <b>${supplierPending}</b><span>item(ns) aguardando fornecedor</span>
-            </button>
-          </div>
-        </div>
-        <button type="button" data-dashboard-tab="producao" class="admin-top-button" style="background:#e9aa00;color:#001868;border-color:#e9aa00">
-          Abrir produção
-        </button>
-      </section>
-
-      ${(Number(cfg.revenueGoal)>0 || Number(cfg.profitGoal)>0 || Number(cfg.orderGoal)>0) ? `
-        <section class="admin-section-card">
-          <div class="admin-section-heading">
-            <div><h2>Metas do mês</h2><p>Acompanhamento executivo das metas configuradas.</p></div>
-            <button type="button" data-dashboard-tab="configuracoes" class="admin-order-open">Ajustar metas</button>
-          </div>
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            ${Number(cfg.revenueGoal)>0 ? `
-              <div>
-                <div class="flex justify-between text-xs"><span class="text-navy-500">Faturamento</span><strong class="text-navy-900">${formatBRL(salesMonth)} / ${formatBRL(cfg.revenueGoal)}</strong></div>
-                <div class="goal-bar"><span style="width:${revenueGoalPct}%"></span></div>
-                <p class="mt-1 text-[10px] text-navy-400">${revenueGoalPct}% da meta</p>
-              </div>` : ""}
-            ${Number(cfg.profitGoal)>0 ? `
-              <div>
-                <div class="flex justify-between text-xs"><span class="text-navy-500">Lucro</span><strong class="text-navy-900">${formatBRL(profitMonth)} / ${formatBRL(cfg.profitGoal)}</strong></div>
-                <div class="goal-bar"><span style="width:${profitGoalPct}%"></span></div>
-                <p class="mt-1 text-[10px] text-navy-400">${profitGoalPct}% da meta</p>
-              </div>` : ""}
-            ${Number(cfg.orderGoal)>0 ? `
-              <div>
-                <div class="flex justify-between text-xs"><span class="text-navy-500">Pedidos pagos</span><strong class="text-navy-900">${orderCountMonth} / ${Number(cfg.orderGoal)}</strong></div>
-                <div class="goal-bar"><span style="width:${orderGoalPct}%"></span></div>
-                <p class="mt-1 text-[10px] text-navy-400">${orderGoalPct}% da meta</p>
-              </div>` : ""}
-          </div>
-        </section>
-      ` : ""}
-
-      <div class="admin-dashboard-grid">
-        <button type="button" data-dashboard-tab="pedidos" class="admin-stat-card ${newOrders ? "attention" : ""}">
-          <div class="admin-stat-label"><span>Pedidos novos</span><span>🧾</span></div>
-          <div class="admin-stat-value">${newOrders}</div>
-          <div class="admin-stat-hint">${newOrders ? "Aguardando conferência ou aceite." : "Nenhum pedido novo agora."}</div>
-        </button>
-
-        <button type="button" data-dashboard-tab="producao" class="admin-stat-card ${prod.urgent ? "attention" : ""}">
-          <div class="admin-stat-label"><span>Produção pendente</span><span>⚙</span></div>
-          <div class="admin-stat-value">${prod.remainingUnits}</div>
-          <div class="admin-stat-hint">${prod.minutes ? `${formatDurationMinutes(prod.minutes)} estimadas · ${Math.round(prod.grams || 0)} g` : "Cadastre tempo/gramas para planejamento de capacidade."}</div>
-        </button>
-
-        <button type="button" data-dashboard-tab="caixa" class="admin-stat-card ${receivable > 0 ? "attention" : "good"}">
-          <div class="admin-stat-label"><span>A receber</span><span>💳</span></div>
-          <div class="admin-stat-value">${formatBRL(receivable)}</div>
-          <div class="admin-stat-hint">Pedidos ainda não marcados como pagos.</div>
-        </button>
-
-        <button type="button" data-dashboard-tab="caixa" class="admin-stat-card gold">
-          <div class="admin-stat-label"><span>Pode retirar agora</span><span>💰</span></div>
-          <div class="admin-stat-value">${formatBRL(plan.ownerAvailableNow)}</div>
-          <div class="admin-stat-hint">${plan.settings.startupReinvestment ? "Setembro: 100% do lucro fica na loja para reinvestimento." : "Preservando custo e reinvestimento."}</div>
-        </button>
-
-        <button type="button" data-dashboard-tab="fechamento" class="admin-stat-card">
-          <div class="admin-stat-label"><span>Vendas do mês</span><span>📈</span></div>
-          <div class="admin-stat-value">${formatBRL(salesMonth)}</div>
-          <div class="admin-stat-hint">${paidMonth.length} pedido(s) pago(s) neste mês.</div>
-        </button>
-
-        <button type="button" data-dashboard-tab="rentabilidade" class="admin-stat-card good">
-          <div class="admin-stat-label"><span>Lucro realizado</span><span>↗</span></div>
-          <div class="admin-stat-value">${formatBRL(profitMonth)}</div>
-          <div class="admin-stat-hint">Já considera custo e taxa de cartão.</div>
-        </button>
-
-        <button type="button" data-dashboard-tab="caixa" class="admin-stat-card">
-          <div class="admin-stat-label"><span>Saldo do Caixa</span><span>🏦</span></div>
-          <div class="admin-stat-value">${formatBRL(currentBalance)}</div>
-          <div class="admin-stat-hint">Saldo acumulado registrado no painel.</div>
-        </button>
-
-        <button type="button" data-dashboard-tab="precificacao" class="admin-stat-card ${lowStock ? "attention" : ""}">
-          <div class="admin-stat-label"><span>Estoque baixo</span><span>📦</span></div>
-          <div class="admin-stat-value">${lowStock}</div>
-          <div class="admin-stat-hint">${lowStock ? "Produtos/tamanhos/modelos/materiais pedindo atenção." : "Nenhum alerta de estoque."}</div>
-        </button>
-      </div>
-
-      <section class="admin-section-card">
-        <div class="admin-section-heading">
-          <div>
-            <h2>Ações rápidas</h2>
-            <p>Atalhos para a operação diária.</p>
-          </div>
-        </div>
-        <div class="admin-quick-grid">
-          <button type="button" data-dashboard-tab="producao" class="admin-quick-action"><span class="admin-quick-icon">⚙</span><span>Abrir produção</span></button>
-          <button type="button" data-dashboard-tab="orcamentos" class="admin-quick-action"><span class="admin-quick-icon">📝</span><span>Fazer orçamento</span></button>
-          <button type="button" data-dashboard-tab="pedidos" class="admin-quick-action"><span class="admin-quick-icon">🧾</span><span>Gerenciar pedidos</span></button>
-          <button type="button" data-dashboard-tab="caixa" class="admin-quick-action"><span class="admin-quick-icon">💵</span><span>Abrir Caixa</span></button>
-        </div>
-      </section>
-
-      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px" class="admin-dashboard-lower">
-        <section class="admin-section-card">
-          <div class="admin-section-heading">
-            <div><h2>O que precisa de atenção</h2><p>Pendências operacionais e financeiras.</p></div>
-          </div>
-          <div class="admin-task-list">
-            <button type="button" data-dashboard-tab="producao" class="admin-task">
-              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Produção prioritária</strong><small>${overdueTasks.length ? `${overdueTasks.length} tarefa(s) já atrasada(s).` : "Itens com prazo próximo."}</small></span></span>
-              <span class="admin-task-count">${urgentTasks.length}</span>
-            </button>
-            <button type="button" data-dashboard-tab="pedidos" class="admin-task">
-              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Pedidos novos</strong><small>Aguardando aceitar ou revisar.</small></span></span>
-              <span class="admin-task-count">${newOrders}</span>
-            </button>
-            <button type="button" data-dashboard-tab="precificacao" class="admin-task">
-              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Estoque baixo</strong><small>Produtos, cores ou materiais.</small></span></span>
-              <span class="admin-task-count">${lowStock}</span>
-            </button>
-            <button type="button" data-dashboard-tab="avaliacoes" class="admin-task">
-              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Avaliações pendentes</strong><small>Aguardando aprovação.</small></span></span>
-              <span class="admin-task-count">${pendingReviews}</span>
-            </button>
-            <button type="button" data-dashboard-tab="estoque" class="admin-task">
-              <span class="admin-task-main"><span class="admin-task-dot"></span><span><strong>Compras de estoque não pagas</strong><small>Compras ou consignações ainda abertas.</small></span></span>
-              <span class="admin-task-count">${unpaidStock}</span>
-            </button>
-          </div>
-        </section>
-
-        <section class="admin-section-card">
-          <div class="admin-section-heading">
-            <div><h2>Pedidos recentes</h2><p>Últimos pedidos registrados no sistema.</p></div>
-            <button type="button" data-dashboard-tab="pedidos" class="admin-order-open">Ver todos</button>
-          </div>
-          <div class="admin-recent-orders">
-            ${recentOrders.length === 0 ? `<p class="text-sm text-navy-400">Nenhum pedido registrado ainda.</p>` : recentOrders.map((o) => `
-              <div class="admin-recent-order">
-                <div class="admin-order-name">
-                  <strong>Nº ${String(o.order_number ?? "").padStart(6,"0")} · ${escapeHtml(o.customer_name)}</strong>
-                  <span>${formatDate(String(o.created_at).slice(0,10))}</span>
-                </div>
-                <span class="admin-order-status admin-hide-mobile">${escapeHtml(ORDER_STATUS_LABELS[o.status] || o.status)}</span>
-                <span class="admin-order-money">${formatBRL(o.total)}</span>
-                <button type="button" data-open-dashboard-order="${o.id}" class="admin-order-open admin-hide-mobile">Abrir</button>
-              </div>
-            `).join("")}
-          </div>
-        </section>
-      </div>
-    </div>
-  `;
-
-  const lower = container.querySelector(".admin-dashboard-lower");
-  const adjustLower = () => { if (lower) lower.style.gridTemplateColumns = window.innerWidth < 900 ? "1fr" : "minmax(0,1fr) minmax(0,1fr)"; };
-  adjustLower();
-
-  container.querySelectorAll("[data-dashboard-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.tab = btn.dataset.dashboardTab;
-      renderApp();
-    });
-  });
-
-  container.querySelectorAll("[data-open-dashboard-order]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const order = state.orders.find((o) => String(o.id) === String(btn.dataset.openDashboardOrder));
-      if (order) v8OpenDrawer(`Pedido Nº ${String(order.order_number ?? "").padStart(6,"0")}`, v8OrderDrawerHtml(order));
-    });
-  });
+  const month=todayISO().slice(0,7), money=v11MoneyBuckets(month), today=v11DayStats(todayISO()), yesterday=v11DayStats(addDaysISO(todayISO(),-1)); const balance=cashOperationalBalance(); const plan=cashReservePlan(balance,month); const prod=productionMetrics(); const low=countLowStockProducts()+countLowStockMaterials(); const newOrders=state.orders.filter((o)=>o.status==="novo").length; const unpaid=state.orders.filter((o)=>o.status!=="cancelado"&&o.payment_method!=="brinde"&&!o.paid_at).length; const post=postSaleRows().filter((r)=>!r.done).length; const issues=allOrderIssues().filter((i)=>!i.resolved).length; const overdue=prod.own.filter((t)=>t.deadline.days!=null&&t.deadline.days<0&&t.remaining>0).length; const checklist=v11ChecklistState(month); const recent=[...state.orders].filter((o)=>o.status!=="cancelado").sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,5); const first=(state.currentUser?.name||"Olá").split(/\s+/)[0]; const event=eventModeState.active?eventModeState.name:"";
+  const tasks=[
+    {n:overdue,label:"Produção atrasada",detail:overdue?"Há itens com prazo vencido.":"Nenhuma produção atrasada.",tab:"producao",tone:overdue?"urgent":"good"},
+    {n:newOrders,label:"Pedidos novos",detail:newOrders?"Precisam ser conferidos ou aceitos.":"Nenhum pedido novo agora.",tab:"pedidos",tone:newOrders?"urgent":"good"},
+    {n:unpaid,label:"Pedidos a receber",detail:unpaid?"Ainda sem pagamento registrado.":"Nada pendente para receber.",tab:"pedidos",tone:unpaid?"":"good"},
+    {n:low,label:"Estoque pedindo atenção",detail:low?"Produtos ou materiais estão acabando.":"Estoque sem alertas.",tab:"estoqueprodutos",tone:low?"":"good"},
+    {n:post,label:"Pós-vendas pendentes",detail:post?"Clientes já podem receber acompanhamento.":"Pós-venda em dia.",tab:"posvenda",tone:post?"":"good"},
+    {n:issues,label:"Ocorrências abertas",detail:issues?"Há problemas, atrasos ou trocas a resolver.":"Nenhuma ocorrência aberta.",tab:"ocorrencias",tone:issues?"urgent":"good"},
+  ];
+  const salesHealth=today.sales>=yesterday.sales?{c:"good",t:"Bom",d:`Hoje ${formatBRL(today.sales)}`}:{c:"attention",t:"Atenção",d:`Hoje ${formatBRL(today.sales)}`}; const profitHealth=money.profit>0?{c:"good",t:"Bom",d:formatBRL(money.profit)}:{c:"attention",t:"Atenção",d:"Sem lucro realizado"}; const cashHealth=balance>=0?{c:"good",t:"Bom",d:formatBRL(balance)}:{c:"danger",t:"Precisa agir",d:formatBRL(balance)}; const stockHealth=low===0?{c:"good",t:"Bom",d:"Sem alertas"}:{c:"attention",t:"Atenção",d:`${low} alerta(s)`};
+  container.innerHTML=`<div class="lm-v11-home">
+    ${event?`<div class="lm-v11-mode-banner"><span>📅 <b>Modo evento ativo:</b> ${escapeHtml(event)}. As vendas de evento continuam agrupadas no Caixa.</span><button type="button" data-home-tab="eventos" class="lm-v11-link">Abrir evento</button></div>`:""}
+    <section class="lm-v11-hero"><div><span class="admin-kicker">Hoje</span><h1>Olá, ${escapeHtml(first)}.</h1><p>O painel mostra primeiro o que merece sua atenção. Você não precisa interpretar relatório: resolva as pendências e deixe os detalhes para quando precisar.</p></div><div class="lm-v11-actions"><button id="v11-home-sale" class="lm-v11-action primary">🧾 Nova venda</button><button id="v11-home-product" class="lm-v11-action">＋ Novo produto</button><button id="v11-home-expense" class="lm-v11-action">💸 Registrar gasto</button><button id="v11-home-close" class="lm-v11-action">✓ Fechar o dia</button><button type="button" data-home-tab="producao" class="lm-v11-action">⚙ Produção</button></div></section>
+    <div class="lm-v11-grid"><section class="lm-v11-card"><h2>O que precisa de você agora</h2><p class="caption">Comece pelos itens vermelhos; quando zerar essa lista, a operação está organizada.</p><div class="lm-v11-priority-list">${tasks.map((t)=>`<button type="button" data-home-tab="${t.tab}" class="lm-v11-priority ${t.tone}"><span class="dot"></span><span><strong>${escapeHtml(t.label)}</strong><small>${escapeHtml(t.detail)}</small></span><b>${t.n}</b></button>`).join("")}</div></section>
+      <section class="lm-v11-card"><h2>Saúde da Luz Mariana</h2><p class="caption">Quatro sinais simples. Toque nas áreas de gestão quando quiser entender os detalhes.</p><div class="lm-v11-health"><div class="${salesHealth.c}"><span>Vendas</span><strong>${salesHealth.t}</strong><small>${salesHealth.d}</small></div><div class="${profitHealth.c}"><span>Lucro</span><strong>${profitHealth.t}</strong><small>${profitHealth.d}</small></div><div class="${cashHealth.c}"><span>Caixa</span><strong>${cashHealth.t}</strong><small>${cashHealth.d}</small></div><div class="${stockHealth.c}"><span>Estoque</span><strong>${stockHealth.t}</strong><small>${stockHealth.d}</small></div></div><div class="mt-3 flex gap-2 flex-wrap"><button type="button" data-home-tab="fechamento" class="lm-v11-action">Fechamento mensal</button><button type="button" data-home-tab="rentabilidade" class="lm-v11-action">Ver rentabilidade</button></div></section></div>
+    <section class="lm-v11-card"><h2>Dinheiro em português <span class="lm-v11-help" title="O painel separa o que entrou em custo, lucro, reinvestimento e sua retirada para evitar misturar dinheiro da loja com dinheiro pessoal.">?</span></h2><p class="caption">Resumo do mês atual. O detalhamento completo continua no Caixa e no Fechamento.</p><div class="lm-v11-money"><div><span>Vendeu</span><strong>${formatBRL(money.gross)}</strong></div><div><span>Guardar para repor custo</span><strong>${formatBRL(money.cost)}</strong></div><div><span>Lucro líquido</span><strong>${formatBRL(money.profit)}</strong></div><div><span>Fica na loja</span><strong>${formatBRL(money.reinvestment)}</strong></div><div class="salary"><span>Seu salário / parte</span><strong>${formatBRL(money.salary)}</strong></div></div><div class="lm-v11-plain-summary">Neste mês entraram <b>${formatBRL(money.gross)}</b> em pedidos pagos. Desse total, aproximadamente <b>${formatBRL(money.cost)}</b> precisam permanecer protegidos para repor os custos; <b>${formatBRL(money.profit)}</b> são lucro depois de custo e taxas. Pela regra atual, <b>${formatBRL(money.reinvestment)}</b> ficam na Luz Mariana e <b>${formatBRL(money.salary)}</b> correspondem à sua parte do lucro. O Caixa operacional está em <b>${formatBRL(balance)}</b> e o painel indica <b>${formatBRL(plan.ownerAvailableNow)}</b> como retirada disponível agora.</div></section>
+    <div class="lm-v11-grid"><section class="lm-v11-card"><h2>O que mudou desde ontem</h2><p class="caption">Uma leitura rápida para você não precisar comparar telas.</p><div class="lm-v11-changes"><div><span>Vendas hoje</span><strong>${formatBRL(today.sales)}</strong><small>ontem ${formatBRL(yesterday.sales)}</small></div><div><span>Pedidos criados hoje</span><strong>${today.orders}</strong><small>ontem ${yesterday.orders}</small></div><div><span>Ajustes de estoque hoje</span><strong>${today.moves}</strong><small>registrados pela edição rápida</small></div></div></section><section class="lm-v11-card"><h2>Checklist do mês</h2><p class="caption">O painel lembra as rotinas; você só marca quando concluir.</p><div class="lm-v11-checklist">${v11ChecklistDefaults().map(([k,l])=>`<label class="lm-v11-checkitem"><input type="checkbox" data-v11-check="${k}" ${checklist[k]?"checked":""}><span>${escapeHtml(l)}</span></label>`).join("")}</div></section></div>
+    <section class="lm-v11-card"><div class="flex items-center justify-between gap-3"><div><h2>Pedidos recentes</h2><p class="caption">Abra, confira ou repita uma venda sem procurar o cliente novamente.</p></div><button type="button" data-home-tab="pedidos" class="lm-v11-link">Ver todos</button></div><div class="lm-v11-recent">${recent.length?recent.map((o)=>`<div class="lm-v11-recent-row"><div><strong>Pedido ${String(o.order_number??"").padStart(6,"0")} · ${escapeHtml(o.customer_name||"Cliente")}</strong><small>${formatDate(String(o.created_at).slice(0,10))} · ${escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)}</small></div><b>${formatBRL(o.total)}</b><div><button data-v11-open-order="${o.id}" class="lm-v11-link">Abrir</button><button data-v11-repeat-order="${o.id}" class="lm-v11-link">Repetir</button></div></div>`).join(""):`<p class="caption">Nenhum pedido registrado ainda.</p>`}</div></section>
+  </div>`;
+  container.querySelectorAll("[data-home-tab]").forEach((b)=>b.onclick=()=>{state.tab=b.dataset.homeTab;renderApp();}); document.getElementById("v11-home-sale")?.addEventListener("click",()=>openGlobalVendaAssistida("full")); document.getElementById("v11-home-expense")?.addEventListener("click",v11OpenExpense); document.getElementById("v11-home-close")?.addEventListener("click",v11OpenDailyClose); document.getElementById("v11-home-product")?.addEventListener("click",()=>{state.tab="precificacao";renderApp();setTimeout(()=>document.getElementById("new-product-btn")?.click(),20);}); container.querySelectorAll("[data-v11-check]").forEach((i)=>i.onchange=()=>v11SetChecklist(month,i.dataset.v11Check,i.checked)); container.querySelectorAll("[data-v11-open-order]").forEach((b)=>b.onclick=()=>{const o=state.orders.find((x)=>String(x.id)===String(b.dataset.v11OpenOrder));if(o)v8OpenDrawer(`Pedido Nº ${String(o.order_number??"").padStart(6,"0")}`,v8OrderDrawerHtml(o));});container.querySelectorAll("[data-v11-repeat-order]").forEach((b)=>b.onclick=()=>v11RepeatOrder(b.dataset.v11RepeatOrder));
 }
 
 
@@ -4950,6 +4924,7 @@ function renderFechamento(container) {
         </div>
         <div class="flex flex-wrap gap-2">
           <input id="month-close-picker" type="month" value="${professionalState.month}" class="rounded-lg border border-navy-200 bg-white px-3 py-2 text-sm text-navy-800" />
+          <button id="v11-close-today-from-month" class="rounded-lg border border-navy-200 bg-white px-4 py-2 text-sm font-semibold text-navy-700">Fechar hoje</button>
           <button id="month-close-save" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900">${closed ? "Atualizar fotografia do mês" : "Fechar mês"}</button>
         </div>
       </div>
@@ -5024,6 +4999,7 @@ function renderFechamento(container) {
     </div>
   `;
 
+  document.getElementById("v11-close-today-from-month")?.addEventListener("click", v11OpenDailyClose);
   document.getElementById("month-close-picker")?.addEventListener("change", (e) => {
     professionalState.month = e.target.value || todayISO().slice(0,7);
     renderFechamento(container);
@@ -5732,6 +5708,7 @@ function renderActiveSection(container) {
     atividade: renderAtividade,
     configuracoes: renderConfiguracoes,
     precificacao: renderPrecificacao,
+    estoqueprodutos: renderEstoqueProdutos,
     materiais: renderMateriais,
     fornecedores: renderFornecedores,
     clientes: renderClientes,
@@ -5845,7 +5822,7 @@ function renderApp() {
           <span><strong>Luz Mariana</strong><small>Painel de gestão</small></span>
         </button>
 
-        <button id="header-calc3d-btn" type="button" class="admin-header-calc-btn" title="Abrir Calculadora 3D">
+        <button id="header-calc3d-btn" type="button" class="admin-header-calc-btn" title="Abrir Calculadora 3D em lojaluzmariana.com.br/calculadora">
           <span class="admin-header-calc-icon">🖨️</span><span class="admin-header-calc-label">Calculadora 3D</span>
         </button>
 
@@ -5856,6 +5833,10 @@ function renderApp() {
 
           <button id="desktop-venda-manual-btn" type="button" class="admin-quick-sale-btn" title="Abrir Venda Assistida">
             🧾 <span>Nova venda</span>
+          </button>
+
+          <button id="desktop-expense-btn" type="button" class="admin-top-button" title="Registrar um gasto rapidamente">
+            💸 <span class="admin-top-text">Gasto</span>
           </button>
 
           <div id="fortaleza-clock" class="admin-clock" title="Data e horário de Fortaleza (GMT−3)" aria-label="Data e horário de Fortaleza, GMT menos 3">
@@ -5893,51 +5874,40 @@ function renderApp() {
       <div class="admin-body">
         <aside class="admin-sidebar" aria-label="Navegação principal">
           <div class="admin-nav-group">
-            <span class="admin-nav-label">Visão geral</span>
+            <span class="admin-nav-label">Hoje</span>
             ${navBtn("inicio","⌂","Início", notificationCount)}
           </div>
 
           <div class="admin-nav-group">
-            <span class="admin-nav-label">Vendas</span>
-            ${navBtn("pedidos","🧾","Pedidos",newOrdersCount)}
-            ${navBtn("orcamentos","📝","Orçamentos")}
-            ${navBtn("campanhas","🎯","Campanhas")}
-            ${navBtn("clientes","👤","Clientes")}
-            ${navBtn("posvenda","💬","Pós-venda",postSaleRows().filter((r) => !r.done).length)}
-            ${navBtn("ocorrencias","⚠","Ocorrências",allOrderIssues().filter((i)=>!i.resolved).length)}
-            ${navBtn("avaliacoes","★","Avaliações",pendingReviewsCount)}
-          </div>
-
-          <div class="admin-nav-group">
             <span class="admin-nav-label">Operação</span>
+            ${navBtn("pedidos","🧾","Vendas e pedidos",newOrdersCount)}
             ${navBtn("producao","⚙","Produção",urgentProductionCount + materialShortageCount)}
+            ${navBtn("estoqueprodutos","▦","Estoque de produtos",countLowStockProducts())}
+            ${navBtn("clientes","👤","Clientes")}
+            ${navBtn("orcamentos","📝","Orçamentos")}
             ${navBtn("eventos","▣","Eventos")}
+            ${navBtn("posvenda","💬","Pós-venda",postSaleRows().filter((r) => !r.done).length)}
           </div>
 
           <div class="admin-nav-group">
-            <span class="admin-nav-label">Catálogo</span>
-            ${navBtn("precificacao","🏷","Produtos e preços",countLowStockProducts(), countLowStockProducts() ? "Há produtos/cores com estoque baixo" : "")}
-            ${navBtn("materiais","◫","Materiais",countLowStockMaterials())}
-          </div>
-
-          <div class="admin-nav-group">
-            <span class="admin-nav-label">Financeiro</span>
-            ${navBtn("caixa","💰","Caixa")}
+            <span class="admin-nav-label">Gestão</span>
+            ${navBtn("precificacao","🏷","Produtos e preços",countLowStockProducts())}
+            ${navBtn("caixa","💰","Dinheiro / Caixa")}
+            ${navBtn("fechamento","📅","Fechamento mensal")}
             ${navBtn("contas","⇄","A pagar / receber")}
-            ${navBtn("fechamento","📅","Fechamento")}
-            ${navBtn("rentabilidade","↗","Rentabilidade",lowMarginCount)}
+            ${navBtn("rentabilidade","↗","Lucro e rentabilidade",lowMarginCount)}
             ${navBtn("relatorios","📊","Relatórios")}
-            ${navBtn("cupons","%","Cupons")}
           </div>
 
           <div class="admin-nav-group">
-            <span class="admin-nav-label">Compras</span>
-            ${navBtn("estoque","📦","Estoque",state.cashEntries.filter((e) => e.category === "Compra de estoque" && !e.paid_at).length)}
+            <span class="admin-nav-label">Mais</span>
+            ${navBtn("campanhas","🎯","Campanhas")}
+            ${navBtn("materiais","◫","Materiais",countLowStockMaterials())}
+            ${navBtn("estoque","📦","Compras de estoque",unpaidStockCount)}
             ${navBtn("fornecedores","🚚","Fornecedores")}
-          </div>
-
-          <div class="admin-nav-group">
-            <span class="admin-nav-label">Sistema</span>
+            ${navBtn("cupons","%","Cupons")}
+            ${navBtn("avaliacoes","★","Avaliações",pendingReviewsCount)}
+            ${navBtn("ocorrencias","⚠","Ocorrências",openIssuesCount)}
             ${navBtn("atividade","◷","Atividade")}
             ${navBtn("configuracoes","⚙","Configurações",backupWarningCount + maintenanceDueCount)}
           </div>
@@ -6172,6 +6142,8 @@ function renderApp() {
         </div>
       </aside>
 
+      <div id="v11-expense-overlay-slot"></div>
+      <div id="v11-daily-close-overlay-slot"></div>
       <div id="security-overlay-slot"></div>
       <div id="price-history-overlay-slot"></div>
       <div id="calc3d-overlay-slot"></div>
@@ -6188,13 +6160,15 @@ function renderApp() {
     <div id="admin-mobile-more-backdrop" class="admin-mobile-more-backdrop"></div>
     <nav class="admin-mobile-nav" aria-label="Navegação rápida">
       <button type="button" data-mobile-tab="inicio" class="${state.tab === "inicio" ? "active" : ""}"><span>⌂</span>Início</button>
-      <button type="button" data-mobile-tab="pedidos" class="${state.tab === "pedidos" ? "active" : ""}"><span>🧾</span>Pedidos</button>
-      <button type="button" data-mobile-tab="producao" class="primary-mobile ${state.tab === "producao" ? "active" : ""}"><span>⚙</span>Produção</button>
+      <button type="button" data-mobile-tab="pedidos" class="${state.tab === "pedidos" ? "active" : ""}"><span>🧾</span>Vendas</button>
+      <button type="button" data-mobile-tab="precificacao" class="primary-mobile ${state.tab === "precificacao" ? "active" : ""}"><span>🏷</span>Produtos</button>
       <button type="button" data-mobile-tab="caixa" class="${state.tab === "caixa" ? "active" : ""}"><span>💰</span>Caixa</button>
       <button type="button" id="admin-mobile-more-btn"><span>☰</span>Mais</button>
     </nav>
   `);
 
+  renderQuickExpenseOverlay();
+  renderDailyCloseOverlay();
   v8EnhanceNavigation();
   document.querySelectorAll("[data-mobile-tab]").forEach((btn)=>btn.addEventListener("click",()=>{ state.tab=btn.dataset.mobileTab; renderApp(); }));
   const mobileSidebar = document.querySelector(".admin-sidebar");
@@ -6238,10 +6212,10 @@ function renderApp() {
   };
   document.getElementById("global-search-btn")?.addEventListener("click", openCommandSearch);
   document.getElementById("header-calc3d-btn")?.addEventListener("click", () => {
-    calc3dState.open = true;
-    renderCalc3dOverlay();
+    window.location.href = "https://lojaluzmariana.com.br/calculadora/";
   });
   document.getElementById("desktop-venda-manual-btn")?.addEventListener("click", () => openGlobalVendaAssistida("full"));
+  document.getElementById("desktop-expense-btn")?.addEventListener("click", v11OpenExpense);
   startFortalezaHeaderClock();
   document.getElementById("command-close-btn")?.addEventListener("click", closeCommandSearch);
   commandOverlay?.addEventListener("click", (e) => { if (e.target === commandOverlay) closeCommandSearch(); });
@@ -7391,6 +7365,7 @@ function renderPrecificacao(container) {
     const q = productTotalStock(p);
     return q > 0 && q <= 2;
   });
+  visible.sort((a,b)=>Number(v11IsFavorite(b.id))-Number(v11IsFavorite(a.id)) || a.name.localeCompare(b.name,"pt-BR"));
 
   [...precifState.priceTableSelected].forEach((id) => { if (!baseVisible.some((p) => p.id === id)) precifState.priceTableSelected.delete(id); });
   const priceTableSelectedCount = precifState.priceTableSelected.size;
@@ -7483,6 +7458,8 @@ function renderPrecificacao(container) {
           const stock = productTotalStock(p);
           const pricing = effectivePricing(p, null);
           const photoCount = productPhotoCount(p);
+          const completeness = v11ProductCompleteness(p);
+          const isFavorite = v11IsFavorite(p.id);
           return `
           <article class="pricing-v10-product ${!p.active ? "is-inactive" : ""} ${!health.compliant ? "needs-profit" : ""}">
             <div class="pricing-v10-product-main">
@@ -7492,9 +7469,11 @@ function renderPrecificacao(container) {
               </div>
               <div class="pricing-v10-product-copy">
                 <div class="pricing-v10-product-title-line">
+                  <button type="button" data-favorite-product="${p.id}" class="lm-v11-fav ${isFavorite ? "active" : ""}" title="Fixar produto nos favoritos">★</button>
                   <h3>${escapeHtml(p.name)}</h3>
                   ${!p.active ? `<span class="pricing-v10-pill muted">Inativo</span>` : ""}
                   ${health.noCost ? `<span class="pricing-v10-pill warn">Sem custo</span>` : health.compliant ? `<span class="pricing-v10-pill good">✓ lucro ≥ 60%</span>` : `<span class="pricing-v10-pill bad">⚠ lucro ${health.minPercent.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span>`}
+                  <span class="pricing-v10-pill ${completeness.complete ? "lm-v11-complete" : "lm-v11-incomplete"}">${escapeHtml(completeness.label)}</span>
                 </div>
                 <div class="pricing-v10-meta">
                   ${p.category ? `<span>${escapeHtml(p.category)}</span>` : ""}
@@ -7527,6 +7506,7 @@ function renderPrecificacao(container) {
                 <summary>Estoque e modelos ▾</summary>
                 <div class="pricing-v10-stock-editor">${renderPricingMobileStock(p)}</div>
               </details>
+              <button data-quick-view="${p.id}" class="quick-view-product-btn lm-v11-quickview">Visão rápida</button>
               <button data-edit="${p.id}" class="edit-product-btn">Editar produto</button>
               <button data-duplicate="${p.id}" class="duplicate-product-btn" title="Duplicar">⧉</button>
               <button data-toggle="${p.id}" data-active="${p.active}" class="toggle-product-btn ${p.active ? "danger" : ""}" title="${p.active ? "Desativar" : "Reativar"}">${p.active ? "✕" : "↺"}</button>
@@ -7572,8 +7552,7 @@ function renderPrecificacao(container) {
     renderPrecificacao(container);
   });
   document.getElementById("calc3d-open-btn").addEventListener("click", () => {
-    calc3dState.open = true;
-    renderCalc3dOverlay();
+    window.location.href = "https://lojaluzmariana.com.br/calculadora/";
   });
   document.getElementById("new-product-btn").addEventListener("click", () => {
     precifState.editingId = null;
@@ -7581,6 +7560,8 @@ function renderPrecificacao(container) {
     precifState.formOpen = true;
     renderProductForm();
   });
+  container.querySelectorAll(".quick-view-product-btn").forEach((btn) => btn.addEventListener("click", () => v11OpenProductQuickView(btn.dataset.quickView)));
+  container.querySelectorAll("[data-favorite-product]").forEach((btn) => btn.addEventListener("click", () => { v11ToggleFavorite(btn.dataset.favoriteProduct); renderPrecificacao(container); }));
   container.querySelectorAll(".edit-product-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       precifState.editingId = btn.dataset.edit;
@@ -7924,6 +7905,7 @@ function renderProductForm() {
   slot.innerHTML = `
     <form id="product-form" class="product-editor-v10 flex flex-col gap-4 rounded-xl border border-gold-300 bg-white p-5 shadow">
       <div class="product-editor-v10-head"><div><span>CADASTRO DO PRODUTO</span><h2>${product ? "Editar produto" : "Novo produto"}</h2></div><div class="product-editor-v10-min">Lucro mínimo <strong>60% sobre o custo</strong></div></div>
+      <div class="lm-v11-guided-steps"><div><b>1. O que é?</b>Nome, categoria e fornecedor</div><div><b>2. Quanto custa?</b>Custo e preço seguro</div><div><b>3. O que está pronto?</b>Modelos e estoque</div><div><b>4. Como aparece?</b>Fotos e catálogo</div></div>
       ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
       <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div class="min-w-[220px] flex-1">
@@ -12437,6 +12419,7 @@ function renderPedidos(container) {
   const produtosAReceberOrders = statsOrders
     .filter((o) => orderSupplierPendingItems(o).length > 0)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const v11FlowCounts = { novo:dateFilteredOrders.filter((o)=>o.status==="novo").length, em_andamento:dateFilteredOrders.filter((o)=>o.status==="em_andamento").length, concluido:dateFilteredOrders.filter((o)=>o.status==="concluido").length, cancelado:dateFilteredOrders.filter((o)=>o.status==="cancelado").length };
 
   container.innerHTML = `
     <div class="flex flex-col gap-6">
@@ -12444,6 +12427,12 @@ function renderPedidos(container) {
         <h1 class="text-xl font-semibold text-navy-900">Pedidos</h1>
         <p class="text-sm text-navy-500">Pedidos feitos pelos clientes no Catálogo público. Em cada pedido, o painel mostra quanto preservar de custo, o lucro e a divisão do lucro entre reinvestimento e sua retirada.</p>
       </div>
+      <section class="lm-v11-flow" aria-label="Fluxo simples dos pedidos">
+        <button type="button" data-v11-order-stage="novo" class="${pedidosState.tab==="novo"?"active":""}"><span>1. Novo</span><strong>${v11FlowCounts.novo}</strong></button>
+        <button type="button" data-v11-order-stage="em_andamento" class="${pedidosState.tab==="em_andamento"?"active":""}"><span>2. Separar / fabricar</span><strong>${v11FlowCounts.em_andamento}</strong></button>
+        <button type="button" data-v11-order-stage="concluido" class="${pedidosState.tab==="concluido"?"active":""}"><span>3. Entregue / concluído</span><strong>${v11FlowCounts.concluido}</strong></button>
+        <button type="button" data-v11-order-stage="cancelado" class="${pedidosState.tab==="cancelado"?"active":""}"><span>Cancelados</span><strong>${v11FlowCounts.cancelado}</strong></button>
+      </section>
 
       <div id="edit-order-overlay-slot"></div>
       <div id="accept-order-overlay-slot"></div>
@@ -12766,6 +12755,13 @@ function renderPedidos(container) {
       </div>
     </div>
   `;
+
+  container.querySelectorAll("[data-v11-order-stage]").forEach((b)=>b.addEventListener("click",()=>{
+    pedidosState.tab=b.dataset.v11OrderStage;
+    pedidosState.expandedId=null;
+    pedidosState.selected.clear();
+    renderPedidos(container);
+  }));
 
   const pedidosMonthFilter = document.getElementById("pedidos-month-filter");
   if (pedidosMonthFilter) {
