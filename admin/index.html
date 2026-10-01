@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v9.15-variant-reference-price-2026-09-16" />
+<meta name="luz-mariana-admin-version" content="professional-v10.0-clean-products-profit60-2026-10-01" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1661,6 +1661,34 @@
   #stock-production-form .settings-field{min-width:0}
 }
 
+
+
+/* =====================================================================
+   V10 — Produtos e precificação: visual limpo e centrado em decisão.
+   ===================================================================== */
+.pricing-v10-shell{display:flex;flex-direction:column;gap:18px}
+.pricing-v10-head{display:flex;gap:18px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+.pricing-v10-head h1{font-size:28px;line-height:1.05;font-weight:800;color:#001868;margin:3px 0 7px}
+.pricing-v10-head p{max-width:760px;color:#657089;font-size:13px;line-height:1.5}
+.pricing-v10-eyebrow{font-size:10px!important;font-weight:800!important;letter-spacing:.14em;color:#a06c00!important}
+.pricing-v10-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pricing-v10-btn{min-height:42px;border-radius:12px;padding:0 15px;font-size:13px;font-weight:800;border:1px solid #dbe1ef;background:#fff;color:#001868;box-shadow:0 2px 8px rgba(0,24,104,.05)}
+.pricing-v10-btn.primary{background:#f7b500;border-color:#f7b500}.pricing-v10-btn:hover{transform:translateY(-1px)}
+.pricing-v10-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.pricing-v10-kpis>div{background:#fff;border:1px solid #e6e9f1;border-radius:15px;padding:14px 16px;box-shadow:0 3px 12px rgba(0,24,104,.035)}
+.pricing-v10-kpis span,.pricing-v10-kpis small{display:block}.pricing-v10-kpis span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7c879d;font-weight:800}.pricing-v10-kpis strong{display:block;font-size:26px;color:#001868;margin-top:3px}.pricing-v10-kpis small{font-size:10px;color:#9ba4b5;margin-top:2px}.pricing-v10-kpis .alert{border-color:#fecaca;background:#fffafa}.pricing-v10-kpis .alert strong{color:#b4232c}.pricing-v10-kpis .ok{border-color:#cce9dd;background:#f9fffc}.pricing-v10-kpis .ok strong{color:#19704e}
+.pricing-v10-filters{display:grid;grid-template-columns:minmax(280px,1fr) 190px 170px auto auto;gap:8px;align-items:center;background:#fff;border:1px solid #e6e9f1;border-radius:15px;padding:10px}
+.pricing-v10-search{position:relative}.pricing-v10-search span{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#7180a0}.pricing-v10-search input,.pricing-v10-filters select{width:100%;height:42px;border:1px solid #dbe1ef;border-radius:11px;background:#fff;padding:0 12px;color:#22365c;font-size:13px;outline:none}.pricing-v10-search input{padding-left:36px}.pricing-v10-search input:focus,.pricing-v10-filters select:focus{border-color:#f0b323;box-shadow:0 0 0 3px rgba(240,179,35,.15)}.pricing-v10-result-count{font-size:11px;color:#8390a7;white-space:nowrap}.pricing-v10-clear{height:38px;padding:0 12px;border-radius:10px;border:1px solid #dbe1ef;background:#f8f9fc;color:#4e5d79;font-size:11px;font-weight:700}
+.pricing-v10-rule{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 14px;border:1px solid #e9d498;background:#fffaf0;border-radius:13px}.pricing-v10-rule div{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}.pricing-v10-rule strong{font-size:12px;color:#6b4a00}.pricing-v10-rule span{font-size:11px;color:#866d37}.pricing-v10-rule-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.pricing-v10-rule-badge{border-radius:999px;background:#fff1c2;padding:6px 9px;font-weight:800!important;color:#7a5500!important;white-space:nowrap}.pricing-v10-rule-actions button{border:1px solid #d7b55d;background:#fff;color:#775100;border-radius:9px;padding:6px 9px;font-size:10px;font-weight:800}.pricing-v10-rule-actions button:hover{background:#fff4d6}.pricing-v10-rule-actions button:disabled{opacity:.55}
+.pricing-v10-products{display:flex;flex-direction:column;gap:9px}.pricing-v10-empty{padding:35px;text-align:center;border:1px dashed #ccd3e1;border-radius:15px;color:#8792a8;background:#fff}
+.pricing-v10-product{display:grid;grid-template-columns:minmax(280px,1.25fr) minmax(360px,1.3fr) minmax(220px,.75fr);grid-template-areas:"main finance stock" "actions actions actions";gap:12px 18px;background:#fff;border:1px solid #e4e8f0;border-radius:16px;padding:13px 14px;box-shadow:0 3px 12px rgba(0,24,104,.035)}.pricing-v10-product.needs-profit{border-left:4px solid #d9485a}.pricing-v10-product.is-inactive{opacity:.62}.pricing-v10-product-main{grid-area:main;display:flex;gap:12px;min-width:0}.pricing-v10-product-photo-wrap{position:relative;width:76px;height:76px;flex:0 0 76px}.pricing-v10-product-photo,.pricing-v10-product-placeholder{width:76px;height:76px;border-radius:13px;border:1px solid #e0e4ed;object-fit:cover;background:#f6f7fa}.pricing-v10-product-placeholder{display:grid;place-items:center;font-size:25px}.pricing-v10-photo-count{position:absolute;right:-5px;bottom:-5px;border:1px solid #e0e4ed;background:#fff;border-radius:999px;padding:3px 6px;font-size:9px;font-weight:800;color:#586783;box-shadow:0 2px 7px rgba(0,0,0,.08)}.pricing-v10-product-copy{min-width:0;padding-top:2px}.pricing-v10-product-title-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.pricing-v10-product-title-line h3{font-size:14px;line-height:1.25;font-weight:800;color:#0b285e;max-width:100%}.pricing-v10-pill{border-radius:999px;padding:4px 7px;font-size:9px;font-weight:800}.pricing-v10-pill.good{background:#e7f7ef;color:#19704e}.pricing-v10-pill.bad{background:#fdebed;color:#ae2733}.pricing-v10-pill.warn{background:#fff3d6;color:#916100}.pricing-v10-pill.muted{background:#edf0f5;color:#647087}.pricing-v10-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}.pricing-v10-meta span{font-size:9px;color:#66738d;background:#f5f7fa;border-radius:999px;padding:4px 7px}
+.pricing-v10-finance{grid-area:finance;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;align-content:start}.pricing-v10-finance>div{padding:9px 10px;border-radius:11px;background:#f7f8fb;border:1px solid #eceef4}.pricing-v10-finance span{display:block;font-size:9px;color:#8791a5}.pricing-v10-finance strong{display:block;margin-top:3px;font-size:13px;color:#1f365f}.pricing-v10-finance .good{background:#f2fbf6;border-color:#d9efe4}.pricing-v10-finance .good strong{color:#16714d}.pricing-v10-finance .bad{background:#fff6f6;border-color:#f5d7db}.pricing-v10-finance .bad strong{color:#b32634}
+.pricing-v10-stock-summary{grid-area:stock;display:grid;grid-template-columns:1fr 1fr;gap:7px;align-content:start}.pricing-v10-stock-summary>div:not(.pricing-v10-quick-toggles){padding:9px 10px;border-radius:11px;background:#f7f8fb}.pricing-v10-stock-summary span{display:block;font-size:9px;color:#8791a5}.pricing-v10-stock-summary strong{display:block;margin-top:3px;font-size:12px;color:#1f365f}.pricing-v10-quick-toggles{grid-column:1/-1;display:flex;gap:12px;padding:4px 2px}.pricing-v10-quick-toggles label{display:flex;align-items:center;gap:5px;font-size:10px;color:#586783;font-weight:700}
+.pricing-v10-product-actions{grid-area:actions;display:flex;align-items:center;gap:7px;padding-top:9px;border-top:1px solid #eef0f5}.pricing-v10-product-actions>button,.pricing-v10-stock-details>summary{border:1px solid #dbe1ec;border-radius:9px;background:#fff;color:#233b68;font-size:10px;font-weight:800;padding:7px 10px;cursor:pointer;list-style:none}.pricing-v10-product-actions>button:hover,.pricing-v10-stock-details>summary:hover{background:#f6f8fc}.pricing-v10-product-actions .danger{color:#b72d39;border-color:#f1cbd0}.pricing-v10-select{display:flex;align-items:center;gap:5px;font-size:10px;color:#65728b}.pricing-v10-stock-details{position:relative}.pricing-v10-stock-details[open]{flex:1}.pricing-v10-stock-details[open] summary{display:inline-block}.pricing-v10-stock-editor{margin-top:8px;background:#f8f9fc;border-radius:12px;padding:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.pricing-v10-stock-editor .stock-editor-row{margin:0;background:#fff;border:1px solid #e6e9f1;border-radius:10px}
+.product-editor-v10{position:relative}.product-editor-v10-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-bottom:13px;border-bottom:1px solid #edf0f5}.product-editor-v10-head span{font-size:9px;font-weight:800;letter-spacing:.12em;color:#9a6d12}.product-editor-v10-head h2{font-size:19px;font-weight:800;color:#001868}.product-editor-v10-min{font-size:11px;color:#68758d;background:#fff8e5;border:1px solid #f0d895;border-radius:10px;padding:8px 10px}.product-editor-v10-min strong{color:#8b5b00}.product-editor-v10-section{border:1px solid #e3e7ef;border-radius:12px;background:#fafbfc;overflow:hidden}.product-editor-v10-section summary{cursor:pointer;padding:12px 14px;list-style:none;display:flex;align-items:baseline;justify-content:space-between;gap:10px}.product-editor-v10-section summary span{font-size:13px;font-weight:800;color:#193461}.product-editor-v10-section summary small{font-size:10px;color:#8590a4}.product-editor-v10-section[open] summary{border-bottom:1px solid #e9ecf2;background:#fff}.product-editor-v10-section-body{padding:13px}.product-editor-v10-pricing{display:grid;grid-template-columns:280px 1fr;gap:16px;border:1px solid #ead69f;background:#fffaf0;border-radius:12px;padding:14px}
+html.dark .pricing-v10-head h1,html.dark .pricing-v10-product-title-line h3,html.dark .pricing-v10-finance strong,html.dark .pricing-v10-stock-summary strong{color:#f5f7fc}.dark .pricing-v10-product,.dark .pricing-v10-filters,.dark .pricing-v10-kpis>div{background:#131c2d;border-color:#263249}.dark .pricing-v10-finance>div,.dark .pricing-v10-stock-summary>div:not(.pricing-v10-quick-toggles){background:#182338;border-color:#28354d}.dark .pricing-v10-meta span{background:#1a273d;color:#aeb8ca}
+@media(max-width:1100px){.pricing-v10-product{grid-template-columns:1fr 1fr;grid-template-areas:"main main" "finance stock" "actions actions"}.pricing-v10-filters{grid-template-columns:1fr 170px 160px}.pricing-v10-result-count,.pricing-v10-clear{grid-row:2}.pricing-v10-stock-editor{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.pricing-v10-kpis{grid-template-columns:1fr 1fr}.pricing-v10-filters{grid-template-columns:1fr}.pricing-v10-result-count,.pricing-v10-clear{grid-row:auto}.pricing-v10-product{grid-template-columns:1fr;grid-template-areas:"main" "finance" "stock" "actions"}.pricing-v10-finance{grid-template-columns:1fr 1fr}.pricing-v10-product-actions{flex-wrap:wrap}.pricing-v10-stock-details[open]{flex-basis:100%}.pricing-v10-stock-editor{grid-template-columns:1fr}.product-editor-v10-pricing{grid-template-columns:1fr}.pricing-v10-rule{align-items:flex-start;flex-direction:column}.pricing-v10-head{align-items:flex-start}.pricing-v10-head h1{font-size:24px}}
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
@@ -1795,7 +1823,11 @@ function orderInstallments(order) {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 1 ? Math.max(1, Math.min(12, Math.trunc(n))) : null;
 }
-const PROMO_DIVISOR = 1 - 0.40; // 0.60 — margem mín. 40% no pix/promo
+// V10 — regra comercial principal de precificação.
+// "60% sobre o custo" significa: para cada R$ 100,00 de custo, o lucro
+// líquido mínimo desejado é R$ 60,00 (markup líquido mínimo de 1,60x).
+// Não confundir com margem de 60% sobre o preço de venda.
+const MIN_PROFIT_ON_COST_RATE = 0.60;
 
 function round2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -1817,39 +1849,77 @@ function niceCeil(raw) {
   return round2(best);
 }
 
+function minimumPromoPriceForCost(cost) {
+  const c = Math.max(0, Number(cost || 0));
+  if (c <= 0) return 0;
+  const targetNet = c * (1 + MIN_PROFIT_ON_COST_RATE);
+
+  // O painel usa 3x como referência do "crédito até 3x". Como a loja
+  // cobra o acréscimo configurado do cliente e depois paga a taxa real da
+  // maquininha, calculamos o preço à vista mínimo necessário para que o
+  // LÍQUIDO do crédito em 3x também preserve pelo menos 60% sobre o custo.
+  const cfg = loadCardRateSettings();
+  const surchargeFactor = 1 + Number(cfg.customerSurchargeUpTo3 || 0.05);
+  const rate3x = cardRateFor("credito", 3);
+  const creditNetFactor = surchargeFactor * (1 - rate3x);
+  const requiredForCredit = creditNetFactor > 0 ? targetNet / creditNetFactor : targetNet;
+  return niceCeil(Math.max(targetNet, requiredForCredit));
+}
+
+function profitOnCostRate(cost, profit) {
+  const c = Number(cost || 0);
+  return c > 0 ? Number(profit || 0) / c : 0;
+}
+function profitOnCostPercent(cost, profit) {
+  return profitOnCostRate(cost, profit) * 100;
+}
+function pricingMeetsMinimum(pricing) {
+  if (!pricing || !(Number(pricing.cost) > 0)) return true;
+  return profitOnCostRate(pricing.cost, pricing.promoProfit) + 1e-9 >= MIN_PROFIT_ON_COST_RATE
+    && profitOnCostRate(pricing.cost, pricing.creditProfit) + 1e-9 >= MIN_PROFIT_ON_COST_RATE;
+}
+
 function calculatePricing(cost) {
-  const promoPrice = niceCeil(cost / PROMO_DIVISOR);
-  const promoProfit = round2(promoPrice - cost);
+  const c = Math.max(0, Number(cost || 0));
+  const promoPrice = minimumPromoPriceForCost(c);
+  const promoProfit = round2(promoPrice - c);
   const promoMargin = promoPrice > 0 ? round2(promoProfit / promoPrice) : 0;
 
-  // Preço padrão exibido no catálogo/painel = crédito em até 3x (+5%).
-  // Para margem e líquido, usamos a taxa real de 3x (pior caso dentro do "até 3x").
+  // Preço padrão exibido no catálogo/painel = crédito em até 3x.
+  // A base à vista acima já foi elevada, quando necessário, para que o
+  // líquido do crédito de referência não caia abaixo dos 60% sobre custo.
   const creditPrice = customerCardPriceFromPix(promoPrice, 3);
   const creditRate = cardRateFor("credito", 3);
   const creditNet = round2(creditPrice * (1 - creditRate));
-  const creditProfit = round2(creditNet - cost);
-  const creditMarkup = cost > 0 ? round2(creditNet / cost) : 0;
+  const creditProfit = round2(creditNet - c);
+  const creditMarkup = c > 0 ? round2(creditNet / c) : 0;
   const creditMargin = creditNet > 0 ? round2(creditProfit / creditNet) : 0;
 
   return {
-    cost, creditPrice, creditNet, creditProfit, creditMarkup, creditMargin,
+    cost:c, creditPrice, creditNet, creditProfit, creditMarkup, creditMargin,
     promoPrice, promoProfit, promoMargin,
+    minimumPromoPrice: minimumPromoPriceForCost(c),
+    belowMinimum: false,
   };
 }
 
 function calculatePricingFromManualPromo(cost, manualPromo) {
+  const c = Math.max(0, Number(cost || 0));
   const promoPrice = round2(manualPromo);
-  const promoProfit = round2(promoPrice - cost);
+  const promoProfit = round2(promoPrice - c);
   const promoMargin = promoPrice > 0 ? round2(promoProfit / promoPrice) : 0;
   const creditPrice = customerCardPriceFromPix(promoPrice, 3);
   const creditRate = cardRateFor("credito", 3);
   const creditNet = round2(creditPrice * (1 - creditRate));
-  const creditProfit = round2(creditNet - cost);
-  const creditMarkup = cost > 0 ? round2(creditNet / cost) : 0;
+  const creditProfit = round2(creditNet - c);
+  const creditMarkup = c > 0 ? round2(creditNet / c) : 0;
   const creditMargin = creditNet > 0 ? round2(creditProfit / creditNet) : 0;
+  const minimumPromoPrice = minimumPromoPriceForCost(c);
   return {
-    cost, creditPrice, creditNet, creditProfit, creditMarkup, creditMargin,
+    cost:c, creditPrice, creditNet, creditProfit, creditMarkup, creditMargin,
     promoPrice, promoProfit, promoMargin,
+    minimumPromoPrice,
+    belowMinimum: c > 0 && (promoPrice + 1e-9 < minimumPromoPrice || profitOnCostRate(c, creditProfit) + 1e-9 < MIN_PROFIT_ON_COST_RATE),
   };
 }
 
@@ -6770,7 +6840,7 @@ function buildLowStockWhatsappMessage(rows) {
   return lines.join("\n");
 }
 
-let precifState = { showInactive: false, formOpen: false, editingId: null, draftFromCalc3d: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set(), search: "" };
+let precifState = { showInactive: false, formOpen: false, editingId: null, draftFromCalc3d: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set(), search: "", category: "", stockFilter: "all" };
 // Se o aviso de "estoque baixo" foi dispensado nesta sessão do painel
 // (não persiste — some ao recarregar a página, pra não esconder o aviso
 // pra sempre por engano).
@@ -7268,6 +7338,43 @@ function renderCalc3dOverlay() {
   });
 }
 
+
+function pricingUnitsForProduct(product) {
+  const units = [];
+  const variants = product?.product_variants ?? [];
+  if (variants.length === 0) {
+    units.push(effectivePricing(product, null));
+    return units;
+  }
+  let inheritedAdded = false;
+  for (const variant of variants) {
+    if (variantHasOwnPricing(variant) && Number(effectiveCost(product, variant)) > 0) {
+      units.push(effectivePricing(product, variant));
+    } else if (!inheritedAdded && Number(product?.cost || 0) > 0) {
+      units.push(effectivePricing(product, null));
+      inheritedAdded = true;
+    }
+  }
+  if (!units.length && Number(product?.cost || 0) > 0) units.push(effectivePricing(product, null));
+  return units;
+}
+function productProfitHealth(product) {
+  const units = pricingUnitsForProduct(product).filter((p) => Number(p?.cost || 0) > 0);
+  if (!units.length) return { minRate:0, minPercent:0, compliant:false, noCost:true };
+  const rates = units.flatMap((p) => [profitOnCostRate(p.cost, p.promoProfit), profitOnCostRate(p.cost, p.creditProfit)]);
+  const minRate = Math.min(...rates);
+  return { minRate, minPercent:minRate*100, compliant:minRate + 1e-9 >= MIN_PROFIT_ON_COST_RATE, noCost:false };
+}
+function productTotalStock(product) {
+  const variants = product?.product_variants ?? [];
+  return variants.length
+    ? variants.reduce((sum,v)=>sum+stockQtyValue(v),0)
+    : stockQtyValue(product);
+}
+function productPhotoCount(product) {
+  return (product?.photo_url ? 1 : 0) + (product?.product_photos?.length || 0);
+}
+
 function renderPrecificacao(container) {
   const baseVisible = state.products.filter((p) => precifState.showInactive || p.active);
   const productSearch = normalizeSearchText(precifState.search || "");
@@ -7275,43 +7382,39 @@ function renderPrecificacao(container) {
     p.name, p.category, p.material_tag, p.suppliers?.name,
     ...(p.product_variants || []).map((v) => v.name),
   ].filter(Boolean).join(" "));
-  const visible = productSearch ? baseVisible.filter((p) => searchableProductText(p).includes(productSearch)) : baseVisible;
+  let visible = productSearch ? baseVisible.filter((p) => searchableProductText(p).includes(productSearch)) : [...baseVisible];
   const categories = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  if (precifState.category) visible = visible.filter((p) => p.category === precifState.category);
+  if (precifState.stockFilter === "ready") visible = visible.filter((p) => productTotalStock(p) > 0);
+  if (precifState.stockFilter === "order") visible = visible.filter((p) => productTotalStock(p) === 0);
+  if (precifState.stockFilter === "low") visible = visible.filter((p) => {
+    const q = productTotalStock(p);
+    return q > 0 && q <= 2;
+  });
 
-  // "Tabela de preços" (PDF) — seleção independente do resto da tela,
-  // limpa sozinha quando um produto selecionado deixa de estar visível
-  // (ex: desmarcou "Mostrar inativos" com um inativo selecionado).
   [...precifState.priceTableSelected].forEach((id) => { if (!baseVisible.some((p) => p.id === id)) precifState.priceTableSelected.delete(id); });
   const priceTableSelectedCount = precifState.priceTableSelected.size;
   const allVisibleSelectedForPriceTable = visible.length > 0 && visible.every((p) => precifState.priceTableSelected.has(p.id));
-  const tableColCount = 14 + (precifState.priceTableOpen ? 1 : 0);
   const activeCount = state.products.filter((p) => p.active).length;
   const modelCount = state.products.reduce((sum, p) => sum + (p.product_variants?.length || 0), 0);
   const lowStockCount = countLowStockProducts();
-  const madeToOrderCount = state.products.filter((p) => {
-    if (!p.active) return false;
-    const variants = p.product_variants ?? [];
-    return variants.length ? variants.every((v) => !v.in_stock) : !p.in_stock;
-  }).length;
+  const belowMinimumCount = state.products.filter((p) => { const h = productProfitHealth(p); return p.active && !h.noCost && !h.compliant; }).length;
 
   container.innerHTML = `
-    <div class="flex flex-col gap-6">
-      <div class="pricing-page-head flex flex-wrap items-center justify-between gap-3">
+    <div class="pricing-v10-shell">
+      <div class="pricing-v10-head">
         <div>
-          <h1 class="text-xl font-semibold text-navy-900">Precificação</h1>
-          <p class="text-sm text-navy-500">Cadastre o custo do produto — os preços e margens são calculados automaticamente.</p>
+          <p class="pricing-v10-eyebrow">CATÁLOGO • ESTOQUE • RENTABILIDADE</p>
+          <h1>Produtos e precificação</h1>
+          <p>Preço mínimo automático com <strong>60% de lucro sobre o custo</strong>. Cadastre, acompanhe estoque e edite modelos sem poluir a tela.</p>
         </div>
-        <div class="pricing-page-actions flex flex-wrap items-center gap-2">
-          <button id="calc3d-open-btn" title="Calcula o custo de fabricação de peças impressas em 3D." class="rounded-lg border border-navy-300 bg-white px-4 py-2 text-sm font-semibold text-navy-700 shadow-sm transition hover:bg-navy-50">🖨️ Calculadora 3D</button>
-          <button id="new-product-btn" class="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400">+ Novo produto</button>
-
+        <div class="pricing-v10-actions">
+          <button id="calc3d-open-btn" class="pricing-v10-btn secondary">🖨️ Calculadora 3D</button>
+          <button id="new-product-btn" class="pricing-v10-btn primary">+ Novo produto</button>
           <details class="admin-actions-menu">
             <summary>Mais ações ▾</summary>
             <div class="admin-actions-popover">
-              <label>
-                <input type="checkbox" id="show-inactive" ${precifState.showInactive ? "checked" : ""} />
-                Mostrar produtos inativos
-              </label>
+              <label><input type="checkbox" id="show-inactive" ${precifState.showInactive ? "checked" : ""} /> Mostrar produtos inativos</label>
               <button id="bulk-cost-toggle-btn" type="button">↕ ${precifState.bulkOpen ? "Fechar reajuste em massa" : "Reajustar custo em massa"}</button>
               <button id="price-history-btn" type="button">📜 Histórico de preços</button>
               <button id="price-table-toggle-btn" type="button">${precifState.priceTableOpen ? "Fechar tabela de preços" : "🖨️ Gerar tabela de preços"}</button>
@@ -7320,169 +7423,116 @@ function renderPrecificacao(container) {
         </div>
       </div>
 
-      <div class="rounded-xl border border-navy-100 bg-white p-3 shadow-sm">
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="relative min-w-[240px] flex-1">
-            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-navy-400">⌕</span>
-            <input id="product-search-input" value="${escapeHtml(precifState.search || "")}" autocomplete="off"
-              class="w-full rounded-lg border border-navy-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
-              placeholder="Buscar produto, tamanho, modelo, categoria ou fornecedor..." />
-          </div>
-          <span class="text-xs font-medium text-navy-400">${visible.length} de ${baseVisible.length} produto(s)</span>
-          ${precifState.search ? `<button id="product-search-clear" type="button" class="rounded-lg border border-navy-200 px-3 py-2 text-xs font-semibold text-navy-600 hover:bg-navy-50">Limpar busca</button>` : ""}
-        </div>
+      <div class="pricing-v10-kpis">
+        <div><span>Produtos ativos</span><strong>${activeCount}</strong><small>cadastros ativos</small></div>
+        <div><span>Modelos / variações</span><strong>${modelCount}</strong><small>tamanhos e acabamentos</small></div>
+        <div><span>Estoque baixo</span><strong>${lowStockCount}</strong><small>precisam de atenção</small></div>
+        <div class="${belowMinimumCount ? "alert" : "ok"}"><span>Abaixo do lucro mínimo</span><strong>${belowMinimumCount}</strong><small>mínimo: 60% sobre custo</small></div>
       </div>
 
-      <div class="pricing-summary-grid">
-        <div class="pricing-summary-card"><span>Produtos ativos</span><strong>${activeCount}</strong></div>
-        <div class="pricing-summary-card"><span>Cores/acabamentos</span><strong>${modelCount}</strong></div>
-        <div class="pricing-summary-card"><span>Estoque baixo</span><strong>${lowStockCount}</strong></div>
-        <div class="pricing-summary-card"><span>Sob encomenda</span><strong>${madeToOrderCount}</strong></div>
+      <div class="pricing-v10-filters">
+        <div class="pricing-v10-search">
+          <span>⌕</span>
+          <input id="product-search-input" value="${escapeHtml(precifState.search || "")}" autocomplete="off" placeholder="Buscar produto, modelo, tamanho, categoria ou fornecedor..." />
+        </div>
+        <select id="product-category-filter" aria-label="Filtrar categoria">
+          <option value="">Todas as categorias</option>
+          ${categories.map((c)=>`<option value="${escapeHtml(c)}" ${precifState.category===c?"selected":""}>${escapeHtml(c)}</option>`).join("")}
+        </select>
+        <select id="product-stock-filter" aria-label="Filtrar estoque">
+          <option value="all" ${precifState.stockFilter==="all"?"selected":""}>Todo estoque</option>
+          <option value="ready" ${precifState.stockFilter==="ready"?"selected":""}>Pronta entrega</option>
+          <option value="low" ${precifState.stockFilter==="low"?"selected":""}>Estoque baixo</option>
+          <option value="order" ${precifState.stockFilter==="order"?"selected":""}>Sob encomenda</option>
+        </select>
+        <span class="pricing-v10-result-count">${visible.length} produto${visible.length===1?"":"s"}</span>
+        ${(precifState.search || precifState.category || precifState.stockFilter!=="all") ? `<button id="product-search-clear" type="button" class="pricing-v10-clear">Limpar filtros</button>` : ""}
+      </div>
+
+      <div class="pricing-v10-rule">
+        <div><strong>Regra de preço</strong><span>Lucro líquido mínimo de 60% sobre o custo. Ex.: custo R$ 100 → lucro mínimo R$ 60.</span></div>
+        <div class="pricing-v10-rule-actions">
+          <span class="pricing-v10-rule-badge">Markup líquido mínimo 1,60x</span>
+          ${belowMinimumCount ? `<button id="pricing-fix-minimum" type="button">Ajustar ${belowMinimumCount} abaixo do mínimo</button>` : ""}
+        </div>
       </div>
 
       ${precifState.bulkOpen ? `
         <div class="rounded-xl border border-gold-300 bg-white p-4 shadow">
           <p class="mb-1 text-sm font-medium text-navy-800">Reajustar custo em massa</p>
-          <p class="mb-3 text-xs text-navy-500">Aplica um reajuste percentual no CUSTO de vários produtos ativos de uma vez (ex: o fornecedor subiu os preços) — os preços de Crédito e Promo/Pix recalculam sozinhos a partir do novo custo, do mesmo jeito que calculariam se você editasse um produto por vez.</p>
+          <p class="mb-3 text-xs text-navy-500">Altere o custo em lote. Os preços automáticos passam a obedecer a regra mínima de 60% sobre o custo.</p>
           <div class="flex flex-wrap items-end gap-3">
-            <div class="w-40">
-              <label class="mb-1 block text-xs font-medium text-navy-700">Categoria (opcional)</label>
-              <select id="bulk-cost-category" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
-                <option value="">Todas as categorias</option>
-                ${categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}
-              </select>
-            </div>
-            <div class="w-36">
-              <label class="mb-1 block text-xs font-medium text-navy-700">Reajuste (%)</label>
-              <input id="bulk-cost-percent" type="number" step="0.1" placeholder="Ex: 10 ou -5" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-            </div>
-            <button type="button" id="bulk-cost-apply" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">Aplicar</button>
-          </div>
-          <p id="bulk-cost-msg" class="mt-2 text-xs"></p>
-        </div>
-      ` : ""}
+            <div class="w-40"><label class="mb-1 block text-xs font-medium text-navy-700">Categoria</label><select id="bulk-cost-category" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm"><option value="">Todas</option>${categories.map((c)=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}</select></div>
+            <div class="w-36"><label class="mb-1 block text-xs font-medium text-navy-700">Reajuste (%)</label><input id="bulk-cost-percent" type="number" step="0.1" placeholder="Ex: 10" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm" /></div>
+            <button type="button" id="bulk-cost-apply" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white">Aplicar</button>
+          </div><p id="bulk-cost-msg" class="mt-2 text-xs"></p>
+        </div>` : ""}
 
       ${precifState.priceTableOpen ? `
         <div class="flex flex-wrap items-center gap-3 rounded-xl border border-gold-300 bg-white p-3 shadow">
-          <label class="flex items-center gap-2 text-sm text-navy-700">
-            <input type="checkbox" id="price-table-select-all" class="h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" ${visible.length === 0 ? "disabled" : ""} ${allVisibleSelectedForPriceTable ? "checked" : ""} />
-            Selecionar todos os visíveis
-          </label>
+          <label class="flex items-center gap-2 text-sm text-navy-700"><input type="checkbox" id="price-table-select-all" ${visible.length === 0 ? "disabled" : ""} ${allVisibleSelectedForPriceTable ? "checked" : ""} /> Selecionar visíveis</label>
           <span class="text-sm text-navy-400">${priceTableSelectedCount} selecionado${priceTableSelectedCount === 1 ? "" : "s"}</span>
-          <button id="price-table-generate-btn" ${priceTableSelectedCount === 0 ? "disabled" : ""} class="ml-auto rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 shadow transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-40">🖨️ Gerar tabela de preços (${priceTableSelectedCount})</button>
-        </div>
-      ` : ""}
+          <button id="price-table-generate-btn" ${priceTableSelectedCount === 0 ? "disabled" : ""} class="ml-auto rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 disabled:opacity-40">🖨️ Gerar tabela (${priceTableSelectedCount})</button>
+        </div>` : ""}
 
       <div id="product-form-slot"></div>
 
-      <div class="pricing-mobile-list">
-        ${visible.length === 0 ? `<div class="pricing-mobile-card text-center text-navy-400">Nenhum produto encontrado.</div>` : visible.map((p) => `
-          <article class="pricing-mobile-card ${!p.active ? "is-inactive" : ""}">
-            ${precifState.priceTableOpen ? `<label class="pricing-mobile-select"><input type="checkbox" data-price-table-select="${p.id}" class="price-table-select-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" ${precifState.priceTableSelected.has(p.id) ? "checked" : ""} /> Incluir na tabela de preços</label>` : ""}
-            <div class="pricing-mobile-head">
-              ${p.photo_url ? `<img src="${p.photo_url}" alt="" class="pricing-mobile-photo" />` : `<span class="pricing-mobile-photo-placeholder">📦</span>`}
-              <div class="pricing-mobile-title">
-                <h3>${escapeHtml(p.name)}</h3>
-                <div class="pricing-mobile-badges">
-                  ${p.category ? `<span class="rounded-full bg-navy-100 px-2 py-1 text-[9px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
-                  ${p.material_tag ? `<span class="rounded-full bg-cream-100 px-2 py-1 text-[9px] font-semibold text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
-                  ${p.product_variants?.length ? `<span class="rounded-full bg-gold-100 px-2 py-1 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
-                  ${stockBadge(p)}${esgotadoBadge(p)}${lowStockBadge(p)}
+      <div class="pricing-v10-products">
+        ${visible.length === 0 ? `<div class="pricing-v10-empty">Nenhum produto encontrado com esses filtros.</div>` : visible.map((p) => {
+          const health = productProfitHealth(p);
+          const stock = productTotalStock(p);
+          const pricing = effectivePricing(p, null);
+          const photoCount = productPhotoCount(p);
+          return `
+          <article class="pricing-v10-product ${!p.active ? "is-inactive" : ""} ${!health.compliant ? "needs-profit" : ""}">
+            <div class="pricing-v10-product-main">
+              <div class="pricing-v10-product-photo-wrap">
+                ${p.photo_url ? `<img src="${p.photo_url}" alt="" class="pricing-v10-product-photo" />` : `<span class="pricing-v10-product-placeholder">📦</span>`}
+                <span class="pricing-v10-photo-count">📷 ${photoCount}/3</span>
+              </div>
+              <div class="pricing-v10-product-copy">
+                <div class="pricing-v10-product-title-line">
+                  <h3>${escapeHtml(p.name)}</h3>
+                  ${!p.active ? `<span class="pricing-v10-pill muted">Inativo</span>` : ""}
+                  ${health.noCost ? `<span class="pricing-v10-pill warn">Sem custo</span>` : health.compliant ? `<span class="pricing-v10-pill good">✓ lucro ≥ 60%</span>` : `<span class="pricing-v10-pill bad">⚠ lucro ${health.minPercent.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span>`}
+                </div>
+                <div class="pricing-v10-meta">
+                  ${p.category ? `<span>${escapeHtml(p.category)}</span>` : ""}
+                  ${p.material_tag ? `<span>${escapeHtml(p.material_tag)}</span>` : ""}
+                  <span>${p.product_variants?.length || 0} modelo${(p.product_variants?.length||0)===1?"":"s"}</span>
+                  ${p.suppliers?.name ? `<span>🚚 ${escapeHtml(p.suppliers.name)}</span>` : ""}
                 </div>
               </div>
             </div>
 
-            <div class="pricing-mobile-grid">
-              <div class="pricing-mobile-metric"><span>Custo</span><strong>${formatBRL(p.cost)}</strong></div>
-              <div class="pricing-mobile-metric"><span>Promo / Pix</span><strong>${formatBRL(p.promo_price)}</strong></div>
-              <div class="pricing-mobile-metric"><span>Crédito</span><strong>${formatBRL(p.credit_price)}</strong></div>
-              <div class="pricing-mobile-metric good"><span>Lucro crédito</span><strong>${formatBRL(p.credit_profit)}</strong></div>
-              <div class="pricing-mobile-metric"><span>Margem crédito</span><strong>${formatPercent(p.credit_margin)}</strong></div>
-              <div class="pricing-mobile-metric good"><span>Lucro Pix</span><strong>${formatBRL(p.promo_profit)}</strong></div>
+            <div class="pricing-v10-finance">
+              <div><span>Custo</span><strong>${formatBRL(pricing.cost)}</strong></div>
+              <div><span>Pix / à vista</span><strong>${formatBRL(pricing.promoPrice)}</strong></div>
+              <div><span>Crédito até 3x</span><strong>${formatBRL(pricing.creditPrice)}</strong></div>
+              <div class="${health.compliant ? "good" : "bad"}"><span>Lucro sobre custo</span><strong>${health.noCost ? "—" : `${health.minPercent.toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})}%`}</strong></div>
             </div>
 
-            <div class="pricing-mobile-stock">
-              <div class="pricing-mobile-stock-head"><span>Estoque por ${p.product_variants?.length ? "modelo" : "produto"}</span><span>${p.product_variants?.length || 1} ${p.product_variants?.length === 1 ? "item" : p.product_variants?.length ? "modelos" : "controle"}</span></div>
-              ${renderPricingMobileStock(p)}
+            <div class="pricing-v10-stock-summary">
+              <div><span>Estoque</span><strong>${stock > 0 ? `${stock} un.` : "Sob encomenda"}</strong></div>
+              <div><span>Catálogo</span><strong>${p.show_in_catalog ? "Visível" : "Oculto"}</strong></div>
+              <div class="pricing-v10-quick-toggles">
+                <label title="Visível no catálogo"><input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb" /> Visível</label>
+                <label title="Forçar em destaque"><input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb" /> Destaque</label>
+              </div>
             </div>
 
-            <div class="pricing-mobile-toggles">
-              <label class="pricing-mobile-toggle"><span>Visível no catálogo</span><input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" /></label>
-              <label class="pricing-mobile-toggle"><span>Destaque</span><input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" /></label>
+            <div class="pricing-v10-product-actions">
+              ${precifState.priceTableOpen ? `<label class="pricing-v10-select"><input type="checkbox" data-price-table-select="${p.id}" class="price-table-select-cb" ${precifState.priceTableSelected.has(p.id) ? "checked" : ""} /> tabela</label>` : ""}
+              <details class="pricing-v10-stock-details">
+                <summary>Estoque e modelos ▾</summary>
+                <div class="pricing-v10-stock-editor">${renderPricingMobileStock(p)}</div>
+              </details>
+              <button data-edit="${p.id}" class="edit-product-btn">Editar produto</button>
+              <button data-duplicate="${p.id}" class="duplicate-product-btn" title="Duplicar">⧉</button>
+              <button data-toggle="${p.id}" data-active="${p.active}" class="toggle-product-btn ${p.active ? "danger" : ""}" title="${p.active ? "Desativar" : "Reativar"}">${p.active ? "✕" : "↺"}</button>
             </div>
-
-            <div class="pricing-mobile-actions">
-              <button data-edit="${p.id}" class="edit-product-btn">✎ Editar</button>
-              <button data-duplicate="${p.id}" class="duplicate-product-btn">⧉ Duplicar</button>
-              <button data-toggle="${p.id}" data-active="${p.active}" class="toggle-product-btn ${p.active ? "danger" : ""}">${p.active ? "✕ Desativar" : "↺ Reativar"}</button>
-            </div>
-          </article>
-        `).join("")}
-      </div>
-
-      <div class="pricing-desktop-table">
-        <div class="pricing-desktop-list">
-          ${visible.length === 0 ? `<div class="pricing-mobile-card text-center text-navy-400">Nenhum produto encontrado.</div>` : visible.map((p) => `
-            <article class="pricing-desktop-row ${!p.active ? "is-inactive" : ""}">
-              <div class="pricing-desk-cell">
-                ${precifState.priceTableOpen ? `<label class="pricing-desk-select"><input type="checkbox" data-price-table-select="${p.id}" class="price-table-select-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" ${precifState.priceTableSelected.has(p.id) ? "checked" : ""} /> Incluir na tabela de preços</label>` : ""}
-                <div class="pricing-desk-product">
-                  ${p.photo_url ? `<img src="${p.photo_url}" alt="" class="pricing-desk-photo" />` : `<span class="pricing-desk-photo-placeholder">📦</span>`}
-                  <div class="min-w-0">
-                    <h3 class="pricing-desk-name">${escapeHtml(p.name)}</h3>
-                    <div class="pricing-desk-badges">
-                      ${p.category ? `<span class="rounded-full bg-navy-100 px-2 py-1 text-[9px] font-semibold text-navy-700">${escapeHtml(p.category)}</span>` : ""}
-                      ${p.material_tag ? `<span class="rounded-full bg-cream-100 px-2 py-1 text-[9px] font-semibold text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
-                      ${p.product_variants?.length ? `<span class="rounded-full bg-gold-100 px-2 py-1 text-[9px] font-semibold text-gold-700">${p.product_variants.length} modelo${p.product_variants.length > 1 ? "s" : ""}</span>` : ""}
-                      ${stockBadge(p)}${esgotadoBadge(p)}${lowStockBadge(p)}
-                    </div>
-                    ${p.suppliers ? `<div class="pricing-desk-sub">🚚 ${escapeHtml(p.suppliers.name)}</div>` : ""}
-                  </div>
-                </div>
-              </div>
-
-              <div class="pricing-desk-cell">
-                <span class="pricing-desk-label">Estoque ${p.product_variants?.length ? "por modelo" : "do produto"}</span>
-                <div class="pricing-desk-stock">${renderStockQtyCell(p)}</div>
-                ${p.product_materials?.length ? `<div class="pricing-desk-sub">Inclui: ${p.product_materials.map((pm) => escapeHtml(pm.materials?.name ?? "")).filter(Boolean).join(", ")}</div>` : ""}
-              </div>
-
-              <div class="pricing-desk-cell">
-                <span class="pricing-desk-label">Preços</span>
-                <div class="pricing-desk-price-grid">
-                  <div class="pricing-desk-price"><span>Custo</span><strong>${formatBRL(p.cost)}</strong></div>
-                  <div class="pricing-desk-price"><span>Promo / Pix</span><strong>${formatBRL(p.promo_price)}</strong></div>
-                  <div class="pricing-desk-price"><span>Crédito</span><strong>${formatBRL(p.credit_price)}</strong></div>
-                  <div class="pricing-desk-price"><span>Líquido cartão</span><strong>${formatBRL(p.credit_net)}</strong></div>
-                </div>
-              </div>
-
-              <div class="pricing-desk-cell">
-                <span class="pricing-desk-label">Rentabilidade</span>
-                <div class="pricing-desk-profit">
-                  <div class="pricing-desk-profit-item good"><span>Lucro crédito</span><strong>${formatBRL(p.credit_profit)}</strong></div>
-                  <div class="pricing-desk-profit-item"><span>Margem crédito</span><strong>${formatPercent(p.credit_margin)}</strong></div>
-                  <div class="pricing-desk-profit-item good"><span>Lucro Pix</span><strong>${formatBRL(p.promo_profit)}</strong></div>
-                  <div class="pricing-desk-profit-item"><span>Margem Pix</span><strong>${formatPercent(p.promo_margin)}</strong></div>
-                </div>
-                <div class="pricing-desk-sub">Markup no crédito: <strong>${Number(p.credit_markup).toFixed(2)}x</strong>${p.promo_manual_price != null ? ` · Pix manual` : ""}</div>
-              </div>
-
-              <div class="pricing-desk-cell">
-                <span class="pricing-desk-label">Catálogo e ações</span>
-                <div class="pricing-desk-controls">
-                  <label class="pricing-desk-toggle"><span>Visível</span><input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" /></label>
-                  <label class="pricing-desk-toggle"><span>Destaque</span><input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb h-4 w-4 rounded border-navy-300 text-gold-500 focus:ring-gold-400" /></label>
-                  <div class="pricing-desk-actions">
-                    <button data-edit="${p.id}" class="edit-product-btn">Editar</button>
-                    <button data-duplicate="${p.id}" title="Duplicar produto" class="duplicate-product-btn">⧉</button>
-                    <button data-toggle="${p.id}" data-active="${p.active}" title="${p.active ? "Desativar" : "Reativar"}" class="toggle-product-btn ${p.active ? "danger" : ""}">${p.active ? "✕" : "↺"}</button>
-                  </div>
-                </div>
-              </div>
-            </article>
-          `).join("")}
-        </div>
+          </article>`;
+        }).join("")}
       </div>
     </div>
   `;
@@ -7503,8 +7553,18 @@ function renderPrecificacao(container) {
   }
   document.getElementById("product-search-clear")?.addEventListener("click", () => {
     precifState.search = "";
+    precifState.category = "";
+    precifState.stockFilter = "all";
     renderPrecificacao(container);
     requestAnimationFrame(() => document.getElementById("product-search-input")?.focus());
+  });
+  document.getElementById("product-category-filter")?.addEventListener("change", (e) => {
+    precifState.category = e.target.value;
+    renderPrecificacao(container);
+  });
+  document.getElementById("product-stock-filter")?.addEventListener("change", (e) => {
+    precifState.stockFilter = e.target.value;
+    renderPrecificacao(container);
   });
 
   document.getElementById("show-inactive").addEventListener("change", (e) => {
@@ -7698,6 +7758,58 @@ function renderPrecificacao(container) {
     });
   }
 
+  document.getElementById("pricing-fix-minimum")?.addEventListener("click", async () => {
+    const targets = state.products.filter((p) => { const h = productProfitHealth(p); return p.active && !h.noCost && !h.compliant; });
+    if (!targets.length) return;
+    if (!confirm(`Ajustar ${targets.length} produto(s) para a nova regra mínima de 60% sobre o custo? Preços manuais abaixo do mínimo serão elevados somente até o valor mínimo necessário.`)) return;
+    const btn = document.getElementById("pricing-fix-minimum");
+    btn.disabled = true; btn.textContent = "Ajustando...";
+    let failures = 0;
+    for (const p of targets) {
+      try {
+        const fallbackCost = Number(p.cost || 0);
+        const fallbackManual = p.promo_manual_price != null && Number(p.promo_manual_price) > 0 && fallbackCost > 0
+          ? Math.max(Number(p.promo_manual_price), minimumPromoPriceForCost(fallbackCost)) : null;
+        const fallbackPricing = fallbackCost > 0
+          ? (fallbackManual != null ? calculatePricingFromManualPromo(fallbackCost, fallbackManual) : calculatePricing(fallbackCost))
+          : null;
+        const variantPricings = [];
+        for (const v of (p.product_variants || [])) {
+          const vCost = Number(v.cost || 0);
+          if (vCost > 0) {
+            const vManual = v.promo_manual_price != null && Number(v.promo_manual_price) > 0
+              ? Math.max(Number(v.promo_manual_price), minimumPromoPriceForCost(vCost)) : null;
+            const vp = vManual != null ? calculatePricingFromManualPromo(vCost, vManual) : calculatePricing(vCost);
+            const { error: ve } = await supabaseClient.from("product_variants").update({
+              promo_manual_price: v.promo_manual_price != null ? vManual : null,
+              promo_price: vp.promoPrice, credit_price: vp.creditPrice,
+            }).eq("id", v.id);
+            if (ve) throw ve;
+            variantPricings.push(vp);
+          } else if (fallbackPricing) variantPricings.push(fallbackPricing);
+        }
+        const parentPricing = variantPricings.length
+          ? variantPricings.reduce((best, current) => Number(current.promoPrice) < Number(best.promoPrice) ? current : best)
+          : fallbackPricing;
+        if (parentPricing) {
+          const { error: pe } = await supabaseClient.from("products").update({
+            cost: parentPricing.cost,
+            credit_price: parentPricing.creditPrice, credit_net: parentPricing.creditNet,
+            credit_profit: parentPricing.creditProfit, credit_markup: parentPricing.creditMarkup,
+            credit_margin: parentPricing.creditMargin, promo_price: parentPricing.promoPrice,
+            promo_profit: parentPricing.promoProfit, promo_margin: parentPricing.promoMargin,
+            promo_manual_price: p.promo_manual_price != null ? fallbackManual : null,
+            updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
+          }).eq("id", p.id);
+          if (pe) throw pe;
+        }
+      } catch (err) { console.error("Ajuste mínimo 60%:", p.name, err); failures++; }
+    }
+    await loadProducts();
+    renderPrecificacao(container);
+    alert(failures ? `Ajuste concluído, mas ${failures} produto(s) apresentaram erro. Confira os itens ainda sinalizados em vermelho.` : "Preços abaixo do mínimo ajustados com sucesso.");
+  });
+
   if (precifState.formOpen) renderProductForm();
   if (calc3dState.open) renderCalc3dOverlay();
 }
@@ -7810,7 +7922,8 @@ function renderProductForm() {
   const removedGalleryPhotoUrls = [];
 
   slot.innerHTML = `
-    <form id="product-form" class="flex flex-col gap-4 rounded-xl border border-gold-300 bg-white p-5 shadow">
+    <form id="product-form" class="product-editor-v10 flex flex-col gap-4 rounded-xl border border-gold-300 bg-white p-5 shadow">
+      <div class="product-editor-v10-head"><div><span>CADASTRO DO PRODUTO</span><h2>${product ? "Editar produto" : "Novo produto"}</h2></div><div class="product-editor-v10-min">Lucro mínimo <strong>60% sobre o custo</strong></div></div>
       ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
       <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div class="min-w-[220px] flex-1">
@@ -7873,7 +7986,7 @@ function renderProductForm() {
       </div>
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
-        <p class="mb-2 text-sm font-medium text-navy-800">Foto (opcional — usada no Catálogo)</p>
+        <p class="mb-2 text-sm font-medium text-navy-800">Foto principal</p>
         <div class="flex flex-wrap items-center gap-4">
           <img id="pf-photo-preview" src="${product?.photo_url ?? ""}" class="h-20 w-20 rounded-lg border border-navy-200 bg-white object-cover ${product?.photo_url ? "" : "hidden"}" />
           <div class="flex flex-col gap-1">
@@ -7919,23 +8032,28 @@ function renderProductForm() {
       </div>
 
       <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
-        <p class="mb-1 text-sm font-medium text-navy-800">Galeria de fotos extras (opcional)</p>
-        <p class="mb-3 text-xs text-navy-400">Além da foto principal acima, você pode adicionar mais fotos deste produto — elas aparecem como miniaturas clicáveis no Catálogo, junto com a principal.</p>
+        <p class="mb-1 text-sm font-medium text-navy-800">Fotos adicionais</p>
+        <p class="mb-3 text-xs text-navy-400">Você pode manter <strong>até 3 imagens por produto no total</strong>: 1 principal + até 2 adicionais. As fotos dos modelos continuam independentes.</p>
         <div id="pf-gallery-list" class="flex flex-wrap gap-3"></div>
         <div class="mt-3 flex flex-col gap-1">
           <input type="file" id="pf-gallery-add-input" accept="image/*" class="text-sm text-navy-700" />
-          <p id="pf-gallery-status" class="text-xs text-navy-400">Cada foto é redimensionada e comprimida automaticamente antes de enviar.</p>
+          <p id="pf-gallery-status" class="text-xs text-navy-400">Máximo de 3 imagens no total. Cada foto é redimensionada e comprimida automaticamente.</p>
         </div>
       </div>
 
-      <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+      <details class="product-editor-v10-section" open>
+        <summary><span>Modelos, tamanhos e estoque</span><small>cada combinação pode ter custo, preço, foto e quantidade próprios</small></summary>
+        <div class="product-editor-v10-section-body">
         <p class="mb-1 text-sm font-medium text-navy-800">Tamanhos e modelos (opcional)</p>
         <p class="mb-3 text-xs text-navy-400">Tamanho e modelo são independentes. Use apenas tamanho, apenas modelo ou os dois juntos. Ex.: um produto pode ter 16 cm, 20 cm e 30 cm em um único modelo; outro pode ter Tradicional e Vazado em um único tamanho; ou pode combinar 16 cm + Tradicional, 16 cm + Vazado, 20 cm + Tradicional etc. Cada combinação pode ter estoque, foto, custo e preço próprios.</p>
         <div id="pf-variants-list" class="flex flex-col gap-2"></div>
         <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar combinação</button>
-      </div>
+        </div>
+      </details>
 
-      <div class="rounded-lg border border-navy-100 bg-cream-50 p-4">
+      <details class="product-editor-v10-section">
+        <summary><span>Materiais e composição do custo</span><small>opcional — use para somar materiais ao custo automaticamente</small></summary>
+        <div class="product-editor-v10-section-body">
         <p class="mb-2 text-sm font-medium text-navy-800">Materiais usados (opcional)</p>
         <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <div class="min-w-[200px] flex-1">
@@ -7952,16 +8070,19 @@ function renderProductForm() {
           <button type="button" id="pf-material-add" class="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100 sm:w-auto">+ Adicionar</button>
         </div>
         <div id="pf-materials-list" class="mt-3 flex flex-col gap-1"></div>
-      </div>
+        </div>
+      </details>
 
-      <div class="w-full sm:w-56">
-        <label class="mb-1 block text-sm font-medium text-navy-800">Promo/Pix manual (opcional)</label>
+      <div class="product-editor-v10-pricing">
+        <div class="w-full sm:w-64">
+        <label class="mb-1 block text-sm font-medium text-navy-800">Preço Pix/à vista manual (opcional)</label>
         <input id="pf-promo-manual" value="${product && product.promo_manual_price != null ? Number(product.promo_manual_price) : (draft?.promoManualPrice ?? "")}" inputmode="decimal"
           class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
           placeholder="Ex: 11,90" />
-        <p class="mt-1 text-xs text-navy-400">Deixe em branco pra calcular sozinho pelo custo. Se preencher, esse é o Promo/Pix certinho — e o Crédito passa a ser calculado a partir dele (não mais do custo).</p>
+        <p class="mt-1 text-xs text-navy-400">Deixe em branco para o painel calcular. Se preencher manualmente, o valor não pode ficar abaixo do mínimo necessário para preservar 60% sobre o custo.</p>
+        </div>
+        <div><p class="text-xs font-semibold uppercase tracking-wide text-navy-400">Prévia da rentabilidade</p><div id="pf-preview" class="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-xs text-navy-600"></div></div>
       </div>
-      <div id="pf-preview" class="flex flex-wrap gap-x-6 gap-y-1 rounded-lg bg-cream-50 px-4 py-2 text-xs text-navy-600"></div>
       <div id="pf-error" class="text-sm text-red-600"></div>
       <div class="flex gap-2">
         <button type="submit" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">Salvar</button>
@@ -8046,6 +8167,7 @@ function renderProductForm() {
       photoPreview.classList.remove("hidden");
       photoRemoveBtn.classList.remove("hidden");
       photoStatus.textContent = `Pronta pra enviar: ${formatKB(originalKB)} → ${formatKB(blob.size)} depois de comprimida.`;
+      renderGalleryList();
     } catch (err) {
       photoStatus.textContent = "Não foi possível processar essa imagem: " + err.message;
       pendingPhoto = null;
@@ -8058,6 +8180,7 @@ function renderProductForm() {
     photoPreview.classList.add("hidden");
     photoRemoveBtn.classList.add("hidden");
     photoStatus.textContent = "A foto será removida ao salvar.";
+    renderGalleryList();
   });
 
   const inStockBlock = document.getElementById("pf-in-stock-block");
@@ -8177,7 +8300,9 @@ function renderProductForm() {
       const pricing = v.promoManualPrice != null && Number.isFinite(v.promoManualPrice)
         ? calculatePricingFromManualPromo(v.cost, v.promoManualPrice)
         : calculatePricing(v.cost);
-      previewEl.textContent = `→ Crédito ${formatBRL(pricing.creditPrice)} · Pix/à vista ${formatBRL(pricing.promoPrice)}`;
+      const pctPix = profitOnCostPercent(pricing.cost, pricing.promoProfit);
+      const pctCredit = profitOnCostPercent(pricing.cost, pricing.creditProfit);
+      previewEl.innerHTML = `→ Pix ${formatBRL(pricing.promoPrice)} · Crédito ${formatBRL(pricing.creditPrice)} · <b class="${pricingMeetsMinimum(pricing) ? "text-emerald-700" : "text-red-600"}">lucro mín. ${Math.min(pctPix,pctCredit).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</b>`;
     }
     variantsListEl.querySelectorAll("[data-variant-own-price]").forEach((input) => {
       input.addEventListener("change", () => {
@@ -8316,6 +8441,10 @@ function renderProductForm() {
   // não sobra arquivo órfão no Storage se o admin cancelar sem salvar.
   // Não tem reordenar por arrastar: a ordem é a ordem que foi adicionada.
   function renderGalleryList() {
+    const mainWillExist = pendingPhoto === "remove" ? false : (pendingPhoto instanceof Blob || !!product?.photo_url);
+    const maxExtras = mainWillExist ? 2 : 3;
+    galleryAddInput.disabled = formGalleryPhotos.length >= maxExtras;
+    if (formGalleryPhotos.length >= maxExtras) galleryStatus.textContent = "Limite de 3 imagens atingido.";
     galleryListEl.innerHTML = formGalleryPhotos.length === 0
       ? `<p class="text-xs text-navy-400">Nenhuma foto extra adicionada ainda.</p>`
       : formGalleryPhotos.map((g, idx) => `
@@ -8338,6 +8467,13 @@ function renderProductForm() {
   galleryAddInput.addEventListener("change", async () => {
     const file = galleryAddInput.files?.[0];
     if (!file) return;
+    const mainWillExist = pendingPhoto === "remove" ? false : (pendingPhoto instanceof Blob || !!product?.photo_url);
+    const maxExtras = mainWillExist ? 2 : 3;
+    if (formGalleryPhotos.length >= maxExtras) {
+      galleryStatus.textContent = "Limite atingido: até 3 imagens por produto no total.";
+      galleryAddInput.value = "";
+      return;
+    }
     galleryStatus.textContent = "Processando imagem...";
     try {
       const blob = await resizeImageToBlob(file);
@@ -8406,9 +8542,11 @@ function renderProductForm() {
       const minCost = Math.min(...ownCosts);
       const maxCost = Math.max(...ownCosts);
       const refPricing = manualPromo != null ? calculatePricingFromManualPromo(minCost, manualPromo) : calculatePricing(minCost);
+      const refPct = Math.min(profitOnCostPercent(refPricing.cost, refPricing.promoProfit), profitOnCostPercent(refPricing.cost, refPricing.creditProfit));
       preview.innerHTML = `
         <span>Custos das variações: <b class="text-navy-900">${minCost === maxCost ? formatBRL(minCost) : `${formatBRL(minCost)} a ${formatBRL(maxCost)}`}</b></span>
-        <span>Referência a partir de: <b class="text-navy-900">${formatBRL(refPricing.promoPrice)}</b> no Pix</span>
+        <span>Preço de referência: <b class="text-navy-900">${formatBRL(refPricing.promoPrice)}</b> Pix</span>
+        <span class="${pricingMeetsMinimum(refPricing) ? "text-emerald-700" : "text-red-600"}">Lucro sobre custo: <b>${refPct.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</b></span>
         ${missing ? `<span class="text-gold-700">⚠ ${missing} combinação(ões) ainda sem custo próprio.</span>` : `<span class="text-emerald-700">✓ Todas as combinações têm custo próprio.</span>`}
       `;
       return;
@@ -8416,10 +8554,13 @@ function renderProductForm() {
 
     const totalCost = round2(baseCost + materialsTotal());
     const p = manualPromo != null ? calculatePricingFromManualPromo(totalCost, manualPromo) : calculatePricing(totalCost);
+    const pixPct = profitOnCostPercent(p.cost, p.promoProfit);
+    const creditPct = profitOnCostPercent(p.cost, p.creditProfit);
     preview.innerHTML = `
       <span>${formVariants.length ? "Custo padrão/fallback" : "Custo total"}: <b class="text-navy-900">${formatBRL(totalCost)}</b></span>
-      <span>Crédito: <b class="text-navy-900">${formatBRL(p.creditPrice)}</b> (${formatPercent(p.creditMargin)})</span>
-      <span>Promo/Pix: <b class="text-navy-900">${formatBRL(p.promoPrice)}</b> (${formatPercent(p.promoMargin)})${manualPromo != null ? " (manual)" : ""}</span>
+      <span>Pix: <b class="text-navy-900">${formatBRL(p.promoPrice)}</b> · lucro s/custo <b>${pixPct.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</b>${manualPromo != null ? " (manual)" : ""}</span>
+      <span>Crédito até 3x: <b class="text-navy-900">${formatBRL(p.creditPrice)}</b> · lucro líquido s/custo <b>${creditPct.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</b></span>
+      ${pricingMeetsMinimum(p) ? `<span class="text-emerald-700 font-semibold">✓ Regra mínima de 60% atendida</span>` : `<span class="text-red-600 font-semibold">⚠ Abaixo do mínimo. Preço Pix mínimo: ${formatBRL(p.minimumPromoPrice)}</span>`}
     `;
   }
 
@@ -8587,6 +8728,21 @@ function renderProductForm() {
     }
     if (formVariants.length > 0 && !hasBaseCost && formVariants.some((v) => !v.ownPrice)) {
       errorEl.textContent = "Como o custo padrão ficou em branco, informe custo próprio em todas as combinações. Ou preencha um custo padrão para as combinações que devem herdá-lo.";
+      return;
+    }
+    const mainWillExistAtSave = pendingPhoto === "remove" ? false : (pendingPhoto instanceof Blob || !!product?.photo_url);
+    const totalProductImages = (mainWillExistAtSave ? 1 : 0) + formGalleryPhotos.length;
+    if (totalProductImages > 3) {
+      errorEl.textContent = "Cada produto pode ter no máximo 3 imagens. Remova uma foto antes de salvar.";
+      return;
+    }
+    if (promoManual != null && fallbackTotalCost > 0 && promoManual + 1e-9 < minimumPromoPriceForCost(fallbackTotalCost)) {
+      errorEl.textContent = `O preço Pix manual está abaixo do mínimo de ${formatBRL(minimumPromoPriceForCost(fallbackTotalCost))} para preservar 60% de lucro sobre o custo.`;
+      return;
+    }
+    const badVariantPrice = formVariants.find((v) => v.ownPrice && v.cost != null && Number(v.cost) > 0 && v.promoManualPrice != null && Number(v.promoManualPrice) + 1e-9 < minimumPromoPriceForCost(Number(v.cost)));
+    if (badVariantPrice) {
+      errorEl.textContent = `O preço Pix manual de "${badVariantPrice.name}" está abaixo do mínimo de ${formatBRL(minimumPromoPriceForCost(Number(badVariantPrice.cost)))} para preservar 60% sobre o custo.`;
       return;
     }
 
