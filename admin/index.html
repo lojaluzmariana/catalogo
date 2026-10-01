@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v11.6-variants-always-visible-2026-10-01" />
+<meta name="luz-mariana-admin-version" content="professional-v11.7-clean-tabbed-product-editor-2026-10-01" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -2279,6 +2279,227 @@ body.product-editor-modal-open { overflow: hidden !important; }
   #pf-variants-list .lm-color-row { display:none; }
   .variant-price-editor-grid { grid-template-columns:1fr; }
   .variant-price-result { grid-column:auto; }
+}
+
+
+/* =====================================================================
+   V11.7 — EDITOR LIMPO EM ABAS
+   Não há mais seções sobrepostas. Apenas uma aba é exibida por vez.
+   ===================================================================== */
+.product-editor-v11-subnav {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 20 !important;
+  margin: 0 -20px !important;
+  padding: 10px 20px !important;
+  background: #fff !important;
+  border-bottom: 1px solid #e8ebf2 !important;
+}
+.product-editor-v11-subnav button {
+  background:#fff !important;
+  border:1px solid #dce2ee !important;
+  color:#25406e !important;
+}
+.product-editor-v11-subnav button.is-active,
+.product-editor-v11-subnav button.important.is-active {
+  border-color:#d5aa3e !important;
+  background:#fff4cf !important;
+  color:#6c4800 !important;
+  box-shadow:0 0 0 2px rgba(213,170,62,.10);
+}
+.pf-editor-tab-panel {
+  display:block;
+  width:100%;
+  min-width:0;
+  margin-top:16px;
+}
+.pf-editor-tab-panel[hidden] { display:none !important; }
+
+/* Aba de variações */
+#pf-section-variants.pf-editor-tab-panel {
+  display:block !important;
+  position:relative !important;
+  order:initial !important;
+  width:100% !important;
+  min-height:0 !important;
+  height:auto !important;
+  overflow:visible !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+}
+#pf-section-variants.pf-editor-tab-panel[hidden] { display:none !important; }
+.product-editor-v11-variants-head {
+  padding:0 0 12px !important;
+  background:transparent !important;
+  border:0 !important;
+}
+.product-editor-v11-variants-body { padding:0 !important; }
+.product-editor-v11-variants-summary {
+  margin:0 0 12px !important;
+  padding:11px 13px !important;
+  border:1px solid #e0e5ef !important;
+  background:#f7f9fc !important;
+}
+#pf-variants-list {
+  display:flex !important;
+  flex-direction:column !important;
+  gap:14px !important;
+  height:auto !important;
+  overflow:visible !important;
+}
+
+/* Cada modelo/tamanho: card normal, sem grids herdados do v11.5/v11.6 */
+#pf-variants-list > .pf-variant-card {
+  display:block !important;
+  position:relative !important;
+  float:none !important;
+  width:100% !important;
+  min-width:0 !important;
+  height:auto !important;
+  margin:0 !important;
+  padding:16px !important;
+  border:1px solid #dce2ed !important;
+  border-left:4px solid #d5aa3e !important;
+  border-radius:14px !important;
+  background:#fff !important;
+  box-shadow:0 3px 12px rgba(0,24,104,.055) !important;
+  overflow:visible !important;
+}
+.pf-variant-card-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding-bottom:12px;
+  border-bottom:1px solid #edf0f5;
+}
+.pf-variant-title { display:flex; align-items:center; gap:10px; min-width:0; }
+.pf-variant-title > div { min-width:0; }
+.pf-variant-title strong { display:block; color:#001868; font-size:14px; }
+.pf-variant-title small { display:block; margin-top:2px; color:#77839a; font-size:10px; }
+.pf-variant-number {
+  width:30px; height:30px; flex:0 0 30px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:999px; background:#001868; color:#fff; font-size:11px; font-weight:900;
+}
+.pf-variant-remove {
+  border:1px solid #f2c8c8; border-radius:9px; background:#fff;
+  color:#b42323; padding:7px 10px; font-size:11px; font-weight:700; cursor:pointer;
+}
+.pf-variant-fields {
+  display:grid;
+  grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) 150px;
+  gap:12px;
+  margin-top:14px;
+}
+.pf-variant-fields label,
+.pf-variant-price-grid label {
+  display:block; margin-bottom:5px; color:#52627f; font-size:10px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.035em;
+}
+.pf-variant-fields input,
+.pf-variant-price-grid input {
+  width:100%; min-height:40px; box-sizing:border-box;
+  border:1px solid #cfd7e6; border-radius:9px; background:#fff;
+  padding:8px 10px; color:#102a5e; font-size:13px; outline:none;
+}
+.pf-variant-fields input:focus,
+.pf-variant-price-grid input:focus {
+  border-color:#d5aa3e; box-shadow:0 0 0 2px rgba(213,170,62,.13);
+}
+.pf-variant-fields small { display:block; margin-top:4px; font-size:10px; }
+.pf-variant-fields small.ok { color:#137a4a; }
+.pf-variant-fields small.warn { color:#9a6700; }
+
+.pf-variant-pricing {
+  margin-top:14px; padding:12px;
+  border:1px solid #ead9a5; border-radius:11px; background:#fffaf0;
+}
+.pf-variant-pricing-head {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.pf-variant-pricing-head strong { display:block; color:#6b4900; font-size:12px; }
+.pf-variant-pricing-head small { display:block; margin-top:2px; color:#8a7b59; font-size:10px; }
+.pf-own-price-toggle {
+  display:flex; align-items:center; gap:7px; white-space:nowrap;
+  font-size:11px; font-weight:750; color:#31466d;
+}
+.pf-variant-price-grid {
+  display:grid !important;
+  grid-template-columns:160px 160px minmax(230px,1fr) !important;
+  gap:10px !important;
+  align-items:end !important;
+  margin-top:10px;
+  opacity:1 !important;
+}
+.pf-variant-price-grid.is-inherited { opacity:.65 !important; }
+.pf-variant-price-grid input:disabled { background:#eef1f5; cursor:not-allowed; }
+.pf-variant-result {
+  min-height:62px; padding:8px 10px; border:1px solid #e6e1d3;
+  border-radius:9px; background:#fff;
+}
+.pf-variant-result p { color:#55647f; font-size:11px; line-height:1.35; }
+.variant-price-help { margin-top:7px; color:#7e8797; font-size:10px; }
+
+.pf-variant-photo {
+  display:flex; align-items:center; gap:12px; margin-top:14px;
+  padding-top:12px; border-top:1px solid #edf0f5;
+}
+.pf-variant-thumb {
+  width:58px; height:58px; flex:0 0 58px; display:flex; align-items:center; justify-content:center;
+  border:1px solid #dfe4ee; border-radius:10px; background:#faf8f0; overflow:hidden;
+}
+.pf-variant-thumb .lm-color-dot { width:28px; height:28px; }
+.pf-variant-thumb img { width:58px; height:58px; object-fit:contain; }
+.pf-variant-photo label { display:block; color:#425474; font-size:11px; font-weight:750; }
+.pf-variant-photo label span { font-weight:400; color:#8892a2; }
+.pf-variant-photo input[type=file] { display:block; margin-top:5px; max-width:420px; font-size:11px; }
+.pf-variant-photo button {
+  margin-top:5px; border:0; background:transparent; color:#b42323; font-size:10px; cursor:pointer;
+}
+.pf-empty-variants {
+  padding:18px; border:1px dashed #d5aa3e; border-radius:12px; background:#fffaf0;
+}
+.pf-empty-variants strong { display:block; color:#001868; font-size:13px; }
+.pf-empty-variants span { display:block; margin-top:4px; color:#68758c; font-size:11px; }
+
+#pf-variant-add {
+  display:block !important;
+  width:100% !important;
+  margin-top:14px !important;
+  min-height:44px !important;
+  border:1.5px dashed #c69820 !important;
+  border-radius:10px !important;
+  background:#fff8df !important;
+  color:#6b4900 !important;
+  font-size:12px !important;
+  font-weight:850 !important;
+}
+
+/* As outras abas também ficam isoladas e sem mistura visual. */
+[data-pf-panel="dados"],
+[data-pf-panel="fotos"],
+[data-pf-panel="pricing"] {
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+[data-pf-panel][hidden] { display:none !important; }
+
+@media (max-width:900px) {
+  .pf-variant-fields { grid-template-columns:1fr 1fr; }
+  .pf-variant-fields > div:last-child { grid-column:1 / -1; }
+  .pf-variant-price-grid { grid-template-columns:1fr 1fr !important; }
+  .pf-variant-result { grid-column:1 / -1; }
+}
+@media (max-width:640px) {
+  .pf-variant-fields { grid-template-columns:1fr; }
+  .pf-variant-fields > div:last-child { grid-column:auto; }
+  .pf-variant-pricing-head { align-items:flex-start; flex-direction:column; }
+  .pf-variant-price-grid { grid-template-columns:1fr !important; }
+  .pf-variant-result { grid-column:auto; }
+  .pf-variant-photo { align-items:flex-start; }
 }
 
 </style>
@@ -8683,20 +8904,79 @@ function renderProductForm() {
 
   document.body.classList.add("product-editor-modal-open");
   const productEditorScrollBody = modalForm?.querySelector(".product-editor-scrollbody");
-  if (productEditorScrollBody) productEditorScrollBody.scrollTop = 0;
-  slot.querySelectorAll("[data-pf-jump]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const target = document.getElementById(btn.dataset.pfJump);
-      if (!target || !productEditorScrollBody) return;
-      const stickyNav = productEditorScrollBody.querySelector(".product-editor-v11-subnav");
-      const navH = stickyNav ? stickyNav.offsetHeight : 0;
-      const top = Math.max(0, target.offsetTop - navH - 10);
-      productEditorScrollBody.scrollTo({ top, behavior: "smooth" });
+
+  // V11.7 — as antigas âncoras viraram abas reais. Só uma área do
+  // cadastro fica visível por vez, evitando sobreposição e poluição.
+  const navEl = productEditorScrollBody?.querySelector(".product-editor-v11-subnav");
+  const variantsPanel = document.getElementById("pf-section-variants");
+  const dadosStart = document.getElementById("pf-section-dados");
+  const fotosStart = document.getElementById("pf-section-fotos");
+  const pricingStart = document.getElementById("pf-section-pricing");
+  const errorEl = document.getElementById("pf-error");
+
+  function directChildInScroll(el) {
+    if (!el || !productEditorScrollBody) return null;
+    let node = el;
+    while (node && node.parentElement !== productEditorScrollBody) node = node.parentElement;
+    return node;
+  }
+
+  const dadosNode = directChildInScroll(dadosStart);
+  const descNode = directChildInScroll(document.getElementById("pf-description"));
+  const fotosNode = directChildInScroll(fotosStart);
+  const galleryNode = fotosNode?.nextElementSibling || null;
+  const pricingNode = directChildInScroll(pricingStart);
+  const materialsNode = pricingNode?.previousElementSibling?.matches?.("details.product-editor-v10-section")
+    ? pricingNode.previousElementSibling : null;
+
+  function makePanel(name, nodes) {
+    if (!productEditorScrollBody) return null;
+    const panel = document.createElement("section");
+    panel.className = "pf-editor-tab-panel";
+    panel.dataset.pfPanel = name;
+    nodes.filter(Boolean).forEach((node) => {
+      if (node.parentElement === productEditorScrollBody) panel.appendChild(node);
     });
+    productEditorScrollBody.insertBefore(panel, errorEl || null);
+    return panel;
+  }
+
+  if (variantsPanel) {
+    variantsPanel.dataset.pfPanel = "variants";
+    variantsPanel.classList.add("pf-editor-tab-panel");
+  }
+  const dadosPanel = makePanel("dados", [dadosNode, descNode]);
+  const fotosPanel = makePanel("fotos", [fotosNode, galleryNode]);
+  const pricingPanel = makePanel("pricing", [materialsNode, pricingNode]);
+
+  const tabMap = {
+    "pf-section-variants": "variants",
+    "pf-section-dados": "dados",
+    "pf-section-fotos": "fotos",
+    "pf-section-pricing": "pricing"
+  };
+
+  function activateProductEditorTab(panelName) {
+    productEditorScrollBody?.querySelectorAll("[data-pf-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.pfPanel !== panelName;
+    });
+    navEl?.querySelectorAll("[data-pf-jump]").forEach((btn) => {
+      btn.classList.toggle("is-active", tabMap[btn.dataset.pfJump] === panelName);
+    });
+    if (productEditorScrollBody) productEditorScrollBody.scrollTop = 0;
+  }
+
+  slot.querySelectorAll("[data-pf-jump]").forEach((btn) => {
+    btn.addEventListener("click", () => activateProductEditorTab(tabMap[btn.dataset.pfJump] || "dados"));
   });
+
+  activateProductEditorTab(formVariants.length > 0 ? "variants" : "dados");
+
   requestAnimationFrame(() => {
-    const firstField = document.getElementById("pf-name");
-    if (firstField) firstField.focus({ preventScroll: true });
+    if (formVariants.length === 0) {
+      const firstField = document.getElementById("pf-name");
+      if (firstField) firstField.focus({ preventScroll: true });
+    }
   });
 
   const baseCostField = document.getElementById("pf-base-cost");
@@ -8844,69 +9124,82 @@ function renderProductForm() {
         : `<div><strong>Este produto ainda não tem modelos/variações.</strong><span>Use “Adicionar combinação” para cadastrar tamanhos, cores ou modelos.</span></div>`;
     }
     variantsListEl.innerHTML = formVariants.length === 0
-      ? `<p class="text-xs text-navy-400">Nenhuma opção cadastrada — use quando houver mais de um tamanho e/ou modelo.</p>`
+      ? `<div class="pf-empty-variants">
+           <strong>Nenhum modelo ou tamanho cadastrado.</strong>
+           <span>Use o botão abaixo para criar a primeira opção deste produto.</span>
+         </div>`
       : formVariants.map((v, idx) => `
-          <div class="flex flex-col gap-2 rounded-lg bg-white p-3 shadow-sm sm:flex-row sm:items-center">
-            <div class="lm-color-row flex-shrink-0">
-              <span data-variant-swatch="${idx}" class="lm-color-dot" style="${colorSwatchStyle(v.model || v.color || v.name)}"></span>
-              <img data-variant-preview="${idx}" src="${v.photoUrl ?? ""}" class="h-14 w-14 rounded-lg border border-navy-200 bg-cream-50 object-contain ${v.photoUrl ? "" : "hidden"}" />
+          <article class="pf-variant-card">
+            <div class="pf-variant-card-head">
+              <div class="pf-variant-title">
+                <span class="pf-variant-number">${idx + 1}</span>
+                <div>
+                  <strong>${escapeHtml(composeVariantName(v.size, v.model || v.color) || `Opção ${idx + 1}`)}</strong>
+                  <small>${v.ownPrice ? "Preço próprio" : "Herdando preço padrão"}</small>
+                </div>
+              </div>
+              <button type="button" data-variant-remove="${idx}" class="pf-variant-remove">Remover</button>
             </div>
-            <div class="flex-1">
-              <div class="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Tamanho (opcional)</label>
-                  <input data-variant-size="${idx}" value="${escapeHtml(v.size || "")}" placeholder="Ex: 16 cm"
-                    class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                </div>
-                <div>
-                  <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Modelo (opcional)</label>
-                  <input data-variant-model="${idx}" value="${escapeHtml(v.model || v.color || "")}" placeholder="Ex: Tradicional, Vazado, Branco"
-                    class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                </div>
+
+            <div class="pf-variant-fields">
+              <div>
+                <label>Tamanho</label>
+                <input data-variant-size="${idx}" value="${escapeHtml(v.size || "")}" placeholder="Ex.: 16 cm" />
               </div>
-              <p class="mt-1 text-[10px] text-navy-400">Preencha pelo menos tamanho ou modelo. Se houver os dois, esta linha representa exatamente essa combinação.</p>
-              <div data-variant-qty-block="${idx}" class="mt-2 rounded-lg border border-navy-100 bg-cream-50 p-2.5">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <span class="block text-[10px] font-semibold uppercase tracking-wide text-navy-400">Estoque desta combinação</span>
-                    <span data-variant-qty-derived="${idx}" class="mt-0.5 block text-xs ${v.stockQty > 0 ? "text-emerald-700" : "text-gold-700"}">${v.stockQty > 0 ? `Pronta entrega · ${v.stockQty}` : "Sob encomenda · Prazo de até 2 dias úteis"}</span>
-                  </div>
-                  <input type="number" min="0" step="1" data-variant-qty="${idx}" value="${v.stockQty ?? 0}" class="w-24 rounded-lg border border-navy-200 bg-white px-2 py-2 text-center text-sm font-semibold text-navy-800 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                </div>
+              <div>
+                <label>Modelo / cor</label>
+                <input data-variant-model="${idx}" value="${escapeHtml(v.model || v.color || "")}" placeholder="Ex.: Branco, Rosé, Tradicional" />
               </div>
-              <div class="variant-price-editor">
-                <div class="variant-price-editor-head">
+              <div>
+                <label>Estoque</label>
+                <input type="number" min="0" step="1" data-variant-qty="${idx}" value="${v.stockQty ?? 0}" />
+                <small data-variant-qty-derived="${idx}" class="${v.stockQty > 0 ? "ok" : "warn"}">${v.stockQty > 0 ? `Pronta entrega · ${v.stockQty}` : "Sob encomenda"}</small>
+              </div>
+            </div>
+
+            <div class="pf-variant-pricing">
+              <div class="pf-variant-pricing-head">
+                <div>
                   <strong>Preço desta opção</strong>
-                  <label class="flex items-center gap-1.5 text-xs text-navy-700">
-                    <input type="checkbox" data-variant-own-price="${idx}" ${v.ownPrice ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-                    Usar valores próprios
-                  </label>
+                  <small>Use valores próprios quando este tamanho/modelo tiver custo ou preço diferente.</small>
                 </div>
-                <div data-variant-price-block="${idx}" class="variant-price-editor-grid ${v.ownPrice ? "" : "is-inherited"}">
-                  <div>
-                    <label>Custo desta opção</label>
-                    <input type="number" min="0" step="0.01" data-variant-cost="${idx}" value="${v.cost ?? ""}" placeholder="R$ 0,00" ${v.ownPrice ? "" : "disabled"}
-                      class="rounded-lg border border-navy-200 px-2 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                  </div>
-                  <div>
-                    <label>Preço Pix/à vista</label>
-                    <input type="number" min="0" step="0.01" data-variant-promo-manual="${idx}" value="${v.promoManualPrice ?? ""}" placeholder="${v.ownPrice ? "automático" : "herda do produto"}" ${v.ownPrice ? "" : "disabled"}
-                      class="rounded-lg border border-navy-200 px-2 py-2 text-sm outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-                  </div>
-                  <div class="variant-price-result">
-                    <label>Resultado</label>
-                    <p data-variant-price-preview="${idx}" class="text-xs text-navy-600">${v.ownPrice ? "" : "Usando o preço padrão do produto."}</p>
-                  </div>
+                <label class="pf-own-price-toggle">
+                  <input type="checkbox" data-variant-own-price="${idx}" ${v.ownPrice ? "checked" : ""} />
+                  <span>Usar preço próprio</span>
+                </label>
+              </div>
+
+              <div data-variant-price-block="${idx}" class="pf-variant-price-grid ${v.ownPrice ? "" : "is-inherited"}">
+                <div>
+                  <label>Custo</label>
+                  <input type="number" min="0" step="0.01" data-variant-cost="${idx}" value="${v.cost ?? ""}"
+                    placeholder="${v.ownPrice ? "0,00" : "herda do produto"}" ${v.ownPrice ? "" : "disabled"} />
                 </div>
-                <p class="variant-price-help">${v.ownPrice ? "O crédito é calculado automaticamente a partir deste preço à vista." : "Ative “Usar valores próprios” para definir um preço diferente para esta opção."}</p>
+                <div>
+                  <label>Pix / à vista</label>
+                  <input type="number" min="0" step="0.01" data-variant-promo-manual="${idx}" value="${v.promoManualPrice ?? ""}"
+                    placeholder="${v.ownPrice ? "automático" : "herda do produto"}" ${v.ownPrice ? "" : "disabled"} />
+                </div>
+                <div class="pf-variant-result">
+                  <label>Crédito e lucro</label>
+                  <p data-variant-price-preview="${idx}">${v.ownPrice ? "" : "Usando os valores padrão do produto."}</p>
+                </div>
+              </div>
+              <p class="variant-price-help">${v.ownPrice ? "O crédito é recalculado automaticamente a partir deste preço à vista." : "Ative “Usar preço próprio” para alterar o valor somente desta opção."}</p>
+            </div>
+
+            <div class="pf-variant-photo">
+              <div class="pf-variant-thumb">
+                <span data-variant-swatch="${idx}" class="lm-color-dot" style="${colorSwatchStyle(v.model || v.color || v.name)}"></span>
+                <img data-variant-preview="${idx}" src="${v.photoUrl ?? ""}" class="${v.photoUrl ? "" : "hidden"}" />
+              </div>
+              <div>
+                <label>Foto desta opção <span>(opcional)</span></label>
+                <input type="file" data-variant-photo="${idx}" accept="image/*" />
+                <button type="button" data-variant-remove-photo="${idx}" class="${v.photoUrl ? "" : "hidden"}">Remover foto</button>
               </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <input type="file" data-variant-photo="${idx}" accept="image/*" class="text-xs text-navy-700" />
-              <button type="button" data-variant-remove-photo="${idx}" class="text-xs text-red-600 hover:underline ${v.photoUrl ? "" : "hidden"}">remover foto</button>
-              <button type="button" data-variant-remove="${idx}" class="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Remover combinação</button>
-            </div>
-          </div>
+          </article>
         `).join("");
     wireVariantRowEvents();
     updateInStockBlockVisibility();
@@ -9057,14 +9350,6 @@ function renderProductForm() {
   }
 
   renderVariantsList();
-  requestAnimationFrame(() => {
-    if (formVariants.length > 0 && productEditorScrollBody) {
-      const variantsSection = document.getElementById("pf-section-variants");
-      const stickyNav = productEditorScrollBody.querySelector(".product-editor-v11-subnav");
-      const navH = stickyNav ? stickyNav.offsetHeight : 0;
-      if (variantsSection) productEditorScrollBody.scrollTop = Math.max(0, variantsSection.offsetTop - navH - 10);
-    }
-  });
   document.getElementById("pf-variant-add").addEventListener("click", () => {
     // Novas combinações já nascem com custo próprio aberto — é o caso mais
     // comum quando o produto tem tamanhos diferentes (16/20/30 cm etc.).
