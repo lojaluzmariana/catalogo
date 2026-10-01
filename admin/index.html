@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v11.4-variants-visible-2026-10-01" />
+<meta name="luz-mariana-admin-version" content="professional-v11.5-variants-editor-fixed-2026-10-01" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -2081,6 +2081,50 @@ body.product-editor-modal-open { overflow: hidden !important; }
   .product-editor-v11-head-meta { display:none; }
   .product-editor-v11-subnav {
     margin:0 -2px; overflow-x:auto; flex-wrap:nowrap; white-space:nowrap;
+  }
+}
+
+
+/* V11.5 — variações realmente visíveis no editor */
+#pf-section-variants {
+  scroll-margin-top: 70px;
+  order: -1;
+}
+#pf-section-variants > summary {
+  min-height: 48px;
+}
+#pf-section-variants .product-editor-v10-section-body {
+  background: #fff;
+}
+#pf-variants-list {
+  gap: 12px !important;
+}
+#pf-variants-list > div {
+  border: 1px solid #dfe5f0;
+  border-left: 4px solid #d5aa3e;
+  border-radius: 12px;
+  padding: 14px !important;
+  background: #fff;
+}
+#pf-variant-add {
+  min-height: 42px;
+  border-style: dashed !important;
+  border-color: #d5aa3e !important;
+  background: #fffaf0;
+  color: #6e4a00;
+}
+@media (min-width: 900px) {
+  #pf-variants-list > div {
+    display: grid !important;
+    grid-template-columns: auto minmax(0,1fr) 250px;
+    align-items: start !important;
+    gap: 14px !important;
+  }
+  #pf-variants-list > div > .flex-1 {
+    min-width: 0;
+  }
+  #pf-variants-list > div > .flex.flex-wrap.items-center.gap-2 {
+    align-content: flex-start;
   }
 }
 
@@ -8293,11 +8337,21 @@ function renderProductForm() {
       </div>
       <div class="lm-v11-guided-steps"><div><b>1. O que é?</b>Nome, categoria e fornecedor</div><div><b>2. Quanto custa?</b>Custo e preço seguro</div><div><b>3. O que está pronto?</b>Modelos e estoque</div><div><b>4. Como aparece?</b>Fotos e catálogo</div></div>
       <div class="product-editor-v11-subnav">
-        <button type="button" data-pf-jump="pf-section-dados">Dados gerais</button>
         <button type="button" data-pf-jump="pf-section-variants" class="important">Modelos e variações <span>${formVariants.length}</span></button>
+        <button type="button" data-pf-jump="pf-section-dados">Dados gerais</button>
         <button type="button" data-pf-jump="pf-section-fotos">Fotos</button>
         <button type="button" data-pf-jump="pf-section-pricing">Preço e lucro</button>
       </div>
+<details id="pf-section-variants" class="product-editor-v10-section product-editor-v11-variants-section" open>
+        <summary><span>Modelos, tamanhos e estoque</span><small>cada combinação pode ter custo, preço, foto e quantidade próprios</small></summary>
+        <div class="product-editor-v10-section-body">
+        <p class="mb-1 text-sm font-medium text-navy-800">Tamanhos e modelos (opcional)</p>
+        <p class="mb-3 text-xs text-navy-400">Tamanho e modelo são independentes. Use apenas tamanho, apenas modelo ou os dois juntos. Ex.: um produto pode ter 16 cm, 20 cm e 30 cm em um único modelo; outro pode ter Tradicional e Vazado em um único tamanho; ou pode combinar 16 cm + Tradicional, 16 cm + Vazado, 20 cm + Tradicional etc. Cada combinação pode ter estoque, foto, custo e preço próprios.</p>
+        <div id="pf-variants-summary" class="product-editor-v11-variants-summary"></div>
+        <div id="pf-variants-list" class="flex flex-col gap-2"></div>
+        <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar combinação</button>
+        </div>
+      </details>
       ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
       <div id="pf-section-dados" class="product-editor-v11-main-grid">
         <div class="min-w-[220px] flex-1">
@@ -8350,19 +8404,7 @@ function renderProductForm() {
           <p class="mt-1 text-xs text-navy-400">Quem fabrica/fornece este produto.</p>
         </div>
       </div>
-
-      <details id="pf-section-variants" class="product-editor-v10-section product-editor-v11-variants-section" open>
-        <summary><span>Modelos, tamanhos e estoque</span><small>cada combinação pode ter custo, preço, foto e quantidade próprios</small></summary>
-        <div class="product-editor-v10-section-body">
-        <p class="mb-1 text-sm font-medium text-navy-800">Tamanhos e modelos (opcional)</p>
-        <p class="mb-3 text-xs text-navy-400">Tamanho e modelo são independentes. Use apenas tamanho, apenas modelo ou os dois juntos. Ex.: um produto pode ter 16 cm, 20 cm e 30 cm em um único modelo; outro pode ter Tradicional e Vazado em um único tamanho; ou pode combinar 16 cm + Tradicional, 16 cm + Vazado, 20 cm + Tradicional etc. Cada combinação pode ter estoque, foto, custo e preço próprios.</p>
-        <div id="pf-variants-summary" class="product-editor-v11-variants-summary"></div>
-        <div id="pf-variants-list" class="flex flex-col gap-2"></div>
-        <button type="button" id="pf-variant-add" class="mt-3 rounded-lg border border-navy-300 px-3 py-2 text-sm font-medium text-navy-700 hover:bg-navy-100">+ Adicionar combinação</button>
-        </div>
-      </details>
-
-      <div>
+<div>
         <label class="mb-1 block text-sm font-medium text-navy-800">Descrição (opcional)</label>
         <textarea id="pf-description" rows="3"
           class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200"
@@ -8481,12 +8523,17 @@ function renderProductForm() {
   }
 
   document.body.classList.add("product-editor-modal-open");
+  const productEditorScrollBody = modalForm?.querySelector(".product-editor-scrollbody");
+  if (productEditorScrollBody) productEditorScrollBody.scrollTop = 0;
   slot.querySelectorAll("[data-pf-jump]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const target = document.getElementById(btn.dataset.pfJump);
-      if (!target) return;
+      if (!target || !productEditorScrollBody) return;
       if (target.tagName === "DETAILS") target.open = true;
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      const stickyNav = productEditorScrollBody.querySelector(".product-editor-v11-subnav");
+      const navH = stickyNav ? stickyNav.offsetHeight : 0;
+      const top = Math.max(0, target.offsetTop - navH - 10);
+      productEditorScrollBody.scrollTo({ top, behavior: "smooth" });
     });
   });
   requestAnimationFrame(() => {
@@ -8836,6 +8883,14 @@ function renderProductForm() {
   }
 
   renderVariantsList();
+  requestAnimationFrame(() => {
+    if (formVariants.length > 0 && productEditorScrollBody) {
+      const variantsSection = document.getElementById("pf-section-variants");
+      const stickyNav = productEditorScrollBody.querySelector(".product-editor-v11-subnav");
+      const navH = stickyNav ? stickyNav.offsetHeight : 0;
+      if (variantsSection) productEditorScrollBody.scrollTop = Math.max(0, variantsSection.offsetTop - navH - 10);
+    }
+  });
   document.getElementById("pf-variant-add").addEventListener("click", () => {
     // Novas combinações já nascem com custo próprio aberto — é o caso mais
     // comum quando o produto tem tamanhos diferentes (16/20/30 cm etc.).
