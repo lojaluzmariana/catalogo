@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v10.2-radio-collapsed-volume30-2026-10-01" />
+  <meta name="luz-mariana-catalog-version" content="professional-v10.3-radio-sound-unlock-2026-10-01" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.com.br/" />
@@ -1081,7 +1081,7 @@ const app = document.getElementById("app");
    ===================================================================== */
 const LM_RADIO_HLS_URL = "https://d1ixcyc8q1z54i.cloudfront.net/out/v1/582568c0cbc742208e9e8856e569d2e3/index_1.m3u8";
 const LM_RADIO_FALLBACK_URL = "https://streaming.fox.srv.br:8114/stream/;";
-const LM_RADIO_PREF_KEY = "luzmariana_radio_pref_v1";
+const LM_RADIO_PREF_KEY = "luzmariana_radio_pref_v2";
 const LM_RADIO_VOLUME_KEY = "luzmariana_radio_volume_v2";
 const LM_RADIO_COLLAPSED_KEY = "luzmariana_radio_collapsed_v2";
 
@@ -1206,16 +1206,31 @@ async function lmRadioPrepareSource() {
 async function lmRadioTryPlay({ userInitiated = false } = {}) {
   if (!lmRadioAudio) return false;
   if (!lmRadioSourceReady) await lmRadioPrepareSource();
+
+  // Sempre tentamos tocar COM SOM em 30% (ou no volume salvo pelo cliente).
+  lmRadioAudio.defaultMuted = false;
+  lmRadioAudio.muted = false;
+  if (!(lmRadioAudio.volume > 0)) {
+    const desired = Math.max(0.05, Number(lmRadioVolume?.value || 0.30));
+    lmRadioAudio.volume = desired;
+  }
+
   try {
     await lmRadioAudio.play();
     lmRadioAutoplayBlocked = false;
     if (userInitiated) lmRadioSavePref("on");
-    lmRadioSetStatus("Ao vivo", "playing");
+
+    // Alguns navegadores permitem iniciar a mídia, mas a deixam silenciosa.
+    if (lmRadioAudio.muted || lmRadioAudio.volume === 0) {
+      lmRadioSetStatus("Ao vivo • toque na página para ativar o som", "blocked");
+    } else {
+      lmRadioSetStatus("Ao vivo", "playing");
+    }
     lmRadioUpdateButtons();
     return true;
   } catch (err) {
     lmRadioAutoplayBlocked = true;
-    lmRadioSetStatus("Toque para ouvir ao vivo", "blocked");
+    lmRadioSetStatus("Toque na página para ouvir ao vivo", "blocked");
     lmRadioUpdateButtons();
     return false;
   }
@@ -1243,6 +1258,8 @@ function lmRadioInit() {
     const raw = Number(localStorage.getItem(LM_RADIO_VOLUME_KEY));
     if (Number.isFinite(raw) && raw >= 0 && raw <= 1) savedVolume = raw;
   } catch (_err) {}
+  lmRadioAudio.defaultMuted = false;
+  lmRadioAudio.muted = false;
   lmRadioAudio.volume = savedVolume;
   lmRadioVolume.value = String(savedVolume);
 
@@ -1276,6 +1293,11 @@ function lmRadioInit() {
     if (!lmRadioAudio.paused) {
       lmRadioPause({ remember: true });
       return;
+    }
+    lmRadioAudio.defaultMuted = false;
+    lmRadioAudio.muted = false;
+    if (!(lmRadioAudio.volume > 0)) {
+      lmRadioAudio.volume = Math.max(0.05, Number(lmRadioVolume.value || 0.30));
     }
     lmRadioSavePref("on");
     await lmRadioTryPlay({ userInitiated: true });
@@ -1313,18 +1335,37 @@ function lmRadioInit() {
   // primeira interação. Se isso ocorrer, o primeiro toque/tecla no site
   // tenta iniciar a rádio novamente.
   const unlockOnGesture = () => {
-    if (lmRadioAutoplayBlocked && lmRadioPref() !== "off" && lmRadioSourceReady) {
+    if (lmRadioPref() === "off" || !lmRadioSourceReady) return;
+
+    // Se o navegador iniciou a rádio no mudo, qualquer interação no site
+    // libera o som automaticamente no volume configurado.
+    if (lmRadioAudio.muted || lmRadioAudio.volume === 0) {
+      lmRadioAudio.defaultMuted = false;
+      lmRadioAudio.muted = false;
+      const desired = Math.max(0.05, Number(lmRadioVolume.value || 0.30));
+      lmRadioAudio.volume = desired;
+    }
+
+    if (lmRadioAudio.paused || lmRadioAutoplayBlocked) {
       const playPromise = lmRadioAudio.play();
       if (playPromise && typeof playPromise.then === "function") {
         playPromise.then(() => {
           lmRadioAutoplayBlocked = false;
           lmRadioSetStatus("Ao vivo", "playing");
           lmRadioUpdateButtons();
-        }).catch(() => {});
+        }).catch(() => {
+          lmRadioSetStatus("Toque no botão 📻 para ouvir", "blocked");
+          lmRadioUpdateButtons();
+        });
       }
+    } else {
+      lmRadioAutoplayBlocked = false;
+      lmRadioSetStatus("Ao vivo", "playing");
+      lmRadioUpdateButtons();
     }
   };
   document.addEventListener("pointerdown", unlockOnGesture, { passive: true });
+  document.addEventListener("touchstart", unlockOnGesture, { passive: true });
   document.addEventListener("keydown", unlockOnGesture);
   lmRadioUpdateButtons();
 }
