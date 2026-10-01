@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v11.1-layout-hotfix-2026-10-01" />
+<meta name="luz-mariana-admin-version" content="professional-v11.2-product-editor-modal-2026-10-01" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -1767,6 +1767,101 @@ html, body { width:100%; max-width:100%; overflow-x:hidden; }
   .lm-v11-grid { grid-template-columns:1fr; }
   .lm-v11-health { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .lm-v11-money { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+
+
+/* =====================================================================
+   V11.2 — EDITOR DE PRODUTO EM JANELA
+   O formulário não empurra mais a lista para baixo nem obriga o usuário
+   a voltar ao topo. Ele abre sobre a tela atual e rola por dentro.
+   ===================================================================== */
+#product-form-slot:not(:empty) {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 28px 18px;
+  overflow-y: auto;
+  background: rgba(4, 17, 50, .58);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+#product-form-slot .product-editor-v10 {
+  position: relative;
+  width: min(1040px, calc(100vw - 36px));
+  max-height: calc(100vh - 56px);
+  margin: 0 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 18px;
+  box-shadow: 0 28px 80px rgba(0,24,104,.32);
+}
+#product-form-slot .product-editor-v10-head {
+  position: sticky;
+  top: -20px;
+  z-index: 8;
+  margin: -20px -20px 4px;
+  padding: 18px 58px 16px 20px;
+  background: rgba(255,255,255,.97);
+  border-bottom: 1px solid #e8e2d4;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+#pf-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 12;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d7dbe6;
+  border-radius: 999px;
+  background: #fff;
+  color: #001868;
+  font-size: 19px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,24,104,.08);
+}
+#pf-modal-close:hover { background:#f7f4ea; border-color:#d5aa3e; }
+.product-editor-v10-footer {
+  position: sticky;
+  bottom: -20px;
+  z-index: 8;
+  margin: 4px -20px -20px;
+  padding: 14px 20px 18px;
+  background: rgba(255,255,255,.97);
+  border-top: 1px solid #e8e2d4;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+body.product-editor-modal-open { overflow: hidden !important; }
+
+@media (max-width: 700px) {
+  #product-form-slot:not(:empty) { padding: 0; align-items: stretch; }
+  #product-form-slot .product-editor-v10 {
+    width: 100vw;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    padding: 16px;
+  }
+  #product-form-slot .product-editor-v10-head {
+    top: -16px;
+    margin: -16px -16px 4px;
+    padding: 16px 54px 14px 16px;
+  }
+  .product-editor-v10-footer {
+    bottom: -16px;
+    margin: 4px -16px -16px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
 }
 
 </style>
@@ -4185,7 +4280,7 @@ function v11OpenProductQuickView(productId){
   const body=document.querySelector("#v8-detail-drawer [data-v8-drawer-body]"); if(!body)return;
   body.querySelectorAll("[data-v11-stock-minus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11StockMinus,b.dataset.variant||null,-1,"Ajuste rápido na ficha");v11OpenProductQuickView(productId);});
   body.querySelectorAll("[data-v11-stock-plus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11StockPlus,b.dataset.variant||null,1,"Ajuste rápido na ficha");v11OpenProductQuickView(productId);});
-  body.querySelector("[data-v11-edit-product]")?.addEventListener("click",()=>{v8CloseDrawer();state.tab="precificacao";precifState.editingId=p.id;precifState.formOpen=true;renderApp();setTimeout(()=>renderProductForm(),10);});
+  body.querySelector("[data-v11-edit-product]")?.addEventListener("click",()=>{precifState.editorReturnScrollY=window.scrollY||0;v8CloseDrawer();state.tab="precificacao";precifState.editingId=p.id;precifState.formOpen=true;renderApp();setTimeout(()=>renderProductForm(),10);});
   body.querySelector("[data-v11-go-production]")?.addEventListener("click",()=>{v8CloseDrawer();state.tab="producao";renderApp();});
   body.querySelector("[data-v11-sell-product]")?.addEventListener("click",()=>{v8CloseDrawer();vendaManualState=newVendaManualState({open:true,mode:"full",_selectedProductId:p.id});renderVendaManualOverlay();});
   body.querySelector("[data-v11-favorite-drawer]")?.addEventListener("click",()=>{v11ToggleFavorite(p.id);v11OpenProductQuickView(p.id);});
@@ -6876,7 +6971,7 @@ function buildLowStockWhatsappMessage(rows) {
   return lines.join("\n");
 }
 
-let precifState = { showInactive: false, formOpen: false, editingId: null, draftFromCalc3d: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set(), search: "", category: "", stockFilter: "all" };
+let precifState = { showInactive: false, formOpen: false, editingId: null, draftFromCalc3d: null, bulkOpen: false, priceTableOpen: false, priceTableSelected: new Set(), search: "", category: "", stockFilter: "all", editorReturnScrollY: 0 };
 // Se o aviso de "estoque baixo" foi dispensado nesta sessão do painel
 // (não persiste — some ao recarregar a página, pra não esconder o aviso
 // pra sempre por engano).
@@ -7617,6 +7712,7 @@ function renderPrecificacao(container) {
     window.location.href = "https://lojaluzmariana.com.br/calculadora/";
   });
   document.getElementById("new-product-btn").addEventListener("click", () => {
+    precifState.editorReturnScrollY = window.scrollY || 0;
     precifState.editingId = null;
     precifState.draftFromCalc3d = null;
     precifState.formOpen = true;
@@ -7626,6 +7722,7 @@ function renderPrecificacao(container) {
   container.querySelectorAll("[data-favorite-product]").forEach((btn) => btn.addEventListener("click", () => { v11ToggleFavorite(btn.dataset.favoriteProduct); renderPrecificacao(container); }));
   container.querySelectorAll(".edit-product-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
+      precifState.editorReturnScrollY = window.scrollY || 0;
       precifState.editingId = btn.dataset.edit;
       precifState.draftFromCalc3d = null;
       precifState.formOpen = true;
@@ -7966,7 +8063,7 @@ function renderProductForm() {
 
   slot.innerHTML = `
     <form id="product-form" class="product-editor-v10 flex flex-col gap-4 rounded-xl border border-gold-300 bg-white p-5 shadow">
-      <div class="product-editor-v10-head"><div><span>CADASTRO DO PRODUTO</span><h2>${product ? "Editar produto" : "Novo produto"}</h2></div><div class="product-editor-v10-min">Lucro mínimo <strong>60% sobre o custo</strong></div></div>
+      <div class="product-editor-v10-head"><div><span>CADASTRO DO PRODUTO</span><h2>${product ? "Editar produto" : "Novo produto"}</h2></div><div class="product-editor-v10-min">Lucro mínimo <strong>60% sobre o custo</strong></div><button type="button" id="pf-modal-close" aria-label="Fechar editor" title="Fechar">×</button></div>
       <div class="lm-v11-guided-steps"><div><b>1. O que é?</b>Nome, categoria e fornecedor</div><div><b>2. Quanto custa?</b>Custo e preço seguro</div><div><b>3. O que está pronto?</b>Modelos e estoque</div><div><b>4. Como aparece?</b>Fotos e catálogo</div></div>
       ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
       <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
@@ -8128,12 +8225,18 @@ function renderProductForm() {
         <div><p class="text-xs font-semibold uppercase tracking-wide text-navy-400">Prévia da rentabilidade</p><div id="pf-preview" class="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-xs text-navy-600"></div></div>
       </div>
       <div id="pf-error" class="text-sm text-red-600"></div>
-      <div class="flex gap-2">
-        <button type="submit" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">Salvar</button>
+      <div class="product-editor-v10-footer flex gap-2">
+        <button type="submit" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800">Salvar alterações</button>
         <button type="button" id="pf-cancel" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-medium text-navy-700 hover:bg-navy-50">Cancelar</button>
       </div>
     </form>
   `;
+
+  document.body.classList.add("product-editor-modal-open");
+  requestAnimationFrame(() => {
+    const firstField = document.getElementById("pf-name");
+    if (firstField) firstField.focus({ preventScroll: true });
+  });
 
   const baseCostField = document.getElementById("pf-base-cost");
   const baseCostLabel = document.getElementById("pf-base-cost-label");
@@ -8634,11 +8737,27 @@ function renderProductForm() {
     updatePreview();
   });
 
-  document.getElementById("pf-cancel").addEventListener("click", () => {
+  const closeProductEditorModal = () => {
+    const returnY = Number(precifState.editorReturnScrollY || 0);
     precifState.formOpen = false;
     precifState.draftFromCalc3d = null;
-    renderPrecificacao(document.getElementById("main-content"));
-  });
+    document.body.classList.remove("product-editor-modal-open");
+    const currentSlot = document.getElementById("product-form-slot");
+    if (currentSlot) currentSlot.innerHTML = "";
+    requestAnimationFrame(() => window.scrollTo({ top: returnY, behavior: "instant" }));
+  };
+  document.getElementById("pf-cancel").addEventListener("click", closeProductEditorModal);
+  document.getElementById("pf-modal-close")?.addEventListener("click", closeProductEditorModal);
+  slot.addEventListener("mousedown", (e) => {
+    if (e.target === slot) closeProductEditorModal();
+  }, { once: true });
+  const productEditorEscHandler = (e) => {
+    if (e.key === "Escape" && precifState.formOpen) {
+      document.removeEventListener("keydown", productEditorEscHandler);
+      closeProductEditorModal();
+    }
+  };
+  document.addEventListener("keydown", productEditorEscHandler);
 
   // "Aplicar a todos": bulk-escreve o prazo digitado (dias) em TODO
   // produto cadastrado — não só o que está sendo editado agora — pra não
@@ -8939,11 +9058,14 @@ function renderProductForm() {
       if (oldPath) await supabaseClient.storage.from("product-photos").remove([oldPath]);
     }
 
+    const returnY = Number(precifState.editorReturnScrollY || 0);
     precifState.formOpen = false;
     precifState.draftFromCalc3d = null;
+    document.body.classList.remove("product-editor-modal-open");
     if (supplierSelect.value === "__new__") await loadSuppliers();
     await loadProducts();
     renderPrecificacao(document.getElementById("main-content"));
+    requestAnimationFrame(() => window.scrollTo({ top: returnY, behavior: "instant" }));
   });
 }
 
