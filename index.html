@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="luz-mariana-catalog-version" content="professional-v9.10-variant-price-reference-2026-09-16" />
+  <meta name="luz-mariana-catalog-version" content="professional-v10.0-custom-domain-navigation-2026-10-01" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
-<link rel="canonical" href="https://lojaluzmariana.github.io/catalogo/" />
+<link rel="canonical" href="https://lojaluzmariana.com.br/" />
 <link rel="icon" type="image/png" href="favicon.png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 
@@ -34,16 +34,16 @@
 <meta property="og:site_name" content="Luz Mariana" />
 <meta property="og:title" content="Luz Mariana - Loja Virtual" />
 <meta property="og:description" content="Catálogo de artigos religiosos — Luz Mariana" />
-<meta property="og:url" content="https://lojaluzmariana.github.io/catalogo/" />
-<meta property="og:image" content="https://lojaluzmariana.github.io/catalogo/og-image.jpg" />
-<meta property="og:image:secure_url" content="https://lojaluzmariana.github.io/catalogo/og-image.jpg" />
+<meta property="og:url" content="https://lojaluzmariana.com.br/" />
+<meta property="og:image" content="https://lojaluzmariana.com.br/og-image.jpg" />
+<meta property="og:image:secure_url" content="https://lojaluzmariana.com.br/og-image.jpg" />
 <meta property="og:image:type" content="image/jpeg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="1200" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Luz Mariana - Loja Virtual" />
 <meta name="twitter:description" content="Catálogo de artigos religiosos — Luz Mariana" />
-<meta name="twitter:image" content="https://lojaluzmariana.github.io/catalogo/og-image.jpg" />
+<meta name="twitter:image" content="https://lojaluzmariana.com.br/og-image.jpg" />
 
 <!-- CSS do Tailwind PRÉ-COMPILADO (tailwind-built.css), no lugar do
      script da CDN (cdn.tailwindcss.com). A CDN recompila tudo no
@@ -1431,7 +1431,7 @@ async function loadCatalog() {
 // URL canônica do catálogo (usada nas tags Open Graph também, lá no
 // <head>) — repetida aqui porque o JSON-LD é montado via JS, depois que
 // os produtos chegam do Supabase.
-const CATALOG_BASE_URL = "https://lojaluzmariana.github.io/catalogo/";
+const CATALOG_BASE_URL = new URL("/", window.location.origin).toString();
 
 /* Dados estruturados (JSON-LD, schema.org) pro Google conseguir mostrar
    preço e disponibilidade direto no resultado de busca ("rich
@@ -1880,31 +1880,9 @@ function catalogBootstrapVariantPricing(product, variant) {
 function effectivePricing(product, variant) {
   const bootstrap = catalogBootstrapVariantPricing(product, variant);
   if (bootstrap) return bootstrap;
-
-  // Quando a combinação tem preço próprio, ele SEMPRE prevalece sobre o
-  // preço de referência do produto. Aceitamos também promo_manual_price
-  // caso a view pública ainda esteja entregando esse campo antes do
-  // promo_price calculado. Assim o catálogo nunca volta para um valor
-  // menor do produto principal quando o Admin já definiu R$ 35, R$ 44 etc.
-  if (variant) {
-    const promo = Number(variant.promo_price);
-    const promoManual = Number(variant.promo_manual_price);
-    const credit = Number(variant.credit_price);
-    const effectivePromo = Number.isFinite(promo) && promo > 0
-      ? promo
-      : Number.isFinite(promoManual) && promoManual > 0
-        ? promoManual
-        : null;
-    const effectiveCredit = Number.isFinite(credit) && credit > 0
-      ? credit
-      : effectivePromo != null
-        ? Math.round(effectivePromo * 1.05 * 100) / 100
-        : null;
-    if (effectivePromo != null) {
-      return { creditPrice: effectiveCredit, promoPrice: effectivePromo };
-    }
+  if (variant && variant.credit_price != null && variant.promo_price != null) {
+    return { creditPrice: Number(variant.credit_price), promoPrice: Number(variant.promo_price) };
   }
-
   return { creditPrice: Number(product.credit_price), promoPrice: Number(product.promo_price) };
 }
 
