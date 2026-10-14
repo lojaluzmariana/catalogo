@@ -2522,6 +2522,23 @@ body.product-editor-modal-open { overflow: hidden !important; }
   .pricing-v10-product-actions .delete-product-btn { margin-left:0; }
 }
 
+
+/* Fila de encomendas — destaque no início e na produção. */
+.lm-production-focus{margin:18px 0;padding:22px;border:2px solid #d6a645;border-radius:18px;background:#fffdf6;color:#17264b}
+.lm-production-focus h2{font-size:22px;font-weight:800;margin:0}.lm-production-focus .caption{margin:6px 0 14px}
+.lm-production-heading{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.lm-production-summary{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.lm-production-summary span{padding:8px 12px;background:#edf1fa;border-radius:10px;font-weight:700}.lm-production-summary .late{background:#fee2e2;color:#991b1b}
+.lm-production-queue{display:grid;gap:12px}.lm-production-order{background:white;border:1px solid #d9dfeb;border-left:5px solid #65789d;border-radius:12px;padding:16px}
+.lm-production-order.late{border-left-color:#c52b34;background:#fff8f8}.lm-production-order.today{border-left-color:#c77b00;background:#fffaf0}.lm-production-order.tomorrow{border-left-color:#d6a645}.lm-production-order.no-date{border-left-color:#9c6a22}
+.lm-production-order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}.lm-production-order-head h3{font-size:16px;font-weight:800;margin:0}.lm-production-order-head small{display:block;margin-top:4px;color:#59667c}
+.lm-production-deadline{font-weight:800}.lm-production-order.late .lm-production-deadline{color:#a31a24}.lm-production-order.today .lm-production-deadline{color:#925a00}
+.lm-production-item{border-top:1px solid #e5e8ee;padding-top:12px;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.lm-production-item strong{display:block}.lm-production-item small{display:block;color:#59667c;margin-top:4px}
+.lm-production-buttons{display:flex;gap:6px;flex-wrap:wrap}.lm-production-buttons button,.lm-production-heading button{border:1px solid #ccd4e2;border-radius:9px;padding:9px 12px;min-height:42px;background:#fff;color:#182b58;font-weight:700}.lm-production-buttons .primary{background:#001868;color:white;border-color:#001868}.lm-production-buttons button:disabled{opacity:.55;cursor:wait}
+.lm-production-waiting{margin-top:18px;border-top:1px solid #ddcfab;padding-top:16px}.lm-production-waiting h3{font-weight:800;margin-bottom:8px}.lm-production-waiting-row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid #e9e2d3}.lm-production-waiting-row small{display:block;color:#59667c}
+html.dark .lm-production-focus,html.dark .lm-production-order{background:#15213b;color:#eef2ff}html.dark .lm-production-order.late .lm-production-deadline{color:#ffb3b9}html.dark .lm-production-order.today .lm-production-deadline{color:#ffd38d}
+html.dark .lm-production-item small,html.dark .lm-production-order-head small,html.dark .lm-production-waiting-row small{color:#c1cbdf}
+@media(max-width:640px){.lm-production-focus{padding:14px}.lm-production-focus h2{font-size:19px}.lm-production-item{align-items:flex-start}.lm-production-buttons{width:100%}.lm-production-buttons button{flex:1}.lm-production-order{padding:12px}}
+
 </style>
 </head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
@@ -3725,7 +3742,7 @@ function saveProfessionalConfig(cfg) {
 }
 let professionalState = {
   config: loadProfessionalConfig(),
-  productionView: "board",
+  productionView: "queue",
   productionFilter: "all",
   searchOpen: false,
   searchQuery: "",
@@ -4971,6 +4988,98 @@ function renderEstoqueProdutos(container){
   document.getElementById("v11-stock-search")?.addEventListener("input",(e)=>{v11State.stockSearch=e.target.value;renderEstoqueProdutos(container);requestAnimationFrame(()=>{const n=document.getElementById("v11-stock-search");n?.focus();try{n?.setSelectionRange(n.value.length,n.value.length)}catch(_e){}});});document.getElementById("v11-stock-filter")?.addEventListener("change",(e)=>{v11State.stockFilter=e.target.value;renderEstoqueProdutos(container);});document.getElementById("v11-stock-go-production")?.addEventListener("click",()=>{state.tab="producao";renderApp();});container.querySelectorAll("[data-v11-center-minus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11CenterMinus,b.dataset.variant||null,-1,"Ajuste na Central de Estoque");renderEstoqueProdutos(container);});container.querySelectorAll("[data-v11-center-plus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11CenterPlus,b.dataset.variant||null,1,"Ajuste na Central de Estoque");renderEstoqueProdutos(container);});container.querySelectorAll("[data-v11-center-view]").forEach((b)=>b.onclick=()=>v11OpenProductQuickView(b.dataset.v11CenterView));container.querySelectorAll("[data-v11-center-production]").forEach((b)=>b.onclick=()=>{state.tab="producao";renderApp();});
 }
 
+
+// Reutiliza os metadados de produção existentes; não exige alteração no banco.
+function pendingProductionTasks() {
+  return ownProductionTasks().filter((t) => !["ready", "separated"].includes(t.stage));
+}
+function productionQueueDeadline(t) {
+  const days = t.deadline.days;
+  if (days == null) return { tone:"no-date", label:"Sem prazo de produção definido" };
+  if (days < 0) return { tone:"late", label:`Atrasado há ${Math.abs(days)} ${days === -1 ? "dia" : "dias"}` };
+  if (days === 0) return { tone:"today", label:"Entrega hoje" };
+  if (days === 1) return { tone:"tomorrow", label:"Entrega amanhã" };
+  return { tone:"normal", label:`Entrega em ${days} dias` };
+}
+function productionQueueGroups(tasks) {
+  const groups = new Map();
+  tasks.forEach((t) => {
+    if (!groups.has(t.order.id)) groups.set(t.order.id, { order:t.order, deadline:t.deadline, tasks:[] });
+    groups.get(t.order.id).tasks.push(t);
+  });
+  // Prazos vencidos, hoje, amanhã e próximos; urgência manual desempata.
+  return [...groups.values()].sort((a,b) =>
+    (a.deadline.days ?? Infinity) - (b.deadline.days ?? Infinity) ||
+    orderOperationalPriority(a.order).rank - orderOperationalPriority(b.order).rank ||
+    new Date(a.order.created_at || 0) - new Date(b.order.created_at || 0)
+  );
+}
+function productionQueueActions(t) {
+  const attrs = `data-queue-order="${escapeHtml(t.order.id)}" data-queue-item="${escapeHtml(t.key)}"`;
+  if (t.stage === "todo") return `<button type="button" class="primary" ${attrs} data-queue-action="start">▶ Iniciar produção</button>`;
+  if (t.stage === "printing") return `<button type="button" class="primary" ${attrs} data-queue-action="finish">Impressão terminou</button>`;
+  if (t.stage === "finishing") return `<button type="button" ${attrs} data-queue-action="one" ${t.done >= t.qty ? "disabled" : ""}>+1 pronta</button><button type="button" class="primary" ${attrs} data-queue-action="complete">Tudo pronto</button>`;
+  return "";
+}
+function renderProductionQueue({ home = false } = {}) {
+  const pending = pendingProductionTasks();
+  const groups = productionQueueGroups(pending);
+  const waiting = productionQueueGroups(allProductionTasks().filter((t) => t.source === "own" && t.order.status === "novo" && !t.order.accepted_at && !["ready","separated"].includes(t.stage)));
+  const late = groups.filter((g) => g.deadline.days != null && g.deadline.days < 0).length;
+  const today = groups.filter((g) => g.deadline.days === 0).length;
+  const units = pending.reduce((sum,t) => sum + t.remaining, 0);
+  return `<section class="lm-production-focus" aria-label="Fila de produção pendente">
+    <div class="lm-production-heading"><div><span class="admin-kicker">Prioridade de produção</span><h2>Produção pendente</h2></div>${home ? `<button type="button" data-queue-view>Ver produção e lotes</button>` : ""}</div>
+    <p class="caption">Comece pelo primeiro pedido da lista. Os prazos mais próximos aparecem primeiro.</p>
+    <div class="lm-production-summary"><span>${groups.length} pedido(s) na fila</span><span>${units} unidade(s) faltando</span><span class="${late ? "late" : ""}">${late} pedido(s) atrasado(s)</span><span>${today} entrega(s) hoje</span></div>
+    <div class="lm-production-queue">${groups.map((g) => {
+      const d = productionQueueDeadline(g.tasks[0]);
+      const manual = normalizedOrderOpsMeta(g.order).priority;
+      return `<article class="lm-production-order ${d.tone}">
+        <div class="lm-production-order-head"><div><h3>Pedido ${escapeHtml(String(g.order.order_number ?? "").padStart(6,"0"))} · ${escapeHtml(g.order.customer_name || "Cliente")}</h3><small>${g.deadline.date ? `Prazo: ${escapeHtml(g.deadline.label)}` : "Defina o prazo ao editar o pedido"}${manual === "urgent" ? " · Prioridade manual: urgente" : manual === "high" ? " · Prioridade manual: alta" : ""}</small></div><div class="lm-production-deadline">${d.label}</div><div class="lm-production-buttons"><button type="button" data-queue-open="${escapeHtml(g.order.id)}">Abrir pedido</button></div></div>
+        ${g.tasks.map((t) => `<div class="lm-production-item"><div><strong>${escapeHtml(t.item.product_name)}${t.item.variant_name ? ` · ${escapeHtml(t.item.variant_name)}` : ""}</strong><small>${t.done} de ${t.qty} pronta(s) · Faltam ${t.remaining} · ${t.stage === "todo" ? "Ainda não iniciado" : escapeHtml(productionStageLabel(t.stage))}${t.estimatedMinutes ? ` · ${formatDurationMinutes(t.estimatedMinutes)}` : ""}</small></div><div class="lm-production-buttons">${productionQueueActions(t)}</div></div>`).join("")}
+      </article>`;
+    }).join("") || `<p class="caption">Nenhuma encomenda pendente de produção. Confira abaixo os pedidos aguardando aceite.</p>`}</div>
+    <div class="lm-production-waiting"><h3>Aguardando aceite · ${waiting.length} pedido(s)</h3><p class="caption">Confira e aceite estes pedidos para liberar a fabricação. Eles ainda não fazem parte da fila acima.</p>${waiting.map((g) => `<div class="lm-production-waiting-row"><div><strong>Pedido ${escapeHtml(String(g.order.order_number ?? "").padStart(6,"0"))} · ${escapeHtml(g.order.customer_name || "Cliente")}</strong><small>${g.tasks.map((t) => `${t.qty} × ${escapeHtml(t.item.product_name)}${t.item.variant_name ? ` · ${escapeHtml(t.item.variant_name)}` : ""}`).join("; ")}</small><small>${productionQueueDeadline(g.tasks[0]).label}${g.deadline.date ? ` · ${escapeHtml(g.deadline.label)}` : ""}</small></div><div class="lm-production-buttons"><button type="button" data-queue-open="${escapeHtml(g.order.id)}">Abrir pedido</button><button type="button" class="primary" data-queue-accept="${escapeHtml(g.order.id)}">Conferir e aceitar</button></div></div>`).join("") || `<p class="caption">Nenhum pedido de fabricação própria aguardando aceite.</p>`}</div>
+  </section>`;
+}
+function wireProductionQueue(container) {
+  container.querySelectorAll("[data-queue-open], [data-queue-accept]").forEach((btn) => btn.addEventListener("click", () => {
+    const id = btn.dataset.queueOpen || btn.dataset.queueAccept;
+    const order = state.orders.find((o) => String(o.id) === String(id));
+    if (!order) return;
+    state.tab = "pedidos";
+    pedidosState.expandedId = order.id;
+    renderApp();
+    if (btn.dataset.queueAccept) openAcceptOrderOverlay(order);
+  }));
+  container.querySelectorAll("[data-queue-view]").forEach((btn) => btn.addEventListener("click", () => {
+    state.tab = "producao";
+    professionalState.productionView = "queue";
+    renderApp();
+  }));
+  container.querySelectorAll("[data-queue-action]").forEach((btn) => btn.addEventListener("click", async () => {
+    const order = state.orders.find((o) => String(o.id) === String(btn.dataset.queueOrder));
+    const item = (order?.items || []).find((it) => productionItemKey(it) === btn.dataset.queueItem);
+    if (!item) return;
+    const task = productionTaskFor(order,item);
+    btn.disabled = true;
+    try {
+      // Consumo de filamento segue o mesmo fluxo do quadro já existente.
+      const action = btn.dataset.queueAction;
+      if (action === "finish" && !productionConsumedMeta(task) && !await recordOrderFilamentConsumption(task)) return;
+      const nextDone = Math.min(task.qty, task.done + 1);
+      const patch = action === "start" ? {stage:"printing"}
+        : action === "finish" ? {stage:"finishing"}
+        : action === "one" ? {done:nextDone, stage:nextDone >= task.qty ? "ready" : "finishing"}
+        : {done:task.qty, stage:"ready"};
+      if (await updateProductionTask(order.id,task.key,patch)) renderApp();
+    } catch (err) {
+      alert("Não foi possível atualizar a produção: " + (err?.message || "Erro inesperado"));
+    } finally { btn.disabled = false; }
+  }));
+}
+
 function renderInicio(container) {
   const month=todayISO().slice(0,7), money=v11MoneyBuckets(month), today=v11DayStats(todayISO()), yesterday=v11DayStats(addDaysISO(todayISO(),-1)); const balance=cashOperationalBalance(); const plan=cashReservePlan(balance,month); const prod=productionMetrics(); const low=countLowStockProducts()+countLowStockMaterials(); const newOrders=state.orders.filter((o)=>o.status==="novo").length; const unpaid=state.orders.filter((o)=>o.status!=="cancelado"&&o.payment_method!=="brinde"&&!o.paid_at).length; const post=postSaleRows().filter((r)=>!r.done).length; const issues=allOrderIssues().filter((i)=>!i.resolved).length; const overdue=prod.own.filter((t)=>t.deadline.days!=null&&t.deadline.days<0&&t.remaining>0).length; const checklist=v11ChecklistState(month); const recent=[...state.orders].filter((o)=>o.status!=="cancelado").sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,5); const first=(state.currentUser?.name||"Olá").split(/\s+/)[0]; const event=eventModeState.active?eventModeState.name:"";
   const tasks=[
@@ -4985,12 +5094,14 @@ function renderInicio(container) {
   container.innerHTML=`<div class="lm-v11-home">
     ${event?`<div class="lm-v11-mode-banner"><span>📅 <b>Modo evento ativo:</b> ${escapeHtml(event)}. As vendas de evento continuam agrupadas no Caixa.</span><button type="button" data-home-tab="eventos" class="lm-v11-link">Abrir evento</button></div>`:""}
     <section class="lm-v11-hero"><div><span class="admin-kicker">Hoje</span><h1>Olá, ${escapeHtml(first)}.</h1><p>O painel mostra primeiro o que merece sua atenção. Você não precisa interpretar relatório: resolva as pendências e deixe os detalhes para quando precisar.</p></div><div class="lm-v11-actions"><button id="v11-home-sale" class="lm-v11-action primary">🧾 Nova venda</button><button id="v11-home-product" class="lm-v11-action">＋ Novo produto</button><button id="v11-home-expense" class="lm-v11-action">💸 Registrar gasto</button><button id="v11-home-close" class="lm-v11-action">✓ Fechar o dia</button><button type="button" data-home-tab="producao" class="lm-v11-action">⚙ Produção</button></div></section>
+    ${renderProductionQueue({ home:true })}
     <div class="lm-v11-grid"><section class="lm-v11-card"><h2>O que precisa de você agora</h2><p class="caption">Comece pelos itens vermelhos; quando zerar essa lista, a operação está organizada.</p><div class="lm-v11-priority-list">${tasks.map((t)=>`<button type="button" data-home-tab="${t.tab}" class="lm-v11-priority ${t.tone}"><span class="dot"></span><span><strong>${escapeHtml(t.label)}</strong><small>${escapeHtml(t.detail)}</small></span><b>${t.n}</b></button>`).join("")}</div></section>
       <section class="lm-v11-card"><h2>Saúde da Luz Mariana</h2><p class="caption">Quatro sinais simples. Toque nas áreas de gestão quando quiser entender os detalhes.</p><div class="lm-v11-health"><div class="${salesHealth.c}"><span>Vendas</span><strong>${salesHealth.t}</strong><small>${salesHealth.d}</small></div><div class="${profitHealth.c}"><span>Lucro</span><strong>${profitHealth.t}</strong><small>${profitHealth.d}</small></div><div class="${cashHealth.c}"><span>Caixa</span><strong>${cashHealth.t}</strong><small>${cashHealth.d}</small></div><div class="${stockHealth.c}"><span>Estoque</span><strong>${stockHealth.t}</strong><small>${stockHealth.d}</small></div></div><div class="mt-3 flex gap-2 flex-wrap"><button type="button" data-home-tab="fechamento" class="lm-v11-action">Fechamento mensal</button><button type="button" data-home-tab="rentabilidade" class="lm-v11-action">Ver rentabilidade</button></div></section></div>
     <section class="lm-v11-card"><h2>Dinheiro em português <span class="lm-v11-help" title="O painel separa o que entrou em custo, lucro, reinvestimento e sua retirada para evitar misturar dinheiro da loja com dinheiro pessoal.">?</span></h2><p class="caption">Resumo do mês atual. O detalhamento completo continua no Caixa e no Fechamento.</p><div class="lm-v11-money"><div><span>Vendeu</span><strong>${formatBRL(money.gross)}</strong></div><div><span>Guardar para repor custo</span><strong>${formatBRL(money.cost)}</strong></div><div><span>Lucro líquido</span><strong>${formatBRL(money.profit)}</strong></div><div><span>Fica na loja</span><strong>${formatBRL(money.reinvestment)}</strong></div><div class="salary"><span>Seu salário / parte</span><strong>${formatBRL(money.salary)}</strong></div></div><div class="lm-v11-plain-summary">Neste mês entraram <b>${formatBRL(money.gross)}</b> em pedidos pagos. Desse total, aproximadamente <b>${formatBRL(money.cost)}</b> precisam permanecer protegidos para repor os custos; <b>${formatBRL(money.profit)}</b> são lucro depois de custo e taxas. Pela regra atual, <b>${formatBRL(money.reinvestment)}</b> ficam na Luz Mariana e <b>${formatBRL(money.salary)}</b> correspondem à sua parte do lucro. O Caixa operacional está em <b>${formatBRL(balance)}</b> e o painel indica <b>${formatBRL(plan.ownerAvailableNow)}</b> como retirada disponível agora.</div></section>
     <div class="lm-v11-grid"><section class="lm-v11-card"><h2>O que mudou desde ontem</h2><p class="caption">Uma leitura rápida para você não precisar comparar telas.</p><div class="lm-v11-changes"><div><span>Vendas hoje</span><strong>${formatBRL(today.sales)}</strong><small>ontem ${formatBRL(yesterday.sales)}</small></div><div><span>Pedidos criados hoje</span><strong>${today.orders}</strong><small>ontem ${yesterday.orders}</small></div><div><span>Ajustes de estoque hoje</span><strong>${today.moves}</strong><small>registrados pela edição rápida</small></div></div></section><section class="lm-v11-card"><h2>Checklist do mês</h2><p class="caption">O painel lembra as rotinas; você só marca quando concluir.</p><div class="lm-v11-checklist">${v11ChecklistDefaults().map(([k,l])=>`<label class="lm-v11-checkitem"><input type="checkbox" data-v11-check="${k}" ${checklist[k]?"checked":""}><span>${escapeHtml(l)}</span></label>`).join("")}</div></section></div>
     <section class="lm-v11-card"><div class="flex items-center justify-between gap-3"><div><h2>Pedidos recentes</h2><p class="caption">Abra, confira ou repita uma venda sem procurar o cliente novamente.</p></div><button type="button" data-home-tab="pedidos" class="lm-v11-link">Ver todos</button></div><div class="lm-v11-recent">${recent.length?recent.map((o)=>`<div class="lm-v11-recent-row"><div><strong>Pedido ${String(o.order_number??"").padStart(6,"0")} · ${escapeHtml(o.customer_name||"Cliente")}</strong><small>${formatDate(String(o.created_at).slice(0,10))} · ${escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)}</small></div><b>${formatBRL(o.total)}</b><div><button data-v11-open-order="${o.id}" class="lm-v11-link">Abrir</button><button data-v11-repeat-order="${o.id}" class="lm-v11-link">Repetir</button></div></div>`).join(""):`<p class="caption">Nenhum pedido registrado ainda.</p>`}</div></section>
   </div>`;
+  wireProductionQueue(container);
   container.querySelectorAll("[data-home-tab]").forEach((b)=>b.onclick=()=>{state.tab=b.dataset.homeTab;renderApp();}); document.getElementById("v11-home-sale")?.addEventListener("click",()=>openGlobalVendaAssistida("full")); document.getElementById("v11-home-expense")?.addEventListener("click",v11OpenExpense); document.getElementById("v11-home-close")?.addEventListener("click",v11OpenDailyClose); document.getElementById("v11-home-product")?.addEventListener("click",()=>{state.tab="precificacao";renderApp();setTimeout(()=>document.getElementById("new-product-btn")?.click(),20);}); container.querySelectorAll("[data-v11-check]").forEach((i)=>i.onchange=()=>v11SetChecklist(month,i.dataset.v11Check,i.checked)); container.querySelectorAll("[data-v11-open-order]").forEach((b)=>b.onclick=()=>{const o=state.orders.find((x)=>String(x.id)===String(b.dataset.v11OpenOrder));if(o)v8OpenDrawer(`Pedido Nº ${String(o.order_number??"").padStart(6,"0")}`,v8OrderDrawerHtml(o));});container.querySelectorAll("[data-v11-repeat-order]").forEach((b)=>b.onclick=()=>v11RepeatOrder(b.dataset.v11RepeatOrder));
 }
 
@@ -5355,7 +5466,8 @@ function renderProducao(container) {
 
       <div class="pro-tabs">
         ${[
-          ["board","Quadro"],
+          ["queue","Fila de encomendas"],
+          ["board","Quadro por etapas"],
           ["batch","Produzir em lote"],
           ["supplier","Fornecedor"],
           ["materials","Materiais necessários"],
@@ -5367,6 +5479,8 @@ function renderProducao(container) {
           ["physical","Inventário físico"]
         ].map(([key,label]) => `<button class="pro-tab ${professionalState.productionView === key ? "active" : ""}" data-production-view="${key}">${label}</button>`).join("")}
       </div>
+
+      ${professionalState.productionView === "queue" ? renderProductionQueue() : ""}
 
       ${professionalState.productionView === "board" ? `
         <div class="mb-3 flex flex-wrap gap-2">
@@ -5501,6 +5615,7 @@ function renderProducao(container) {
     </div>
   `;
 
+  wireProductionQueue(container);
   container.querySelectorAll("[data-production-view]").forEach((btn) => btn.addEventListener("click", () => {
     professionalState.productionView = btn.dataset.productionView;
     renderProducao(container);
