@@ -1,46 +1,17 @@
-LUZ MARIANA — ATUALIZAÇÃO DO CATÁLOGO
+ATUALIZAÇÃO DO CATÁLOGO — LUZ MARIANA
 
-PUBLICAÇÃO
-Envie estes três arquivos para a RAIZ do site, no mesmo local do CNAME,
-tailwind-built.css e das logomarcas:
+COMO APLICAR
+Extraia Atualizacao_Catalogo.zip e substitua index.html e catalogo.css na raiz do repositório do site, mantendo os demais arquivos. Depois publique a alteração pelo processo habitual do GitHub Pages.
 
-- index.html
-- catalogo.css
-- sw.js
+ALTERAÇÕES
+- Destaque inicial com carrossel de até oito produtos, ordenados pela quantidade de vendas registrada no catálogo. Sem vendas registradas, mostra peças em destaque.
+- Troca automática a cada seis segundos, com setas, indicadores e opção de pausar. A rotação pausa durante a interação; respeita a preferência de movimento reduzido.
+- Removida a seção “Você viu recentemente”.
+- Rodapé azul até o fim da página, com a logo maior, transparente e branca para contraste.
+- Setas das fotos/modelos maiores, em uma barra com contraste abaixo da imagem.
+- Ajustes responsivos para celular, tablet e computador.
 
-Não envie esses arquivos para admin/ nem para calculadora/.
-Preserve as imagens e os outros arquivos que já existem no repositório.
-Depois de publicar, atualize com Ctrl + F5. No celular, feche a página/app
-e abra novamente com internet para receber a nova versão.
+MANUTENÇÃO
+Este pacote não contém manutencao.json e não altera a ativação da página de manutenção. O catálogo continua respeitando a configuração existente.
 
-O QUE MUDOU
-- Rádio removida por completo: player, áudio, URLs de transmissão e HLS.
-- Logomarca oficial preservada; abertura em azul-marinho com detalhes
-  dourados, cartões brancos com borda e sombra, botões coloridos e rodapé
-  em azul. Navegação organizada, com mais presença da identidade visual.
-- Produtos em uma grade com duas colunas no celular e mais colunas em
-  telas maiores, sem repetir várias vitrines na página inicial.
-- Busca, categorias e filtros reunidos; limpar filtros fica a um toque.
-- Preço à vista em destaque, com o total no crédito informado abaixo.
-- Prazo e detalhes técnicos ficam na página do produto.
-- Nome do produto aparece antes da foto e das escolhas de tamanho/modelo.
-- Uma única ação principal de compra depois da escolha das opções.
-- Fotos mudam apenas pelas setas, sem rotação automática.
-- A janela de encomenda que aparecia por inatividade foi retirada.
-- Atendimento, ajuda, acompanhamento e encomendas ficam no menu e rodapé.
-- Service worker da raiz corrigido: antes continha um documento HTML.
-  Agora é JavaScript válido e não guarda páginas/preços antigos em cache.
-
-O QUE CONTINUA
-- Cadastro e dados no Supabase; não há alteração de banco nesta atualização.
-- Fotos originais, variações, preço por modelo, estoque/sob encomenda.
-- Campanhas automáticas e seus descontos, cupons, embalagens e entrega.
-- Favoritos, carrinho salvo, avaliações, compartilhamento e rastreio.
-- Finalização do pedido pelo WhatsApp.
-- Painel de gestão, fila de produção e calculadora não foram modificados.
-
-VALIDAÇÃO
-Testes em navegador com dados simulados, sem pedidos no banco real:
-busca, categorias, filtros, favoritos, fotos manuais, campanha, tamanho e
-modelo, carrinho salvo, ajuda, acompanhamento e finalização do pedido.
-Larguras conferidas: 320, 390, 768, 1024 e 1440 px.
+O pacote catalogo-main.zip contém o projeto completo atualizado. Nele, a configuração de manutenção foi preservada exatamente como estava no projeto anterior.
