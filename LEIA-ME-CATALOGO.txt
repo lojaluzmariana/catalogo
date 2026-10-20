@@ -1,21 +1,11 @@
-ATUALIZAÇÃO — CARTÕES DE PRODUTOS MAIS COMPACTOS
+ATUALIZAÇÃO — CARTÕES PADRONIZADOS
 
-Substitua index.html e catalogo.css na raiz do site pelos arquivos deste pacote.
-O preço agora acompanha o nome, sem o espaço branco criado pelo alinhamento automático dos cartões. Os títulos ocupam apenas a altura necessária.
+Substitua index.html e catalogo.css na raiz do site pelos arquivos deste pacote e publique a alteração pelo processo habitual.
 
-Todas as melhorias anteriores, incluindo as correções do carrinho e a configuração de manutenção, foram preservadas.
+- Cartões com a mesma altura e largura, de acordo com o número de colunas da tela.
+- Molduras das fotos com a mesma proporção, com ou sem setas, preservando a imagem inteira.
+- Espaço para títulos de duas linhas, com expansão para nomes maiores sem cortar o texto.
+- Preço próximo ao título e botões alinhados na base dos cartões.
+- Adaptação a celular, tablet e computador.
 
-ATUALIZAÇÃO DO CATÁLOGO — CORREÇÃO DO CARRINHO
-
-Extraia Atualizacao_Catalogo.zip e substitua index.html e catalogo.css na raiz do repositório do site. Publique pelo processo habitual do GitHub Pages.
-
-CORREÇÕES
-- Carrinho com foto e descrição em uma linha e controles de quantidade abaixo, sem comprimir o nome.
-- Lista com rolagem própria e botão de continuar sempre acessível.
-- Altura adaptável à área visível do navegador e espaço para as áreas seguras do celular.
-- Revisão do pedido reorganizada no celular: valor abaixo da descrição, sem cortar os controles.
-- Barra inferior adaptável a telas estreitas.
-
-Inclui as melhorias anteriores: carrossel de mais vendidos, remoção dos itens vistos recentemente, rodapé azul com logo sem fundo e setas das fotos destacadas.
-
-O pacote não altera manutencao.json. O modo de manutenção, o painel administrativo e a calculadora permanecem preservados.
+O pacote inclui as correções anteriores do catálogo e carrinho. Não altera a configuração de manutenção. O painel administrativo e a calculadora foram preservados.

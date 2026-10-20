@@ -85,7 +85,17 @@ body.lm-clean-shop{padding-bottom:0!important}.lm-clean-shop #app{min-height:100
 @media(max-height:400px){.lm-cart-heading{padding-top:4px;padding-bottom:4px}.lm-cart-summary{padding-top:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}.lm-cart-total{margin-bottom:6px}}
 
 /* Cartões compactos: preço acompanha o nome, sem preencher a altura da linha. */
-.lm-products-grid{align-items:start}
-.lm-product-info{flex:0 0 auto}
+.lm-products-grid{align-items:stretch;grid-auto-rows:1fr}
+.lm-product-info{flex:1 1 auto}
 .lm-product-info h3{min-height:0}
 .lm-card-price{margin-top:0}
+
+/* Mesma altura para todos os cartões; preço junto do título e ação na base. */
+.lm-product-card{height:100%}
+.lm-product-info>.lm-product-action,.lm-product-info>.lm-card-quantity{margin-top:auto}
+/* Moldura única para fotos com ou sem navegação, sem cortar a imagem. */
+.lm-products-grid .lm-product-visual{aspect-ratio:1 / 1;display:flex;flex-direction:column;flex:0 0 auto}
+.lm-products-grid .lm-product-image{position:relative;flex:1 1 0;aspect-ratio:auto;min-height:0!important}
+.lm-products-grid .lm-product-image img{position:absolute;inset:0;height:100%;width:100%;object-fit:contain}
+.lm-products-grid .lm-photo-controls{flex:0 0 auto}
+.lm-product-info h3{min-height:3em}
