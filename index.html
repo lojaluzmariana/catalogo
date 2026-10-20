@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>html.lm-maintenance-pending body{visibility:hidden}</style>
+<script src="manutencao.js?v=1"></script>
   <meta name="luz-mariana-catalog-version" content="professional-v10.4-variant-pricing-2026-10-01" />
 <title>Luz Mariana — Catálogo</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
@@ -5251,15 +5253,16 @@ window.addEventListener("beforeunload", (e) => {
 
 
 
-render();
-loadCatalog()
-
-  .catch((err) => {
+(window.lmMaintenanceReady || Promise.resolve(true)).then((canOpenCatalog) => {
+  if (!canOpenCatalog) return;
+  render();
+  loadCatalog().catch((err) => {
     console.error("Erro inesperado ao carregar o catálogo:", err);
     state.loading = false;
     state.loadError = err?.message || "Erro inesperado";
     render();
   });
+});
 
 // Registra o service worker só pra habilitar "Adicionar à tela inicial"
 // (ver comentário em sw.js — não guarda nada em cache). Silenciosamente
