@@ -99,3 +99,8 @@ body.lm-clean-shop{padding-bottom:0!important}.lm-clean-shop #app{min-height:100
 .lm-products-grid .lm-product-image img{position:absolute;inset:0;height:100%;width:100%;object-fit:contain}
 .lm-products-grid .lm-photo-controls{flex:0 0 auto}
 .lm-product-info h3{min-height:3em}
+
+/* Fotos verticais ocupam a moldura inteira, com navegação fora da imagem. */
+.lm-products-grid .lm-product-visual{aspect-ratio:auto;display:flex;flex-direction:column}
+.lm-products-grid .lm-product-image{aspect-ratio:3 / 4;flex:0 0 auto;width:100%;background:#f8f6ef}
+.lm-products-grid .lm-product-image img{object-fit:contain;object-position:center}
