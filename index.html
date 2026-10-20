@@ -787,186 +787,12 @@
   @media (max-width: 767px) { .campaign-info-grid { grid-template-columns:1fr; } .campaign-big-discount strong { font-size:28px; } }
 
 
-/* =====================================================================
-   V10.1 — RÁDIO CANÇÃO NOVA
-   Mini-player flutuante. Tenta iniciar automaticamente; navegadores que
-   bloqueiam autoplay com som exibem "Toque para ouvir" e liberam no
-   primeiro gesto do visitante.
-   ===================================================================== */
-.lm-radio-player {
-  position: fixed;
-  left: 14px;
-  bottom: 86px;
-  z-index: 29;
-  width: min(330px, calc(100vw - 28px));
-  border: 1px solid rgba(213,170,62,.55);
-  border-radius: 18px;
-  background: rgba(255,255,255,.97);
-  color: #001868;
-  box-shadow: 0 12px 34px rgba(0,24,104,.22);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  overflow: hidden;
-  transition: width .18s ease, transform .18s ease, opacity .18s ease;
-}
-.lm-radio-top {
-  display:flex;
-  align-items:center;
-  gap:10px;
-  min-height:58px;
-  padding:9px 42px 8px 10px;
-}
-.lm-radio-icon {
-  width:40px;
-  height:40px;
-  flex:0 0 40px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border-radius:13px;
-  background:#001868;
-  color:#fff;
-  font-size:20px;
-  box-shadow:0 5px 14px rgba(0,24,104,.18);
-}
-.lm-radio-copy { min-width:0; flex:1; }
-.lm-radio-copy strong {
-  display:block;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  font-size:13px;
-  line-height:1.2;
-}
-.lm-radio-status {
-  display:flex;
-  align-items:center;
-  gap:6px;
-  margin-top:4px;
-  color:#65708a;
-  font-size:11px;
-  line-height:1.25;
-}
-.lm-radio-status::before {
-  content:"";
-  width:7px;
-  height:7px;
-  flex:0 0 7px;
-  border-radius:999px;
-  background:#d9a20c;
-}
-.lm-radio-player.is-playing .lm-radio-status::before {
-  background:#20a464;
-  box-shadow:0 0 0 3px rgba(32,164,100,.12);
-}
-.lm-radio-player.is-blocked .lm-radio-status::before { background:#d5aa3e; }
-.lm-radio-player.is-error .lm-radio-status::before { background:#c33; }
-.lm-radio-collapse {
-  position:absolute;
-  top:10px;
-  right:10px;
-  width:30px;
-  height:30px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border:1px solid #d9ddea;
-  border-radius:999px;
-  background:#fff;
-  color:#001868;
-  font-weight:800;
-  cursor:pointer;
-}
-.lm-radio-controls {
-  display:grid;
-  grid-template-columns:42px 42px minmax(70px,1fr) 34px;
-  gap:7px;
-  align-items:center;
-  padding:0 10px 10px;
-}
-.lm-radio-control {
-  min-height:38px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border:1px solid #d9ddea;
-  border-radius:12px;
-  background:#fff;
-  color:#001868;
-  font-size:15px;
-  font-weight:800;
-  cursor:pointer;
-}
-.lm-radio-control.primary {
-  border-color:#001868;
-  background:#001868;
-  color:#fff;
-}
-.lm-radio-control:hover { border-color:#d5aa3e; }
-.lm-radio-volume {
-  width:100%;
-  accent-color:#001868;
-}
-.lm-radio-official-link {
-  text-decoration:none;
-  font-size:14px;
-}
-.lm-radio-player.is-collapsed {
-  width:54px;
-  height:54px;
-  border-radius:999px;
-}
-.lm-radio-player.is-collapsed .lm-radio-top,
-.lm-radio-player.is-collapsed .lm-radio-controls { display:none; }
-.lm-radio-player.is-collapsed .lm-radio-collapse {
-  inset:0;
-  width:54px;
-  height:54px;
-  border:0;
-  border-radius:999px;
-  background:#001868;
-  color:#fff;
-  font-size:0;
-}
-.lm-radio-player.is-collapsed .lm-radio-collapse::after {
-  content:"📻";
-  font-size:23px;
-}
-@media (max-width: 639px) {
-  .lm-radio-player {
-    left:10px;
-    bottom:82px;
-    width:min(300px, calc(100vw - 20px));
-  }
-  .lm-radio-controls {
-    grid-template-columns:44px 44px minmax(56px,1fr) 36px;
-  }
-}
-
 </style>
+<link rel="stylesheet" href="catalogo.css">
 </head>
-<body class="bg-cream-50 text-navy-900 min-h-screen pb-24">
+<body class="lm-clean-shop bg-cream-50 text-navy-900 min-h-screen pb-24">
 <div id="app"></div>
 
-<div id="welcome-order-overlay" class="welcome-order-overlay" role="dialog" aria-modal="true" aria-labelledby="welcome-order-title" aria-describedby="welcome-order-text">
-  <div class="welcome-order-card" tabindex="-1">
-    <button id="welcome-order-close-x" type="button" class="welcome-order-close-x" aria-label="Fechar janela">×</button>
-    <span class="welcome-order-kicker">Pedidos personalizados</span>
-    <h2 id="welcome-order-title" class="mt-3 pr-10 text-xl font-semibold text-navy-900">Não encontrou o que procura?</h2>
-    <p id="welcome-order-text" class="mt-2 text-sm leading-relaxed text-navy-600">
-      A Luz Mariana também faz encomendas e pedidos personalizados. Se procura outro modelo, santo, cor, tamanho ou uma peça especial, fale conosco para solicitar um orçamento.
-    </p>
-    <div class="welcome-order-actions">
-      <button id="welcome-order-whatsapp" type="button" class="welcome-order-primary">Solicitar orçamento pelo WhatsApp</button>
-      <button id="welcome-order-close-btn" type="button" class="welcome-order-secondary">Fechar janela</button>
-    </div>
-    <div class="welcome-order-progress" aria-hidden="true"><span id="welcome-order-progress-bar"></span></div>
-  </div>
-</div>
-
-<button id="help-guide-btn" class="help-guide-btn" type="button" aria-haspopup="dialog" aria-controls="help-guide-overlay">
-  Como comprar?
-</button>
 <div id="help-guide-overlay" class="help-guide-overlay" role="dialog" aria-modal="true" aria-labelledby="help-guide-title">
   <div class="help-guide-dialog" tabindex="-1">
     <div class="flex items-center justify-between gap-3">
@@ -988,24 +814,6 @@
   </div>
 </div>
 
-
-<div id="lm-radio-player" class="lm-radio-player" aria-label="Player da Rádio Canção Nova">
-  <audio id="lm-radio-audio" preload="none" playsinline></audio>
-  <button id="lm-radio-collapse" class="lm-radio-collapse" type="button" aria-label="Recolher player da rádio" title="Recolher">−</button>
-  <div class="lm-radio-top">
-    <div class="lm-radio-icon" aria-hidden="true">📻</div>
-    <div class="lm-radio-copy">
-      <strong>Rádio Canção Nova</strong>
-      <span id="lm-radio-status" class="lm-radio-status">Preparando transmissão ao vivo…</span>
-    </div>
-  </div>
-  <div class="lm-radio-controls">
-    <button id="lm-radio-play" class="lm-radio-control primary" type="button" aria-label="Ouvir Rádio Canção Nova" title="Ouvir">▶</button>
-    <button id="lm-radio-mute" class="lm-radio-control" type="button" aria-label="Silenciar rádio" title="Silenciar">🔊</button>
-    <input id="lm-radio-volume" class="lm-radio-volume" type="range" min="0" max="1" step="0.05" value="0.30" aria-label="Volume da Rádio Canção Nova" />
-    <a class="lm-radio-control lm-radio-official-link" href="https://radio.cancaonova.com/" target="_blank" rel="noopener noreferrer" aria-label="Abrir site oficial da Rádio Canção Nova" title="Site oficial">↗</a>
-  </div>
-</div>
 
 <script>
 /* =====================================================================
@@ -1075,301 +883,6 @@ function formatWhatsappBR(raw) {
 }
 
 const app = document.getElementById("app");
-
-/* =====================================================================
-   RÁDIO CANÇÃO NOVA — player ao vivo
-   ===================================================================== */
-const LM_RADIO_HLS_URL = "https://d1ixcyc8q1z54i.cloudfront.net/out/v1/582568c0cbc742208e9e8856e569d2e3/index_1.m3u8";
-const LM_RADIO_FALLBACK_URL = "https://streaming.fox.srv.br:8114/stream/;";
-const LM_RADIO_PREF_KEY = "luzmariana_radio_pref_v2";
-const LM_RADIO_VOLUME_KEY = "luzmariana_radio_volume_v2";
-const LM_RADIO_COLLAPSED_KEY = "luzmariana_radio_collapsed_v2";
-
-const lmRadioPlayer = document.getElementById("lm-radio-player");
-const lmRadioAudio = document.getElementById("lm-radio-audio");
-const lmRadioPlay = document.getElementById("lm-radio-play");
-const lmRadioMute = document.getElementById("lm-radio-mute");
-const lmRadioVolume = document.getElementById("lm-radio-volume");
-const lmRadioStatus = document.getElementById("lm-radio-status");
-const lmRadioCollapse = document.getElementById("lm-radio-collapse");
-
-let lmRadioHls = null;
-let lmRadioSourceReady = false;
-let lmRadioPreparing = null;
-let lmRadioAutoplayBlocked = false;
-let lmRadioUsingFallback = false;
-
-function lmRadioPref() {
-  try { return localStorage.getItem(LM_RADIO_PREF_KEY) || "auto"; }
-  catch (_err) { return "auto"; }
-}
-function lmRadioSavePref(value) {
-  try { localStorage.setItem(LM_RADIO_PREF_KEY, value); } catch (_err) {}
-}
-function lmRadioSetStatus(message, mode = "") {
-  if (!lmRadioStatus || !lmRadioPlayer) return;
-  lmRadioStatus.textContent = message;
-  lmRadioPlayer.classList.toggle("is-playing", mode === "playing");
-  lmRadioPlayer.classList.toggle("is-blocked", mode === "blocked");
-  lmRadioPlayer.classList.toggle("is-error", mode === "error");
-}
-function lmRadioUpdateButtons() {
-  if (!lmRadioAudio || !lmRadioPlay || !lmRadioMute) return;
-  const playing = !lmRadioAudio.paused && !lmRadioAudio.ended;
-  lmRadioPlay.textContent = playing ? "⏸" : "▶";
-  lmRadioPlay.setAttribute("aria-label", playing ? "Pausar Rádio Canção Nova" : "Ouvir Rádio Canção Nova");
-  lmRadioPlay.title = playing ? "Pausar" : "Ouvir";
-  const muted = lmRadioAudio.muted || lmRadioAudio.volume === 0;
-  lmRadioMute.textContent = muted ? "🔇" : "🔊";
-  lmRadioMute.setAttribute("aria-label", muted ? "Ativar som da rádio" : "Silenciar rádio");
-  lmRadioMute.title = muted ? "Ativar som" : "Silenciar";
-}
-function lmRadioLoadHlsLibrary() {
-  if (window.Hls) return Promise.resolve(window.Hls);
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-lm-hls]');
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.Hls), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Falha ao carregar HLS")), { once: true });
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
-    script.async = true;
-    script.dataset.lmHls = "1";
-    script.onload = () => resolve(window.Hls);
-    script.onerror = () => reject(new Error("Falha ao carregar HLS"));
-    document.head.appendChild(script);
-  });
-}
-function lmRadioUseFallback() {
-  if (!lmRadioAudio || lmRadioUsingFallback) return;
-  lmRadioUsingFallback = true;
-  lmRadioSourceReady = true;
-  try {
-    lmRadioHls?.destroy();
-  } catch (_err) {}
-  lmRadioHls = null;
-  lmRadioAudio.src = LM_RADIO_FALLBACK_URL;
-  lmRadioAudio.load();
-}
-async function lmRadioPrepareSource() {
-  if (!lmRadioAudio) return false;
-  if (lmRadioSourceReady) return true;
-  if (lmRadioPreparing) return lmRadioPreparing;
-
-  lmRadioPreparing = (async () => {
-    lmRadioSetStatus("Conectando à transmissão…");
-    const nativeHls = lmRadioAudio.canPlayType("application/vnd.apple.mpegurl")
-      || lmRadioAudio.canPlayType("application/x-mpegURL");
-
-    if (nativeHls) {
-      lmRadioAudio.src = LM_RADIO_HLS_URL;
-      lmRadioAudio.load();
-      lmRadioSourceReady = true;
-      return true;
-    }
-
-    try {
-      const HlsLib = await lmRadioLoadHlsLibrary();
-      if (HlsLib?.isSupported?.()) {
-        lmRadioHls = new HlsLib({
-          enableWorker: true,
-          lowLatencyMode: false,
-          backBufferLength: 30
-        });
-        lmRadioHls.loadSource(LM_RADIO_HLS_URL);
-        lmRadioHls.attachMedia(lmRadioAudio);
-        lmRadioHls.on(HlsLib.Events.MANIFEST_PARSED, () => {
-          lmRadioSourceReady = true;
-        });
-        lmRadioHls.on(HlsLib.Events.ERROR, (_event, data) => {
-          if (data?.fatal) {
-            lmRadioUseFallback();
-            if (lmRadioPref() !== "off") lmRadioTryPlay();
-          }
-        });
-        lmRadioSourceReady = true;
-        return true;
-      }
-    } catch (_err) {
-      // cai para o stream alternativo abaixo
-    }
-
-    lmRadioUseFallback();
-    return true;
-  })();
-
-  try { return await lmRadioPreparing; }
-  finally { lmRadioPreparing = null; }
-}
-async function lmRadioTryPlay({ userInitiated = false } = {}) {
-  if (!lmRadioAudio) return false;
-  if (!lmRadioSourceReady) await lmRadioPrepareSource();
-
-  // Sempre tentamos tocar COM SOM em 30% (ou no volume salvo pelo cliente).
-  lmRadioAudio.defaultMuted = false;
-  lmRadioAudio.muted = false;
-  if (!(lmRadioAudio.volume > 0)) {
-    const desired = Math.max(0.05, Number(lmRadioVolume?.value || 0.30));
-    lmRadioAudio.volume = desired;
-  }
-
-  try {
-    await lmRadioAudio.play();
-    lmRadioAutoplayBlocked = false;
-    if (userInitiated) lmRadioSavePref("on");
-
-    // Alguns navegadores permitem iniciar a mídia, mas a deixam silenciosa.
-    if (lmRadioAudio.muted || lmRadioAudio.volume === 0) {
-      lmRadioSetStatus("Ao vivo • toque na página para ativar o som", "blocked");
-    } else {
-      lmRadioSetStatus("Ao vivo", "playing");
-    }
-    lmRadioUpdateButtons();
-    return true;
-  } catch (err) {
-    lmRadioAutoplayBlocked = true;
-    lmRadioSetStatus("Toque na página para ouvir ao vivo", "blocked");
-    lmRadioUpdateButtons();
-    return false;
-  }
-}
-function lmRadioPause({ remember = true } = {}) {
-  if (!lmRadioAudio) return;
-  lmRadioAudio.pause();
-  if (remember) lmRadioSavePref("off");
-  lmRadioSetStatus("Pausada");
-  lmRadioUpdateButtons();
-}
-function lmRadioApplyCollapsed(value) {
-  if (!lmRadioPlayer || !lmRadioCollapse) return;
-  lmRadioPlayer.classList.toggle("is-collapsed", !!value);
-  lmRadioCollapse.textContent = value ? "📻" : "−";
-  lmRadioCollapse.setAttribute("aria-label", value ? "Abrir player da rádio" : "Recolher player da rádio");
-  lmRadioCollapse.title = value ? "Abrir Rádio Canção Nova" : "Recolher";
-  try { localStorage.setItem(LM_RADIO_COLLAPSED_KEY, value ? "1" : "0"); } catch (_err) {}
-}
-function lmRadioInit() {
-  if (!lmRadioAudio || !lmRadioPlayer) return;
-
-  let savedVolume = 0.30;
-  try {
-    const raw = Number(localStorage.getItem(LM_RADIO_VOLUME_KEY));
-    if (Number.isFinite(raw) && raw >= 0 && raw <= 1) savedVolume = raw;
-  } catch (_err) {}
-  lmRadioAudio.defaultMuted = false;
-  lmRadioAudio.muted = false;
-  lmRadioAudio.volume = savedVolume;
-  lmRadioVolume.value = String(savedVolume);
-
-  let collapsed = true;
-  try {
-    const savedCollapsed = localStorage.getItem(LM_RADIO_COLLAPSED_KEY);
-    collapsed = savedCollapsed === null ? true : savedCollapsed === "1";
-  } catch (_err) {}
-  lmRadioApplyCollapsed(collapsed);
-
-  lmRadioAudio.addEventListener("playing", () => {
-    lmRadioSetStatus("Ao vivo", "playing");
-    lmRadioUpdateButtons();
-  });
-  lmRadioAudio.addEventListener("pause", () => {
-    if (!lmRadioAutoplayBlocked) lmRadioSetStatus("Pausada");
-    lmRadioUpdateButtons();
-  });
-  lmRadioAudio.addEventListener("waiting", () => lmRadioSetStatus("Carregando transmissão…"));
-  lmRadioAudio.addEventListener("stalled", () => lmRadioSetStatus("Reconectando…"));
-  lmRadioAudio.addEventListener("error", () => {
-    if (!lmRadioUsingFallback) {
-      lmRadioUseFallback();
-      if (lmRadioPref() !== "off") lmRadioTryPlay();
-    } else {
-      lmRadioSetStatus("Transmissão indisponível no momento", "error");
-    }
-  });
-
-  lmRadioPlay.addEventListener("click", async () => {
-    if (!lmRadioAudio.paused) {
-      lmRadioPause({ remember: true });
-      return;
-    }
-    lmRadioAudio.defaultMuted = false;
-    lmRadioAudio.muted = false;
-    if (!(lmRadioAudio.volume > 0)) {
-      lmRadioAudio.volume = Math.max(0.05, Number(lmRadioVolume.value || 0.30));
-    }
-    lmRadioSavePref("on");
-    await lmRadioTryPlay({ userInitiated: true });
-  });
-
-  lmRadioMute.addEventListener("click", () => {
-    lmRadioAudio.muted = !lmRadioAudio.muted;
-    lmRadioUpdateButtons();
-  });
-
-  lmRadioVolume.addEventListener("input", () => {
-    const value = Math.max(0, Math.min(1, Number(lmRadioVolume.value) || 0));
-    lmRadioAudio.volume = value;
-    if (value > 0) lmRadioAudio.muted = false;
-    try { localStorage.setItem(LM_RADIO_VOLUME_KEY, String(value)); } catch (_err) {}
-    lmRadioUpdateButtons();
-  });
-
-  lmRadioCollapse.addEventListener("click", () => {
-    lmRadioApplyCollapsed(!lmRadioPlayer.classList.contains("is-collapsed"));
-  });
-
-  // Prepara o stream desde a abertura para que, se o navegador bloquear
-  // o autoplay, o primeiro toque do visitante consiga liberar o áudio
-  // imediatamente sem precisar esperar o player carregar.
-  lmRadioPrepareSource().then(() => {
-    if (lmRadioPref() !== "off") {
-      setTimeout(() => lmRadioTryPlay(), 250);
-    } else {
-      lmRadioSetStatus("Toque em ▶ para ouvir");
-    }
-  });
-
-  // Fallback de autoplay: Chrome/Safari costumam bloquear som antes da
-  // primeira interação. Se isso ocorrer, o primeiro toque/tecla no site
-  // tenta iniciar a rádio novamente.
-  const unlockOnGesture = () => {
-    if (lmRadioPref() === "off" || !lmRadioSourceReady) return;
-
-    // Se o navegador iniciou a rádio no mudo, qualquer interação no site
-    // libera o som automaticamente no volume configurado.
-    if (lmRadioAudio.muted || lmRadioAudio.volume === 0) {
-      lmRadioAudio.defaultMuted = false;
-      lmRadioAudio.muted = false;
-      const desired = Math.max(0.05, Number(lmRadioVolume.value || 0.30));
-      lmRadioAudio.volume = desired;
-    }
-
-    if (lmRadioAudio.paused || lmRadioAutoplayBlocked) {
-      const playPromise = lmRadioAudio.play();
-      if (playPromise && typeof playPromise.then === "function") {
-        playPromise.then(() => {
-          lmRadioAutoplayBlocked = false;
-          lmRadioSetStatus("Ao vivo", "playing");
-          lmRadioUpdateButtons();
-        }).catch(() => {
-          lmRadioSetStatus("Toque no botão 📻 para ouvir", "blocked");
-          lmRadioUpdateButtons();
-        });
-      }
-    } else {
-      lmRadioAutoplayBlocked = false;
-      lmRadioSetStatus("Ao vivo", "playing");
-      lmRadioUpdateButtons();
-    }
-  };
-  document.addEventListener("pointerdown", unlockOnGesture, { passive: true });
-  document.addEventListener("touchstart", unlockOnGesture, { passive: true });
-  document.addEventListener("keydown", unlockOnGesture);
-  lmRadioUpdateButtons();
-}
-
 
 const FONT_SIZE_PREF_KEY = "luzmariana_font_size_v1";
 const PAYMENT_PREF_KEY = "luzmariana_payment_v1";
@@ -1815,7 +1328,7 @@ function manageCartFocus() {
     // que usam a gaveta) — busca por id de novo em vez de guardar a
     // referência antiga, porque o render() troca o elemento inteiro
     // (a referência velha fica "morta", presa fora do DOM).
-    document.getElementById("open-cart-btn")?.focus();
+    (document.getElementById("open-cart-btn")||document.querySelector("[data-open-cart]"))?.focus();
   }
   cartWasOpenLastRender = state.cartOpen;
 
@@ -2179,36 +1692,7 @@ function stopCarouselTimer(productId) {
    (grid + carrossel de destaques), e pausa enquanto o dedo/mouse está
    em cima (pra não trocar a foto bem na hora que a pessoa for decidir). */
 function setupCarousels() {
-  // Limpa timers antigos antes de religar os cards que estão realmente na tela.
   Object.keys(carouselTimers).forEach(stopCarouselTimer);
-
-  const productIds = new Set();
-  document.querySelectorAll("[data-carousel]").forEach((el) => {
-    const productId = el.dataset.carousel;
-    if (!productId) return;
-    const product = state.products.find((p) => String(p.id) === String(productId));
-    if (!product || carouselFrames(product).length <= 1) return;
-    productIds.add(String(productId));
-
-    // Pausa durante interação para não trocar a imagem enquanto o cliente
-    // estiver tocando, arrastando ou usando as setas. Depois retoma sozinho.
-    let resumeTimer = null;
-    const pause = () => {
-      stopCarouselTimer(String(productId));
-      if (resumeTimer) clearTimeout(resumeTimer);
-    };
-    const resume = () => {
-      if (resumeTimer) clearTimeout(resumeTimer);
-      resumeTimer = setTimeout(() => startCarouselTimer(String(productId)), 4500);
-    };
-    el.addEventListener("pointerenter", pause);
-    el.addEventListener("pointerleave", resume);
-    el.addEventListener("touchstart", pause, { passive: true });
-    el.addEventListener("touchend", resume, { passive: true });
-    el.addEventListener("touchcancel", resume, { passive: true });
-  });
-
-  productIds.forEach((productId) => startCarouselTimer(productId));
 }
 
 let campaignCountdownTimer = null;
@@ -2271,40 +1755,7 @@ function productMatchesSearch(product, query) {
 }
 
 function renderSearchBar() {
-  const q = normalizeSearch(state.searchQuery);
-  const suggestions = q ? state.products.filter((p) => productMatchesSearch(p, state.searchQuery)).slice(0, 5) : [];
-  return `
-    <div class="mb-5">
-      <div class="relative">
-        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m0 0a7.5 7.5 0 10-10.6 0 7.5 7.5 0 0010.6 0z" /></svg>
-        <input id="catalog-search-input" type="text" inputmode="search" autocomplete="off"
-          value="${escapeHtml(state.searchQuery)}"
-          placeholder="O que você procura? Ex.: São Miguel, terço..."
-          aria-label="Buscar produto no catálogo"
-          class="w-full rounded-full border border-navy-200 bg-white py-3 pl-9 pr-9 text-base text-navy-900 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" />
-        ${state.searchQuery ? `
-          <button type="button" id="catalog-search-clear" aria-label="Limpar busca" class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-navy-300 hover:text-navy-600">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        ` : ""}
-        ${suggestions.length > 0 ? `
-          <div class="catalog-search-suggestions">
-            ${suggestions.map((p) => {
-              const v = bestSellingVariant(p.id);
-              const photo = p.photo_url || v?.photo_url || "";
-              return `<button type="button" class="catalog-search-suggestion" data-search-suggestion="${p.id}">
-                ${photo ? `<img src="${photo}" alt="" />` : `<span class="flex h-[42px] w-[42px] items-center justify-center rounded-lg bg-cream-50">✦</span>`}
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-sm font-semibold">${escapeHtml(p.name)}</span>
-                  <span class="block text-xs text-navy-400">${escapeHtml(p.category || "Produto")}</span>
-                </span>
-              </button>`;
-            }).join("")}
-          </div>
-        ` : ""}
-      </div>
-    </div>
-  `;
+  return `<div class="lm-search"><label for="catalog-search-input" class="lm-sr-only">Buscar produtos no catálogo</label><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="catalog-search-input" type="text" inputmode="search" autocomplete="off" value="${escapeHtml(state.searchQuery)}" placeholder="Buscar no catálogo…">${state.searchQuery?'<button type="button" id="catalog-search-clear" aria-label="Limpar busca">×</button>':''}</div>`;
 }
 
 function groupByCategory(products) {
@@ -2526,11 +1977,10 @@ function campaignDiscountSummary(items=cartItems(), payment=state.payment) {
   return {total:Math.round(applications.reduce((s,a)=>s+a.discount,0)*100)/100,applications,canStackCoupon:applications.every((a)=>!!a.allow_coupon_stack)};
 }
 function renderCampaignBanner() {
-  const live=activeCampaigns(null).filter((c)=>c.show_banner!==false);
-  if(!live.length) return "";
-  const c=live[0];
-  const copy=c.banner_text||`${c.name}: ${campaignDiscountText(c)}${c.all_products?" em todos os produtos":" em produtos selecionados"}.`;
-  return `<div class="border-b border-gold-300 bg-gold-100"><div class="mx-auto max-w-6xl px-4 py-2.5 text-center text-sm font-semibold text-navy-900">🎉 ${escapeHtml(copy)} <span class="font-normal text-navy-600">${campaignPaymentText(c)?`· ${escapeHtml(campaignPaymentText(c))}`:""} · até ${escapeHtml(campaignDateEndText(c))}</span></div></div>`;
+  const c=activeCampaigns(null).find(c=>c.show_banner!==false);
+  if(!c)return '';
+  const copy=c.banner_text||`${c.name}: ${campaignDiscountText(c)}${c.all_products?' em todos os produtos':' em produtos selecionados'}.`;
+  return `<div class="lm-campaign-note"><div class="lm-container"><span>${escapeHtml(copy)}</span><small>${escapeHtml(campaignPaymentText(c))} · até ${escapeHtml(campaignDateEndText(c))}</small></div></div>`;
 }
 
 // Resumo de preços para produtos com modelos. No card mostramos “a partir de”
@@ -3193,74 +2643,6 @@ function setQty(productId, qty) {
 /* =====================================================================
    RENDER
    ===================================================================== */
-const WELCOME_ORDER_SESSION_KEY = "luzmariana_welcome_order_seen_v1";
-let welcomeOrderTimer = null;
-let welcomeOrderInactivityTimer = null;
-const WELCOME_ORDER_INACTIVITY_MS = 30000;
-const WELCOME_ORDER_VISIBLE_MS = 13000;
-
-function closeWelcomeOrder(markSeen = true) {
-  const overlay = document.getElementById("welcome-order-overlay");
-  if (!overlay) return;
-  overlay.classList.remove("is-open");
-  if (welcomeOrderTimer) {
-    clearTimeout(welcomeOrderTimer);
-    welcomeOrderTimer = null;
-  }
-  if (markSeen) {
-    try { sessionStorage.setItem(WELCOME_ORDER_SESSION_KEY, "1"); } catch (_err) {}
-  }
-}
-
-function userHasChosenSomething() {
-  return cartCount() > 0
-    || !!state.detailProductId
-    || !!state.searchQuery
-    || state.categoryFilter !== "all"
-    || state.favoritesOnly;
-}
-
-function scheduleWelcomeOrderAfterInactivity() {
-  if (welcomeOrderInactivityTimer) {
-    clearTimeout(welcomeOrderInactivityTimer);
-    welcomeOrderInactivityTimer = null;
-  }
-  if (state.screen !== "catalog") return;
-
-  let alreadySeen = false;
-  try { alreadySeen = sessionStorage.getItem(WELCOME_ORDER_SESSION_KEY) === "1"; } catch (_err) {}
-  if (alreadySeen || userHasChosenSomething()) return;
-
-  welcomeOrderInactivityTimer = setTimeout(() => {
-    if (state.screen === "catalog" && !userHasChosenSomething()) {
-      showWelcomeOrder();
-    }
-  }, WELCOME_ORDER_INACTIVITY_MS);
-}
-
-function showWelcomeOrder() {
-  const overlay = document.getElementById("welcome-order-overlay");
-  const card = overlay?.querySelector(".welcome-order-card");
-  const progress = document.getElementById("welcome-order-progress-bar");
-  if (!overlay || !card) return;
-
-  overlay.classList.add("is-open");
-  card.focus();
-
-  if (progress) {
-    progress.style.transition = "none";
-    progress.style.transform = "scaleX(1)";
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        progress.style.transition = `transform ${WELCOME_ORDER_VISIBLE_MS}ms linear`;
-        progress.style.transform = "scaleX(0)";
-      });
-    });
-  }
-
-  welcomeOrderTimer = setTimeout(() => closeWelcomeOrder(true), WELCOME_ORDER_VISIBLE_MS);
-}
-
 function render() {
   const helpBtn = document.getElementById("help-guide-btn");
   const helpOverlay = document.getElementById("help-guide-overlay");
@@ -3287,57 +2669,26 @@ function render() {
 }
 
 function renderHeader() {
-  return `
-    <header class="bg-navy-900">
-      <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 px-3 py-3">
-        <button type="button" data-go-home aria-label="Ir para a página inicial" class="flex min-w-0 items-center gap-2 border-0 bg-transparent p-0 transition hover:opacity-90">
-          <img src="logo-symbol.png" alt="" class="h-9 w-9" />
-          <span class="truncate text-lg font-semibold tracking-wide text-cream-50">Luz Mariana</span>
-        </button>
-        <button type="button" data-open-track class="accessibility-btn px-3" aria-label="Rastrear pedido">Rastrear pedido</button>
-        <button type="button" data-header-whatsapp class="accessibility-btn px-3" aria-label="Falar com a loja pelo WhatsApp">Falar com a loja</button>
-        <button type="button" data-header-custom-order class="accessibility-btn px-3" aria-label="Solicitar encomenda personalizada">Encomenda personalizada</button>
-        <button type="button" data-font-toggle class="accessibility-btn" aria-label="Aumentar ou reduzir o tamanho do texto" title="Tamanho do texto">${document.documentElement.dataset.fontSize === "large" ? "A−" : "A+"}</button>
-      </div>
-    </header>
-    ${renderCampaignBanner()}
-  `;
+  const count=cartCount();
+  return `<header class="lm-shop-header"><div class="lm-container lm-header-inner">
+    <button type="button" class="lm-brand" data-go-home aria-label="Luz Mariana — página inicial"><img src="logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" width="230" height="84"></button>
+    <div class="lm-header-actions"><button type="button" class="lm-header-contact" data-header-whatsapp>Fale conosco</button>
+      <button type="button" class="lm-cart-trigger" data-open-cart aria-label="Ver meu pedido, ${count} ${count===1?'item':'itens'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 7h12l1 14H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span>Meu pedido</span><b>${count}</b></button>
+      <details class="lm-header-menu"><summary aria-label="Abrir menu de atendimento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></summary><div class="lm-menu-panel"><button type="button" data-open-help-guide>Como comprar</button><button type="button" data-open-track>Acompanhar meu pedido</button><button type="button" data-header-whatsapp>Falar com a loja</button><button type="button" data-header-custom-order>Encomenda personalizada</button><button type="button" data-font-toggle>${document.documentElement.dataset.fontSize==='large'?'Reduzir':'Aumentar'} tamanho do texto</button></div></details>
+    </div></div></header>${renderCampaignBanner()}`;
 }
 
 function renderHero() {
-  // Em telas de celular usamos uma imagem PRÓPRIA, já recortada à mão
-  // pra manter a logo, o texto e o selo de pagamento sempre inteiros e
-  // legíveis (não é um corte automático via CSS). A partir do tablet
-  // (640px) volta a usar a arte completa, cada vez mais larga conforme
-  // a tela cresce.
-  return `
-    <div class="w-full overflow-hidden bg-navy-900">
-      <picture>
-        <source media="(max-width: 639px)" srcset="hero-banner-mobile.jpg" />
-        <img src="hero-banner.jpg"
-          alt="Bem-vindo(a) à Luz Mariana — Fé que inspira. Presentes que têm significado. Artigos religiosos e peças de devoção para sua casa, seu cantinho de oração ou para presentear alguém especial. Condições especiais para pagamentos via Pix ou à vista."
-          class="block h-auto w-full object-contain object-center" />
-      </picture>
-    </div>
-  `;
+  const choices=[...computeBestSellers(state.products),...state.products];
+  const heroProduct=choices.find(p=>p.photo_url||variantsFor(p.id).some(v=>v.photo_url));
+  const photo=heroProduct?(heroProduct.photo_url||variantsFor(heroProduct.id).find(v=>v.photo_url)?.photo_url):null;
+  return `<section class="lm-hero"><div class="lm-container lm-hero-inner"><div class="lm-hero-copy"><span class="lm-eyebrow">Artigos religiosos e devoção</span><h1>Fé que inspira.<br>Presentes com significado.</h1><p>Peças para o seu cantinho de oração, para a família e para presentear com carinho.</p><button type="button" data-browse-products class="lm-primary-link">Conhecer os produtos <span aria-hidden="true">↗</span></button></div>${photo?`<button type="button" data-view-product="${escapeHtml(heroProduct.id)}" class="lm-hero-image" aria-label="Conhecer ${escapeHtml(heroProduct.name)}"><img src="${escapeHtml(photo)}" alt="${escapeHtml(heroProduct.name)}" fetchpriority="high" decoding="async" width="480" height="360"><span>${escapeHtml(heroProduct.name)}</span></button>`:''}</div></section><div class="lm-service-strip"><span>Produção sob encomenda</span><span>Presentes personalizados</span><span>Pedido pelo WhatsApp</span></div>`;
 }
 
 function renderCategoryBar(categories) {
-  if (categories.length === 0) return "";
-  const items = [{ value: "all", label: "Página inicial" }, ...categories.map((c) => ({ value: c, label: c }))];
-  const favoriteCount = Object.keys(state.favorites).length;
-  return `
-    <div class="border-b border-navy-800 bg-navy-900">
-      <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 py-2 text-sm">
-        ${items.map((it) => `
-          <button data-category="${escapeHtml(it.value)}" aria-label="${it.value === "all" ? "Ir para a página inicial" : `Abrir categoria ${escapeHtml(it.label)}`}" class="category-bar-btn whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.categoryFilter === it.value ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">${escapeHtml(it.label)}</button>
-        `).join("")}
-        ${favoriteCount > 0 ? `
-          <button id="favorites-filter-btn" class="whitespace-nowrap rounded-full px-4 py-2 font-medium transition ${state.favoritesOnly ? "bg-gold-500 text-navy-900" : "text-cream-100 hover:bg-navy-800"}">Favoritos (${favoriteCount})</button>
-        ` : ""}
-      </div>
-    </div>
-  `;
+  const items=[{value:'all',label:'Todos os produtos'},...categories.map(c=>({value:c,label:c}))];
+  const favoriteCount=Object.keys(state.favorites).length;
+  return `<nav class="lm-categories" aria-label="Categorias do catálogo"><div class="lm-category-scroll">${items.map(it=>`<button type="button" data-category="${escapeHtml(it.value)}" aria-pressed="${state.categoryFilter===it.value&&!state.favoritesOnly}" class="category-bar-btn lm-category ${state.categoryFilter===it.value&&!state.favoritesOnly?'is-active':''}">${escapeHtml(it.label)}</button>`).join('')}${favoriteCount?`<button type="button" id="favorites-filter-btn" class="lm-category ${state.favoritesOnly?'is-active':''}" aria-pressed="${state.favoritesOnly}">Favoritos (${favoriteCount})</button>`:''}</div></nav>`;
 }
 
 // "Mais vendidos" = ranking automático por unidades vendidas
@@ -3380,30 +2731,7 @@ function renderFeaturedCarousel(products) {
 }
 
 function renderFooter() {
-  return `
-    <footer class="mx-auto max-w-5xl px-4 py-6 text-center text-xs text-navy-600">
-      <div class="mb-3 flex flex-col items-center gap-2">
-        <span class="secure-badge" aria-label="Ambiente protegido">🔒 Ambiente protegido</span>
-        <p class="secure-note max-w-md">Não pedimos senha nem dados de cartão neste site. O pedido é finalizado com você pelo WhatsApp.</p>
-      </div>
-      <div class="mb-5 w-full max-w-lg">
-        <div class="footer-faq rounded-xl border border-navy-100 bg-white px-4">
-          <details><summary>Qual o prazo?</summary><p>Produtos sob encomenda têm prazo de produção contado a partir da confirmação do pedido. Quando não houver prazo específico informado no produto, o padrão é de até 2 dias úteis. O prazo de entrega começa após a finalização do pedido.</p></details>
-          <details><summary>Como funciona a entrega ou retirada?</summary><p>Depois que você envia o pedido pelo WhatsApp, combinamos a melhor opção de retirada ou entrega conforme sua localização.</p></details>
-          <details><summary>Como funciona o pagamento?</summary><p>O catálogo mostra os valores e o sinal necessário para confirmação. O pagamento é combinado diretamente com a Luz Mariana pelo WhatsApp.</p></details>
-          <details><summary>Vocês fazem encomendas personalizadas?</summary><p>Sim. Se não encontrou santo, modelo, cor, tamanho ou peça específica, envie uma mensagem e fazemos um orçamento personalizado.</p></details>
-          <details><summary>Como funciona uma encomenda personalizada?</summary><p>Você conta o que procura, enviamos possibilidades e orçamento pelo WhatsApp e, após a confirmação, informamos o prazo de produção.</p></details>
-        </div>
-      </div>
-      <p>Luz Mariana - Artigos Religiosos · CNPJ ${STORE_CNPJ}</p>
-      <p class="mt-1">© 2026 Luz Mariana. Todos os direitos reservados.</p>
-      <p class="mt-2 space-x-3">
-        <button data-open-policy="privacidade" class="underline hover:text-navy-500">Política de Privacidade</button>
-        <span>·</span>
-        <button data-open-policy="termos" class="underline hover:text-navy-500">Termos de Uso</button>
-      </p>
-    </footer>
-  `;
+  return `<footer class="lm-shop-footer"><div class="lm-container"><div class="lm-footer-grid"><div class="lm-footer-brand"><img src="logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" width="220" height="80" loading="lazy"><p>Fé, família e devoção em cada detalhe.</p><small>CNPJ ${STORE_CNPJ}</small></div><div class="lm-footer-links"><h2>Estamos por perto</h2><button type="button" data-open-help-guide>Como comprar</button><button type="button" data-open-track>Acompanhar pedido</button><button type="button" data-header-whatsapp>Falar pelo WhatsApp</button><button type="button" data-header-custom-order>Pedidos personalizados</button></div><div class="lm-footer-faq"><h2>Antes de pedir</h2><details><summary>Como funciona a compra?</summary><p>Escolha as peças, monte seu pedido e confirme tudo com a loja pelo WhatsApp. Não pedimos senha nem dados de cartão neste site.</p></details><details><summary>Qual o prazo de produção?</summary><p>O prazo aparece nos detalhes de cada produto e começa após a confirmação do pedido. Retirada e entrega são combinadas com a loja.</p></details><details><summary>Posso personalizar?</summary><p>Sim. Fale conosco sobre o santo, tamanho, modelo ou presente que procura e preparamos um orçamento.</p></details></div></div><div class="lm-footer-bottom"><span>© 2026 Luz Mariana</span><div><button type="button" data-open-policy="privacidade">Privacidade</button><span>·</span><button type="button" data-open-policy="termos">Termos de uso</button></div></div></div></footer>`;
 }
 
 /* Política de Privacidade + Termos de Uso — uma única tela com duas
@@ -3479,7 +2807,7 @@ function renderShoppingGuide() {
 }
 
 function renderCatalogFilters() {
-  return `<div class="catalog-filter-bar" aria-label="Filtros do catálogo">
+  return `<details class="lm-filter-panel" ${state.cleanFiltersOpen?"open":""}><summary aria-label="Filtrar e ordenar produtos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg>Filtrar e ordenar${(state.availabilityFilter!=="all"||state.priceFilter!=="all"||state.sortMode!=="featured")?" · ativo":""}</summary><div class="catalog-filter-bar" aria-label="Filtros do catálogo">
     <div><label for="availability-filter">Disponibilidade</label><select id="availability-filter">
       <option value="all" ${state.availabilityFilter === "all" ? "selected" : ""}>Todos</option>
       <option value="ready" ${state.availabilityFilter === "ready" ? "selected" : ""}>Pronta entrega</option>
@@ -3499,7 +2827,7 @@ function renderCatalogFilters() {
       <option value="priceAsc" ${state.sortMode === "priceAsc" ? "selected" : ""}>Menor preço</option>
       <option value="priceDesc" ${state.sortMode === "priceDesc" ? "selected" : ""}>Maior preço</option>
     </select></div>
-  </div>`;
+  </div></details>`;
 }
 function productPassesPriceFilter(product) {
   const price = productMinPixPrice(product);
@@ -3515,7 +2843,7 @@ function sortCatalogProducts(products) {
   if (state.sortMode === "priceAsc") return list.sort((a,b) => productMinPixPrice(a) - productMinPixPrice(b));
   if (state.sortMode === "priceDesc") return list.sort((a,b) => productMinPixPrice(b) - productMinPixPrice(a));
   if (state.sortMode === "newest") return list.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-  return list;
+  return list.sort((a,b)=>Number(!!b.featured)-Number(!!a.featured)||Number(b.units_sold||0)-Number(a.units_sold||0));
 }
 function renderRecentlyViewed() {
   const products = loadRecentlyViewedIds().map((id) => state.products.find((p) => String(p.id) === String(id))).filter(Boolean).slice(0,6);
@@ -3533,181 +2861,56 @@ function renderRecentlyViewed() {
 }
 
 function renderCatalog() {
-  updateDynamicShareMeta(null, null);
-  const grouped = groupByCategory(state.products);
-  const categories = grouped.map((g) => g.category);
-  const featured = computeBestSellers(state.products);
-  const searchActive = state.searchQuery.trim().length > 0;
-  const categoryFiltered = state.categoryFilter === "all"
-    ? state.products
-    : state.products.filter((p) => (p.category && p.category.trim() ? p.category.trim() : "Outros") === state.categoryFilter);
-  const searchFiltered = searchActive
-    ? categoryFiltered.filter((p) => productMatchesSearch(p, state.searchQuery))
-    : categoryFiltered;
-  const favoritesFiltered = state.favoritesOnly ? searchFiltered.filter((p) => state.favorites[p.id]) : searchFiltered;
-  const availabilityFiltered = favoritesFiltered.filter((p) => {
-    const flags = productAvailabilityFlags(p);
-    if (state.availabilityFilter === "ready") return flags.ready;
-    if (state.availabilityFilter === "order") return flags.order;
-    return true;
-  });
-  const visibleProducts = sortCatalogProducts(availabilityFiltered.filter(productPassesPriceFilter));
-
-  app.innerHTML = `
-    ${renderHeader()}
-    ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderHero() : ""}
-    ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderCampaignShowcase() : ""}
-    <div style="position:sticky; top:0; z-index:15;">
+  updateDynamicShareMeta(null,null);
+  const categories=groupByCategory(state.products).map(g=>g.category);
+  const searchActive=!!state.searchQuery.trim();
+  const visibleProducts=sortCatalogProducts(state.products.filter(p=>{
+    const category=p.category?.trim()||'Outros';
+    if(state.categoryFilter!=='all'&&category!==state.categoryFilter)return false;
+    if(searchActive&&!productMatchesSearch(p,state.searchQuery))return false;
+    if(state.favoritesOnly&&!state.favorites[p.id])return false;
+    const flags=productAvailabilityFlags(p);
+    if(state.availabilityFilter==='ready'&&!flags.ready)return false;
+    if(state.availabilityFilter==='order'&&!flags.order)return false;
+    return productPassesPriceFilter(p);
+  }));
+  const hasFilters=searchActive||state.categoryFilter!=='all'||state.favoritesOnly||state.availabilityFilter!=='all'||state.priceFilter!=='all'||state.sortMode!=='featured';
+  const isHome=!searchActive&&state.categoryFilter==='all'&&!state.favoritesOnly&&state.availabilityFilter==='all'&&state.priceFilter==='all';
+  const heading=state.favoritesOnly?'Seus favoritos':searchActive?`Resultados para “${state.searchQuery.trim()}”`:state.categoryFilter==='all'?'Encontre algo especial para sua fé':state.categoryFilter;
+  app.innerHTML=`${renderHeader()}${isHome?renderHero():''}
+    <main id="catalog-products" class="lm-container lm-catalog-main">
+      <div class="lm-catalog-heading"><div><span class="lm-eyebrow">Nosso catálogo</span><${isHome?"h2":"h1"}>${escapeHtml(heading)}</${isHome?"h2":"h1"}></div><span class="lm-result-count" role="status">${visibleProducts.length} ${visibleProducts.length===1?'produto':'produtos'}</span></div>
+      <div class="lm-discovery">${renderSearchBar()}${renderCatalogFilters()}</div>
       ${renderCategoryBar(categories)}
-    </div>
-    <div class="mx-auto max-w-5xl px-4 py-4">
-      ${state.cartRestoredNotice ? `<div class="cart-restored-note"><div class="flex items-center justify-between gap-3"><span><b>Seu pedido continua aqui.</b> O carrinho ficou salvo neste aparelho.</span><button type="button" id="dismiss-cart-restored" class="underline">Fechar</button></div></div>` : ""}
-      ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderShoppingGuide() : ""}
-      ${renderSearchBar()}
-      ${renderCatalogFilters()}
-    </div>
-    <main id="catalog-products" class="mx-auto max-w-5xl px-4 py-6">
-      ${!searchActive && state.categoryFilter === "all" ? renderFeaturedCarousel(featured) : ""}
-      ${!searchActive && state.categoryFilter === "all" && !state.favoritesOnly ? renderRecentlyViewed() : ""}
-
-      <div class="mb-5">
-        <h1 class="text-xl font-semibold text-navy-900">${searchActive ? `Resultados para "${escapeHtml(state.searchQuery.trim())}"` : state.favoritesOnly ? "❤ Seus favoritos" : state.categoryFilter === "all" ? "Encontre algo especial para sua fé" : escapeHtml(state.categoryFilter)}</h1>
-      </div>
-
-      ${state.products.length === 0 ? `
-        <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">Nenhum produto disponível no catálogo no momento.</p>
-      ` : visibleProducts.length === 0 ? `
-        <p class="rounded-xl border border-navy-100 bg-white px-4 py-10 text-center text-navy-400 shadow">${searchActive ? `Nenhum produto encontrado para "${escapeHtml(state.searchQuery.trim())}".` : state.favoritesOnly ? `Nenhum favorito${state.categoryFilter !== "all" ? ` em "${escapeHtml(state.categoryFilter)}"` : ""} ainda — toque no ❤ de um produto pra guardar aqui.` : "Nenhum produto nessa categoria."}</p>
-      ` : `
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          ${visibleProducts.map((p) => renderProductCard(p)).join("")}
-        </div>
-      `}
-
-      ${!searchActive && state.categoryFilter !== "all" ? renderFeaturedCarousel(featured) : ""}
-    </main>
-    ${renderFooter()}
-    ${renderCartBar()}
-    ${state.cartOpen ? renderCartDrawer() : ""}
-  `;
+      ${hasFilters?'<div class="lm-active-filters"><button type="button" data-reset-catalog>Limpar busca e filtros</button></div>':''}
+      ${state.cartRestoredNotice?'<div class="cart-restored-note"><span>Seu pedido continua salvo neste aparelho.</span><button type="button" id="dismiss-cart-restored">Fechar</button></div>':''}
+      ${visibleProducts.length?`<div class="lm-products-grid">${visibleProducts.map(p=>renderProductCard(p)).join('')}</div>`:`<div class="lm-empty"><h3>${state.products.length?'Não encontramos uma peça com esses filtros.':'Estamos preparando nosso catálogo.'}</h3><p>${state.products.length?'Tente outro nome ou fale conosco para uma encomenda personalizada.':'Fale com a loja para conhecer as peças disponíveis.'}</p>${hasFilters?'<button type="button" data-reset-catalog class="lm-primary-link">Ver todos os produtos</button>':''}<button type="button" data-header-custom-order class="lm-text-link">Fazer uma encomenda</button></div>`}
+      <section class="lm-custom-order"><div><span class="lm-eyebrow">Feito para você</span><h2>Procurando uma peça especial?</h2><p>Conte para nós o santo, modelo ou presente que você imaginou.</p></div><button type="button" data-header-custom-order class="lm-outline-button">Conversar sobre uma encomenda ↗</button></section>
+      ${!hasFilters?renderRecentlyViewed():''}
+    </main>${renderFooter()}${renderCartBar()}${state.cartOpen?renderCartDrawer():''}`;
   wireCatalogEvents();
 }
 
-function renderProductCard(p, opts = {}) {
-  const variants = variantsFor(p.id);
-  const frames = carouselFrames(p);
-  const cardPreviewVariant = !p.photo_url && variants.length > 1 ? bestSellingVariant(p.id) : null;
-  const showCardBestSellerTag = !!cardPreviewVariant && isBestSellingVariant(p.id, cardPreviewVariant.id);
-  const isFav = !!state.favorites[p.id];
-  const availability = productAvailabilityFlags(p);
-  const cardStatus = availability.ready ? "ready" : availability.order ? "order" : "sold";
-  const cardStatusLabel = cardStatus === "ready" ? "Pronta entrega" : "Sob encomenda";
-  const previewForStock = cardPreviewVariant || variants.find((v) => v.in_stock && (stockQuantity(v) == null || stockQuantity(v) > 0)) || variants[0] || null;
-  const stockQtyValue = stockQuantity(previewForStock || p);
-  const showLowStock = cardStatus === "ready" && stockQtyValue != null && stockQtyValue > 0 && stockQtyValue <= 2;
-  const favoriteBtn = `
-    <button type="button" data-toggle-favorite="${p.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-1.5 top-1.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
-  `;
-
-  const summary = pricingSummary(p);
-  const cardCampaign = summary.campaign && (Number(summary.originalPromoPrice) > Number(summary.promoPrice) || Number(summary.originalCreditPrice) > Number(summary.creditPrice)) ? summary.campaign : null;
-  const cardCampaignFlags = campaignMethodFlags(cardCampaign);
-  const highlightCashCampaign = !!cardCampaign && cardCampaignFlags.anyAtSight && !cardCampaignFlags.credito;
-  const campaignBadge = cardCampaign && Number(summary.originalPromoPrice) > Number(summary.promoPrice)
-    ? `<div class="campaign-card-badge"><span class="line1">Campanha ativa</span><span class="line2">${escapeHtml(campaignVisualDiscount(cardCampaign))}</span><span class="line3">${escapeHtml(cardCampaign.name)}</span></div>`
-    : "";
-
-  let photoBlock;
-  if (frames.length > 1) {
-    const idx = (state.cardPhotoIndex[p.id] ?? 0) % frames.length;
-    photoBlock = `
-      <div class="relative aspect-square w-full overflow-hidden bg-cream-100" data-carousel="${p.id}">
-        <button type="button" data-view-product="${p.id}" class="product-image-btn block h-full w-full border-0 p-0 transition hover:opacity-90">
-          <img data-carousel-img="${p.id}" src="${frames[idx]}" alt="${escapeHtml(p.name)}" class="h-full w-full object-contain" loading="lazy" decoding="async" />
-        </button>
-        ${showCardBestSellerTag ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
-        <button type="button" data-carousel-prev="${p.id}" aria-label="Foto anterior" class="carousel-nav-btn absolute left-1 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">‹</button>
-        <button type="button" data-carousel-next="${p.id}" aria-label="Próxima foto" class="carousel-nav-btn absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-xl font-semibold text-navy-900 shadow">›</button>
-        ${favoriteBtn}
-        ${campaignBadge}
-      </div>
-    `;
-  } else {
-    const photoUrl = cardPreviewVariant?.photo_url || variants[0]?.photo_url || p.photo_url;
-    photoBlock = `
-      <div class="relative overflow-hidden">
-        <button type="button" data-view-product="${p.id}" class="product-image-btn block aspect-square w-full border-0 bg-cream-100 p-0 transition hover:opacity-90">
-          ${photoUrl
-            ? `<img src="${photoUrl}" alt="${escapeHtml(p.name)}" class="h-full w-full object-contain" loading="lazy" decoding="async" />`
-            : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-10 w-10 opacity-40" /></div>`}
-        </button>
-        ${showCardBestSellerTag ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
-        ${favoriteBtn}
-        ${campaignBadge}
-      </div>
-    `;
-  }
-
-  const availableVariantCount = variants.length;
-
-  let addBlock;
-  if (variants.length > 0) {
-    addBlock = `
-      <div class="mt-auto">
-        <p class="mb-2 text-xs font-medium text-navy-500">${availableVariantCount} ${availableVariantCount === 1 ? "opção disponível" : "opções disponíveis"}</p>
-        <button type="button" data-view-product="${p.id}" class="large-touch-action view-options-btn w-full rounded-lg bg-gold-500 px-3 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Ver opções e comprar</button>
-      </div>
-    `;
-  } else {
-    const key = cartKey(p.id, null);
-    const qty = state.cart[key] ?? 0;
-    addBlock = qty === 0
-      ? `<button data-add="${key}" class="large-touch-action add-to-cart-btn mt-auto rounded-lg bg-gold-500 px-3 py-3 font-semibold text-navy-900 transition hover:bg-gold-400">Adicionar ao pedido</button>`
-      : `
-        <div class="mt-auto flex items-center justify-between rounded-lg border border-navy-200" style="min-height:48px">
-          <button data-qty-minus="${key}" aria-label="Diminuir quantidade" class="qty-btn px-4 py-2 text-xl font-semibold text-navy-700">−</button>
-          <span class="text-sm font-semibold text-navy-900">${qty} no pedido</span>
-          <button data-qty-plus="${key}" aria-label="Aumentar quantidade" class="qty-btn px-4 py-2 text-xl font-semibold text-navy-700">+</button>
-        </div>
-      `;
-  }
-
-  return `
-    <div data-product-card="${p.id}" class="flex flex-col overflow-hidden rounded-xl border border-navy-100 bg-white shadow">
-      ${photoBlock}
-      <div class="flex flex-1 flex-col gap-2 p-4">
-        <div>
-          <button type="button" data-view-product="${p.id}" class="block w-full" style="text-align:left">
-            <p class="text-base font-semibold leading-snug text-navy-900">${escapeHtml(p.name)}</p>
-          </button>
-          <div class="mt-1 flex flex-wrap items-center gap-1.5">
-            <button data-tag-category="${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}" class="category-tag-btn text-xs text-navy-500 hover:text-gold-600 hover:underline">${escapeHtml(p.category && p.category.trim() ? p.category.trim() : "Outros")}</button>
-            ${p.material_tag ? `<span class="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(p.material_tag)}</span>` : ""}
-          </div>
-          <div class="mt-1 flex flex-wrap gap-1.5">
-            <span class="availability-chip ${cardStatus === "ready" ? "availability-ready" : cardStatus === "order" ? "availability-order" : "availability-sold"}">${cardStatusLabel}</span>
-            ${isNewProduct(p) ? `<span class="new-product-badge">Novidade</span>` : ""}
-            ${showLowStock ? `<span class="low-stock-badge">Últimas unidades</span>` : ""}
-          </div>
-          ${cardStatus === "order" ? `<p class="mt-1 text-xs text-navy-500">${madeToOrderText(p)}</p>` : ""}
-        </div>
-
-        <div class="leading-tight" data-price-block="${p.id}">
-          ${cardCampaign ? `<p class="mb-1 text-[11px] font-semibold text-emerald-700">🎉 ${escapeHtml(cardCampaign.name)} · ${escapeHtml(campaignDiscountText(cardCampaign))}</p>` : ""}
-          ${highlightCashCampaign ? `
-            <p>${summary.variable ? `<span class="text-xs font-medium text-navy-500">A partir de </span>` : ""}<span class="text-xl font-semibold text-navy-900">${formatBRL(summary.promoPrice)}</span> <span class="text-[11px] font-normal text-navy-500">à vista</span></p>
-            <p class="mt-1 text-xs font-semibold text-emerald-700">${escapeHtml(campaignAtSightLabel(cardCampaign))}</p>
-            <p class="mt-2 text-sm text-navy-500">Crédito: <b>${formatBRL(summary.creditPrice)}</b> em até 3x</p>
-          ` : `
-            <p>${summary.variable ? `<span class="text-xs font-medium text-navy-500">A partir de </span>` : ""}<span class="text-lg font-semibold text-navy-900">${formatBRL(summary.creditPrice)}</span> <span class="text-[11px] font-normal text-navy-400">em até 3x no crédito</span></p>
-            <p class="mt-1 text-sm text-navy-500">ou ${summary.variable ? "a partir de " : ""}<b>${formatBRL(summary.promoPrice)}</b> à vista (Pix ou espécie)</p>
-          `}
-        </div>
-        ${variants.length === 0 && (!p.in_stock || stockQuantity(p) === 0 || p.esgotado) ? `<p class="text-xs font-medium text-gold-700">🕑 ${madeToOrderText(p)}</p>` : ""}
-        ${addBlock}
-      </div>
+function renderProductCard(p,opts={}) {
+  const variants=variantsFor(p.id),frames=carouselFrames(p),isFav=!!state.favorites[p.id];
+  const summary=pricingSummary(p),availability=productAvailabilityFlags(p);
+  const idx=frames.length?(state.cardPhotoIndex[p.id]??0)%frames.length:0;
+  const photo=frames[idx]||p.photo_url||variants[0]?.photo_url;
+  const sale=Number(summary.originalPromoPrice)>Number(summary.promoPrice);
+  const heart=`<svg viewBox="0 0 24 24" fill="${isFav?'currentColor':'none'}" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0l-1 1-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>`;
+  const key=cartKey(p.id,null),qty=state.cart[key]??0;
+  return `<article data-product-card="${escapeHtml(p.id)}" class="lm-product-card">
+    <div class="lm-product-visual" ${frames.length>1?`data-carousel="${escapeHtml(p.id)}"`:''}>
+      <button type="button" class="product-image-btn lm-product-image" data-view-product="${escapeHtml(p.id)}" aria-label="Ver ${escapeHtml(p.name)}">${photo?`<img ${frames.length>1?`data-carousel-img="${escapeHtml(p.id)}"`:''} src="${escapeHtml(photo)}" alt="${escapeHtml(p.name)}" loading="lazy" decoding="async" width="600" height="600">`:'<img class="lm-image-placeholder" src="logo-symbol.png" alt="" width="90" height="90">'}</button>
+      <button type="button" data-toggle-favorite="${escapeHtml(p.id)}" aria-label="${isFav?'Remover dos favoritos':'Adicionar aos favoritos'}" aria-pressed="${isFav}" class="lm-favorite ${isFav?'is-favorite':''}">${heart}</button>
+      ${sale?'<span class="lm-sale-tag">Condição especial</span>':''}
+      ${frames.length>1?`<div class="lm-photo-controls"><button type="button" data-carousel-prev="${escapeHtml(p.id)}" aria-label="Foto anterior de ${escapeHtml(p.name)}">‹</button><span>${idx+1} / ${frames.length}</span><button type="button" data-carousel-next="${escapeHtml(p.id)}" aria-label="Próxima foto de ${escapeHtml(p.name)}">›</button></div>`:''}
     </div>
-  `;
+    <div class="lm-product-info"><div class="lm-product-meta"><button type="button" data-tag-category="${escapeHtml(p.category?.trim()||'Outros')}" class="category-tag-btn">${escapeHtml(p.category?.trim()||'Outros')}</button><span>${availability.ready?'Pronta entrega':'Sob encomenda'}</span></div>
+      <h3><button type="button" data-view-product="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button></h3>
+      <div class="lm-card-price" data-price-block="${escapeHtml(p.id)}">${summary.variable?'<small>A partir de</small>':''}<p>${sale?`<del>${formatBRL(summary.originalPromoPrice)}</del>`:''}<strong>${formatBRL(summary.promoPrice)}</strong><span>à vista</span></p><small>ou ${formatBRL(summary.creditPrice)} em até 3x</small></div>
+      ${variants.length?`<button type="button" data-view-product="${escapeHtml(p.id)}" class="large-touch-action lm-product-action">Escolher opções <span aria-hidden="true">↗</span></button>`:qty===0?`<button type="button" data-add="${escapeHtml(key)}" class="add-to-cart-btn large-touch-action lm-product-action">Adicionar ao pedido <span aria-hidden="true">+</span></button>`:`<div class="lm-card-quantity"><button type="button" data-qty-minus="${escapeHtml(key)}" aria-label="Diminuir quantidade de ${escapeHtml(p.name)}">−</button><span>${qty} no pedido</span><button type="button" data-qty-plus="${escapeHtml(key)}" aria-label="Aumentar quantidade de ${escapeHtml(p.name)}">+</button></div>`}
+    </div></article>`;
 }
 
 function renderCartBar() {
@@ -3845,6 +3048,7 @@ function renderProductDetail() {
     ${renderHeader()}
     <main class="mx-auto w-full max-w-3xl px-4 py-6">
       <button id="back-to-catalog-btn" class="mb-4 text-sm text-navy-600 hover:underline">&larr; Voltar ao catálogo</button>
+      <div class="lm-detail-heading"><h1>${escapeHtml(product.name)}</h1><button type="button" id="share-product-btn" class="share-product-btn">Compartilhar</button></div>
       <div id="product-detail-panel" class="product-detail-grid">
         <div class="product-media-column">
           <div id="product-main-image-box" class="product-main-image-box relative aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
@@ -3852,7 +3056,7 @@ function renderProductDetail() {
               ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-contain" />`
               : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-16 w-16 opacity-40" /></div>`}
             ${showingBestSellerPreview ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
-            <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white">${isFav ? "❤️" : "🤍"}</button>
+            <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white"><svg viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.5" aria-hidden="true" style="width:18px;height:18px"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0l-1 1-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg></button>
             ${photoUrl ? `<button type="button" data-zoom-image="${photoUrl}" data-zoom-alt="${escapeHtml(displayVariant?.name || product.name)}" class="zoom-photo-btn" aria-label="Ampliar foto">Ampliar foto</button>` : ""}
             ${displayVariant ? `
               <div class="product-image-title-overlay">
@@ -3876,7 +3080,7 @@ function renderProductDetail() {
               ${selectorData.sizes.length ? `
                 <div class="dimension-selector-block">
                   <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">1</span>Escolha o tamanho</p>
-                  <p class="mt-1 text-sm text-navy-500">Selecione o tamanho desejado. Cada tamanho pode ter preço e disponibilidade próprios.</p>
+                  <p class="mt-1 text-sm text-navy-500">Cada tamanho tem seu próprio preço.</p>
                   <div class="size-option-row" role="list" aria-label="Tamanhos disponíveis">
                     ${selectorData.sizes.map((size) => {
                       const rows = selectorData.rows.filter((r) => r.size === size);
@@ -3895,7 +3099,7 @@ function renderProductDetail() {
               ${selectorData.models.length ? `
                 <div class="dimension-selector-block">
                   <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">${selectorData.sizes.length ? "2" : "1"}</span>Escolha o modelo</p>
-                  <p class="mt-1 text-sm text-navy-500">Toque no modelo desejado para ver a foto correspondente. Cada modelo pode ter preço próprio.</p>
+                  <p class="mt-1 text-sm text-navy-500">Escolha o modelo que deseja receber.</p>
                   <div class="model-scroll-hint">
                     <span>${selectorData.models.length > 1 ? "Deslize para ver os demais modelos" : "Modelo disponível para este produto"}</span>
                     <span>${selectorData.models.length} ${selectorData.models.length === 1 ? "modelo" : "modelos"}</span>
@@ -3920,28 +3124,13 @@ function renderProductDetail() {
                 </div>
               ` : ""}
 
-              <div class="dimension-combination-note">
-                ${variant
-                  ? `Opção selecionada: <b>${escapeHtml([selectedSize, selectedModel].filter(Boolean).join(" · ") || variant.name)}</b>. O preço abaixo corresponde exatamente a esta combinação.`
-                  : `${missingSize && missingModel ? "Escolha o tamanho e o modelo" : missingSize ? "Escolha o tamanho" : missingModel ? "Escolha o modelo" : "Escolha uma opção"} para ver o preço exato e adicionar ao pedido.`}
-              </div>
-
-              ${variant ? `
-                <button type="button" data-quick-add="${cartKey(product.id, variant.id)}"
-                  class="quick-model-add large-touch-action rounded-lg bg-gold-500 px-4 py-3 font-semibold text-navy-900">
-                  Comprar esta opção · ${formatBRL(displayPricing(product, variant).promoPrice)} no Pix
-                </button>
-              ` : `<button type="button" disabled class="quick-model-add large-touch-action rounded-lg bg-navy-50 px-4 py-3 font-semibold text-navy-400">${missingSize && missingModel ? "Escolha o tamanho e o modelo" : missingSize ? "Escolha o tamanho" : missingModel ? "Escolha o modelo" : "Selecione uma opção"}</button>`}
               ${selectorData.models.length ? `<button type="button" data-model-help="${product.id}" class="context-help-btn">Preciso de ajuda para escolher o modelo</button>` : ""}
             </section>
           ` : ""}
         </div>
         <div class="flex flex-col gap-3">
           <div>
-            <div class="flex items-start justify-between gap-2">
-              <h1 class="text-xl font-semibold text-navy-900">${escapeHtml(product.name)}</h1>
-              <button type="button" id="share-product-btn" class="share-product-btn flex-shrink-0">Compartilhar</button>
-            </div>
+
             <div class="mt-1 flex flex-wrap items-center gap-1.5">
               <button data-tag-category="${escapeHtml(categoryLabel)}" class="category-tag-btn text-xs text-navy-500 hover:text-gold-600 hover:underline">${escapeHtml(categoryLabel)}</button>
               ${product.material_tag ? `<span class="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] font-medium text-navy-500 ring-1 ring-navy-100">${escapeHtml(product.material_tag)}</span>` : ""}
@@ -4002,8 +3191,8 @@ function renderProductDetail() {
               <p class="mt-1 text-sm font-semibold text-emerald-700">${escapeHtml(campaignAtSightLabel(detailCampaign))}</p>
               <p class="mt-2 text-sm text-navy-500">Crédito${variants.length > 0 && !variant && detailPricing.variable ? " a partir de" : ""}: <b>${formatBRL(detailPricing.creditPrice)}</b> em até 3x</p>
             ` : `
-              <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.creditPrice)}</span> <span class="text-xs font-normal text-navy-400">em até 3x no crédito</span></p>
-              <p class="mt-1 text-sm text-navy-500">ou ${variants.length > 0 && !variant && detailPricing.variable ? "a partir de " : ""}<b>${formatBRL(detailPricing.promoPrice)}</b> à vista (Pix ou espécie)</p>
+              <p>${variants.length > 0 && !variant && detailPricing.variable ? `<span class="text-sm font-medium text-navy-500">A partir de </span>` : ""}<span class="text-2xl font-semibold text-navy-900">${formatBRL(detailPricing.promoPrice)}</span> <span class="text-xs font-normal text-navy-400">à vista</span></p>
+              <p class="mt-1 text-sm text-navy-500">ou ${variants.length > 0 && !variant && detailPricing.variable ? "a partir de " : ""}<b>${formatBRL(detailPricing.creditPrice)}</b> em até 3x no crédito</p>
             `}
           </div>
 
@@ -4215,6 +3404,11 @@ function showAddToast(key) {
 }
 
 function wireCatalogEvents() {
+  const filterPanel=document.querySelector('.lm-filter-panel');
+  filterPanel?.addEventListener('toggle',()=>{if(filterPanel.isConnected)state.cleanFiltersOpen=filterPanel.open;});
+  document.querySelectorAll('[data-browse-products]').forEach(b=>b.addEventListener('click',()=>document.getElementById('catalog-products')?.scrollIntoView({behavior:'smooth',block:'start'})));
+  document.querySelectorAll('[data-reset-catalog]').forEach(b=>b.addEventListener('click',()=>{state.searchQuery='';state.categoryFilter='all';state.favoritesOnly=false;state.availabilityFilter='all';state.priceFilter='all';state.sortMode='featured';state.cleanFiltersOpen=false;render();document.getElementById('catalog-products')?.scrollIntoView({behavior:'smooth',block:'start'});}));
+
   const searchInput = document.getElementById("catalog-search-input");
   if (searchInput) {
     searchInput.addEventListener("input", () => {
@@ -4238,11 +3432,11 @@ function wireCatalogEvents() {
     });
   }
   const availabilityFilter = document.getElementById("availability-filter");
-  availabilityFilter?.addEventListener("change", () => { state.availabilityFilter = availabilityFilter.value; render(); });
+  availabilityFilter?.addEventListener("change", () => { state.availabilityFilter = availabilityFilter.value; state.cleanFiltersOpen=true; render(); });
   const priceFilter = document.getElementById("price-filter");
-  priceFilter?.addEventListener("change", () => { state.priceFilter = priceFilter.value; render(); });
+  priceFilter?.addEventListener("change", () => { state.priceFilter = priceFilter.value; state.cleanFiltersOpen=true; render(); });
   const sortFilter = document.getElementById("sort-filter");
-  sortFilter?.addEventListener("change", () => { state.sortMode = sortFilter.value; render(); });
+  sortFilter?.addEventListener("change", () => { state.sortMode = sortFilter.value; state.cleanFiltersOpen=true; render(); });
   document.getElementById("dismiss-cart-restored")?.addEventListener("click", () => {
     state.cartRestoredNotice = false;
     try { sessionStorage.setItem(CART_RESTORED_SESSION_KEY, "1"); } catch (_err) {}
@@ -4300,7 +3494,7 @@ function wireCatalogEvents() {
     });
   });
   document.querySelectorAll(".category-bar-btn").forEach((btn) => {
-    btn.addEventListener("click", () => { state.categoryFilter = btn.dataset.category; render(); });
+    btn.addEventListener("click", () => { state.categoryFilter = btn.dataset.category; state.favoritesOnly=false; render(); });
   });
   const favoritesFilterBtn = document.getElementById("favorites-filter-btn");
   if (favoritesFilterBtn) {
@@ -4520,6 +3714,7 @@ function wireCatalogEvents() {
       e.stopPropagation();
       const productId = btn.dataset.carouselPrev;
       stepCarousel(productId, -1);
+      document.querySelectorAll('[data-carousel]').forEach(el=>{if(el.dataset.carousel===String(productId)){const count=el.querySelector('.lm-photo-controls span');const product=state.products.find(p=>String(p.id)===String(productId));if(count&&product)count.textContent=((state.cardPhotoIndex[productId]??0)+1)+' / '+carouselFrames(product).length;}});
     });
   });
   document.querySelectorAll("[data-carousel-next]").forEach((btn) => {
@@ -4527,6 +3722,7 @@ function wireCatalogEvents() {
       e.stopPropagation();
       const productId = btn.dataset.carouselNext;
       stepCarousel(productId, 1);
+      document.querySelectorAll('[data-carousel]').forEach(el=>{if(el.dataset.carousel===String(productId)){const count=el.querySelector('.lm-photo-controls span');const product=state.products.find(p=>String(p.id)===String(productId));if(count&&product)count.textContent=((state.cardPhotoIndex[productId]??0)+1)+' / '+carouselFrames(product).length;}});
     });
   });
   setupCarousels();
@@ -5901,6 +5097,8 @@ function renderTrack() {
 // delegation num listener só, ligado uma vez (o cabeçalho é
 // re-desenhado em toda tela: catálogo, produto, checkout, sucesso...).
 app.addEventListener("click", (e) => {
+  if(e.target.closest("[data-open-cart]")){if(state.screen==="checkout")captureCheckoutDraft();state.screen=state.screen==="product"?"product":"catalog";state.cartOpen=true;render();return;}
+
   if (e.target.closest("[data-go-home]")) {
     if (state.screen === "checkout") {
       captureCheckoutDraft();
@@ -5911,6 +5109,7 @@ app.addEventListener("click", (e) => {
     state.detailProductId = null;
     state.categoryFilter = "all";
     state.searchQuery = "";
+    state.favoritesOnly=false;state.availabilityFilter="all";state.priceFilter="all";state.sortMode="featured";
     state.cartOpen = false;
     history.replaceState({ productId: null }, "", CATALOG_BASE_URL);
     render();
@@ -5977,9 +5176,9 @@ function openHelpGuide() {
 function closeHelpGuide() {
   helpGuideOverlay.classList.remove("is-open");
   document.body.style.overflow = "";
-  document.getElementById("help-guide-btn")?.focus();
+  document.querySelector("[data-open-help-guide]")?.focus();
 }
-document.getElementById("help-guide-btn").addEventListener("click", openHelpGuide);
+
 document.getElementById("help-guide-close").addEventListener("click", closeHelpGuide);
 document.getElementById("help-guide-done").addEventListener("click", closeHelpGuide);
 helpGuideOverlay.addEventListener("click", (e) => { if (e.target === helpGuideOverlay) closeHelpGuide(); });
@@ -5989,25 +5188,6 @@ document.getElementById("help-guide-whatsapp").addEventListener("click", () => {
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && helpGuideOverlay.classList.contains("is-open")) closeHelpGuide();
-});
-
-document.getElementById("welcome-order-close-x")?.addEventListener("click", () => closeWelcomeOrder(true));
-document.getElementById("welcome-order-close-btn")?.addEventListener("click", () => closeWelcomeOrder(true));
-document.getElementById("welcome-order-whatsapp")?.addEventListener("click", () => {
-  closeWelcomeOrder(true);
-  trackEvent("custom_order_click", { source: "inactivity_popup" });
-  const message = "Olá! Não encontrei exatamente o produto/modelo que procuro no catálogo da Luz Mariana e gostaria de solicitar um orçamento para uma encomenda personalizada.";
-  window.open(`https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, "_blank");
-});
-document.getElementById("welcome-order-overlay")?.addEventListener("click", (e) => {
-  if (e.target.id === "welcome-order-overlay") closeWelcomeOrder(true);
-});
-
-["click", "touchstart", "keydown", "input", "scroll"].forEach((eventName) => {
-  window.addEventListener(eventName, () => {
-    if (document.getElementById("welcome-order-overlay")?.classList.contains("is-open")) return;
-    scheduleWelcomeOrderAfterInactivity();
-  }, { passive: true });
 });
 
 window.addEventListener("error", (event) => {
@@ -6069,11 +5249,11 @@ window.addEventListener("beforeunload", (e) => {
   }
 });
 
-lmRadioInit();
+
 
 render();
 loadCatalog()
-  .then(() => requestAnimationFrame(() => scheduleWelcomeOrderAfterInactivity()))
+
   .catch((err) => {
     console.error("Erro inesperado ao carregar o catálogo:", err);
     state.loading = false;

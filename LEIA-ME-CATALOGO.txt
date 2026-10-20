@@ -1,0 +1,44 @@
+LUZ MARIANA — ATUALIZAÇÃO DO CATÁLOGO
+
+PUBLICAÇÃO
+Envie estes três arquivos para a RAIZ do site, no mesmo local do CNAME,
+tailwind-built.css e das logomarcas:
+
+- index.html
+- catalogo.css
+- sw.js
+
+Não envie esses arquivos para admin/ nem para calculadora/.
+Preserve as imagens e os outros arquivos que já existem no repositório.
+Depois de publicar, atualize com Ctrl + F5. No celular, feche a página/app
+e abra novamente com internet para receber a nova versão.
+
+O QUE MUDOU
+- Rádio removida por completo: player, áudio, URLs de transmissão e HLS.
+- Logomarca oficial preservada; abertura mais discreta em creme e azul.
+- Produtos em uma grade com duas colunas no celular e mais colunas em
+  telas maiores, sem repetir várias vitrines na página inicial.
+- Busca, categorias e filtros reunidos; limpar filtros fica a um toque.
+- Preço à vista em destaque, com o total no crédito informado abaixo.
+- Prazo e detalhes técnicos ficam na página do produto.
+- Nome do produto aparece antes da foto e das escolhas de tamanho/modelo.
+- Uma única ação principal de compra depois da escolha das opções.
+- Fotos mudam apenas pelas setas, sem rotação automática.
+- A janela de encomenda que aparecia por inatividade foi retirada.
+- Atendimento, ajuda, acompanhamento e encomendas ficam no menu e rodapé.
+- Service worker da raiz corrigido: antes continha um documento HTML.
+  Agora é JavaScript válido e não guarda páginas/preços antigos em cache.
+
+O QUE CONTINUA
+- Cadastro e dados no Supabase; não há alteração de banco nesta atualização.
+- Fotos originais, variações, preço por modelo, estoque/sob encomenda.
+- Campanhas automáticas e seus descontos, cupons, embalagens e entrega.
+- Favoritos, carrinho salvo, avaliações, compartilhamento e rastreio.
+- Finalização do pedido pelo WhatsApp.
+- Painel de gestão, fila de produção e calculadora não foram modificados.
+
+VALIDAÇÃO
+Testes em navegador com dados simulados, sem pedidos no banco real:
+busca, categorias, filtros, favoritos, fotos manuais, campanha, tamanho e
+modelo, carrinho salvo, ajuda, acompanhamento e finalização do pedido.
+Larguras conferidas: 320, 390, 768, 1024 e 1440 px.
