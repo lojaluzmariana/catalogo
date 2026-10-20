@@ -790,7 +790,7 @@
 
 
 </style>
-<link rel="stylesheet" href="catalogo.css?v=20261020-carrossel">
+<link rel="stylesheet" href="catalogo.css?v=20261020-compacto">
 </head>
 <body class="lm-clean-shop bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
@@ -2968,8 +2968,8 @@ function renderCartBar() {
   const count = cartCount();
   if (count === 0) return "";
   return `
-    <div class="fixed inset-x-0 bottom-0 z-20 border-t border-navy-100 bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
-      <div class="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+    <div class="lm-cart-bar fixed inset-x-0 bottom-0 z-20 border-t border-navy-100 bg-white shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+      <div class="lm-cart-bar-inner mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
         <span class="min-w-0 text-sm text-navy-600">
           <b class="block text-navy-900">Meu pedido · ${count} ${count === 1 ? "item" : "itens"}</b>
           <span>${formatBRL(cartTotal())} · salvo neste aparelho</span>
@@ -2985,22 +2985,22 @@ function renderCartDrawer() {
   return `
     <div id="cart-overlay" class="fixed inset-0 z-30 bg-navy-950/40">
       <div id="cart-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="cart-drawer-title" tabindex="-1" class="ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-xl outline-none">
-        <div class="flex items-center justify-between border-b border-navy-100 px-4 py-3">
+        <div class="lm-cart-heading flex items-center justify-between border-b border-navy-100 px-4 py-3">
           <h2 id="cart-drawer-title" class="text-lg font-semibold text-navy-900">Meu pedido</h2>
           <button id="close-cart-btn" aria-label="Fechar carrinho" class="rounded px-2 py-1 text-navy-500 hover:bg-navy-50">✕</button>
         </div>
-        <div class="flex-1 overflow-y-auto px-4 py-3">
+        <div class="lm-cart-items flex-1 overflow-y-auto px-4 py-3">
           ${items.length === 0 ? `<p class="py-8 text-center text-navy-400">Seu carrinho está vazio.</p>` : items.map((it) => `
-            <div class="flex items-center gap-3 border-b border-navy-50 py-3 last:border-0">
-              <div class="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
+            <div class="lm-cart-item flex items-center gap-3 border-b border-navy-50 py-3 last:border-0">
+              <div class="lm-cart-photo h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
                 ${(it.variant?.photo_url || it.product.photo_url) ? `<img src="${it.variant?.photo_url || it.product.photo_url}" alt="${escapeHtml(it.product.name)}" class="h-full w-full object-contain" />` : ""}
               </div>
-              <div class="min-w-0 flex-1">
+              <div class="lm-cart-description min-w-0 flex-1">
                 <p class="text-sm font-semibold text-navy-900">${escapeHtml(it.product.name)}</p>
                 ${it.variant ? `<p class="mt-0.5 text-xs font-medium text-gold-700">${escapeHtml(catalogVariantChoiceLabel(it.variant))}</p>` : ""}
                 <p class="mt-0.5 text-xs text-navy-500">${formatBRL(priceFor(it.product, it.variant))} cada</p>
               </div>
-              <div class="flex items-center gap-2">
+              <div class="lm-cart-quantity flex items-center gap-2">
                 <button data-qty-minus="${it.key}" aria-label="Diminuir quantidade de ${escapeHtml(it.product.name)}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">−</button>
                 <span class="w-5 text-center text-sm font-semibold" aria-live="polite">${it.quantity}</span>
                 <button data-qty-plus="${it.key}" aria-label="Aumentar quantidade de ${escapeHtml(it.product.name)}" class="qty-btn rounded border border-navy-200 px-2 text-navy-700">+</button>
@@ -3008,8 +3008,8 @@ function renderCartDrawer() {
             </div>
           `).join("")}
         </div>
-        <div class="border-t border-navy-100 px-4 py-4">
-          <div class="mb-3 flex items-center justify-between text-sm">
+        <div class="lm-cart-summary border-t border-navy-100 px-4 py-4">
+          <div class="lm-cart-total mb-3 flex items-center justify-between text-sm">
             <span class="text-navy-600">Total (${state.payment === "credito" ? "cartão de crédito" : "pix / à vista"})</span>
             <span class="text-lg font-semibold text-navy-900">${formatBRL(cartTotal())}</span>
           </div>
@@ -3813,7 +3813,7 @@ function renderCheckout() {
   const items = cartItems();
   app.innerHTML = `
     ${renderHeader()}
-    <main class="mx-auto max-w-lg px-4 py-6">
+    <main class="lm-checkout-main mx-auto w-full max-w-lg px-4 py-6">
       <button id="back-to-catalog-btn" class="mb-4 text-sm font-medium text-navy-600 hover:underline">&larr; Voltar e alterar produtos</button>
       <h1 class="text-xl font-semibold text-navy-900">Finalizar pedido</h1>
       <p class="mt-1 mb-4 text-sm text-navy-500">Falta pouco. Confira o pedido, preencha seus dados e nós abriremos o WhatsApp com a mensagem pronta.</p>

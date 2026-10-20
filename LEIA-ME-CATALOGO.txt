@@ -1,17 +1,21 @@
-ATUALIZAÇÃO DO CATÁLOGO — LUZ MARIANA
+ATUALIZAÇÃO — CARTÕES DE PRODUTOS MAIS COMPACTOS
 
-COMO APLICAR
-Extraia Atualizacao_Catalogo.zip e substitua index.html e catalogo.css na raiz do repositório do site, mantendo os demais arquivos. Depois publique a alteração pelo processo habitual do GitHub Pages.
+Substitua index.html e catalogo.css na raiz do site pelos arquivos deste pacote.
+O preço agora acompanha o nome, sem o espaço branco criado pelo alinhamento automático dos cartões. Os títulos ocupam apenas a altura necessária.
 
-ALTERAÇÕES
-- Destaque inicial com carrossel de até oito produtos, ordenados pela quantidade de vendas registrada no catálogo. Sem vendas registradas, mostra peças em destaque.
-- Troca automática a cada seis segundos, com setas, indicadores e opção de pausar. A rotação pausa durante a interação; respeita a preferência de movimento reduzido.
-- Removida a seção “Você viu recentemente”.
-- Rodapé azul até o fim da página, com a logo maior, transparente e branca para contraste.
-- Setas das fotos/modelos maiores, em uma barra com contraste abaixo da imagem.
-- Ajustes responsivos para celular, tablet e computador.
+Todas as melhorias anteriores, incluindo as correções do carrinho e a configuração de manutenção, foram preservadas.
 
-MANUTENÇÃO
-Este pacote não contém manutencao.json e não altera a ativação da página de manutenção. O catálogo continua respeitando a configuração existente.
+ATUALIZAÇÃO DO CATÁLOGO — CORREÇÃO DO CARRINHO
 
-O pacote catalogo-main.zip contém o projeto completo atualizado. Nele, a configuração de manutenção foi preservada exatamente como estava no projeto anterior.
+Extraia Atualizacao_Catalogo.zip e substitua index.html e catalogo.css na raiz do repositório do site. Publique pelo processo habitual do GitHub Pages.
+
+CORREÇÕES
+- Carrinho com foto e descrição em uma linha e controles de quantidade abaixo, sem comprimir o nome.
+- Lista com rolagem própria e botão de continuar sempre acessível.
+- Altura adaptável à área visível do navegador e espaço para as áreas seguras do celular.
+- Revisão do pedido reorganizada no celular: valor abaixo da descrição, sem cortar os controles.
+- Barra inferior adaptável a telas estreitas.
+
+Inclui as melhorias anteriores: carrossel de mais vendidos, remoção dos itens vistos recentemente, rodapé azul com logo sem fundo e setas das fotos destacadas.
+
+O pacote não altera manutencao.json. O modo de manutenção, o painel administrativo e a calculadora permanecem preservados.
