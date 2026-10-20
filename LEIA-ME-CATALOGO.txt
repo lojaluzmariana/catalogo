@@ -15,7 +15,9 @@ e abra novamente com internet para receber a nova versão.
 
 O QUE MUDOU
 - Rádio removida por completo: player, áudio, URLs de transmissão e HLS.
-- Logomarca oficial preservada; abertura mais discreta em creme e azul.
+- Logomarca oficial preservada; abertura em azul-marinho com detalhes
+  dourados, cartões brancos com borda e sombra, botões coloridos e rodapé
+  em azul. Navegação organizada, com mais presença da identidade visual.
 - Produtos em uma grade com duas colunas no celular e mais colunas em
   telas maiores, sem repetir várias vitrines na página inicial.
 - Busca, categorias e filtros reunidos; limpar filtros fica a um toque.

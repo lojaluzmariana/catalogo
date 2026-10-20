@@ -788,7 +788,7 @@
 
 
 </style>
-<link rel="stylesheet" href="catalogo.css">
+<link rel="stylesheet" href="catalogo.css?v=20261020-identidade">
 </head>
 <body class="lm-clean-shop bg-cream-50 text-navy-900 min-h-screen pb-24">
 <div id="app"></div>
@@ -2670,7 +2670,7 @@ function render() {
 
 function renderHeader() {
   const count=cartCount();
-  return `<header class="lm-shop-header"><div class="lm-container lm-header-inner">
+  return `<div class="lm-brand-ribbon"><span>Fé, família e devoção</span><span class="lm-ribbon-separator" aria-hidden="true">·</span><span>Presentes com significado</span></div><header class="lm-shop-header"><div class="lm-container lm-header-inner">
     <button type="button" class="lm-brand" data-go-home aria-label="Luz Mariana — página inicial"><img src="logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" width="230" height="84"></button>
     <div class="lm-header-actions"><button type="button" class="lm-header-contact" data-header-whatsapp>Fale conosco</button>
       <button type="button" class="lm-cart-trigger" data-open-cart aria-label="Ver meu pedido, ${count} ${count===1?'item':'itens'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 7h12l1 14H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span>Meu pedido</span><b>${count}</b></button>
@@ -2682,7 +2682,7 @@ function renderHero() {
   const choices=[...computeBestSellers(state.products),...state.products];
   const heroProduct=choices.find(p=>p.photo_url||variantsFor(p.id).some(v=>v.photo_url));
   const photo=heroProduct?(heroProduct.photo_url||variantsFor(heroProduct.id).find(v=>v.photo_url)?.photo_url):null;
-  return `<section class="lm-hero"><div class="lm-container lm-hero-inner"><div class="lm-hero-copy"><span class="lm-eyebrow">Artigos religiosos e devoção</span><h1>Fé que inspira.<br>Presentes com significado.</h1><p>Peças para o seu cantinho de oração, para a família e para presentear com carinho.</p><button type="button" data-browse-products class="lm-primary-link">Conhecer os produtos <span aria-hidden="true">↗</span></button></div>${photo?`<button type="button" data-view-product="${escapeHtml(heroProduct.id)}" class="lm-hero-image" aria-label="Conhecer ${escapeHtml(heroProduct.name)}"><img src="${escapeHtml(photo)}" alt="${escapeHtml(heroProduct.name)}" fetchpriority="high" decoding="async" width="480" height="360"><span>${escapeHtml(heroProduct.name)}</span></button>`:''}</div></section><div class="lm-service-strip"><span>Produção sob encomenda</span><span>Presentes personalizados</span><span>Pedido pelo WhatsApp</span></div>`;
+  return `<section class="lm-hero"><div class="lm-container lm-hero-inner"><div class="lm-hero-copy"><span class="lm-eyebrow">Artigos religiosos e devoção</span><h1>Fé que inspira.<br><span>Presentes com significado.</span></h1><p>Peças para o seu cantinho de oração, para a família e para presentear com carinho.</p><button type="button" data-browse-products class="lm-primary-link">Conhecer os produtos <span aria-hidden="true">↗</span></button></div>${photo?`<button type="button" data-view-product="${escapeHtml(heroProduct.id)}" class="lm-hero-image" aria-label="Conhecer ${escapeHtml(heroProduct.name)}"><img src="${escapeHtml(photo)}" alt="${escapeHtml(heroProduct.name)}" fetchpriority="high" decoding="async" width="480" height="360"><span>${escapeHtml(heroProduct.name)}</span></button>`:''}</div></section><div class="lm-service-strip"><span>Produção sob encomenda</span><span>Presentes personalizados</span><span>Pedido pelo WhatsApp</span></div>`;
 }
 
 function renderCategoryBar(categories) {
@@ -2903,10 +2903,10 @@ function renderProductCard(p,opts={}) {
     <div class="lm-product-visual" ${frames.length>1?`data-carousel="${escapeHtml(p.id)}"`:''}>
       <button type="button" class="product-image-btn lm-product-image" data-view-product="${escapeHtml(p.id)}" aria-label="Ver ${escapeHtml(p.name)}">${photo?`<img ${frames.length>1?`data-carousel-img="${escapeHtml(p.id)}"`:''} src="${escapeHtml(photo)}" alt="${escapeHtml(p.name)}" loading="lazy" decoding="async" width="600" height="600">`:'<img class="lm-image-placeholder" src="logo-symbol.png" alt="" width="90" height="90">'}</button>
       <button type="button" data-toggle-favorite="${escapeHtml(p.id)}" aria-label="${isFav?'Remover dos favoritos':'Adicionar aos favoritos'}" aria-pressed="${isFav}" class="lm-favorite ${isFav?'is-favorite':''}">${heart}</button>
-      ${sale?'<span class="lm-sale-tag">Condição especial</span>':''}
+      ${sale?'<span class="lm-sale-tag">Condição especial</span>':p.featured?'<span class="lm-featured-tag">Destaque</span>':isNewProduct(p)?'<span class="lm-featured-tag">Novidade</span>':''}
       ${frames.length>1?`<div class="lm-photo-controls"><button type="button" data-carousel-prev="${escapeHtml(p.id)}" aria-label="Foto anterior de ${escapeHtml(p.name)}">‹</button><span>${idx+1} / ${frames.length}</span><button type="button" data-carousel-next="${escapeHtml(p.id)}" aria-label="Próxima foto de ${escapeHtml(p.name)}">›</button></div>`:''}
     </div>
-    <div class="lm-product-info"><div class="lm-product-meta"><button type="button" data-tag-category="${escapeHtml(p.category?.trim()||'Outros')}" class="category-tag-btn">${escapeHtml(p.category?.trim()||'Outros')}</button><span>${availability.ready?'Pronta entrega':'Sob encomenda'}</span></div>
+    <div class="lm-product-info"><div class="lm-product-meta"><button type="button" data-tag-category="${escapeHtml(p.category?.trim()||'Outros')}" class="category-tag-btn">${escapeHtml(p.category?.trim()||'Outros')}</button><span class="${availability.ready?'lm-ready':'lm-order'}">${availability.ready?'Pronta entrega':'Sob encomenda'}</span></div>
       <h3><button type="button" data-view-product="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button></h3>
       <div class="lm-card-price" data-price-block="${escapeHtml(p.id)}">${summary.variable?'<small>A partir de</small>':''}<p>${sale?`<del>${formatBRL(summary.originalPromoPrice)}</del>`:''}<strong>${formatBRL(summary.promoPrice)}</strong><span>à vista</span></p><small>ou ${formatBRL(summary.creditPrice)} em até 3x</small></div>
       ${variants.length?`<button type="button" data-view-product="${escapeHtml(p.id)}" class="large-touch-action lm-product-action">Escolher opções <span aria-hidden="true">↗</span></button>`:qty===0?`<button type="button" data-add="${escapeHtml(key)}" class="add-to-cart-btn large-touch-action lm-product-action">Adicionar ao pedido <span aria-hidden="true">+</span></button>`:`<div class="lm-card-quantity"><button type="button" data-qty-minus="${escapeHtml(key)}" aria-label="Diminuir quantidade de ${escapeHtml(p.name)}">−</button><span>${qty} no pedido</span><button type="button" data-qty-plus="${escapeHtml(key)}" aria-label="Aumentar quantidade de ${escapeHtml(p.name)}">+</button></div>`}
