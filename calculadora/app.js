@@ -1,0 +1,359 @@
+'use strict';
+
+const SUPABASE_URL='https://xgcsdpqaqxstcfwgwaxw.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnY3NkcHFhcXhzdGNmd2d3YXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4MDE3MTQsImV4cCI6MjEwMjM3NzcxNH0.WFYm2q4ljkQMRiaQzhJ-yf01wj80xsO0ykmH7jhtUoo';
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+
+const FIXED=Object.freeze({watts:110,energy:1.2,hotendLife:4000,printer:3000,printerLife:10000,installment:480,monthlyHours:520,failure:5});
+function parseNumber(raw){const value=String(raw).trim();if(!/^(?:\d+(?:[.,]\d+)?|[.,]\d+)$/.test(value))return NaN;return Number(value.replace(',','.'));}
+function calculate(v){v={...v,...FIXED};const hours=v.hours+v.minutes/60;const material=v.spool/1000*v.grams*1.1;const energy=v.watts/1000*v.energy*hours;const wear=(v.hotend/v.hotendLife+v.printer/v.printerLife)*hours;const operational=(v.internet+v.installment)/v.monthlyHours*hours;const base=material+energy+wear+operational;const failure=base*v.failure/100;const total=base+failure;const price=total*(1+v.markup/100);return{material,energy,wear,operational,failure,total,price,unitCost:total/v.units,unitPrice:price/v.units};}
+function excelText(project,v,r){const decimal=n=>n.toFixed(2).replace('.',',');let name=String(project).replace(/[\t\r\n\u0000-\u001f]+/g,' ').trim()||'Sem nome';if(/^[=+@-]/.test(name))name="'"+name;return[name,String(v.grams).replace('.',','),v.hours,v.minutes,decimal(r.total),decimal(r.price)].join('\t');}
+
+if(typeof document!=='undefined'){
+const $=id=>document.getElementById(id);
+const formatter=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const money=n=>Number.isFinite(Number(n))?formatter.format(Number(n)):'—';
+const ids=['spool','grams','watts','energy','hours','minutes','units','hotend','hotendLife','printer','printerLife','internet','installment','monthlyHours','failure','markup'];
+const editableIds=['spool','grams','hours','minutes','units','hotend','internet','markup'];
+const positive=new Set(['spool','grams','units','hotendLife','printerLife','monthlyHours']);
+const resultIds=['material','energy','wear','operational','failure','total','price','unitCost','unitPrice'];
+let currentRecord=null;
+let cloudRows=[];
+let editingId=null;
+let currentSession=null;
+
+let deferredInstallPrompt=null;
+const INSTALL_ONCE_KEY='iluminart_calculadora_integrada_install_offer_v2_separate_app';
+function isStandaloneMode(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;}
+function installPlatform(){const ua=navigator.userAgent||'';const ios=/iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);const android=/Android/i.test(ua);return ios?'ios':android?'android':'other';}
+function markInstallOfferSeen(){try{localStorage.setItem(INSTALL_ONCE_KEY,'1');}catch(_e){}}
+function installOfferWasSeen(){try{return localStorage.getItem(INSTALL_ONCE_KEY)==='1';}catch(_e){return false;}}
+function hideInstallOffer(){const modal=$('installOnceModal');if(modal)modal.hidden=true;}
+function showInstallOfferOnce(){
+  if(isStandaloneMode()||installOfferWasSeen())return;
+  const platform=installPlatform();
+  if(platform==='other')return;
+  const modal=$('installOnceModal');const btn=$('installNowBtn');if(!modal||!btn)return;
+  modal.dataset.platform=platform;
+  if(platform==='ios')btn.textContent='Entendi';
+  else btn.textContent=deferredInstallPrompt?'Instalar agora':'Como instalar';
+  modal.hidden=false;markInstallOfferSeen();
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;const btn=document.getElementById('installNowBtn');if(btn&&document.getElementById('installOnceModal')?.dataset.platform==='android')btn.textContent='Instalar agora';});
+window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;hideInstallOffer();});
+
+
+function projectName(){return $('project').value.trim()||'Sem nome';}
+function normalizeStoredInputs(obj={}){const out={};for(const id of ids){const n=Number(obj[id]);out[id]=Number.isFinite(n)?n:(Object.hasOwn(FIXED,id)?FIXED[id]:0);}return out;}
+function historyRecord(v,r,project=''){return{project:String(project).trim()||'Sem nome',inputs:{...v},results:{...r}};}
+
+function setSyncBadge(mode,text){const badge=$('syncBadge');badge.dataset.mode=mode;badge.textContent=text;}
+function setHistoryStatus(text,isError=false){const el=$('historyStatus');el.textContent=text||'';el.classList.toggle('error',!!isError);}
+function setSaveMode(){const btn=$('saveHistory');btn.textContent=editingId?'Atualizar cálculo no histórico':'Salvar no histórico';$('cancelEdit').hidden=!editingId;}
+
+function formatProductionTime(hours,minutes){
+  const h=Math.max(0,Math.trunc(Number(hours)||0));
+  const m=Math.max(0,Math.trunc(Number(minutes)||0));
+  return `${h} h ${String(m).padStart(2,'0')} min`;
+}
+function renderHistory(rows){cloudRows=Array.isArray(rows)?rows:[];rebuildSources();}
+
+async function loadSession(){
+  const epoch=++sessionEpoch;
+  try{
+    const {data,error}=await supabaseClient.auth.getSession();if(epoch!==sessionEpoch)return;if(error)throw error;
+    const next=data.session||null;const user=next?.user?.id||null;currentSession=next;
+    if(user!==loadedUser){loadedUser=user;catalogRows=[];cloudRows=[];savedQuotes=[];catalogError='';quotesError='';editingId=null;setSaveMode();restoreDraft();rebuildSources();renderSavedQuotes();}
+    if(currentSession){$('cloudLogin').hidden=true;setSyncBadge('online','Conectado');$('syncUser').textContent=currentSession.user.email||'Acesso do painel';await Promise.all([loadHistory(epoch),loadCatalogAndQuotes(epoch)]);}
+    else{setSyncBadge('offline','Entre para sincronizar');$('syncUser').textContent='Catálogo, histórico e orçamentos com o acesso do painel.';$('cloudLogin').hidden=false;renderHistory([]);}
+  }catch(e){if(epoch!==sessionEpoch)return;currentSession=null;catalogRows=[];cloudRows=[];savedQuotes=[];rebuildSources();renderSavedQuotes();setSyncBadge('error','Sem conexão');$('cloudLogin').hidden=false;$('loginStatus').textContent='Não foi possível conectar. A calculadora continua disponível.';}
+}
+async function loadHistory(epoch=sessionEpoch){
+  if(!currentSession){renderHistory([]);return;}setHistoryStatus('Carregando cálculos salvos…');
+  try{const {data,error}=await supabaseClient.from('calculadora_3d_historico').select('id,project,inputs,results,production_hours,production_minutes,production_total_minutes,created_at,updated_at').order('updated_at',{ascending:false});if(epoch!==sessionEpoch)return;if(error)throw error;renderHistory(data||[]);setHistoryStatus('');}
+  catch(e){if(epoch!==sessionEpoch)return;renderHistory([]);setHistoryStatus('Não foi possível carregar os cálculos salvos. Tente atualizar os preços.',true);}
+}
+
+let historySaving=false;
+async function saveCloudRecord(){
+  if(!currentRecord||historySaving)return;
+  if(!currentSession){$('saveStatus').textContent='Entre com o acesso do painel para salvar o histórico.';$('cloudLogin').hidden=false;return;}
+  const epoch=sessionEpoch,id=editingId,record=structuredClone(currentRecord);
+  const payload={project:record.project,inputs:record.inputs,results:record.results,production_hours:Math.trunc(record.inputs.hours),production_minutes:Math.trunc(record.inputs.minutes),production_total_minutes:Math.trunc(record.inputs.hours)*60+Math.trunc(record.inputs.minutes),updated_at:new Date().toISOString()};
+  historySaving=true;$('saveHistory').disabled=true;$('saveStatus').textContent=id?'Atualizando…':'Salvando…';
+  try{const query=id?supabaseClient.from('calculadora_3d_historico').update(payload).eq('id',id):supabaseClient.from('calculadora_3d_historico').insert(payload);const {error}=await query.select('id').single();if(error)throw error;if(epoch!==sessionEpoch)return;editingId=null;setSaveMode();await loadHistory(epoch);$('saveStatus').textContent=id?'Cálculo atualizado.':'Cálculo salvo. Já está disponível na consulta de preços.';}
+  catch(e){$('saveStatus').textContent='Não foi possível salvar: '+(e.message||'Confira sua conexão.');}
+  finally{historySaving=false;$('saveHistory').disabled=!currentRecord;}
+}
+
+function startEdit(row){
+  if(!row)return;editingId=row.id;$('project').value=row.project||'';const inputs=normalizeStoredInputs(row.inputs||{});
+  for(const id of editableIds){if(!$(id)||!Number.isFinite(inputs[id]))continue;$(id).value=String(inputs[id]).replace('.',',');}
+  switchTab('calculo');update();setSaveMode();$('saveStatus').textContent='Editando registro. Faça as alterações e clique em “Atualizar cálculo no histórico”.';window.scrollTo({top:0,behavior:'smooth'});$('project').focus();
+}
+function cancelEdit(){editingId=null;setSaveMode();$('saveStatus').textContent='Edição cancelada. O histórico não foi alterado.';}
+async function deleteRow(row){
+  if(!row||!currentSession)return;
+  if(!window.confirm(`Excluir “${row.project||'Sem nome'}” do histórico integrado?`))return;
+  setHistoryStatus('Excluindo...');const {error}=await supabaseClient.from('calculadora_3d_historico').delete().eq('id',row.id);
+  if(error){setHistoryStatus('Não foi possível excluir: '+error.message,true);return;}
+  if(editingId===row.id){editingId=null;setSaveMode();}
+  await loadHistory();setHistoryStatus('Registro excluído.');
+}
+
+function update(){
+  const values={};const problems=[];
+  for(const id of ids){const input=$(id);if(Object.hasOwn(FIXED,id))input.value=FIXED[id].toLocaleString('pt-BR',{useGrouping:false,minimumFractionDigits:['energy','printer','installment'].includes(id)?2:0});const n=parseNumber(input.value);values[id]=n;let message='';if(input.value.trim()==='')message='Preencha '+input.dataset.label.toLowerCase()+'.';else if(!Number.isFinite(n)||n<0)message=input.dataset.label+': use um número válido, sem valor negativo.';else if(positive.has(id)&&n<=0)message=input.dataset.label+': informe um valor maior que zero.';else if(['hours','minutes','units'].includes(id)&&!Number.isInteger(n))message=input.dataset.label+': use um número inteiro.';else if(id==='minutes'&&n>59)message='Minutos de impressão: use um valor de 0 a 59.';else if(id==='failure'&&n>100)message='Taxa de falhas: use um valor entre 0 e 100%.';else if(id==='markup'&&n<60)message='O lucro sobre o custo deve ser de pelo menos 60%.';else if(id==='monthlyHours'&&n>744)message='Horas produtivas: o máximo é 744 h por mês para uma impressora.';input.setAttribute('aria-invalid',message&&input.value.trim()!==''?'true':'false');if(message)problems.push(message);}
+  if(values.hours===0&&values.minutes===0)problems.push('Informe um tempo de impressão maior que zero.');
+  $('projectTitle').textContent=$('project').value.trim()||'Seu projeto';$('monthlyTotal').textContent=money(values.internet+values.installment);$('timeMeta').textContent=Number.isInteger(values.hours)&&Number.isInteger(values.minutes)?`${values.hours} h ${String(values.minutes).padStart(2,'0')} min`:'Tempo a preencher';$('unitsMeta').textContent=Number.isInteger(values.units)&&values.units>0?`${values.units} ${values.units===1?'peça':'peças'}`:'Unidades a preencher';$('profitResult').textContent=Number.isFinite(values.markup)&&values.markup>=60?`Lucro sobre o custo: ${values.markup.toLocaleString('pt-BR')}%`:'Informe um lucro de pelo menos 60%';
+  const r=problems.length?null:calculate(values);if(r&&Object.values(r).some(v=>!Number.isFinite(v)))problems.push('Os valores informados são muito grandes. Revise os dados.');
+  for(const id of resultIds)$(id+'Result').textContent=!problems.length?money(r[id]):'—';
+  $('exportExcel').disabled=!!problems.length;$('copyExcel').disabled=!!problems.length;$('excelText').value=problems.length?'':excelText($('project').value,values,r);$('copyStatus').textContent='';
+  currentRecord=problems.length?null:historyRecord(values,r,$('project').value);$('saveHistory').disabled=!currentRecord;$('saveStatus').textContent=editingId?$('saveStatus').textContent:'';
+  $('addCurrentQuote').disabled=!currentRecord;$('unitProfitResult').textContent=currentRecord?money(r.unitPrice-r.unitCost):'—';
+  const status=$('status');status.classList.toggle('complete',!problems.length);status.textContent=problems.length?problems.slice(0,3).join(' ')+(problems.length>3?` Faltam mais ${problems.length-3} ajustes.`:''):'Cálculo atualizado. O preço inclui todos os custos acima e o lucro definido.';
+}
+
+const CARD_FEE=0.05,MIN_PROFIT_ON_COST_RATE=0.60;
+const CARD_RATE_STORAGE_KEY='luz-mariana-card-rates-ton-v1';
+const DEFAULT_CARD_RATE_SETTINGS={customerSurchargeUpTo3:0.05,credit:{1:0.0314,2:0.0538,3:0.0611},debit:0.0136};
+function loadCardRateSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CARD_RATE_STORAGE_KEY) || "null");
+    return saved && typeof saved === "object" ? { ...DEFAULT_CARD_RATE_SETTINGS, ...saved, credit:{...DEFAULT_CARD_RATE_SETTINGS.credit,...(saved.credit||{})} } : structuredClone(DEFAULT_CARD_RATE_SETTINGS);
+  } catch (_err) { return structuredClone(DEFAULT_CARD_RATE_SETTINGS); }
+}
+function cardRateFor(paymentMethod, installments = 1, { legacyCreditFallback = false } = {}) {
+  const cfg = loadCardRateSettings();
+  if (paymentMethod === "debito") return Number(cfg.debit || 0);
+  if (paymentMethod !== "credito") return 0;
+  const n = Math.max(1, Math.min(12, Math.trunc(Number(installments) || 1)));
+  if (legacyCreditFallback && !installments) return CARD_FEE;
+  return Number(cfg.credit?.[n] ?? cfg.credit?.[String(n)] ?? CARD_FEE);
+}
+function customerCardPriceFromPix(pixPrice, installments = 1) {
+  const base = Math.max(0, Number(pixPrice || 0));
+  const n = Math.max(1, Math.min(12, Math.trunc(Number(installments) || 1)));
+  const cfg = loadCardRateSettings();
+  if (n <= 3) return round2(base * (1 + Number(cfg.customerSurchargeUpTo3 || 0.05)));
+  const rate = cardRateFor("credito", n);
+  return rate >= 1 ? base : round2(base / (1 - rate));
+}
+function round2(n) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+function niceCeil(raw) {
+  const base = Math.floor(raw);
+  const candidates = [base + 0.0, base + 0.5, base + 0.9, base + 1.0];
+  let best = null;
+  for (const c of candidates) if (c >= raw - 1e-9 && (best === null || c < best)) best = c;
+  return round2(best);
+}
+function minimumPromoPriceForCost(cost) {
+  const c = Math.max(0, Number(cost || 0));
+  if (c <= 0) return 0;
+  const targetNet = c * (1 + MIN_PROFIT_ON_COST_RATE);
+
+  // O painel usa 3x como referência do "crédito até 3x". Como a loja
+  // cobra o acréscimo configurado do cliente e depois paga a taxa real da
+  // maquininha, calculamos o preço à vista mínimo necessário para que o
+  // LÍQUIDO do crédito em 3x também preserve pelo menos 60% sobre o custo.
+  const cfg = loadCardRateSettings();
+  const surchargeFactor = 1 + Number(cfg.customerSurchargeUpTo3 || 0.05);
+  const rate3x = cardRateFor("credito", 3);
+  const creditNetFactor = surchargeFactor * (1 - rate3x);
+  const requiredForCredit = creditNetFactor > 0 ? targetNet / creditNetFactor : targetNet;
+  return niceCeil(Math.max(targetNet, requiredForCredit));
+}
+function profitOnCostRate(cost, profit) {
+  const c = Number(cost || 0);
+  return c > 0 ? Number(profit || 0) / c : 0;
+}
+function calculatePricing(cost) {
+  const c = Math.max(0, Number(cost || 0));
+  const promoPrice = minimumPromoPriceForCost(c);
+  const promoProfit = round2(promoPrice - c);
+  const promoMargin = promoPrice > 0 ? round2(promoProfit / promoPrice) : 0;
+
+  // Preço padrão exibido no catálogo/painel = crédito em até 3x.
+  // A base à vista acima já foi elevada, quando necessário, para que o
+  // líquido do crédito de referência não caia abaixo dos 60% sobre custo.
+  const creditPrice = customerCardPriceFromPix(promoPrice, 3);
+  const creditRate = cardRateFor("credito", 3);
+  const creditNet = round2(creditPrice * (1 - creditRate));
+  const creditProfit = round2(creditNet - c);
+  const creditMarkup = c > 0 ? round2(creditNet / c) : 0;
+  const creditMargin = creditNet > 0 ? round2(creditProfit / creditNet) : 0;
+
+  return {
+    cost:c, creditPrice, creditNet, creditProfit, creditMarkup, creditMargin,
+    promoPrice, promoProfit, promoMargin,
+    minimumPromoPrice: minimumPromoPriceForCost(c),
+    belowMinimum: false,
+  };
+}
+function calculatePricingFromManualPromo(cost, manualPromo) {
+  const c = Math.max(0, Number(cost || 0));
+  const promoPrice = round2(manualPromo);
+  const promoProfit = round2(promoPrice - c);
+  const promoMargin = promoPrice > 0 ? round2(promoProfit / promoPrice) : 0;
+  const creditPrice = customerCardPriceFromPix(promoPrice, 3);
+  const creditRate = cardRateFor("credito", 3);
+  const creditNet = round2(creditPrice * (1 - creditRate));
+  const creditProfit = round2(creditNet - c);
+  const creditMarkup = c > 0 ? round2(creditNet / c) : 0;
+  const creditMargin = creditNet > 0 ? round2(creditProfit / creditNet) : 0;
+  const minimumPromoPrice = minimumPromoPriceForCost(c);
+  return {
+    cost:c, creditPrice, creditNet, creditProfit, creditMarkup, creditMargin,
+    promoPrice, promoProfit, promoMargin,
+    minimumPromoPrice,
+    belowMinimum: c > 0 && (promoPrice + 1e-9 < minimumPromoPrice || profitOnCostRate(c, creditProfit) + 1e-9 < MIN_PROFIT_ON_COST_RATE),
+  };
+}
+function variantHasOwnPricing(variant) {
+  if (!variant) return false;
+  const hasPositive = (value) => value != null && value !== "" && Number.isFinite(Number(value)) && Number(value) > 0;
+  // Linhas antigas de product_variants às vezes ficaram com cost = 0.
+  // Isso NÃO significa "preço próprio zerado": devem herdar o produto.
+  return hasPositive(variant.promo_manual_price)
+    || hasPositive(variant.promo_price)
+    || hasPositive(variant.credit_price)
+    || hasPositive(variant.cost);
+}
+function effectivePricing(product, variant) {
+  // A variação só substitui o preço do produto quando realmente possui
+  // custo/preço próprio. Isso evita o bug de variantes legadas com cost=0
+  // virarem R$ 0,00 na Venda Assistida.
+  if (variantHasOwnPricing(variant)) {
+    const vCost = Number(variant.cost || 0) > 0 ? Number(variant.cost) : Number(product?.cost ?? 0);
+    const vPix = variant.promo_manual_price != null && Number(variant.promo_manual_price) > 0
+      ? Number(variant.promo_manual_price)
+      : variant.promo_price != null && Number(variant.promo_price) > 0
+        ? Number(variant.promo_price)
+        : null;
+    if (vPix != null) return calculatePricingFromManualPromo(vCost, vPix);
+    if (Number(variant.credit_price || 0) > 0) {
+      // Compatibilidade com registros antigos que têm somente preço de crédito.
+      const inferredPix = round2(Number(variant.credit_price) / 1.05);
+      return calculatePricingFromManualPromo(vCost, inferredPix);
+    }
+    return calculatePricing(vCost);
+  }
+
+  const cost = Number(product?.cost ?? 0);
+  const pix = product?.promo_manual_price != null && Number(product.promo_manual_price) > 0
+    ? Number(product.promo_manual_price)
+    : product?.promo_price != null && Number(product.promo_price) > 0
+      ? Number(product.promo_price)
+      : null;
+  if (pix != null) return calculatePricingFromManualPromo(cost, pix);
+
+  // Última compatibilidade: produto antigo com apenas credit_price salvo.
+  if (Number(product?.credit_price || 0) > 0) {
+    return calculatePricingFromManualPromo(cost, round2(Number(product.credit_price) / 1.05));
+  }
+  return calculatePricing(cost);
+}
+
+// Navegação e orçamento compartilham os mesmos dados do painel.
+let appTab='consulta',consultSource='all',quoteSource='catalogo';
+let catalogRows=[],savedQuotes=[],sourceItems=[],sessionEpoch=0,loadedUser=null;
+let quoteItems=[],quoteId=null,quoteNumber=null,quoteSaving=false,quoteDirty=false;
+let quoteMessage='',toastTimer=null,catalogError='',historyLoadError='',quotesError='';
+const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const normalize=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+const validPrice=n=>n!==null&&n!==''&&Number.isFinite(Number(n))&&Number(n)>0;
+const dayISO=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/Fortaleza'});
+const dateBR=s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s)?s.split('-').reverse().join('/'):'a combinar';
+function datePlus(iso,days,business=false){if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return '';const [y,m,d]=iso.split('-').map(Number),v=new Date(y,m-1,d,12);let left=days;while(left>0){v.setDate(v.getDate()+1);if(!business||![0,6].includes(v.getDay()))left--;}return [v.getFullYear(),String(v.getMonth()+1).padStart(2,'0'),String(v.getDate()).padStart(2,'0')].join('-');}
+function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3500);}
+function switchTab(tab,focus=false){if(!['consulta','calculo','orcamento'].includes(tab))return;appTab=tab;document.querySelectorAll('[data-tab]').forEach(b=>{const active=b.dataset.tab===tab;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;});for(const name of ['consulta','calculo','orcamento'])$('panel-'+name).hidden=name!==tab;if(tab==='orcamento'){renderPicker();renderQuoteItems();updateQuoteSummary();}if(focus)$('tab-'+tab).focus();}
+function productPriceItem(p,v=null){
+  const pricing=effectivePricing(p,v),cost=Number(v?.cost)>0?Number(v.cost):Number(p.cost),name=p.name+(v?.name?' · '+v.name:'');
+  return{key:'catalogo:'+p.id+':'+(v?.id||''),origin:'catalogo',name,unitPix:round2(pricing.promoPrice),unitCredit:round2(pricing.creditPrice),cost:Number.isFinite(cost)&&cost>=0?cost:null,productId:p.id,variantId:v?.id||null,photo:v?.photo_url||p.photo_url||'',detail:p.category||'Produto do catálogo',blocked:!!(p.esgotado||v?.esgotado),lead:Number(p.lead_time_days)||2};
+}
+function historyPriceItem(row){const inputs=normalizeStoredInputs(row.inputs||{}),r=row.results||{};const unit=validPrice(r.unitPrice)?Number(r.unitPrice):validPrice(r.price)&&inputs.units>0?Number(r.price)/inputs.units:null;const cost=r.unitCost!=null&&Number.isFinite(Number(r.unitCost))?Number(r.unitCost):r.total!=null&&inputs.units>0?Number(r.total)/inputs.units:null;return{key:'historico:'+row.id,origin:'historico',historyId:row.id,name:row.project||'Sem nome',unitPix:unit==null?null:round2(unit),unitCredit:unit==null?null:customerCardPriceFromPix(round2(unit),3),cost,detail:formatProductionTime(row.production_hours??inputs.hours,row.production_minutes??inputs.minutes)+' · '+inputs.units+' peça(s) por placa',row};}
+function rebuildSources(){sourceItems=[];for(const p of catalogRows){const vs=Array.isArray(p.product_variants)?[...p.product_variants].sort((a,b)=>(a.sort_order??999)-(b.sort_order??999)):[];if(vs.length)sourceItems.push(...vs.map(v=>productPriceItem(p,v)));else sourceItems.push(productPriceItem(p));}sourceItems.push(...cloudRows.map(historyPriceItem));renderConsult();renderPicker();}
+function itemCard(item,context='consult'){
+ const history=item.origin==='historico';const canAdd=validPrice(item.unitPix)&&!item.blocked;
+ const photo=/^https?:\/\//i.test(item.photo||'')?`<img class="product-thumb" src="${esc(item.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:'';
+ return `<article class="price-card"><div class="source-label">${history?'Cálculo salvo':'Catálogo'}${item.blocked?' · Indisponível':''}</div><div class="price-card-top"><div><h3>${esc(item.name)}</h3><small>${esc(item.detail)}</small></div>${photo}</div><div class="main-price"><small>${history?'Sugestão por peça':'Preço por unidade'} · à vista</small><strong>${validPrice(item.unitPix)?esc(money(item.unitPix)):'Sem preço'}</strong></div><div class="price-facts"><div><span>Crédito até 3x</span><strong>${validPrice(item.unitCredit)?esc(money(item.unitCredit)):'—'}</strong></div><div><span>Custo por peça</span><strong>${item.cost!=null?esc(money(item.cost)):'Não cadastrado'}</strong></div></div><div class="card-actions"><button class="primary" type="button" data-add-item="${esc(item.key)}" ${canAdd?'':'disabled'}>${context==='picker'?'+ Adicionar':'+ Orçamento'}</button>${history?`<button type="button" class="edit-history" data-edit-id="${esc(item.historyId)}">Recalcular</button>`:''}</div>${history?`<details class="card-details"><summary>Dados do cálculo</summary><p>${esc(Number(item.row.inputs?.grams)||0)} g na placa · Lucro: ${esc(Number(item.row.inputs?.markup)||0)}%<br>Custo da placa: ${esc(money(item.row.results?.total))}<br>Venda da placa: ${esc(money(item.row.results?.price))}</p><button type="button" class="danger" data-delete-id="${esc(item.historyId)}">Excluir cálculo</button></details>`:''}</article>`;
+}
+function filteredItems(source,query){const q=normalize(query);return sourceItems.filter(i=>(source==='all'||i.origin===source)&&(!q||normalize(i.name+' '+i.detail).includes(q)));}
+function renderConsult(){const list=filteredItems(consultSource,$('consultSearch').value);$('historyCount').textContent=String(cloudRows.length);$('resultCount').textContent=list.length+' '+(list.length===1?'item encontrado':'itens encontrados');$('sourceStatus').textContent=catalogError;$('sourceStatus').classList.toggle('error',!!catalogError);$('historyBody').innerHTML=list.map(i=>itemCard(i)).join('')||`<div class="empty-state"><h3>${currentSession?'Nenhuma peça encontrada':'Entre para ver seus preços'}</h3><p>${currentSession?sourceItems.length?'Tente outro nome ou mude a origem da busca.':'Cadastre produtos no painel ou salve seu primeiro cálculo.':'Seu catálogo e seus cálculos salvos aparecem aqui após entrar com o acesso do painel.'}</p><button type="button" data-go-calc>Calcular uma nova peça</button></div>`;}
+function renderPicker(){const list=filteredItems(quoteSource,$('quoteSearch').value);$('quotePicker').innerHTML=list.map(i=>itemCard(i,'picker')).join('')||`<div class="empty-state"><h3>${currentSession?'Nenhum item encontrado':'Entre para carregar seus itens'}</h3><p>${quoteSource==='historico'?'Os projetos salvos na calculadora aparecem aqui.':'Os produtos ativos do catálogo aparecem aqui.'}</p></div>`;}
+function readQuoteNumber(value){const n=parseNumber(value);return Number.isFinite(n)?n:NaN;}
+function draftKey(){return 'lm-calculadora-orcamento-v2:'+(currentSession?.user?.id||'local');}
+function quoteFields(){return {name:$('quoteName').value.trim(),phone:$('quotePhone').value.trim(),date:$('quoteDate').value,validity:$('quoteValidity').value,lead:$('quoteLead').value,payment:$('quotePayment').value,brand:$('quoteBrand').value};}
+function persistQuote(){try{localStorage.setItem(draftKey(),JSON.stringify({fields:quoteFields(),items:quoteItems,id:quoteId,number:quoteNumber,dirty:quoteDirty}));$('draftStatus').textContent='Rascunho guardado neste aparelho. Salve o orçamento para acessar também pelo painel.';}catch{ $('draftStatus').textContent='Não foi possível guardar o rascunho neste aparelho. Salve o orçamento antes de sair.';}}
+function resetQuote(){quoteItems=[];quoteId=null;quoteNumber=null;quoteDirty=false;$('quoteName').value='';$('quotePhone').value='';$('quoteDate').value=dayISO();$('quoteValidity').value=datePlus(dayISO(),2);$('quoteLead').value='2';$('quotePayment').value='pix';$('quoteBrand').value='luzmariana';$('quoteStatus').textContent='';renderQuoteItems();updateQuoteSummary(false);}
+function restoreDraft(){resetQuote();try{const d=JSON.parse(localStorage.getItem(draftKey())||'null');if(!d||!Array.isArray(d.items)||!d.fields)return;const fields={name:'quoteName',phone:'quotePhone',date:'quoteDate',validity:'quoteValidity',lead:'quoteLead',payment:'quotePayment',brand:'quoteBrand'};for(const [key,id]of Object.entries(fields))if(d.fields[key]!=null)$(id).value=String(d.fields[key]);quoteItems=d.items.filter(i=>i&&typeof i.name==='string'&&Number.isFinite(Number(i.unitPix))&&Number.isFinite(Number(i.unitCredit))).map(i=>({...i,quantity:String(i.quantity??1)}));quoteId=d.id||null;quoteNumber=d.number||null;quoteDirty=!!d.dirty;renderQuoteItems();updateQuoteSummary(false);}catch{}}
+function addQuoteItem(item,switchToQuote=true){if(quoteSaving){toast('Aguarde o orçamento terminar de salvar.');return;}if(!item||!validPrice(item.unitPix)||item.blocked)return;const existing=quoteItems.find(i=>i.key===item.key);if(existing){existing.quantity=String((Number(existing.quantity)||0)+1);}else{quoteItems.push({key:item.key,name:item.name,origin:item.origin,productId:item.productId||null,variantId:item.variantId||null,historyId:item.historyId||null,unitPix:round2(item.unitPix),unitCredit:round2(item.unitCredit),cost:item.cost??null,quantity:'1'});}quoteDirty=true;renderQuoteItems();updateQuoteSummary();toast('Peça adicionada ao orçamento');if(switchToQuote)switchTab('orcamento');}
+function renderQuoteItems(){const payment=$('quotePayment').value;$('quoteItemsCount').textContent=quoteItems.length?'· '+quoteItems.length:'';$('quoteCount').textContent=String(quoteItems.length);$('quoteItems').innerHTML=quoteItems.map((i,index)=>`<article class="quote-item"><div class="quote-item-head"><div><h3>${esc(i.name)}</h3><small>${i.origin==='catalogo'?'Catálogo':i.historyId?'Cálculo salvo':'Cálculo atual'}</small></div><button type="button" class="danger" data-remove-quote="${index}" aria-label="Remover ${esc(i.name)}">Remover</button></div><div class="quote-item-fields"><label>Quantidade<input data-quote-quantity="${index}" type="number" min="1" step="1" value="${esc(i.quantity)}" inputmode="numeric"></label><label>Preço por peça <span>(R$)</span><input data-quote-price="${index}" inputmode="decimal" value="${esc(Number(payment==='credito'?i.unitCredit:i.unitPix).toFixed(2).replace('.',','))}" aria-label="Preço por peça de ${esc(i.name)}"></label><strong id="quote-line-${index}" class="quote-item-total"></strong></div><p id="quote-warning-${index}" class="quote-item-warning" hidden></p></article>`).join('')||'<p class="hint">Seu orçamento está vazio. Adicione uma peça na lista acima.</p>';updateQuoteLineTotals();}
+function quoteTotals(){let pixCents=0,creditCents=0;for(const i of quoteItems){const q=Number(i.quantity);if(!Number.isSafeInteger(q)||q<1||q>100000||!validPrice(i.unitPix)||!validPrice(i.unitCredit))return null;pixCents+=Math.round(i.unitPix*100)*q;creditCents+=Math.round(i.unitCredit*100)*q;}if(!Number.isSafeInteger(pixCents)||!Number.isSafeInteger(creditCents))return null;return{pix:pixCents/100,credit:creditCents/100,total:($('quotePayment').value==='credito'?creditCents:pixCents)/100};}
+function updateQuoteLineTotals(){const credit=$('quotePayment').value==='credito';quoteItems.forEach((i,index)=>{const q=Number(i.quantity),price=credit?i.unitCredit:i.unitPix,ok=Number.isSafeInteger(q)&&q>0&&q<=100000&&validPrice(price);const total=$('quote-line-'+index);if(total)total.textContent=ok?money(Math.round(price*100)*q/100):'Confira os valores';const warn=$('quote-warning-'+index);if(warn){const low=ok&&i.cost!=null&&Number(price)<Number(i.cost);warn.hidden=!low;warn.textContent=low?'Atenção: este preço está abaixo do custo cadastrado.':'';}});}
+function buildQuoteText(){const f=quoteFields(),t=quoteTotals();const credit=f.payment==='credito',brand=f.brand==='iluminart'?'ILUMINART':'LUZ MARIANA';const title=quoteNumber?`ORÇAMENTO Nº ${String(quoteNumber).padStart(3,'0')}`:'ORÇAMENTO · PRÉVIA';return `*${brand} — ${title}*\n\nCliente: ${f.name||'A informar'}${f.phone?'\nTelefone: '+f.phone:''}\nData: ${dateBR(f.date)}\nValidade: ${dateBR(f.validity)}\n\n${quoteItems.map(i=>{const unit=credit?i.unitCredit:i.unitPix,q=Number(i.quantity);return `• ${i.name}\n  ${i.quantity} un. × ${money(unit)} = ${Number.isSafeInteger(q)&&q>0&&validPrice(unit)?money(Math.round(unit*100)*q/100):'Confira os valores'}`;}).join('\n\n')||'Adicione os itens ao orçamento.'}\n\n*Total: ${t?money(t.total):'Confira os valores'}*\nPagamento: ${credit?'Cartão de crédito em até 3x':'Pix / dinheiro'}\nPrazo: ${f.lead||'0'} dia(s) útil(eis) após confirmação do pedido.\nEntrega / frete: a combinar.\n\n${f.brand==='iluminart'?'Iluminart — Onde a criatividade ganha forma.':'Luz Mariana — Artigos Religiosos e Devoção'}`;}
+function updateQuoteSummary(persist=true){const t=quoteTotals();$('quoteTotal').textContent=t?money(t.total):'Confira os itens';$('quotePaymentLabel').textContent=$('quotePayment').value==='credito'?'Cartão de crédito em até 3x':'Pix / dinheiro';$('quoteNumber').textContent=quoteNumber?`Orçamento Nº ${String(quoteNumber).padStart(3,'0')}${quoteDirty?' · alterações não salvas':' · salvo'}`:'Rascunho · ainda não salvo';quoteMessage=buildQuoteText();$('quotePreview').textContent=quoteMessage;updateQuoteLineTotals();const disabled=!t||!quoteItems.length||quoteSaving;for(const id of ['copyQuote','printQuote','saveQuote'])$(id).disabled=disabled;$('saveQuote').textContent=quoteSaving?'Salvando…':quoteId?'Salvar alterações':'Salvar orçamento';if(persist)persistQuote();}
+function validateQuote(){const f=quoteFields(),t=quoteTotals();if(!currentSession)throw Error('Entre com o acesso do painel para salvar o orçamento.');if(!f.name)throw Error('Informe o nome do cliente.');if(!quoteItems.length||!t)throw Error('Adicione itens e confira quantidades e preços.');if(!f.date||!f.validity||f.validity<f.date)throw Error('Confira a data e a validade do orçamento.');if(!Number.isInteger(Number(f.lead))||Number(f.lead)<0||Number(f.lead)>365)throw Error('O prazo deve ter de 0 a 365 dias úteis.');return {f,t};}
+function quotePayload(f,t){return{cliente_nome:f.name,telefone:f.phone||null,data_orcamento:f.date,validade_orcamento:f.validity,prazo_dias:Number(f.lead),previsao_entrega:null,pagamento:f.payment,itens:quoteItems.map(i=>{const q=Number(i.quantity),p=round2(i.unitPix),c=round2(i.unitCredit);return{pedido:i.name,quantidade:q,unitario:p,unitarioPix:p,unitarioCredito:c,totalPix:round2(p*q),totalCredito:round2(c*q),total:round2((f.payment==='credito'?c:p)*q),source:i.origin==='catalogo'?'catalogo':'manual',productId:i.productId||null,variantId:i.variantId||null,calculatorHistoryId:i.historyId||null,calculatorSource:i.origin,calculatorBrand:f.brand};}),subtotal:t.pix,total_pix:t.pix,total_credito:t.credit,total_final:t.total,acrescimo:round2(t.credit-t.pix),texto_gerado:buildQuoteText()};}
+async function saveQuote(){if(quoteSaving)return;let d;try{d=validateQuote();}catch(e){$('quoteStatus').textContent=e.message;$('quoteStatus').className='error';return;}const epoch=sessionEpoch;quoteSaving=true;updateQuoteSummary(false);const controls=[...$('panel-orcamento').querySelectorAll('input,select,button')];const previous=controls.map(c=>c.disabled);controls.forEach(c=>c.disabled=true);$('quoteStatus').textContent='Salvando orçamento…';$('quoteStatus').className='';try{const payload=quotePayload(d.f,d.t);const query=quoteId?supabaseClient.from('orcamentos').update(payload).eq('id',quoteId):supabaseClient.from('orcamentos').insert({...payload,criado_por:currentSession.user.id});const {data,error}=await query.select('*').single();if(error)throw error;if(epoch!==sessionEpoch)return;quoteId=data.id;quoteNumber=data.numero;quoteDirty=false;updateQuoteSummary();let textWarning='';const {error:textError}=await supabaseClient.from('orcamentos').update({texto_gerado:buildQuoteText()}).eq('id',quoteId);if(textError)textWarning=' O texto com o número oficial será atualizado ao salvar novamente.';const index=savedQuotes.findIndex(q=>q.id===data.id);const saved={...data,texto_gerado:buildQuoteText()};if(index>=0)savedQuotes[index]=saved;else savedQuotes.unshift(saved);renderSavedQuotes();$('quoteStatus').textContent=`Orçamento Nº ${String(quoteNumber).padStart(3,'0')} salvo. Também está disponível no painel.${textWarning}`;$('quoteStatus').className='success';}catch(e){$('quoteStatus').textContent='Não foi possível salvar: '+(e.message||'Confira sua conexão.');$('quoteStatus').className='error';}finally{quoteSaving=false;controls.forEach((c,i)=>c.disabled=previous[i]);updateQuoteSummary(false);}}
+function renderSavedQuotes(){$('savedQuoteCount').textContent='· '+savedQuotes.length;$('savedQuotes').innerHTML=savedQuotes.map(q=>`<div class="saved-quote"><div><strong>Nº ${esc(String(q.numero||0).padStart(3,'0'))} · ${esc(q.cliente_nome||'Cliente')}</strong><small>${esc(dateBR(q.data_orcamento))} · ${esc(money(q.total_final))}</small></div><button type="button" data-open-quote="${esc(q.id)}">Abrir</button></div>`).join('')||`<p class="hint">${esc(quotesError||'Nenhum orçamento salvo para mostrar.')}</p>`;}
+function hasQuoteProgress(){return quoteItems.length>0||!!$('quoteName').value.trim();}
+function openSavedQuote(row){if(!row)return;if(quoteDirty&&hasQuoteProgress()&&!confirm('Abrir este orçamento e substituir o rascunho atual?'))return;resetQuote();quoteId=row.id;quoteNumber=row.numero;$('quoteName').value=row.cliente_nome||'';$('quotePhone').value=row.telefone||'';$('quoteDate').value=row.data_orcamento||dayISO();$('quoteValidity').value=row.validade_orcamento||datePlus(dayISO(),2);$('quoteLead').value=row.prazo_dias??2;$('quotePayment').value=row.pagamento==='credito'?'credito':'pix';$('quoteBrand').value=row.itens?.[0]?.calculatorBrand||'luzmariana';quoteItems=(Array.isArray(row.itens)?row.itens:[]).map((i,index)=>({key:'saved:'+row.id+':'+index,name:i.pedido||'Item',origin:i.calculatorSource||(i.source==='catalogo'?'catalogo':'manual'),productId:i.productId||null,variantId:i.variantId||null,historyId:i.calculatorHistoryId||null,unitPix:Number(i.unitarioPix??i.unitario??0),unitCredit:Number(i.unitarioCredito??customerCardPriceFromPix(Number(i.unitarioPix??i.unitario??0),3)),quantity:String(i.quantidade??1),cost:null}));quoteDirty=false;renderQuoteItems();updateQuoteSummary();switchTab('orcamento');}
+async function loadCatalogAndQuotes(epoch){if(!currentSession)return;const queries=await Promise.allSettled([supabaseClient.from('products').select('*, product_variants(id,name,photo_url,sort_order,in_stock,esgotado,stock_qty,cost,promo_manual_price,credit_price,promo_price)').eq('active',true).order('name'),supabaseClient.from('orcamentos').select('*').order('numero',{ascending:false}).limit(100)]);if(epoch!==sessionEpoch)return;const products=queries[0].status==='fulfilled'?queries[0].value:{error:queries[0].reason};const quotes=queries[1].status==='fulfilled'?queries[1].value:{error:queries[1].reason};catalogRows=products.error?[]:products.data||[];catalogError=products.error?'Não foi possível carregar o catálogo. Use “Atualizar preços” para tentar novamente.':'';savedQuotes=quotes.error?[]:quotes.data||[];quotesError=quotes.error?'Não foi possível carregar os orçamentos salvos. Tente atualizar os preços.':'';rebuildSources();renderSavedQuotes();}
+async function copyQuote(){if($('copyQuote').disabled)return;try{await navigator.clipboard.writeText(quoteMessage);toast('Texto do orçamento copiado');}catch{const area=document.createElement('textarea');area.value=quoteMessage;document.body.appendChild(area);area.select();let copied=false;try{copied=document.execCommand('copy');}catch{}area.remove();if(copied)toast('Texto do orçamento copiado');else{$('quoteStatus').textContent='Selecione e copie o texto da prévia acima.';}}}
+function printQuote(){if($('printQuote').disabled)return;$('printQuoteArea').innerHTML='<header><h1>'+esc($('quoteBrand').value==='iluminart'?'Iluminart':'Luz Mariana')+'</h1><p>Orçamento de produtos</p></header><pre>'+esc(quoteMessage.replace(/\*/g,''))+'</pre>';window.print();}
+
+$('exportExcel').addEventListener('click',()=>{if($('exportExcel').disabled)return;$('exportPanel').hidden=false;$('exportExcel').setAttribute('aria-expanded','true');$('excelText').focus();$('excelText').select();});
+$('copyExcel').addEventListener('click',async()=>{if($('copyExcel').disabled)return;const text=$('excelText').value;function selectText(){$('excelText').focus();$('excelText').select();$('excelText').setSelectionRange(0,text.length);}let copied=false;try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);copied=true;}}catch(error){}if(!copied){selectText();try{copied=document.execCommand('copy');}catch(error){}}if($('excelText').value!==text){$('copyStatus').textContent='Os dados mudaram durante a cópia. Copie novamente para usar os valores atuais.';return;}$('copyStatus').textContent=copied?'Copiado! Cole em uma célula vazia do Excel.':'Texto selecionado. Pressione Ctrl+C (ou ⌘C) e cole no Excel.';});
+$('saveHistory').addEventListener('click',saveCloudRecord);
+$('cancelEdit').addEventListener('click',cancelEdit);
+for(const list of ['historyBody','quotePicker'])$(list).addEventListener('click',e=>{
+ const add=e.target.closest('[data-add-item]');if(add){addQuoteItem(sourceItems.find(i=>i.key===add.dataset.addItem),list!=='quotePicker');return;}
+ const edit=e.target.closest('[data-edit-id]');if(edit){startEdit(cloudRows.find(r=>String(r.id)===String(edit.dataset.editId)));return;}
+ const del=e.target.closest('[data-delete-id]');if(del){deleteRow(cloudRows.find(r=>String(r.id)===String(del.dataset.deleteId)));return;}
+ if(e.target.closest('[data-go-calc]'))switchTab('calculo');
+});
+$('loginCloud').addEventListener('submit',async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;$('loginStatus').textContent='Entrando…';try{const {error}=await supabaseClient.auth.signInWithPassword({email:$('loginEmail').value.trim(),password:$('loginPassword').value});if(error)throw error;$('loginPassword').value='';$('loginStatus').textContent='';await loadSession();}catch(error){$('loginStatus').textContent='Não foi possível entrar: '+(error.message||'Confira a conexão.');}finally{btn.disabled=false;}});
+supabaseClient.auth.onAuthStateChange((_event,session)=>{currentSession=session||null;setTimeout(()=>loadSession(),0);});
+
+$('installDismissBtn').addEventListener('click',hideInstallOffer);
+$('installNowBtn').addEventListener('click',async()=>{
+  const platform=installPlatform();
+  if(platform==='ios'){hideInstallOffer();return;}
+  if(deferredInstallPrompt){
+    const promptEvent=deferredInstallPrompt;deferredInstallPrompt=null;
+    await promptEvent.prompt();
+    try{await promptEvent.userChoice;}catch(_e){}
+    hideInstallOffer();return;
+  }
+  $('installNowBtn').textContent='Menu ⋮ → Instalar app';
+});
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{}));}
+setTimeout(showInstallOfferOnce,700);
+
+$('calculator').addEventListener('input',update);$('calculator').addEventListener('submit',e=>e.preventDefault());
+
+document.querySelectorAll('[data-tab]').forEach(btn=>{
+ btn.addEventListener('click',()=>switchTab(btn.dataset.tab));
+ btn.addEventListener('keydown',e=>{const tabs=['consulta','calculo','orcamento'];let index=tabs.indexOf(appTab);if(e.key==='ArrowRight')index=(index+1)%3;else if(e.key==='ArrowLeft')index=(index+2)%3;else if(e.key==='Home')index=0;else if(e.key==='End')index=2;else return;e.preventDefault();switchTab(tabs[index],true);});
+});
+$('consultSearch').addEventListener('input',renderConsult);
+$('quoteSearch').addEventListener('input',renderPicker);
+for(const attr of ['consultSource','quoteSource'])document.querySelectorAll('[data-'+attr.replace(/[A-Z]/g,m=>'-'+m.toLowerCase())+']').forEach(btn=>btn.addEventListener('click',()=>{if(attr==='consultSource')consultSource=btn.dataset[attr];else quoteSource=btn.dataset[attr];document.querySelectorAll('[data-'+attr.replace(/[A-Z]/g,m=>'-'+m.toLowerCase())+']').forEach(b=>b.setAttribute('aria-pressed',String(b===btn)));if(attr==='consultSource')renderConsult();else renderPicker();}));
+$('refreshData').addEventListener('click',async()=>{const btn=$('refreshData');btn.disabled=true;try{await loadSession();}finally{btn.disabled=false;}});
+document.querySelectorAll('[data-markup]').forEach(b=>b.addEventListener('click',()=>{$('markup').value=b.dataset.markup;update();}));
+$('newCalculation').addEventListener('click',()=>{if((editingId||currentRecord)&&!confirm('Começar um novo cálculo? Os cálculos já salvos serão mantidos.'))return;editingId=null;$('project').value='';$('grams').value='';$('hours').value='0';$('minutes').value='0';$('units').value='1';setSaveMode();update();$('project').focus();});
+$('addCurrentQuote').addEventListener('click',()=>{if(!currentRecord)return;const item=historyPriceItem({id:editingId||'current',project:currentRecord.project,inputs:currentRecord.inputs,results:currentRecord.results});item.key='current:'+Date.now();if(!editingId)item.historyId=null;addQuoteItem(item);});
+$('quoteItems').addEventListener('input',e=>{const target=e.target;if(target.matches('[data-quote-quantity]')){const i=quoteItems[Number(target.dataset.quoteQuantity)];if(i)i.quantity=target.value;}else if(target.matches('[data-quote-price]')){const i=quoteItems[Number(target.dataset.quotePrice)];if(i){const n=readQuoteNumber(target.value);if($('quotePayment').value==='credito')i.unitCredit=n;else{i.unitPix=n;i.unitCredit=Number.isFinite(n)?customerCardPriceFromPix(n,3):NaN;}}}else return;quoteDirty=true;updateQuoteSummary();});
+$('quoteItems').addEventListener('click',e=>{const btn=e.target.closest('[data-remove-quote]');if(!btn)return;quoteItems.splice(Number(btn.dataset.removeQuote),1);quoteDirty=true;renderQuoteItems();updateQuoteSummary();});
+for(const id of ['quoteName','quotePhone','quoteDate','quoteValidity','quoteLead','quotePayment','quoteBrand'])$(id).addEventListener(id==='quotePayment'||id==='quoteBrand'?'change':'input',()=>{quoteDirty=true;if(id==='quoteDate'&&$('quoteDate').value)$('quoteValidity').value=datePlus($('quoteDate').value,2);if(id==='quotePayment')renderQuoteItems();updateQuoteSummary();});
+$('newQuote').addEventListener('click',()=>{if(hasQuoteProgress()&&quoteDirty&&!confirm('Começar um novo orçamento e descartar o rascunho atual?'))return;resetQuote();persistQuote();});
+$('saveQuote').addEventListener('click',saveQuote);$('copyQuote').addEventListener('click',copyQuote);$('printQuote').addEventListener('click',printQuote);
+$('savedQuotes').addEventListener('click',e=>{const btn=e.target.closest('[data-open-quote]');if(btn)openSavedQuote(savedQuotes.find(q=>String(q.id)===btn.dataset.openQuote));});
+restoreDraft();renderSavedQuotes();rebuildSources();
+
+setSaveMode();update();loadSession();
+}
+
