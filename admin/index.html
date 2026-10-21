@@ -5097,7 +5097,7 @@ function renderInicio(container) {
     ${renderProductionQueue({ home:true })}
     <div class="lm-v11-grid"><section class="lm-v11-card"><h2>O que precisa de você agora</h2><p class="caption">Comece pelos itens vermelhos; quando zerar essa lista, a operação está organizada.</p><div class="lm-v11-priority-list">${tasks.map((t)=>`<button type="button" data-home-tab="${t.tab}" class="lm-v11-priority ${t.tone}"><span class="dot"></span><span><strong>${escapeHtml(t.label)}</strong><small>${escapeHtml(t.detail)}</small></span><b>${t.n}</b></button>`).join("")}</div></section>
       <section class="lm-v11-card"><h2>Saúde da Luz Mariana</h2><p class="caption">Quatro sinais simples. Toque nas áreas de gestão quando quiser entender os detalhes.</p><div class="lm-v11-health"><div class="${salesHealth.c}"><span>Vendas</span><strong>${salesHealth.t}</strong><small>${salesHealth.d}</small></div><div class="${profitHealth.c}"><span>Lucro</span><strong>${profitHealth.t}</strong><small>${profitHealth.d}</small></div><div class="${cashHealth.c}"><span>Caixa</span><strong>${cashHealth.t}</strong><small>${cashHealth.d}</small></div><div class="${stockHealth.c}"><span>Estoque</span><strong>${stockHealth.t}</strong><small>${stockHealth.d}</small></div></div><div class="mt-3 flex gap-2 flex-wrap"><button type="button" data-home-tab="fechamento" class="lm-v11-action">Fechamento mensal</button><button type="button" data-home-tab="rentabilidade" class="lm-v11-action">Ver rentabilidade</button></div></section></div>
-    <section class="lm-v11-card"><h2>Dinheiro em português <span class="lm-v11-help" title="O painel separa o que entrou em custo, lucro, reinvestimento e sua retirada para evitar misturar dinheiro da loja com dinheiro pessoal.">?</span></h2><p class="caption">Resumo do mês atual. O detalhamento completo continua no Caixa e no Fechamento.</p><div class="lm-v11-money"><div><span>Vendeu</span><strong>${formatBRL(money.gross)}</strong></div><div><span>Guardar para repor custo</span><strong>${formatBRL(money.cost)}</strong></div><div><span>Lucro líquido</span><strong>${formatBRL(money.profit)}</strong></div><div><span>Fica na loja</span><strong>${formatBRL(money.reinvestment)}</strong></div><div class="salary"><span>Seu salário / parte</span><strong>${formatBRL(money.salary)}</strong></div></div><div class="lm-v11-plain-summary">Neste mês entraram <b>${formatBRL(money.gross)}</b> em pedidos pagos. Desse total, aproximadamente <b>${formatBRL(money.cost)}</b> precisam permanecer protegidos para repor os custos; <b>${formatBRL(money.profit)}</b> são lucro depois de custo e taxas. Pela regra atual, <b>${formatBRL(money.reinvestment)}</b> ficam na Luz Mariana e <b>${formatBRL(money.salary)}</b> correspondem à sua parte do lucro. O Caixa operacional está em <b>${formatBRL(balance)}</b> e o painel indica <b>${formatBRL(plan.ownerAvailableNow)}</b> como retirada disponível agora.</div></section>
+    <section class="lm-v11-card"><h2>Dinheiro em português <span class="lm-v11-help" title="O painel separa o que entrou em custo, lucro, reinvestimento e sua retirada para evitar misturar dinheiro da loja com dinheiro pessoal.">?</span></h2><p class="caption">Resumo do mês atual. O detalhamento completo continua no Caixa e no Fechamento.</p><div class="lm-v11-money"><div><span>Vendeu</span><strong>${formatBRL(money.gross)}</strong></div><div><span>Guardar na loja</span><strong>${formatBRL(round2(money.cost + money.reinvestment))}</strong></div><div class="salary"><span>Sua parte para retirada</span><strong>${formatBRL(money.salary)}</strong></div></div><div class="lm-v11-plain-summary">Neste mês entraram <b>${formatBRL(money.gross)}</b> em pedidos pagos. Desse total, aproximadamente <b>${formatBRL(round2(money.cost + money.reinvestment))}</b> ficam guardados na loja, já incluindo custos e reserva. A sua parte para retirada é <b>${formatBRL(money.salary)}</b>. O Caixa operacional está em <b>${formatBRL(balance)}</b> e o painel indica <b>${formatBRL(plan.ownerAvailableNow)}</b> como retirada disponível agora.</div></section>
     <div class="lm-v11-grid"><section class="lm-v11-card"><h2>O que mudou desde ontem</h2><p class="caption">Uma leitura rápida para você não precisar comparar telas.</p><div class="lm-v11-changes"><div><span>Vendas hoje</span><strong>${formatBRL(today.sales)}</strong><small>ontem ${formatBRL(yesterday.sales)}</small></div><div><span>Pedidos criados hoje</span><strong>${today.orders}</strong><small>ontem ${yesterday.orders}</small></div><div><span>Ajustes de estoque hoje</span><strong>${today.moves}</strong><small>registrados pela edição rápida</small></div></div></section><section class="lm-v11-card"><h2>Checklist do mês</h2><p class="caption">O painel lembra as rotinas; você só marca quando concluir.</p><div class="lm-v11-checklist">${v11ChecklistDefaults().map(([k,l])=>`<label class="lm-v11-checkitem"><input type="checkbox" data-v11-check="${k}" ${checklist[k]?"checked":""}><span>${escapeHtml(l)}</span></label>`).join("")}</div></section></div>
     <section class="lm-v11-card"><div class="flex items-center justify-between gap-3"><div><h2>Pedidos recentes</h2><p class="caption">Abra, confira ou repita uma venda sem procurar o cliente novamente.</p></div><button type="button" data-home-tab="pedidos" class="lm-v11-link">Ver todos</button></div><div class="lm-v11-recent">${recent.length?recent.map((o)=>`<div class="lm-v11-recent-row"><div><strong>Pedido ${String(o.order_number??"").padStart(6,"0")} · ${escapeHtml(o.customer_name||"Cliente")}</strong><small>${formatDate(String(o.created_at).slice(0,10))} · ${escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)}</small></div><b>${formatBRL(o.total)}</b><div><button data-v11-open-order="${o.id}" class="lm-v11-link">Abrir</button><button data-v11-repeat-order="${o.id}" class="lm-v11-link">Repetir</button></div></div>`).join(""):`<p class="caption">Nenhum pedido registrado ainda.</p>`}</div></section>
   </div>`;
@@ -5895,7 +5895,7 @@ function renderFechamento(container) {
           <h2>Destino do lucro</h2>
           <p class="caption">${data.profitSplit.startupReinvestment ? "Setembro/2026: 100% do lucro gerado depois de custo e taxas foi destinado ao reinvestimento. As compras de equipamentos, ferramentas e estrutura aparecem nas despesas acima como uso desse valor. A divisão 70/30 começa em outubro." : "Aplica a mesma divisão configurada no Caixa, depois das despesas operacionais."}</p>
           <div class="finance-lines">
-            <div class="finance-line"><span>Reinvestimento</span><strong>${formatBRL(data.reinvestment)}</strong></div>
+            <div class="finance-line"><span>Guardar na loja (custos + reserva)</span><strong>${formatBRL(round2(data.costs + data.reinvestment))}</strong></div>
             <div class="finance-line"><span>Sua parte do lucro</span><strong>${formatBRL(data.ownerTarget)}</strong></div>
             <div class="finance-line"><span>Já retirado</span><strong>${formatBRL(data.ownerWithdrawn)}</strong></div>
             <div class="finance-line total"><span>${data.profitSplit.startupReinvestment ? "Retirada em setembro" : "Ainda poderia retirar"}</span><strong>${formatBRL(withdrawalRemaining)}</strong></div>
@@ -12013,6 +12013,8 @@ function orderMoneySplit(order, costInfo = null) {
   const ownerPercent = splitSettings.ownerPercent;
   const reinvestPercent = splitSettings.reinvestPercent;
   const positiveProfit = Math.max(0, profit);
+  const ownerShare = round2(positiveProfit * ownerPercent / 100);
+  const reinvestment = round2(positiveProfit - ownerShare);
 
   return {
     gross,
@@ -12023,9 +12025,9 @@ function orderMoneySplit(order, costInfo = null) {
     ownerPercent,
     reinvestPercent,
     startupReinvestment: splitSettings.startupReinvestment,
-    ownerShare: round2(positiveProfit * ownerPercent / 100),
-    reinvestment: round2(positiveProfit * reinvestPercent / 100),
-    storeTotalToKeep: round2(costToKeep + positiveProfit * reinvestPercent / 100),
+    ownerShare,
+    reinvestment,
+    storeTotalToKeep: round2(costToKeep + reinvestment),
     isApprox: !!c.isApprox,
   };
 }
@@ -13623,7 +13625,7 @@ function renderPedidos(container) {
     <div class="flex flex-col gap-6">
       <div>
         <h1 class="text-xl font-semibold text-navy-900">Pedidos</h1>
-        <p class="text-sm text-navy-500">Pedidos feitos pelos clientes no Catálogo público. Em cada pedido, o painel mostra quanto preservar de custo, o lucro e a divisão do lucro entre reinvestimento e sua retirada.</p>
+        <p class="text-sm text-navy-500">Pedidos feitos pelos clientes no Catálogo público. Em cada pedido, o painel mostra quanto guardar na loja, já incluindo custos e reserva, e a sua parte para retirada.</p>
       </div>
       <section class="lm-v11-flow" aria-label="Fluxo simples dos pedidos">
         <button type="button" data-v11-order-stage="novo" class="${pedidosState.tab==="novo"?"active":""}"><span>1. Novo</span><strong>${v11FlowCounts.novo}</strong></button>
@@ -13808,8 +13810,8 @@ function renderPedidos(container) {
                       <span class="mt-1 block text-lg font-semibold text-navy-900">${formatBRL(o.total)}</span>
 
                       <span class="mt-1 block text-[11px] font-semibold text-navy-700"
-                        title="Valor que deve ficar guardado para repor o custo dos produtos/modelos e materiais deste pedido.">
-                        Guardar (custo): ${split.isApprox ? "≈ " : ""}${formatBRL(split.costToKeep)}
+                        title="Valor que deve ficar na loja: custos dos produtos/modelos e materiais, mais a reserva da loja.">
+                        Guardar na loja: ${split.isApprox ? "≈ " : ""}${formatBRL(split.storeTotalToKeep)}
                       </span>
 
                       ${split.cardFee > 0 ? `
@@ -13824,11 +13826,8 @@ function renderPedidos(container) {
                       </span>
 
                       ${o.payment_method !== "brinde" && split.profit > 0 ? `
-                        <span class="mt-1 block border-t border-navy-100 pt-1 text-[10px] text-navy-500">
-                          Reinvestir (${split.reinvestPercent.toLocaleString("pt-BR")}%): <b>${formatBRL(split.reinvestment)}</b>
-                        </span>
                         <span class="block text-[10px] text-gold-700">
-                          Sua parte (${split.ownerPercent.toLocaleString("pt-BR")}%): <b>${formatBRL(split.ownerShare)}</b>
+                          ${o.paid_at ? "Sua parte para retirada" : "Retirada prevista"} (${split.ownerPercent.toLocaleString("pt-BR")}%): <b>${formatBRL(split.ownerShare)}</b>
                         </span>
                       ` : ""}
 
@@ -16678,9 +16677,8 @@ function renderVendaManualOverlay() {
                   <div class="vm-finance-grid">
                     <div class="vm-finance-chip"><span>Taxa operadora ${totals.split.feeRate?`(${(totals.split.feeRate*100).toFixed(2).replace(".",",")}%)`:""}</span><b>${formatBRL(totals.split.cardFee)}</b></div>
                     <div class="vm-finance-chip"><span>Receita líquida</span><b>${formatBRL(totals.split.netRevenue)}</b></div>
-                    <div class="vm-finance-chip"><span>Custo a preservar</span><b>${formatBRL(totals.split.costToKeep)}</b></div>
+                    <div class="vm-finance-chip"><span>Guardar na loja (custos + reserva)</span><b>${formatBRL(totals.split.storeTotalToKeep)}</b></div>
                     <div class="vm-finance-chip"><span>Lucro real</span><b>${formatBRL(totals.split.profit)}</b></div>
-                    <div class="vm-finance-chip"><span>Reinvestimento ${totals.split.reinvestPercent}%</span><b>${formatBRL(totals.split.reinvestment ?? totals.split.reinvestAmount ?? Math.max(0,totals.split.profit)*totals.split.reinvestPercent/100)}</b></div>
                     <div class="vm-finance-chip"><span>Retirada ${totals.split.ownerPercent}%</span><b>${vendaManualState.paymentStatus==="paid"?formatBRL(totals.split.ownerShare):"R$ 0,00"}</b></div>
                   </div>
                   <div class="mt-3 text-[9px] text-blue-100">
@@ -18451,7 +18449,7 @@ function renderCaixa(container) {
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p class="text-xs font-semibold uppercase tracking-wide text-gold-700">Separação do dinheiro — ${cashMonthLabel(selectedMonth)}</p>
-            <h2 id="cash-reserve-title" class="mt-0.5 text-lg font-semibold text-navy-900">Custo, reinvestimento e sua retirada</h2>
+            <h2 id="cash-reserve-title" class="mt-0.5 text-lg font-semibold text-navy-900">Quanto guardar e quanto retirar</h2>
             <p class="mt-1 max-w-3xl text-xs leading-relaxed text-navy-500">
               ${reservePlan.settings.startupReinvestment
                 ? "<b>Setembro/2026 é o mês de implantação:</b> além de preservar 100% do custo, todo o lucro disponível permanece na Luz Mariana para reinvestimento em equipamentos, ferramentas, estoque e estrutura. A divisão entre reinvestimento e retirada começa em outubro/2026."
@@ -18468,11 +18466,11 @@ function renderCaixa(container) {
           </div>
         </div>
 
-        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div class="rounded-xl bg-navy-900 px-4 py-3 text-cream-50">
-            <p class="text-xs uppercase tracking-wide opacity-80">Custo a preservar</p>
-            <p class="mt-1 text-2xl font-semibold">${reservePlan.hasApproxCost ? "≈ " : ""}${formatBRL(reservePlan.costs)}</p>
-            <p class="mt-1 text-[11px] opacity-75">100% do custo das vendas pagas da competência.${reservePlan.cardFees > 0 ? ` Taxas de cartão: ${formatBRL(reservePlan.cardFees)}.` : ""}</p>
+            <p class="text-xs uppercase tracking-wide opacity-80">Guardar na loja (custos + reserva)</p>
+            <p class="mt-1 text-2xl font-semibold">${reservePlan.hasApproxCost ? "≈ " : ""}${formatBRL(round2(reservePlan.costs + reservePlan.reinvestment))}</p>
+            <p class="mt-1 text-[11px] opacity-75">Custos das vendas pagas mais a reserva já incluída.${reservePlan.cardFees > 0 ? ` Taxas de cartão: ${formatBRL(reservePlan.cardFees)}.` : ""}</p>
           </div>
 
           <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
@@ -18481,11 +18479,7 @@ function renderCaixa(container) {
             <p class="mt-1 text-[11px] text-emerald-700">${reservePlan.paidOrdersCount} pedido(s) pago(s) na competência.${reservePlan.financingDue > 0 ? ` Antes da parcela: ${formatBRL(reservePlan.profitBeforeCommitments)}.` : ""}</p>
           </div>
 
-          <div class="rounded-xl border border-navy-100 bg-cream-50 px-4 py-3">
-            <p class="text-xs uppercase tracking-wide text-navy-400">Reinvestir na loja</p>
-            <p class="mt-1 text-xl font-semibold text-navy-900">${formatBRL(reservePlan.reinvestment)}</p>
-            <p class="mt-1 text-[11px] text-navy-500">${reservePlan.settings.startupReinvestment ? "100% do lucro em setembro/2026 — reinvestimento integral na fase inicial." : `${reservePlan.settings.reinvestPercent.toLocaleString("pt-BR")}% do lucro.`}</p>
-          </div>
+
 
           <div class="rounded-xl border border-gold-300 bg-gold-50 px-4 py-3">
             <p class="text-xs uppercase tracking-wide text-gold-700">Sua parte do lucro</p>
