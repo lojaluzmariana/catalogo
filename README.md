@@ -1,2 +1,0 @@
-# catalogo
-Catálogo - Luz Mariana
