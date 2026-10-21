@@ -47,3 +47,7 @@
   .pdf-closing{margin:9mm 0 7mm;break-inside:avoid}.pdf-closing p{font:normal 12pt/1.5 Georgia,'Times New Roman',serif;color:#8a6b36}.pdf-closing span{font-size:8.5pt;color:#71818d}
   .pdf-document-footer{display:flex!important;justify-content:flex-start;align-items:baseline;gap:2mm;flex-wrap:wrap;text-align:left;border-top:1px solid #d9c9ac;padding:4mm 0 0;margin:0;break-inside:avoid;color:#7c8790;font-size:7.5pt}.pdf-document-footer strong{color:#183550;font-size:8pt}.pdf-document-footer>div{margin-left:auto;display:flex;gap:2mm;align-items:center}.pdf-document-footer i{font-style:normal;color:#c6a76e}
 }
+
+.thermal-export{border:1px solid var(--line);background:#fff;border-radius:12px;padding:16px;display:grid;gap:9px;min-width:0}.thermal-export strong{font-size:.85rem}.thermal-export p{font-size:.78rem;color:var(--muted);line-height:1.5;margin:0}.thermal-export button{width:100%;white-space:normal}
+
+.document-type{font-size:.85rem}.document-help{font-size:.76rem;color:var(--muted);line-height:1.5;margin:0}.document-type select{width:100%}
