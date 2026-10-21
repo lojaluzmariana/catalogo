@@ -109,26 +109,69 @@ function thermalPdf(pages){
   add('trailer\n<< /Size '+offsets.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF');
   return new Blob(chunks,{type:'application/pdf'});
 }
-async function exportThermal(format){
-  const button=$(format==='pdf'?'thermalPdf':'thermalImage');if(button.disabled)return;
-  const kind=selectedDocumentType(),number=quoteNumber;
-  const label=button.textContent;button.disabled=true;button.textContent='Preparando…';
-  try{
-    const pages=await buildThermalPages(kind);
-    if(format==='png'&&pages.length>1)throw Error('Este documento é longo. Use o PDF de 58 mm para exportar todos os itens.');
-    const blob=format==='pdf'?thermalPdf(pages):await new Promise((resolve,reject)=>pages[0].toBlob(b=>b?resolve(b):reject(Error('Não foi possível gerar a imagem.')),'image/png'));
-    const link=document.createElement('a'),url=URL.createObjectURL(blob);
-    link.href=url;link.download=(kind==='sale'?'Nota-venda-nao-fiscal-':'Orcamento-')+(number?String(number).padStart(3,'0'):'previa')+'-58mm.'+format;
-    document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
-    $('quoteStatus').className='success';$('quoteStatus').textContent='Arquivo de 58 mm preparado. Abra ou compartilhe com o aplicativo da impressora e use a largura de 58 mm, sem ajustar para A4.';
-  }catch(error){$('quoteStatus').className='error';$('quoteStatus').textContent=error.message||'Não foi possível gerar o arquivo térmico. Tente novamente.';}
-  finally{button.textContent=label;updateQuoteSummary(false);}
-}
-$('thermalPdf').addEventListener('click',()=>exportThermal('pdf'));
-$('thermalImage').addEventListener('click',()=>exportThermal('png'));
 
-$('documentType').addEventListener('change',()=>{
-  const sale=selectedDocumentType()==='sale';
-  $('printQuote').textContent=sale?'Imprimir nota / PDF A4':'Imprimir orçamento / PDF A4';
-  $('documentHelp').textContent=sale?'A nota usa os itens e valores deste orçamento. Não é documento fiscal e não registra recebimento.':'Escolha orçamento ou nota para o PDF A4 e os arquivos de 58 mm.';
+let printPreparation=0,preparedThermalPdf=null,preparedFileName='';
+function openPrintOptions(){
+  const dialog=$('printOptions');
+  if(!dialog.open)dialog.showModal();
+  preparePrintOptions();
+}
+async function preparePrintOptions(){
+  const epoch=++printPreparation,kind=selectedDocumentType(),thermal=$('printPaper').value==='58';
+  const number=quoteNumber;
+  preparedThermalPdf=null;
+  $('confirmPrint').disabled=true;$('downloadThermal').disabled=true;
+  $('downloadThermal').hidden=!thermal;
+  $('printOptionsStatus').textContent='Preparando documento…';
+  try{
+    let html='',canvases=[];
+    if(thermal)canvases=await buildThermalPages(kind);
+    else{
+      html=renderQuoteDocument(kind);
+      if(!html)throw Error('Adicione itens e confira os valores antes de imprimir.');
+      const holder=document.createElement('div');holder.innerHTML=html;
+      await Promise.all([...holder.querySelectorAll('img')].map(img=>img.decode()));
+    }
+    if(document.fonts?.ready)await document.fonts.ready;
+    if(epoch!==printPreparation||!$('printOptions').open)return;
+    const area=$('printQuoteArea');area.classList.toggle('thermal-print',thermal);
+    document.getElementById('thermalPageStyle')?.remove();
+    if(thermal){
+      area.replaceChildren(...canvases.map(canvas=>{
+        const img=document.createElement('img');img.src=canvas.toDataURL('image/png');
+        img.alt=kind==='sale'?'Nota de venda não fiscal':'Orçamento';img.className='thermal-page';
+        return img;
+      }));
+      await Promise.all([...area.querySelectorAll('img')].map(img=>img.decode()));
+      if(epoch!==printPreparation||!$('printOptions').open)return;
+      const height=Math.max(...canvases.map(c=>c.height/c.width*48+8));
+      const style=document.createElement('style');style.id='thermalPageStyle';
+      style.textContent='@media print{@page{size:58mm '+height.toFixed(3)+'mm;margin:4mm 5mm;@bottom-right{content:none}}html,body{margin:0!important;padding:0!important}.print-only.thermal-print{width:48mm!important}.thermal-page{display:block;width:48mm;height:auto;margin:0;padding:0;break-after:page;break-inside:avoid}.thermal-page:last-child{break-after:auto}}';
+      document.head.appendChild(style);
+      preparedThermalPdf=thermalPdf(canvases);
+      preparedFileName=(kind==='sale'?'Nota-venda-nao-fiscal-':'Orcamento-')+(number?String(number).padStart(3,'0'):'previa')+'-58mm.pdf';
+    }else area.innerHTML=html;
+    const description=kind==='sale'?'Nota de venda não fiscal':'Orçamento';
+    $('printOptionsStatus').textContent=description+' pronto em '+(thermal?'58 mm. Você também pode baixar o PDF para abrir no aplicativo da impressora.':'A4.');
+    $('confirmPrint').disabled=false;$('downloadThermal').disabled=!thermal;
+  }catch(error){
+    if(epoch!==printPreparation||!$('printOptions').open)return;
+    $('printOptionsStatus').textContent='Não foi possível preparar: '+(error.message||'Tente novamente.');
+  }
+}
+$('documentType').addEventListener('change',preparePrintOptions);
+$('printPaper').addEventListener('change',preparePrintOptions);
+$('printOptions').addEventListener('close',()=>{++printPreparation;});
+$('confirmPrint').addEventListener('click',()=>{
+  if($('confirmPrint').disabled)return;
+  // Chamada síncrona no clique para preservar a ação do usuário no celular.
+  try{window.print();}catch{
+    $('printOptionsStatus').textContent='A impressão não abriu neste navegador. Em 58 mm, use “Baixar PDF de 58 mm” para abrir no aplicativo da impressora.';
+  }
+});
+$('downloadThermal').addEventListener('click',()=>{
+  if(!preparedThermalPdf||$('downloadThermal').disabled)return;
+  const url=URL.createObjectURL(preparedThermalPdf),link=document.createElement('a');
+  link.href=url;link.download=preparedFileName;document.body.appendChild(link);
+  link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
 });
