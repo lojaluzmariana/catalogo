@@ -4,9 +4,46 @@
 @media(max-width:760px){.workspace{padding:18px 16px 35px}.header-inner{padding:12px 16px}.header-link{font-size:.7rem}.brand img{width:38px;height:48px}.brand-copy{padding-left:12px}.brand{gap:12px}.brand .eyebrow{font-size:.56rem}.connection{margin-bottom:16px}.integration-copy span{font-size:.7rem}.app-nav{margin-bottom:23px;gap:3px;padding:5px}.app-nav button{font-size:.76rem;padding:11px 4px}.calculator-layout{grid-template-columns:1fr}.results{position:static}.cloud-login form{grid-template-columns:1fr}.card{padding:18px}.intro p{font-size:.83rem}.quote-picker .item-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.card-actions button{flex:1}.card-actions .edit-history{flex-basis:100%}.quote-summary{display:block}.quote-preview{margin-top:16px}.quote-controls{display:grid}.metadata{flex-wrap:wrap}.summary-body{padding:20px}.fields{gap:16px}}
 @media(max-width:420px){.item-grid{grid-template-columns:1fr}.price-card{padding:17px}.price-card h3{min-height:0}.main-price{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.main-price strong{font-size:1.8rem}.price-facts strong{font-size:.83rem}.card-actions .edit-history{flex-basis:auto}.quote-picker .item-grid{grid-template-columns:1fr;max-height:450px}.quote-item-fields{grid-template-columns:minmax(0,.7fr) minmax(0,1fr)}.quote-item-total{grid-column:1/-1;padding:2px 0 0;text-align:left}.quote-item-total::before{content:"Subtotal: ";font-weight:400}.header-link{display:none}.fields{grid-template-columns:1fr}.full-width{grid-column:auto}.intro{gap:12px}.search-bar input{font-size:16px}.quote-controls button{width:100%}.app-nav button{font-size:.71rem}.source-controls{gap:10px}.segmented button{padding:9px 12px}.price-card .main-price{margin:15px 0 12px}.quote-picker .main-price{margin:10px 0 0}.quote-picker .main-price small{font-size:.7rem}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
-@media print{@page{size:A4;margin:18mm}body{background:white!important}.topbar,.workspace,footer,.install-once-modal,.toast{display:none!important}.print-only{display:block!important;color:#152e49}.print-only header{border-bottom:2px solid #ae7a2d;padding-bottom:15px;margin-bottom:20px}.print-only h1{font-size:23pt}.print-only pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11pt/1.7 Arial,sans-serif}.print-only p{font-size:10pt;color:#617080}}
+
 
 .history-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.history-tools button{font-size:.77rem;padding:9px 8px}.history-tools .danger{border-color:#e4c4c7}.history-tools .danger:hover{background:#fff1f2}
 
 .quote-total-breakdown{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;margin-bottom:14px;font-size:.85rem;text-align:left}.quote-total-breakdown b{font-size:inherit;color:inherit}.quote-finance{padding:18px;border:1px solid #dbc797;background:#fffbf0;border-radius:16px;margin:14px 0}.quote-finance h3{font-size:1rem}.quote-finance dl{margin:14px 0;display:grid;gap:10px}.quote-finance dl>div{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:.86rem}.quote-finance dt{min-width:0}.quote-finance dd{margin:0;white-space:nowrap;font-weight:700}.quote-finance .salary-reserve{padding:12px 0;border-top:1px solid #dac391;border-bottom:1px solid #dac391;font-size:1rem;color:#664b16}.quote-finance .hint{margin-top:10px;font-size:.78rem}.quote-discount .fields{margin-top:14px}.quote-item-fields{grid-template-columns:repeat(3,minmax(0,1fr))}.quote-item-total{grid-column:1/-1;text-align:right}.quote-unit-cost{font-size:.78rem}.quote-discount .error:empty{display:none}
 @media(max-width:600px){.quote-item-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.quote-unit-cost{grid-column:1/-1}.quote-finance{padding:14px}.quote-finance .salary-reserve{font-size:.9rem}}
+
+/* Documento comercial: layout próprio, sem os controles internos da calculadora. */
+@media print {
+  @page {size:A4;margin:16mm 16mm 19mm;@bottom-right{content:counter(page) " / " counter(pages);font:8pt Arial,sans-serif;color:#718091}}
+  html,body{background:#fff!important;color:#102e4d!important;font:10pt/1.5 Arial,Helvetica,sans-serif!important;min-width:0!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .topbar,.workspace,body>footer,.install-once-modal,.toast{display:none!important}
+  .print-only{display:block!important;color:#102e4d;width:100%;margin:0;padding:0}
+  .pdf-proposal{font:10pt/1.5 Arial,Helvetica,sans-serif;color:#102e4d}
+  .pdf-proposal *{box-sizing:border-box}
+  .pdf-brand-header{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:2mm 0 6mm;border-bottom:1.5pt solid #bb9859;break-inside:avoid}
+  .pdf-logo-pair{display:flex;gap:5mm;align-items:center;min-width:0}
+  .pdf-logo{display:block;object-fit:contain;height:19mm;max-width:none}
+  .pdf-logo-primary{width:57mm}.pdf-logo-partner{width:35mm;height:17mm}.pdf-logo-divider{display:block;width:1px;height:15mm;background:#dfd4c0;flex-shrink:0}
+  .pdf-brand-note{max-width:36mm;text-align:right;font-size:8pt;line-height:1.5;color:#677887}
+  .pdf-title-row{display:flex;align-items:center;justify-content:space-between;gap:8mm;margin:9mm 0 7mm;break-inside:avoid}
+  .pdf-eyebrow{display:block;color:#99763b;font-size:7.5pt;letter-spacing:.13em;text-transform:uppercase}
+  .pdf-proposal h1{font:normal 32pt/1.2 Georgia,'Times New Roman',serif;letter-spacing:-.02em;margin:2mm 0 0;color:#0c294c}
+  .pdf-reference{text-align:right;max-width:65mm}.pdf-reference strong{display:block;font-size:13pt}.pdf-reference span{display:block;font-size:7.5pt;color:#74818e;margin-top:1.5mm}
+  .pdf-client{display:grid;grid-template-columns:minmax(0,1fr) 59mm;gap:8mm;background:#f7f5ef;border:1px solid #e6dfd2;border-radius:3mm;padding:5mm;margin-bottom:8mm;break-inside:avoid}
+  .pdf-label,.pdf-dates dt{display:block;font-size:7pt;letter-spacing:.09em;text-transform:uppercase;color:#7e705b}
+  .pdf-client h2{font-size:14pt;line-height:1.35;margin:1.5mm 0;overflow-wrap:anywhere}.pdf-client p{font-size:9pt;color:#667583;margin:1mm 0 0;overflow-wrap:anywhere}
+  .pdf-dates{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin:0;align-content:center}.pdf-dates dd{font-size:9pt;font-weight:700;margin:1.5mm 0 0;white-space:nowrap}
+  .pdf-section-heading{display:flex;gap:3mm;align-items:baseline;font-size:11pt;margin:0 0 3mm;break-after:avoid}.pdf-section-heading span{font-size:8pt;font-weight:400;color:#87929a}
+  .pdf-items{border-collapse:collapse;table-layout:fixed;width:100%;margin:0 0 7mm;font-size:9.5pt}
+  .pdf-col-description{width:49%}.pdf-col-quantity{width:9%}.pdf-col-price{width:21%}
+  .pdf-items thead{display:table-header-group}.pdf-items th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.035em;color:#8a6b36;border-top:1px solid #d4bd91;border-bottom:1px solid #d4bd91;padding:3mm 2mm;text-align:left;background:#fbf8f1}
+  .pdf-items td{padding:4mm 2mm;border-bottom:1px solid #e3e6e8;vertical-align:top;overflow-wrap:anywhere;line-height:1.5}.pdf-items tr{break-inside:avoid}.pdf-items tbody tr:nth-child(even){background:#fafbfc}
+  .pdf-items .pdf-numeric{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:9pt}.pdf-items .pdf-line-total{font-weight:700}
+  .pdf-settlement{display:grid;grid-template-columns:minmax(0,1fr) 66mm;gap:9mm;break-inside:avoid;margin-top:1mm}
+  .pdf-conditions h2{font-size:10pt;margin:0 0 3mm}.pdf-conditions dl{margin:0;display:grid;gap:3mm}.pdf-conditions dt{font-size:7.5pt;color:#8b744f}.pdf-conditions dd{font-size:9pt;margin:.7mm 0 0;color:#526578;overflow-wrap:anywhere}
+  .pdf-totals{align-self:start;border:1px solid #d4bd91;border-radius:3mm;padding:4mm 5mm;background:#fbf8f0}
+  .pdf-totals>div{display:flex;justify-content:space-between;align-items:baseline;gap:3mm;margin-bottom:2.5mm;font-size:9pt}.pdf-totals strong{white-space:nowrap;font-variant-numeric:tabular-nums}.pdf-discount{color:#667654}
+  .pdf-totals .pdf-grand-total{display:block;margin:3.5mm 0 0;padding-top:3.5mm;border-top:1px solid #d8c59d}.pdf-grand-total span{display:block;text-transform:uppercase;font-size:7.5pt;letter-spacing:.06em;color:#806331}.pdf-grand-total strong{display:block;font-size:23pt;line-height:1.2;letter-spacing:-.04em;margin:1.5mm 0}
+  .pdf-totals p{font-size:7.5pt;line-height:1.45;color:#79848c;margin:2mm 0 0}
+  .pdf-closing{margin:9mm 0 7mm;break-inside:avoid}.pdf-closing p{font:normal 12pt/1.5 Georgia,'Times New Roman',serif;color:#8a6b36}.pdf-closing span{font-size:8.5pt;color:#71818d}
+  .pdf-document-footer{display:flex!important;justify-content:flex-start;align-items:baseline;gap:2mm;flex-wrap:wrap;text-align:left;border-top:1px solid #d9c9ac;padding:4mm 0 0;margin:0;break-inside:avoid;color:#7c8790;font-size:7.5pt}.pdf-document-footer strong{color:#183550;font-size:8pt}.pdf-document-footer>div{margin-left:auto;display:flex;gap:2mm;align-items:center}.pdf-document-footer i{font-style:normal;color:#c6a76e}
+}
