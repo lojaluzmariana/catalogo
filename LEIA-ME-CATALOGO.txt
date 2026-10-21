@@ -1,7 +1,0 @@
-ATUALIZAÇÃO — FOTOS VERTICAIS NO CATÁLOGO
-
-Substitua index.html e catalogo.css na raiz do site pelos arquivos deste pacote.
-
-A área da foto agora tem proporção vertical 3:4, correspondente ao padrão das fotos do catálogo. As setas ficam abaixo da foto, sem reduzir sua altura. A imagem é exibida inteira, sem distorção ou corte. Arquivos em outras proporções podem manter pequenas margens para preservar seu conteúdo.
-
-Os cartões continuam com altura padronizada e os botões alinhados na base. As correções do carrinho, o painel administrativo, a calculadora e a configuração de manutenção foram preservados.
