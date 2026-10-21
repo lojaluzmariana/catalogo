@@ -304,12 +304,30 @@ function quoteTotals(){
   return {subtotalPix:pixCents/100,subtotalCredit:creditCents/100,subtotal:selected/100,discount:(credit?creditDiscount:pixDiscount)/100,pix:(pixCents-pixDiscount)/100,credit:(creditCents-creditDiscount)/100,total:(selected-(credit?creditDiscount:pixDiscount))/100};
 }
 function validFinanceRule(r){return r&&Number.isFinite(r.ownerPercent)&&r.ownerPercent>=0&&r.ownerPercent<=100&&Number.isFinite(r.cardRate)&&r.cardRate>=0&&r.cardRate<=1&&Number.isFinite(r.essentialsCost)&&r.essentialsCost>=0&&/^\d{4}-\d{2}$/.test(r.month);}
+function loadProfitSplitSettings() {
+  const defaults = { ownerPercent: 70 };
+  // A nova divisão foi escolhida pela loja: atualiza a configuração antiga
+  // uma única vez, compartilhando a marca de migração com a calculadora.
+  const migrationKey = 'luz-mariana-profit-split-70-30-v2';
+  try {
+    if (localStorage.getItem(migrationKey) !== '1') {
+      localStorage.setItem('luz-mariana-profit-split-settings-v1', JSON.stringify(defaults));
+      localStorage.setItem(migrationKey, '1');
+      return defaults;
+    }
+    const saved = JSON.parse(localStorage.getItem('luz-mariana-profit-split-settings-v1') || 'null');
+    const value = Number(saved?.ownerPercent ?? defaults.ownerPercent);
+    return { ownerPercent: Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : defaults.ownerPercent };
+  } catch (_err) {
+    return defaults;
+  }
+}
+
 function currentFinanceRule(){
   const month=($('quoteDate').value||dayISO()).slice(0,7);
-  if(validFinanceRule(quoteFinanceRule)&&quoteFinanceRule.month===month)return quoteFinanceRule;
-  let ownerPercent=30;
-  try{const saved=JSON.parse(localStorage.getItem('luz-mariana-profit-split-settings-v1')||'null');const value=Number(saved?.ownerPercent??30);if(Number.isFinite(value))ownerPercent=Math.max(0,Math.min(100,value));}catch{}
-  if(month==='2026-09')ownerPercent=0;
+  const ownerPercent=month==='2026-09'?0:loadProfitSplitSettings().ownerPercent;
+  // Os custos/taxas salvos continuam preservados; a renda segue a divisão atual.
+  if(validFinanceRule(quoteFinanceRule)&&quoteFinanceRule.month===month)return {...quoteFinanceRule,ownerPercent};
   if(materialsError)return null;
   const essentials=materialsRows.filter(m=>m.active&&['essencial','essenciais'].includes(String(m.type||'').trim().toLowerCase())&&Number(m.qty_per_order)>0);
   if(essentials.some(m=>m.unit_cost==null||!Number.isFinite(Number(m.unit_cost))||Number(m.unit_cost)<0))return null;
@@ -327,7 +345,7 @@ function updateQuoteFinance(t){
   const finance=quoteFinance(t),rule=currentFinanceRule();
   for(const [id,key] of [['quoteCost','cost'],['quoteFee','fee'],['quoteProfit','profit'],['quoteSalary','ownerShare'],['quoteReinvest','reinvestment']])$(id).textContent=finance?money(finance[key]):'—';
   $('quoteOwnerPercent').textContent=rule?'('+rule.ownerPercent.toLocaleString('pt-BR')+'%)':'';
-  const text=!quoteItems.length?'Adicione os itens para estimar a reserva.':!t?'Confira os itens e o desconto.':!finance?materialsError||'Informe o custo de todas as peças para calcular a reserva com segurança.':finance.profit<0?'O valor após desconto não cobre os custos e taxas. Não há lucro para salário.':rule.month==='2026-09'?'Setembro/2026: 100% do lucro para reinvestimento, conforme o painel.':`Regra do painel: ${rule.ownerPercent}% do lucro para salário e ${100-rule.ownerPercent}% para reinvestir. Custos incluem os materiais essenciais por pedido.`;
+  const text=!quoteItems.length?'Adicione os itens para estimar a reserva.':!t?'Confira os itens e o desconto.':!finance?materialsError||'Informe o custo de todas as peças para calcular a reserva com segurança.':finance.profit<0?'O valor após desconto não cobre os custos e taxas. Não há lucro para retirada.':rule.month==='2026-09'?'Setembro/2026: 100% do lucro para reinvestimento, conforme o painel.':`Regra do painel: ${rule.ownerPercent}% do lucro para a renda de vocês e ${100-rule.ownerPercent}% para a reserva da loja. Custos incluem os materiais essenciais por pedido.`;
   $('quoteFinanceStatus').textContent=text;$('quoteFinanceStatus').classList.toggle('error',!!quoteItems.length&&(!finance||finance.profit<0));
 }
 function updateQuoteLineTotals(){const credit=$('quotePayment').value==='credito';quoteItems.forEach((i,index)=>{const q=Number(i.quantity),price=credit?i.unitCredit:i.unitPix,ok=Number.isSafeInteger(q)&&q>0&&q<=100000&&validPrice(price);const total=$('quote-line-'+index);if(total)total.textContent=ok?money(Math.round(price*100)*q/100):'Confira os valores';const warn=$('quote-warning-'+index);if(warn){const low=ok&&i.cost!=null&&Number(price)<Number(i.cost);warn.hidden=!low;warn.textContent=low?'Atenção: este preço está abaixo do custo cadastrado.':'';}});}
