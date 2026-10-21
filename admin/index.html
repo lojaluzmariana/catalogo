@@ -11971,12 +11971,12 @@ function orderCost(order) {
 
 // Setembro/2026 é o mês de implantação da operação: por decisão da loja,
 // 100% do lucro fica na Luz Mariana para reinvestimento em equipamentos,
-// ferramentas, estoque e estrutura. A divisão padrão (hoje 70% loja / 30%
+// ferramentas, estoque e estrutura. A divisão padrão (hoje 30% loja / 70%
 // proprietário) só passa a valer a partir de outubro/2026.
 const STARTUP_FULL_REINVESTMENT_MONTH = "2026-09";
 function profitSplitForMonth(month) {
   const configured = caixaState?.reserveSettings || loadProfitSplitSettings();
-  const configuredOwnerPercent = Math.max(0, Math.min(100, Number(configured.ownerPercent ?? 30)));
+  const configuredOwnerPercent = Math.max(0, Math.min(100, Number(configured.ownerPercent ?? 70)));
   const normalizedMonth = /^\d{4}-\d{2}$/.test(String(month || "")) ? String(month) : todayISO().slice(0,7);
   const startupReinvestment = normalizedMonth === STARTUP_FULL_REINVESTMENT_MONTH;
   const ownerPercent = startupReinvestment ? 0 : configuredOwnerPercent;
@@ -14973,13 +14973,19 @@ async function loadCashEntries() {
 const PROFIT_SPLIT_SETTINGS_KEY = "luz-mariana-profit-split-settings-v1";
 
 function loadProfitSplitSettings() {
-  const defaults = { ownerPercent: 30 };
+  const defaults = { ownerPercent: 70 };
+  // A nova divisão foi escolhida pela loja: atualiza a configuração antiga
+  // uma única vez, compartilhando a marca de migração com a calculadora.
+  const migrationKey = 'luz-mariana-profit-split-70-30-v2';
   try {
-    const saved = JSON.parse(localStorage.getItem(PROFIT_SPLIT_SETTINGS_KEY) || "null");
-    if (!saved || typeof saved !== "object") return defaults;
-    return {
-      ownerPercent: Math.max(0, Math.min(100, Number(saved.ownerPercent ?? defaults.ownerPercent))),
-    };
+    if (localStorage.getItem(migrationKey) !== '1') {
+      localStorage.setItem('luz-mariana-profit-split-settings-v1', JSON.stringify(defaults));
+      localStorage.setItem(migrationKey, '1');
+      return defaults;
+    }
+    const saved = JSON.parse(localStorage.getItem('luz-mariana-profit-split-settings-v1') || 'null');
+    const value = Number(saved?.ownerPercent ?? defaults.ownerPercent);
+    return { ownerPercent: Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : defaults.ownerPercent };
   } catch (_err) {
     return defaults;
   }
@@ -18576,7 +18582,7 @@ function renderCaixa(container) {
         ${caixaState.reserveOpen && !reservePlan.settings.startupReinvestment ? `
           <div class="mt-4 rounded-xl border border-gold-300 bg-gold-50 p-4">
             <h3 class="text-sm font-semibold text-navy-900">Divisão do lucro</h3>
-            <p class="mt-1 text-xs text-navy-500">A sugestão inicial é <b>30% do lucro disponível para sua retirada</b> e <b>70% para reinvestimento</b>. Antes dessa divisão, o custo e os compromissos da loja são preservados/deduzidos.</p>
+            <p class="mt-1 text-xs text-navy-500">A sugestão inicial é <b>70% do lucro disponível para a renda de vocês</b> e <b>30% para a reserva da loja</b>. Antes dessa divisão, o custo e os compromissos da loja são preservados/deduzidos.</p>
 
             <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label>
@@ -18593,7 +18599,7 @@ function renderCaixa(container) {
 
             <div class="mt-3 flex flex-wrap gap-2">
               <button id="cash-reserve-save-settings" type="button" class="rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white hover:bg-navy-800">Salvar divisão</button>
-              <button id="cash-reserve-reset-settings" type="button" class="rounded-lg border border-navy-200 bg-white px-4 py-2 text-sm font-semibold text-navy-700 hover:bg-navy-50">Voltar para 30% / 70%</button>
+              <button id="cash-reserve-reset-settings" type="button" class="rounded-lg border border-navy-200 bg-white px-4 py-2 text-sm font-semibold text-navy-700 hover:bg-navy-50">Voltar para 70% / 30%</button>
             </div>
           </div>
         ` : ""}
@@ -18775,7 +18781,7 @@ function renderCaixa(container) {
   if (reserveSaveBtn) {
     reserveSaveBtn.addEventListener("click", () => {
       const ownerRaw = Number(document.getElementById("cash-owner-percent")?.value ?? 30);
-      const ownerPercent = Math.max(0, Math.min(100, Number.isFinite(ownerRaw) ? ownerRaw : 30));
+      const ownerPercent = Math.max(0, Math.min(100, Number.isFinite(ownerRaw) ? ownerRaw : 70));
       caixaState.reserveSettings = { ownerPercent };
       saveProfitSplitSettings(caixaState.reserveSettings);
       renderCaixa(container);
@@ -18785,7 +18791,7 @@ function renderCaixa(container) {
   const reserveResetBtn = document.getElementById("cash-reserve-reset-settings");
   if (reserveResetBtn) {
     reserveResetBtn.addEventListener("click", () => {
-      caixaState.reserveSettings = { ownerPercent: 30 };
+      caixaState.reserveSettings = { ownerPercent: 70 };
       saveProfitSplitSettings(caixaState.reserveSettings);
       renderCaixa(container);
     });
