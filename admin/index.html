@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Luz Mariana — Painel</title>
-<meta name="luz-mariana-admin-version" content="professional-v11.8-delete-product-2026-10-01" />
+<meta name="luz-mariana-admin-version" content="professional-v11.9-calculadora-fluxo-2026-10-22" />
 <meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
 <link rel="icon" type="image/png" href="../favicon.png" />
 <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
@@ -3531,6 +3531,13 @@ async function finishAppEntry() {
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
   await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCampaigns(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews(), loadCatalogEvents(), loadV11OpsData()]);
+  const entryParams=new URLSearchParams(location.search);
+  if(!window.__calculatorEntryHandled){
+    const order=state.orders.find(o=>String(o.id)===entryParams.get('pedido'));
+    const product=state.products.find(p=>String(p.id)===entryParams.get('produto'));
+    if(order){state.tab='pedidos';pedidosState.tab=order.status;pedidosState.expandedId=order.id;window.__calculatorEntryHandled=true;}
+    else if(product){state.tab='precificacao';precifState.formOpen=true;precifState.editingId=product.id;window.__calculatorEntryHandled=true;}
+  }
   state.lastRefreshedAt = new Date();
 }
 
@@ -11912,6 +11919,8 @@ function orderCost(order) {
   let isMaterialsApprox = false;
 
   const productCost = (order.items ?? []).reduce((sum, it) => {
+    const snapshot=orderAdminMeta(order).calculatorCosts?.[String(it.id)];
+    if(snapshot!=null&&Number.isFinite(Number(snapshot)))return sum+Number(snapshot)*it.quantity;
     const product = state.products.find((p) => p.id === it.product_id);
     if (!product) { isProductApprox = true; return sum; }
     const variant = it.variant_id ? (product.product_variants ?? []).find((v) => v.id === it.variant_id) : variantByName(product, it.variant_name);
@@ -17280,7 +17289,7 @@ function renderOrcamentos(container) {
 
         <div class="orc-no-print mt-6 flex flex-wrap gap-2">
           <button id="orc-save-btn" type="button" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">${editingRow ? "Salvar alterações" : "Gerar e salvar orçamento"}</button>
-          ${editingRow ? `<button id="orc-launch-order-btn" type="button" class="rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">🧾 Lançar pedido (venda manual)</button>` : ""}
+          ${editingRow ? `<button id="orc-launch-order-btn" type="button" class="rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">${editingRow.calculadora_pedido_id?'Abrir pedido aprovado':'Aprovar e enviar para produção'}</button>` : ""}
           <button id="orc-new-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-4 py-3 text-sm font-medium text-navy-700 transition hover:bg-navy-50">Novo</button>
           <button id="orc-print-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-4 py-3 text-sm font-medium text-navy-700 transition hover:bg-navy-50">Imprimir</button>
         </div>
@@ -18014,44 +18023,21 @@ function montarItemVendaManualDoOrcamento(item, pagamento) {
   };
 }
 
-function lancarPedidoDoOrcamentoAberto() {
-  const row = orcamentoState.editingId
-    ? state.orcamentos.find((o) => String(o.id) === String(orcamentoState.editingId))
-    : null;
-  if (!row) {
-    alert("Abra um orçamento salvo antes de lançar o pedido.");
-    return;
-  }
-
-  // Usa os valores que estão na tela neste momento. Assim, se a pessoa
-  // fez um pequeno ajuste antes de lançar, a Venda manual abre igual ao
-  // que ela está vendo. Salvar o orçamento continua sendo uma ação
-  // separada — este botão não altera o orçamento automaticamente.
-  const d = obterDadosOrcamento();
-  if (!d.nome) { alert("Informe o nome do cliente antes de lançar o pedido."); return; }
-  if (!d.itens.length) { alert("O orçamento precisa ter pelo menos um item."); return; }
-
-  const phoneKey = orcTelefoneChave(d.telefone);
-  const customer = state.customers.find((c) => phoneKey && orcTelefoneChave(c.whatsapp) === phoneKey)
-    || state.customers.find((c) => orcNormalizarBusca(c.name) === orcNormalizarBusca(d.nome));
-
-  vendaManualState = newVendaManualState({
-    open: true, mode: "full",
-    items: d.itens.map((it) => montarItemVendaManualDoOrcamento(it, d.pagamento)),
-    customerName: d.nome,
-    customerWhatsapp: d.telefone || customer?.whatsapp || "",
-    customerInstagram: customer?.instagram || "",
-    notes: `Originado do orçamento nº ${orcNumeroFormatado(row.numero)}.`,
-    payment: d.pagamento === "credito" ? "credito" : "pix",
-    installments: d.pagamento === "credito" ? 3 : 1,
-    sourceOrcamentoId: row.id,
-    sourceOrcamentoNumero: row.numero,
-  });
-
-  // A Venda manual já vive na área Caixa. Mudamos para essa aba e o
-  // próprio renderCaixa abre o overlay preenchido acima.
-  state.tab = "caixa";
-  renderApp();
+let calculatorPanelApprovalBusy=false;
+async function lancarPedidoDoOrcamentoAberto() {
+  if(calculatorPanelApprovalBusy)return;
+  const row=state.orcamentos.find(o=>String(o.id)===String(orcamentoState.editingId));
+  if(!row){alert('Salve o orçamento antes de aprovar.');return;}
+  if(!row.calculadora_pedido_id&&!confirm('Aprovar os dados SALVOS deste orçamento e criar o pedido para produção? Se alterou preços ou itens, salve antes de continuar. O pagamento ficará pendente.'))return;
+  calculatorPanelApprovalBusy=true;
+  try{
+    const result=row.calculadora_pedido_id?{data:{order_id:row.calculadora_pedido_id}}:await supabaseClient.rpc('calculadora_aprovar_orcamento',{p_orcamento:row.id,p_entrega:row.previsao_entrega||null});
+    if(result.error)throw result.error;
+    await Promise.all([loadOrders(),loadOrcamentos()]);
+    const order=state.orders.find(o=>String(o.id)===String(result.data.order_id));
+    state.tab='pedidos';pedidosState.tab=order?.status||'em_andamento';pedidosState.expandedId=result.data.order_id;renderApp();
+  }catch(error){alert('Não foi possível aprovar: '+(/schema cache|does not exist|PGRST202/i.test(error.message||'')?'Instale o arquivo Instalar_Fluxo_Integrado.sql no Supabase.':error.message||'Confira sua conexão.'));}
+  finally{calculatorPanelApprovalBusy=false;}
 }
 
 function copiarTextoOrcamento(texto) {
