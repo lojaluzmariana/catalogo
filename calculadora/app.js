@@ -110,7 +110,7 @@ function update(){
   for(const id of resultIds)$(id+'Result').textContent=!problems.length?money(r[id]):'—';
   $('exportExcel').disabled=!!problems.length;$('copyExcel').disabled=!!problems.length;$('excelText').value=problems.length?'':excelText($('project').value,values,r);$('copyStatus').textContent='';
   currentRecord=problems.length?null:historyRecord(values,r,$('project').value);$('saveHistory').disabled=!currentRecord;$('saveStatus').textContent=editingId?$('saveStatus').textContent:'';
-  $('addCurrentQuote').disabled=!currentRecord;$('unitProfitResult').textContent=currentRecord?money(r.unitPrice-r.unitCost):'—';
+  $('approveCalculation').disabled=!currentRecord;$('addCurrentQuote').disabled=!currentRecord;$('unitProfitResult').textContent=currentRecord?money(r.unitPrice-r.unitCost):'—';
   const status=$('status');status.classList.toggle('complete',!problems.length);status.textContent=problems.length?problems.slice(0,3).join(' ')+(problems.length>3?` Faltam mais ${problems.length-3} ajustes.`:''):'Cálculo atualizado. O preço inclui todos os custos acima e o lucro definido.';
 }
 
@@ -351,11 +351,11 @@ function updateQuoteFinance(t){
 }
 function updateQuoteLineTotals(){const credit=$('quotePayment').value==='credito';quoteItems.forEach((i,index)=>{const q=Number(i.quantity),price=credit?i.unitCredit:i.unitPix,ok=Number.isSafeInteger(q)&&q>0&&q<=100000&&validPrice(price);const total=$('quote-line-'+index);if(total)total.textContent=ok?money(Math.round(price*100)*q/100):'Confira os valores';const warn=$('quote-warning-'+index);if(warn){const low=ok&&i.cost!=null&&Number(price)<Number(i.cost);warn.hidden=!low;warn.textContent=low?'Atenção: este preço está abaixo do custo cadastrado.':'';}});}
 function buildQuoteText(){const f=quoteFields(),t=quoteTotals();const credit=f.payment==='credito',brand=f.brand==='iluminart'?'ILUMINART':'LUZ MARIANA';const title=quoteNumber?`ORÇAMENTO Nº ${String(quoteNumber).padStart(3,'0')}`:'ORÇAMENTO · PRÉVIA';return `*${brand} — ${title}*\n\nCliente: ${f.name||'A informar'}${f.phone?'\nTelefone: '+f.phone:''}\nData: ${dateBR(f.date)}\nValidade: ${dateBR(f.validity)}\n\n${quoteItems.map(i=>{const unit=credit?i.unitCredit:i.unitPix,q=Number(i.quantity);return `• ${i.name}\n  ${i.quantity} un. × ${money(unit)} = ${Number.isSafeInteger(q)&&q>0&&validPrice(unit)?money(Math.round(unit*100)*q/100):'Confira os valores'}`;}).join('\n\n')||'Adicione os itens ao orçamento.'}\n\n${t&&t.discount>0?`Subtotal: ${money(t.subtotal)}\nDesconto${f.discountType==='percent'?' ('+readQuoteNumber(f.discountValue)+'%)':''}: −${money(t.discount)}\n`:''}*Total: ${t?money(t.total):'Confira os valores'}*\nPagamento: ${credit?'Cartão de crédito em até 3x':'Pix / dinheiro'}\nPrazo: ${f.lead||'0'} dia(s) útil(eis) após confirmação do pedido.\nEntrega / frete: a combinar.\n\n${f.brand==='iluminart'?'Iluminart — Onde a criatividade ganha forma.':'Luz Mariana — Artigos Religiosos e Devoção'}`;}
-function updateQuoteSummary(persist=true){const t=quoteTotals();$('quoteDiscountLabel').textContent=$('quoteDiscountType').value==='fixed'?'Desconto (R$)':'Desconto (%)';$('quoteSubtotal').textContent=t?money(t.subtotal):'—';$('quoteDiscountAmount').textContent=t?'− '+money(t.discount):'—';$('quoteDiscountError').textContent=t?'':'Confira quantidades, preços e desconto. Use de 0 a 100% ou um valor em reais que não ultrapasse o subtotal.';updateQuoteFinance(t);$('quoteTotal').textContent=t?money(t.total):'Confira os itens';$('quotePaymentLabel').textContent=$('quotePayment').value==='credito'?'Cartão de crédito em até 3x':'Pix / dinheiro';$('quoteNumber').textContent=quoteNumber?`Orçamento Nº ${String(quoteNumber).padStart(3,'0')}${quoteDirty?' · alterações não salvas':' · salvo'}`:'Rascunho · ainda não salvo';quoteMessage=buildQuoteText();$('quotePreview').textContent=quoteMessage;updateQuoteLineTotals();const disabled=!t||!quoteItems.length||quoteSaving;for(const id of ['copyQuote','printQuote','saveQuote'])$(id).disabled=disabled;$('saveQuote').textContent=quoteSaving?'Salvando…':quoteId?'Salvar alterações':'Salvar orçamento';if(persist)persistQuote();}
+function updateQuoteSummary(persist=true){const t=quoteTotals();$('quoteDiscountLabel').textContent=$('quoteDiscountType').value==='fixed'?'Desconto (R$)':'Desconto (%)';$('quoteSubtotal').textContent=t?money(t.subtotal):'—';$('quoteDiscountAmount').textContent=t?'− '+money(t.discount):'—';$('quoteDiscountError').textContent=t?'':'Confira quantidades, preços e desconto. Use de 0 a 100% ou um valor em reais que não ultrapasse o subtotal.';updateQuoteFinance(t);$('quoteTotal').textContent=t?money(t.total):'Confira os itens';$('quotePaymentLabel').textContent=$('quotePayment').value==='credito'?'Cartão de crédito em até 3x':'Pix / dinheiro';$('quoteNumber').textContent=quoteNumber?`Orçamento Nº ${String(quoteNumber).padStart(3,'0')}${quoteDirty?' · alterações não salvas':' · salvo'}`:'Rascunho · ainda não salvo';quoteMessage=buildQuoteText();$('quotePreview').textContent=quoteMessage;updateQuoteLineTotals();const disabled=!t||!quoteItems.length||quoteSaving;for(const id of ['copyQuote','printQuote','saveQuote','approveQuote'])$(id).disabled=disabled;$('saveQuote').textContent=quoteSaving?'Salvando…':quoteId?'Salvar alterações':'Salvar orçamento';if(persist)persistQuote();}
 function validateQuote(){const f=quoteFields(),t=quoteTotals();if(!currentSession)throw Error('Entre com o acesso do painel para salvar o orçamento.');if(!f.name)throw Error('Informe o nome do cliente.');if(!quoteItems.length||!t)throw Error('Adicione itens e confira quantidades, preços e desconto.');if(!f.date||!f.validity||f.validity<f.date)throw Error('Confira a data e a validade do orçamento.');if(!Number.isInteger(Number(f.lead))||Number(f.lead)<0||Number(f.lead)>365)throw Error('O prazo deve ter de 0 a 365 dias úteis.');return {f,t};}
 function quotePayload(f,t){const finance=quoteFinance(t),rule=currentFinanceRule();return{cliente_nome:f.name,telefone:f.phone||null,data_orcamento:f.date,validade_orcamento:f.validity,prazo_dias:Number(f.lead),previsao_entrega:null,pagamento:f.payment,itens:quoteItems.map(i=>{const q=Number(i.quantity),p=round2(i.unitPix),c=round2(i.unitCredit);return{pedido:i.name,quantidade:q,unitario:p,unitarioPix:p,unitarioCredito:c,totalPix:round2(p*q),totalCredito:round2(c*q),total:round2((f.payment==='credito'?c:p)*q),source:i.origin==='catalogo'?'catalogo':'manual',productId:i.productId||null,variantId:i.variantId||null,calculatorHistoryId:i.historyId||null,calculatorSource:i.origin,calculatorBrand:f.brand,calculatorUnitCost:i.cost==null?null:Number(i.cost),calculatorQuoteSettings:{version:1,discountType:f.discountType,discountValue:String(f.discountValue),financeRule:rule,finance:finance?{cost:finance.cost,fee:finance.fee,profit:finance.profit,salary:finance.ownerShare,reinvestment:finance.reinvestment,storeKeep:finance.storeKeep}:null}};}),subtotal:t.subtotalPix,total_pix:t.pix,total_credito:t.credit,total_final:t.total,acrescimo:round2(t.credit-t.pix),texto_gerado:buildQuoteText()};}
-async function saveQuote(){if(quoteSaving)return;let d;try{d=validateQuote();}catch(e){$('quoteStatus').textContent=e.message;$('quoteStatus').className='error';return;}const epoch=sessionEpoch;quoteSaving=true;updateQuoteSummary(false);const controls=[...$('panel-orcamento').querySelectorAll('input,select,button')];const previous=controls.map(c=>c.disabled);controls.forEach(c=>c.disabled=true);$('quoteStatus').textContent='Salvando orçamento…';$('quoteStatus').className='';try{const payload=quotePayload(d.f,d.t);const query=quoteId?supabaseClient.from('orcamentos').update(payload).eq('id',quoteId):supabaseClient.from('orcamentos').insert({...payload,criado_por:currentSession.user.id});const {data,error}=await query.select('*').single();if(error)throw error;if(epoch!==sessionEpoch)return;quoteId=data.id;quoteNumber=data.numero;quoteDirty=false;updateQuoteSummary();let textWarning='';const {error:textError}=await supabaseClient.from('orcamentos').update({texto_gerado:buildQuoteText()}).eq('id',quoteId);if(textError)textWarning=' O texto com o número oficial será atualizado ao salvar novamente.';const index=savedQuotes.findIndex(q=>q.id===data.id);const saved={...data,texto_gerado:buildQuoteText()};if(index>=0)savedQuotes[index]=saved;else savedQuotes.unshift(saved);renderSavedQuotes();$('quoteStatus').textContent=`Orçamento Nº ${String(quoteNumber).padStart(3,'0')} salvo. Também está disponível no painel.${textWarning}`;$('quoteStatus').className='success';}catch(e){$('quoteStatus').textContent='Não foi possível salvar: '+(e.message||'Confira sua conexão.');$('quoteStatus').className='error';}finally{quoteSaving=false;controls.forEach((c,i)=>c.disabled=previous[i]);updateQuoteSummary(false);}}
-function renderSavedQuotes(){$('savedQuoteCount').textContent='· '+savedQuotes.length;$('savedQuotes').innerHTML=savedQuotes.map(q=>`<div class="saved-quote"><div><strong>Nº ${esc(String(q.numero||0).padStart(3,'0'))} · ${esc(q.cliente_nome||'Cliente')}</strong><small>${esc(dateBR(q.data_orcamento))} · ${esc(money(q.total_final))}</small></div><button type="button" data-open-quote="${esc(q.id)}">Abrir</button></div>`).join('')||`<p class="hint">${esc(quotesError||'Nenhum orçamento salvo para mostrar.')}</p>`;}
+async function saveQuote(){if(quoteSaving)return;if(savedQuotes.find(q=>q.id===quoteId)?.calculadora_pedido_id){$('quoteStatus').textContent='Este orçamento já virou pedido. Faça os ajustes no painel ou comece outro orçamento.';return;}let d;try{d=validateQuote();}catch(e){$('quoteStatus').textContent=e.message;$('quoteStatus').className='error';return;}const epoch=sessionEpoch;quoteSaving=true;updateQuoteSummary(false);const controls=[...$('panel-orcamento').querySelectorAll('input,select,button')];const previous=controls.map(c=>c.disabled);controls.forEach(c=>c.disabled=true);$('quoteStatus').textContent='Salvando orçamento…';$('quoteStatus').className='';try{const payload=quotePayload(d.f,d.t);const query=quoteId?supabaseClient.from('orcamentos').update(payload).eq('id',quoteId):supabaseClient.from('orcamentos').insert({...payload,criado_por:currentSession.user.id});const {data,error}=await query.select('*').single();if(error)throw error;if(epoch!==sessionEpoch)return;quoteId=data.id;quoteNumber=data.numero;quoteDirty=false;updateQuoteSummary();let textWarning='';const {error:textError}=await supabaseClient.from('orcamentos').update({texto_gerado:buildQuoteText()}).eq('id',quoteId);if(textError)textWarning=' O texto com o número oficial será atualizado ao salvar novamente.';const index=savedQuotes.findIndex(q=>q.id===data.id);const saved={...data,texto_gerado:buildQuoteText()};if(index>=0)savedQuotes[index]=saved;else savedQuotes.unshift(saved);renderSavedQuotes();$('quoteStatus').textContent=`Orçamento Nº ${String(quoteNumber).padStart(3,'0')} salvo. Também está disponível no painel.${textWarning}`;$('quoteStatus').className='success';}catch(e){$('quoteStatus').textContent='Não foi possível salvar: '+(e.message||'Confira sua conexão.');$('quoteStatus').className='error';}finally{quoteSaving=false;controls.forEach((c,i)=>c.disabled=previous[i]);updateQuoteSummary(false);}}
+function renderSavedQuotes(){$('savedQuoteCount').textContent='· '+savedQuotes.length;$('savedQuotes').innerHTML=savedQuotes.map(q=>`<div class="saved-quote"><div><strong>Nº ${esc(String(q.numero||0).padStart(3,'0'))} · ${esc(q.cliente_nome||'Cliente')}</strong><small>${esc(dateBR(q.data_orcamento))} · ${esc(money(q.total_final))}${q.calculadora_pedido_id?' · aprovado para produção':''}</small></div><button type="button" data-open-quote="${esc(q.id)}">Abrir</button></div>`).join('')||`<p class="hint">${esc(quotesError||'Nenhum orçamento salvo para mostrar.')}</p>`;}
 function hasQuoteProgress(){return quoteItems.length>0||!!$('quoteName').value.trim();}
 function openSavedQuote(row){if(!row)return;if(quoteDirty&&hasQuoteProgress()&&!confirm('Abrir este orçamento e substituir o rascunho atual?'))return;resetQuote();quoteId=row.id;quoteNumber=row.numero;const settings=row.itens?.[0]?.calculatorQuoteSettings;$('quoteDiscountType').value=settings?.discountType==='fixed'?'fixed':'percent';$('quoteDiscountValue').value=settings?.discountValue??'0';quoteFinanceRule=validFinanceRule(settings?.financeRule)?settings.financeRule:null;$('quoteName').value=row.cliente_nome||'';$('quotePhone').value=row.telefone||'';$('quoteDate').value=row.data_orcamento||dayISO();$('quoteValidity').value=row.validade_orcamento||datePlus(dayISO(),2);$('quoteLead').value=row.prazo_dias??2;$('quotePayment').value=row.pagamento==='credito'?'credito':'pix';$('quoteBrand').value=row.itens?.[0]?.calculatorBrand||'luzmariana';quoteItems=(Array.isArray(row.itens)?row.itens:[]).map((i,index)=>({key:'saved:'+row.id+':'+index,name:i.pedido||'Item',origin:i.calculatorSource||(i.source==='catalogo'?'catalogo':'manual'),productId:i.productId||null,variantId:i.variantId||null,historyId:i.calculatorHistoryId||null,unitPix:Number(i.unitarioPix??i.unitario??0),unitCredit:Number(i.unitarioCredito??customerCardPriceFromPix(Number(i.unitarioPix??i.unitario??0),3)),quantity:String(i.quantidade??1),cost:i.calculatorUnitCost!=null?Number(i.calculatorUnitCost):sourceItems.find(s=>i.productId?s.productId===i.productId&&String(s.variantId||'')===String(i.variantId||''):i.calculatorHistoryId&&String(s.historyId)===String(i.calculatorHistoryId))?.cost??null}));quoteDirty=false;renderQuoteItems();updateQuoteSummary();switchTab('orcamento');}
 async function loadCatalogAndQuotes(epoch){if(!currentSession)return;const queries=await Promise.allSettled([supabaseClient.from('products').select('*, product_variants(id,name,photo_url,sort_order,cost,promo_manual_price,credit_price,promo_price)').eq('active',true).order('name'),supabaseClient.from('orcamentos').select('*').order('numero',{ascending:false}).limit(100),supabaseClient.from('materials').select('id,type,active,unit_cost,qty_per_order')]);if(epoch!==sessionEpoch)return;const materials=queries[2].status==='fulfilled'?queries[2].value:{error:queries[2].reason};materialsRows=materials.error?[]:materials.data||[];materialsError=materials.error?'Não foi possível carregar os materiais essenciais do painel. Atualize os preços para estimar o salário.':'';const products=queries[0].status==='fulfilled'?queries[0].value:{error:queries[0].reason};const quotes=queries[1].status==='fulfilled'?queries[1].value:{error:queries[1].reason};catalogRows=products.error?[]:products.data||[];catalogError=products.error?'Não foi possível carregar o catálogo. Use “Atualizar preços” para tentar novamente.':'';savedQuotes=quotes.error?[]:quotes.data||[];quotesError=quotes.error?'Não foi possível carregar os orçamentos salvos. Tente atualizar os preços.':'';rebuildSources();renderSavedQuotes();updateQuoteSummary(false);}
@@ -613,6 +613,88 @@ $('downloadThermal').addEventListener('click',()=>{
   link.href=url;link.download=preparedFileName;document.body.appendChild(link);
   link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
 });
+
+// Este trecho é incorporado ao escopo da calculadora no arquivo app.js.
+let approvalMode='product',approvalRecord=null,approvalBusy=false;
+function approvalError(error){
+  const message=error?.message||'Confira a conexão e tente novamente.';
+  return /function.*not find|schema cache|does not exist|PGRST202/i.test(message)?'Instale primeiro o arquivo Instalar_Fluxo_Integrado.sql no Supabase. Depois, atualize a página.':message;
+}
+function openApproval(mode){
+  if(approvalBusy)return;
+  if(!currentSession){$('quoteStatus').textContent='Entre com o acesso do painel para aprovar.';$('saveStatus').textContent='Entre com o acesso do painel para aprovar.';return;}
+  approvalMode=mode;
+  if(mode==='product'){
+    if(!currentRecord)return;
+    approvalRecord=structuredClone(currentRecord);
+    $('approvalName').value=approvalRecord.project==='Sem nome'?'':approvalRecord.project;
+    $('approvalPhoto').value='';$('approvalPublish').checked=false;
+    $('approvalSummary').textContent='Custo por peça: '+money(approvalRecord.results.unitCost)+' · À vista: '+money(approvalRecord.results.unitPrice)+'. O produto ficará disponível no painel.';
+  }else{
+    if(!quoteTotals()||!quoteItems.length)return;
+    $('approvalSummary').textContent=$('quoteName').value.trim()+' · '+quoteItems.length+' item(ns) · Total aprovado: '+money(quoteTotals().total)+'. O pedido entra no fluxo do painel, com pagamento pendente.';
+    $('approvalDeadline').value='';$('approvalDeadline').min=dayISO();
+  }
+  $('approvalProductFields').hidden=mode!=='product';$('approvalOrderFields').hidden=mode!=='order';
+  $('approvalTitle').textContent=mode==='product'?'Aprovar cálculo e cadastrar produto':'Aprovar orçamento para produção';
+  $('approvalConfirm').textContent=mode==='product'?'Aprovar e cadastrar produto':'Aprovar e criar pedido';
+  $('approvalStatus').textContent='';$('approvalResult').hidden=true;$('approvalConfirm').disabled=false;
+  $('approvalDialog').showModal();
+}
+async function approvalPhotoBlob(file){
+  if(!file)return null;
+  if(!/^image\/(jpeg|png|webp)$/.test(file.type)||file.size>10*1024*1024)throw Error('Use uma foto JPG, PNG ou WebP de até 10 MB.');
+  const image=new Image(),url=URL.createObjectURL(file);
+  try{image.src=url;await image.decode();const scale=Math.min(1,1400/Math.max(image.naturalWidth,image.naturalHeight));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);return await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Não foi possível preparar a foto.')),'image/jpeg',.88));}finally{URL.revokeObjectURL(url);}
+}
+async function confirmApproval(){
+  if(approvalBusy)return;
+  if(!currentSession){$('approvalStatus').textContent='Entre novamente para aprovar.';return;}
+  const epoch=sessionEpoch;let uploadedPath=null,committed=false,rpcStarted=false;
+  approvalBusy=true;$('approvalConfirm').disabled=true;$('approvalCancel').disabled=true;
+  $('approvalStatus').textContent='Salvando aprovação…';
+  try{
+    let result;
+    if(approvalMode==='product'){
+      const name=$('approvalName').value.trim();if(!name||name.length>200)throw Error('Informe o nome do produto, com até 200 caracteres.');
+      const record={...approvalRecord,cardFeeRate:cardRateFor('credito',3),unitCredit:customerCardPriceFromPix(round2(approvalRecord.results.unitPrice),3)};
+      const blob=await approvalPhotoBlob($('approvalPhoto').files[0]);let photo=null;
+      if(blob){uploadedPath='calculadora-'+crypto.randomUUID()+'.jpg';const upload=await supabaseClient.storage.from('product-photos').upload(uploadedPath,blob,{contentType:'image/jpeg',upsert:false});if(upload.error)throw upload.error;photo=supabaseClient.storage.from('product-photos').getPublicUrl(uploadedPath).data.publicUrl;}
+      if(epoch!==sessionEpoch)throw Error('Seu acesso mudou. Entre novamente antes de aprovar.');
+      rpcStarted=true;result=await supabaseClient.rpc('calculadora_aprovar_produto',{p_calculo:record,p_nome:name,p_foto:photo,p_publicar:$('approvalPublish').checked});
+      if(result.error)throw result.error;committed=true;
+      if(result.data.existing&&uploadedPath){await supabaseClient.storage.from('product-photos').remove([uploadedPath]);uploadedPath=null;}
+      $('approvalResult').href='../admin/?produto='+encodeURIComponent(result.data.product_id);$('approvalResult').textContent='Abrir produto no painel';
+      $('approvalStatus').textContent=result.data.existing?'Este cálculo já foi aprovado. O produto existente foi mantido.':'Produto cadastrado no painel com os preços do cálculo.';
+    }else{
+      const deadline=$('approvalDeadline').value;
+      if(deadline&&deadline<dayISO())throw Error('Escolha uma entrega a partir de hoje.');
+      if(!quoteId||quoteDirty){await saveQuote();if(!quoteId||quoteDirty)throw Error($('quoteStatus').textContent||'Salve o orçamento antes de aprovar.');}
+      if(epoch!==sessionEpoch)throw Error('Seu acesso mudou. Entre novamente antes de aprovar.');
+      rpcStarted=true;result=await supabaseClient.rpc('calculadora_aprovar_orcamento',{p_orcamento:quoteId,p_entrega:deadline||null});
+      if(result.error)throw result.error;committed=true;
+      const row=savedQuotes.find(q=>q.id===quoteId);if(row)row.calculadora_pedido_id=result.data.order_id;
+      $('approvalResult').href='../admin/?pedido='+encodeURIComponent(result.data.order_id);$('approvalResult').textContent='Abrir pedido no painel';
+      $('approvalStatus').textContent=result.data.existing?'Este orçamento já tem pedido. Nenhum pedido foi duplicado.':'Pedido aprovado. A fabricação própria já está na fila de produção. Registre o pagamento e acompanhe a entrega pelo painel.';
+      renderSavedQuotes();
+    }
+    $('approvalResult').hidden=false;
+    // A aprovação é persistente. Atualização do catálogo é apenas uma leitura posterior.
+    loadCatalogAndQuotes(epoch).catch(()=>{});
+  }catch(error){
+    // Uma falha de rede após iniciar a RPC pode esconder uma aprovação concluída.
+    // Nesse caso, preserva a foto; repetir a aprovação consulta o vínculo existente.
+    if(uploadedPath&&!committed&&!rpcStarted)await supabaseClient.storage.from('product-photos').remove([uploadedPath]).catch(()=>{});
+    $('approvalStatus').textContent='Não foi possível confirmar: '+approvalError(error);
+  }finally{
+    approvalBusy=false;$('approvalConfirm').disabled=committed;$('approvalCancel').disabled=false;updateQuoteSummary(false);
+  }
+}
+$('approveCalculation').addEventListener('click',()=>openApproval('product'));
+$('approveQuote').addEventListener('click',()=>openApproval('order'));
+$('approvalConfirm').addEventListener('click',confirmApproval);
+$('approvalDialog').addEventListener('cancel',event=>{if(approvalBusy)event.preventDefault();});
+$('approvalCancel').addEventListener('click',()=>{if(!approvalBusy)$('approvalDialog').close();});
 
 }
 

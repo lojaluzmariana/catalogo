@@ -1,4 +1,4 @@
-const CACHE='calculadora-integrada-precos-v28-20261021-impressao-corrigida';
+const CACHE='calculadora-integrada-precos-v29-20261022-fluxo-integrado';
 const CORE=['./','./index.html','./app.css','./app.js','./thermal.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./apple-touch-icon.png','./logo-luz-mariana.png','./logo-iluminart.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)).catch(()=>{}));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('calculadora-integrada-')&&k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim();});
