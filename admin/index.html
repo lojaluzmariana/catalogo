@@ -17149,6 +17149,7 @@ function orcRowToData(row) {
   return {
     id: row.id,
     numero: orcNumeroFormatado(row.numero),
+    observacoes: row.itens?.[0]?.calculatorQuoteSettings?.observations || "",
     nome: row.cliente_nome || "",
     telefone: row.telefone || "",
     dataOrcamento: row.data_orcamento || todayISO(),
@@ -17264,6 +17265,7 @@ function renderOrcamentos(container) {
           </label>
         </div>
 
+        <label class="mt-6 block"><span class="mb-1.5 block text-sm font-medium text-navy-800">Observações do orçamento (opcional)</span><textarea id="orc-observacoes" maxlength="2000" rows="4" class="w-full rounded-lg border border-navy-100 px-4 py-3" placeholder="Cor, modelo e detalhes combinados">${escapeHtml(d.observacoes || '')}</textarea></label>
         <div class="mt-6">
           <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide text-navy-700">Itens do pedido</h2>
           <p class="mb-3 text-xs text-navy-500">Comece a digitar para buscar um produto cadastrado. Ao selecionar, o preço Pix e o preço de crédito do cadastro são usados automaticamente. Se não for um produto cadastrado, continue escrevendo normalmente e informe o valor manualmente.</p>
@@ -17847,6 +17849,7 @@ function obterDadosOrcamento() {
     dataOrcamento: document.getElementById("orc-data").value,
     validadeOrcamento: document.getElementById("orc-validade").value,
     prazoDias: orcNumero(document.getElementById("orc-prazo").value),
+    observacoes: document.getElementById("orc-observacoes").value.trim(),
     previsaoEntrega: document.getElementById("orc-previsao").value,
     pagamento,
     itens,
@@ -17873,6 +17876,7 @@ function gerarTextoOrcamento(d) {
     `*Cliente:* ${d.nome || "—"}\n` +
     `*Telefone:* ${d.telefone || "N/A"}\n\n` +
     `*Detalhamento do pedido:*\n${itens || "—"}\n` +
+    (d.observacoes ? `\n*Observações:*\n${d.observacoes}\n\n` : "") +
     `------------------------------\n` +
     `Subtotal: ${formatBRL(d.total)}${valorUnitario}\n` +
     `*Valor total: ${formatBRL(d.total)}*\n` +
@@ -17894,7 +17898,7 @@ function payloadOrcamento(d) {
     prazo_dias: Number(d.prazoDias || 0),
     previsao_entrega: d.previsaoEntrega || null,
     pagamento: d.pagamento,
-    itens: d.itens,
+    itens: d.itens.map(item=>({...item,calculatorQuoteSettings:{...(item.calculatorQuoteSettings||{}),observations:d.observacoes||''}})),
     subtotal: round2(d.subtotal),
     total_pix: round2(d.totalPix),
     total_credito: round2(d.totalCredito),
