@@ -6,7 +6,7 @@
 <style>html.lm-maintenance-pending body{visibility:hidden}</style>
 <script src="manutencao.js?v=1"></script>
   <meta name="luz-mariana-catalog-version" content="professional-v10.4-variant-pricing-2026-10-01" />
-<title>Luz Mariana — Catálogo</title>
+<title>Iluminart — Sua compra</title>
 <meta name="description" content="Catálogo de artigos religiosos — Luz Mariana" />
 <link rel="canonical" href="https://lojaluzmariana.com.br/catalogo.html" />
 <link rel="icon" type="image/png" href="favicon.png" />
@@ -1054,7 +1054,7 @@ function syncProductUrl(productId, push = true) {
 }
 
 function updateDynamicShareMeta(product = null, variant = null) {
-  const baseTitle = "Luz Mariana - Loja Virtual";
+  const baseTitle = "Iluminart — Sua compra";
   const baseDescription = "Catálogo de artigos religiosos — Luz Mariana";
   const fallbackImage = `${SITE_BASE_URL}og-image.jpg`;
 
@@ -1392,6 +1392,10 @@ async function loadCatalog() {
   const currentUrl = new URL(window.location.href);
   if(currentUrl.hash==="#acompanhar") state.screen="track";
   if(currentUrl.hash==="#carrinho") state.cartOpen=true;
+  if(currentUrl.hash==="#finalizar" && cartCount()>0){
+    try{const saved=JSON.parse(sessionStorage.getItem("iluminart_checkout_draft_v1")||"null");if(saved&&Date.now()-Number(saved.savedAt)<86400000&&saved.draft&&typeof saved.draft==="object"){for(const key of Object.keys(state.checkoutDraft)){if(typeof saved.draft[key]===typeof state.checkoutDraft[key])state.checkoutDraft[key]=typeof saved.draft[key]==="string"?saved.draft[key].slice(0,5000):saved.draft[key];}if(["pickup","delivery"].includes(saved.shippingMethod))state.shippingMethod=saved.shippingMethod;if(["pix","credito"].includes(saved.payment))state.payment=saved.payment;}}catch{}
+    state.screen="checkout";
+  }
   const directProductValue = currentUrl.searchParams.get("produto");
   const directVariantValue = currentUrl.searchParams.get("modelo");
   const directProduct = findProductByUrlValue(directProductValue);
@@ -2034,6 +2038,9 @@ function cartCount() {
   return Object.values(state.cart).reduce((sum, q) => sum + q, 0);
 }
 
+function storefrontItemNotes(){
+ try{const map=JSON.parse(localStorage.getItem("iluminart_cart_notes_v1")||"{}");if(!map||typeof map!=="object"||Array.isArray(map))return "";return cartItems().filter(i=>typeof map[i.key]==="string"&&map[i.key].trim()).map(i=>`${i.quantity} × ${i.product.name}${i.variant?.name?" · "+i.variant.name:""}: ${map[i.key].slice(0,500)}`).join("\n");}catch{return "";}
+}
 function cartTotal() {
   return cartItems().reduce((sum, it) => sum + priceFor(it.product, it.variant) * it.quantity, 0);
 }
@@ -2735,8 +2742,8 @@ function setupHeroCarousel() {
 
 function renderHeader() {
   const count=cartCount();
-  return `<div style="background:#102d4b;color:white;padding:10px 20px;font:13px Arial;text-align:center"><a href="./" style="color:inherit">← Iluminart · página principal</a><span aria-hidden="true"> &nbsp; | &nbsp; </span><a href="./#loja/luz-mariana" style="color:inherit">Seção Luz Mariana</a></div><div class="lm-brand-ribbon"><span>Fé, família e devoção</span><span class="lm-ribbon-separator" aria-hidden="true">·</span><span>Presentes com significado</span></div><header class="lm-shop-header"><div class="lm-container lm-header-inner">
-    <button type="button" class="lm-brand" data-go-home aria-label="Luz Mariana — página inicial"><img src="logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" width="230" height="84"></button>
+  return `<div style="background:#102d4b;color:white;padding:10px 20px;font:13px Arial;text-align:center"><a href="./" style="color:inherit">← Continuar comprando na Iluminart</a><span aria-hidden="true"> &nbsp; | &nbsp; </span><a href="./#loja/luz-mariana" style="color:inherit">Seção Luz Mariana</a></div><div class="lm-brand-ribbon"><span>Feito com criatividade e cuidado</span><span class="lm-ribbon-separator" aria-hidden="true">·</span><span>Presentes com significado</span></div><header class="lm-shop-header"><div class="lm-container lm-header-inner">
+    <button type="button" class="lm-brand" data-go-home aria-label="Voltar aos produtos"><img src="calculadora/logo-iluminart.png" alt="Iluminart RN" width="230" height="84"></button>
     <div class="lm-header-actions"><button type="button" class="lm-header-contact" data-header-whatsapp>Fale conosco</button>
       <button type="button" class="lm-cart-trigger" data-open-cart aria-label="Ver meu pedido, ${count} ${count===1?'item':'itens'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 7h12l1 14H5L6 7Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span>Meu pedido</span><b>${count}</b></button>
       <details class="lm-header-menu"><summary aria-label="Abrir menu de atendimento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></summary><div class="lm-menu-panel"><button type="button" data-open-help-guide>Como comprar</button><button type="button" data-open-track>Acompanhar meu pedido</button><button type="button" data-header-whatsapp>Falar com a loja</button><button type="button" data-header-custom-order>Encomenda personalizada</button><button type="button" data-font-toggle>${document.documentElement.dataset.fontSize==='large'?'Reduzir':'Aumentar'} tamanho do texto</button></div></details>
@@ -3817,17 +3824,11 @@ function renderCheckout() {
   app.innerHTML = `
     ${renderHeader()}
     <main class="lm-checkout-main mx-auto w-full max-w-lg px-4 py-6">
-      <button id="back-to-catalog-btn" class="mb-4 text-sm font-medium text-navy-600 hover:underline">&larr; Voltar e alterar produtos</button>
+      <button id="back-to-catalog-btn" class="mb-4 text-sm font-medium text-navy-600 hover:underline">&larr; Continuar comprando</button>
       <h1 class="text-xl font-semibold text-navy-900">Finalizar pedido</h1>
-      <p class="mt-1 mb-4 text-sm text-navy-500">Falta pouco. Confira o pedido, preencha seus dados e nós abriremos o WhatsApp com a mensagem pronta.</p>
+      <p class="mt-1 mb-4 text-sm text-navy-500">Falta pouco! Confira suas peças, informe seu nome e WhatsApp e escolha como receber.</p>
 
-      <div class="mb-4 flex items-center gap-1 overflow-x-auto pb-1 text-[11px] font-medium text-navy-500">
-        <span class="whitespace-nowrap rounded-full bg-navy-900 px-3 py-1.5 text-white">1 Revisar</span><span>›</span>
-        <span class="whitespace-nowrap rounded-full bg-gold-500 px-3 py-1.5 text-navy-900">2 Dados</span><span>›</span>
-        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">3 Entrega</span><span>›</span>
-        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">4 Pagamento</span><span>›</span>
-        <span class="whitespace-nowrap rounded-full bg-navy-50 px-3 py-1.5">5 WhatsApp</span>
-      </div>
+      <p class="mb-4 text-sm text-navy-500">Carrinho → Dados e entrega → WhatsApp</p>
 
       <div class="mb-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
         <p class="mb-2 text-sm font-semibold text-navy-800">Revise seu pedido</p>
@@ -3854,7 +3855,7 @@ function renderCheckout() {
           <button type="button" id="checkout-add-more-items"
             class="w-full rounded-lg border border-navy-200 bg-cream-50 px-4 py-2.5 text-sm font-semibold text-navy-700 transition hover:bg-navy-50">
             + Esqueci algo — adicionar mais itens
-          </button>
+          </button>${storefrontItemNotes() ? `<div class="mt-3 rounded-lg border border-navy-100 bg-cream-50 p-3"><p class="text-sm font-semibold text-navy-900">Observações das peças</p><p class="mt-2 whitespace-pre-wrap text-xs text-navy-600">${escapeHtml(storefrontItemNotes())}</p></div>` : ""}
         </div>
         <div id="ck-giftwrap-lines">
           ${selectedGiftWraps().map((g) => `
@@ -3887,7 +3888,7 @@ function renderCheckout() {
       </div>
 
       <form id="checkout-form" class="flex flex-col gap-4 rounded-xl border border-navy-100 bg-white p-4 shadow">
-        <p class="text-base font-semibold text-navy-900"><span class="checkout-step-badge">2</span>Seus dados</p>
+        <p class="text-base font-semibold text-navy-900">Seus dados</p>
         <div>
           <label class="mb-1 block text-sm font-semibold text-navy-800">Seu nome <span class="text-red-600">*</span></label>
           <input id="ck-name" required autocomplete="name" value="${escapeHtml(state.checkoutDraft.name)}" class="w-full rounded-lg border border-navy-200 px-3 py-3 text-base outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Digite seu nome" />
@@ -3899,7 +3900,7 @@ function renderCheckout() {
         </div>
         <div class="rounded-xl border border-navy-100 bg-cream-50 p-3">
           <div id="checkout-shipping-section" class="checkout-section-heading mb-2">
-            <label class="block text-base font-semibold text-navy-900"><span class="checkout-step-badge">3</span>Entrega ou retirada</label>
+            <label class="block text-base font-semibold text-navy-900">Entrega ou retirada</label>
             <button type="button" data-scroll-checkout="checkout-shipping-section" class="checkout-edit-btn">Editar</button>
           </div>
           <p class="mb-3 text-xs text-navy-500">Escolha como deseja receber o pedido.</p>
@@ -4038,7 +4039,7 @@ function renderCheckout() {
 
         <div>
           <div id="checkout-payment-section" class="checkout-section-heading mb-2">
-            <label class="block text-base font-semibold text-navy-900"><span class="checkout-step-badge">4</span>Forma de pagamento</label>
+            <label class="block text-base font-semibold text-navy-900">Forma de pagamento</label>
             <button type="button" data-scroll-checkout="checkout-payment-section" class="checkout-edit-btn">Editar</button>
           </div>
           <div class="flex gap-1 rounded-lg border border-navy-200 bg-cream-50 p-1 text-sm">
@@ -4672,7 +4673,7 @@ async function onSubmitOrder(e) {
   // sem sair do campo de WhatsApp (o que dispararia a formatação sozinha).
   const whatsapp = formatWhatsappBR(document.getElementById("ck-whatsapp").value.trim()) || document.getElementById("ck-whatsapp").value.trim();
   const instagram = "";
-  const notes = document.getElementById("ck-notes")?.value.trim() || "";
+  const notes = [document.getElementById("ck-notes")?.value.trim() || "",storefrontItemNotes()].filter(Boolean).join("\n\n");
 
   document.getElementById("ck-name")?.removeAttribute("aria-invalid");
   document.getElementById("ck-whatsapp")?.removeAttribute("aria-invalid");
@@ -4884,6 +4885,7 @@ async function onSubmitOrder(e) {
   if (waWindow) waWindow.location.href = waUrl;
   else window.open(waUrl, "_blank");
 
+  try{const savedNotes=JSON.parse(localStorage.getItem("iluminart_cart_notes_v1")||"{}");for(const it of items)delete savedNotes[it.key];localStorage.setItem("iluminart_cart_notes_v1",JSON.stringify(savedNotes));sessionStorage.removeItem("iluminart_checkout_draft_v1");}catch{}
   state.cart = {};
   saveCartToStorage();
   state.giftWrapWanted = false;
@@ -5316,6 +5318,9 @@ window.addEventListener("beforeunload", (e) => {
     render();
   });
 });
+
+
+document.addEventListener("click",e=>{if(location.hash!=="#finalizar")return;const target=e.target.closest('#checkout-add-more-items, #back-to-catalog-btn, [data-go-home], a[href="./"], a[href="./#loja/luz-mariana"]');if(!target)return;e.preventDefault();e.stopImmediatePropagation();captureCheckoutDraft();try{sessionStorage.setItem("iluminart_checkout_draft_v1",JSON.stringify({draft:state.checkoutDraft,shippingMethod:state.shippingMethod,payment:state.payment,savedAt:Date.now()}));}catch{}state.screen="catalog";location.assign(target.tagName==="A"?target.href:new URL("./#catalogo",location.href).href);},true);
 
 // Registra o service worker só pra habilitar "Adicionar à tela inicial"
 // (ver comentário em sw.js — não guarda nada em cache). Silenciosamente
