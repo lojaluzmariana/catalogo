@@ -791,7 +791,9 @@
 
 </style>
 <link rel="stylesheet" href="catalogo.css?v=20261020-fotos-verticais">
-</head>
+<style>
+.shop-offer{margin:10px 0 14px;color:#102d4b;line-height:1.45;min-height:112px}.offer-from{display:block;min-height:18px;font-size:11px;color:#647484;margin-bottom:4px}.offer-pix{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}.offer-pix>strong{font-size:26px;font-weight:750;letter-spacing:-.025em;line-height:1.25}.offer-pix>span{font-size:12px;color:#526a59}.offer-credit{margin-top:8px;font-size:13px;color:#536879}.offer-credit>strong{color:#102d4b;font-size:15px}.offer-credit>span{display:block;margin-top:2px;font-size:12px}.offer-credit b{font-weight:600;color:#354e66}.offer-consult{font-size:18px;font-weight:bold}.card-model{margin-bottom:10px;min-height:65px}.card-model label{display:block;font-size:11px;font-weight:600;color:#536879}.card-model select{display:block;width:100%;min-width:0;max-width:100%;margin-top:5px;min-height:44px;padding:9px 7px;border:1px solid #cbd2d9;border-radius:8px;background:#fff;color:#102d4b;font-size:14px}.single-model{display:block;padding-top:24px;font-size:12px;color:#687787}.card-details{display:block;width:100%;min-height:42px;margin-top:3px;padding:9px 5px;border:0;background:transparent!important;color:#536879!important;text-decoration:underline;text-underline-offset:3px;font-size:12px;font-weight:400;cursor:pointer}.card-error{font-size:12px!important;color:#9b2525!important;line-height:1.5;margin:0 0 8px}.card-error:empty{display:none}.product-bottom{margin-top:0;display:flex;flex-direction:column;flex:1;padding-top:0}.product-info h3{min-height:2.8em}.product-bottom>.card-model{margin-top:auto}.product .add,.lm-product-card .lm-product-action{width:100%;min-height:50px;border-radius:9px;background:#102d4b!important;color:white!important;font-size:14px!important;font-weight:700!important;padding:12px 8px!important;justify-content:center}.lm-product-info .shop-offer{margin-top:10px}.lm-product-info .lm-card-price{display:none}#detailPrice{font-size:14px!important}#detailPrice .offer-pix>strong{font-size:28px}@media(max-width:760px){.offer-pix>strong{font-size:23px}.offer-pix>span{font-size:11px}.offer-credit{font-size:12px}.offer-credit>strong{font-size:14px}.offer-credit>span{font-size:11px;line-height:1.5}.shop-offer{min-height:115px}.product .add,.lm-product-card .lm-product-action{font-size:12px!important;min-height:50px}.card-model select{font-size:16px}.card-details{font-size:12px;min-height:44px}}
+</style></head>
 <body class="lm-clean-shop bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -2952,25 +2954,45 @@ function renderCatalog() {
   wireCatalogEvents();
 }
 
+const lmCardChoices=new Map();
+// Os dois preços exibidos pertencem sempre à mesma peça/modelo.
+function cardOffer(p,variants,selectedId){
+ const chosen=variants.find(v=>v.id===selectedId)||(variants.length===1?variants[0]:null);
+ const rows=(variants.length?variants:[null]).map(variant=>({variant,pricing:displayPricing(p,variant)}));
+ const valid=rows.filter(r=>Number.isFinite(r.pricing.promoPrice)&&r.pricing.promoPrice>0).sort((a,b)=>a.pricing.promoPrice-b.pricing.promoPrice||a.pricing.creditPrice-b.pricing.creditPrice);
+ const row=chosen?rows.find(r=>r.variant?.id===chosen.id):valid[0]||rows[0];
+ return {variant:chosen,pricing:row?.pricing||{},from:!chosen&&new Set(rows.map(r=>r.pricing.promoPrice+'|'+r.pricing.creditPrice)).size>1};
+}
+function cardPriceHtml(offer){
+ const p=offer.pricing,pix=p.promoPrice,credit=p.creditPrice;
+ let html=offer.from?'<span class="offer-from">A partir de · escolha o modelo</span>':'';
+ html+=Number.isFinite(pix)&&pix>0?'<div class="offer-pix"><strong>'+formatBRL(pix)+'</strong><span>à vista no Pix</span></div>':'<div class="offer-consult">Valor sob consulta</div>';
+ if(Number.isFinite(credit)&&credit>0){const cents=Math.round(credit*100),approx=cents%3!==0;html+='<div class="offer-credit"><strong>'+formatBRL(credit)+'</strong> no cartão<span>em até <b>3x de '+(approx?'aprox. ':'')+formatBRL(credit/3)+'</b></span></div>';}else html+='<div class="offer-credit">Consulte as opções no cartão</div>';
+ return html;
+}
+
 function renderProductCard(p,opts={}) {
   const variants=variantsFor(p.id),frames=carouselFrames(p),isFav=!!state.favorites[p.id];
-  const summary=pricingSummary(p),availability=productAvailabilityFlags(p);
+  const offer=cardOffer(p,variants,lmCardChoices.get(p.id)||''),summary={...offer.pricing,variable:offer.from},availability=productAvailabilityFlags(p);
   const idx=frames.length?(state.cardPhotoIndex[p.id]??0)%frames.length:0;
-  const photo=frames[idx]||p.photo_url||variants[0]?.photo_url;
+  const photo=offer.variant?.photo_url||frames[idx]||p.photo_url||variants[0]?.photo_url;
   const sale=Number(summary.originalPromoPrice)>Number(summary.promoPrice);
   const heart=`<svg viewBox="0 0 24 24" fill="${isFav?'currentColor':'none'}" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0l-1 1-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>`;
   const key=cartKey(p.id,null),qty=state.cart[key]??0;
   return `<article data-product-card="${escapeHtml(p.id)}" class="lm-product-card">
-    <div class="lm-product-visual" ${frames.length>1?`data-carousel="${escapeHtml(p.id)}"`:''}>
-      <button type="button" class="product-image-btn lm-product-image" data-view-product="${escapeHtml(p.id)}" aria-label="Ver ${escapeHtml(p.name)}">${photo?`<img ${frames.length>1?`data-carousel-img="${escapeHtml(p.id)}"`:''} src="${escapeHtml(photo)}" alt="${escapeHtml(p.name)}" loading="lazy" decoding="async" width="600" height="600">`:'<img class="lm-image-placeholder" src="logo-symbol.png" alt="" width="90" height="90">'}</button>
+    <div class="lm-product-visual" ${frames.length>1&&!offer.variant?`data-carousel="${escapeHtml(p.id)}"`:''}>
+      <button type="button" class="product-image-btn lm-product-image" data-view-product="${escapeHtml(p.id)}" aria-label="Ver ${escapeHtml(p.name)}">${photo?`<img ${frames.length>1&&!offer.variant?`data-carousel-img="${escapeHtml(p.id)}"`:''} src="${escapeHtml(photo)}" alt="${escapeHtml(p.name)}" loading="lazy" decoding="async" width="600" height="600">`:'<img class="lm-image-placeholder" src="logo-symbol.png" alt="" width="90" height="90">'}</button>
       <button type="button" data-toggle-favorite="${escapeHtml(p.id)}" aria-label="${isFav?'Remover dos favoritos':'Adicionar aos favoritos'}" aria-pressed="${isFav}" class="lm-favorite ${isFav?'is-favorite':''}">${heart}</button>
       ${sale?'<span class="lm-sale-tag">Condição especial</span>':p.featured?'<span class="lm-featured-tag">Destaque</span>':isNewProduct(p)?'<span class="lm-featured-tag">Novidade</span>':''}
-      ${frames.length>1?`<div class="lm-photo-controls"><button type="button" data-carousel-prev="${escapeHtml(p.id)}" aria-label="Foto anterior de ${escapeHtml(p.name)}">‹</button><span>${idx+1} / ${frames.length}</span><button type="button" data-carousel-next="${escapeHtml(p.id)}" aria-label="Próxima foto de ${escapeHtml(p.name)}">›</button></div>`:''}
+      ${frames.length>1&&!offer.variant?`<div class="lm-photo-controls"><button type="button" data-carousel-prev="${escapeHtml(p.id)}" aria-label="Foto anterior de ${escapeHtml(p.name)}">‹</button><span>${idx+1} / ${frames.length}</span><button type="button" data-carousel-next="${escapeHtml(p.id)}" aria-label="Próxima foto de ${escapeHtml(p.name)}">›</button></div>`:''}
     </div>
     <div class="lm-product-info"><div class="lm-product-meta"><button type="button" data-tag-category="${escapeHtml(p.category?.trim()||'Outros')}" class="category-tag-btn">${escapeHtml(p.category?.trim()||'Outros')}</button><span class="${availability.ready?'lm-ready':'lm-order'}">${availability.ready?'Pronta entrega':'Sob encomenda'}</span></div>
       <h3><button type="button" data-view-product="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button></h3>
-      <div class="lm-card-price" data-price-block="${escapeHtml(p.id)}">${summary.variable?'<small>A partir de</small>':''}<p>${sale?`<del>${formatBRL(summary.originalPromoPrice)}</del>`:''}<strong>${formatBRL(summary.promoPrice)}</strong><span>à vista</span></p><small>ou ${formatBRL(summary.creditPrice)} em até 3x</small></div>
-      ${variants.length?`<button type="button" data-view-product="${escapeHtml(p.id)}" class="large-touch-action lm-product-action">Escolher opções <span aria-hidden="true">↗</span></button>`:qty===0?`<button type="button" data-add="${escapeHtml(key)}" class="add-to-cart-btn large-touch-action lm-product-action">Adicionar ao pedido <span aria-hidden="true">+</span></button>`:`<div class="lm-card-quantity"><button type="button" data-qty-minus="${escapeHtml(key)}" aria-label="Diminuir quantidade de ${escapeHtml(p.name)}">−</button><span>${qty} no pedido</span><button type="button" data-qty-plus="${escapeHtml(key)}" aria-label="Aumentar quantidade de ${escapeHtml(p.name)}">+</button></div>`}
+      <div class="shop-offer" data-lm-prices>${cardPriceHtml(offer)}</div>
+      <div class="card-model">${variants.length?`<label>Modelo / tamanho<select data-lm-card-variant="${escapeHtml(p.id)}" aria-label="Modelo de ${escapeHtml(p.name)}">${variants.length>1?'<option value="">Escolha uma opção</option>':''}${variants.map(v=>`<option value="${escapeHtml(v.id)}" ${offer.variant?.id===v.id?'selected':''}>${escapeHtml(v.name)}</option>`).join('')}</select></label>`:'<span class="single-model">Modelo único</span>'}</div>
+      <p class="card-error" role="alert" data-lm-error></p>
+      <button type="button" data-lm-card-buy="${escapeHtml(p.id)}" class="large-touch-action lm-product-action">${summary.promoPrice>0?'Adicionar ao carrinho':'Consultar valor'}</button>
+      <button type="button" data-view-product="${escapeHtml(p.id)}" class="card-details">Ver detalhes</button>
     </div></article>`;
 }
 
@@ -3507,6 +3529,8 @@ function wireCatalogEvents() {
     try { localStorage.removeItem(RECENT_PRODUCTS_KEY); } catch (_err) {}
     render();
   });
+  document.querySelectorAll('[data-lm-card-variant]').forEach(select=>select.addEventListener('change',()=>{const p=state.products.find(p=>p.id===select.dataset.lmCardVariant),card=select.closest('[data-product-card]');if(!p)return;lmCardChoices.set(p.id,select.value);state.selectedVariant[p.id]=select.value;const dims=catalogVariantDimensions(variantsFor(p.id).find(v=>v.id===select.value)||'');state.selectedSize[p.id]=dims.size;state.selectedModel[p.id]=dims.model;const controls=card.querySelector('.lm-photo-controls');if(controls)controls.hidden=!!select.value;const offer=cardOffer(p,variantsFor(p.id),select.value);card.querySelector('[data-lm-prices]').innerHTML=cardPriceHtml(offer);card.querySelector('[data-lm-error]').textContent='';card.querySelector('[data-lm-card-buy]').textContent=offer.pricing.promoPrice>0?'Adicionar ao carrinho':'Consultar valor';if(offer.variant?.photo_url){const image=card.querySelector('.product-image-btn img');image.src=offer.variant.photo_url;image.removeAttribute('data-carousel-img');}}));
+  document.querySelectorAll('[data-lm-card-buy]').forEach(button=>button.addEventListener('click',()=>{const p=state.products.find(p=>p.id===button.dataset.lmCardBuy),card=button.closest('[data-product-card]'),select=card.querySelector('[data-lm-card-variant]');if(!p)return;const variants=variantsFor(p.id),offer=cardOffer(p,variants,select?.value||'');if(variants.length&&!offer.variant){card.querySelector('[data-lm-error]').textContent='Escolha o modelo acima para adicionar.';select.focus();return;}if(!(offer.pricing.promoPrice>0)){card.querySelector('[data-lm-error]').textContent='Fale com a loja para consultar o valor desta opção.';return;}const key=cartKey(p.id,offer.variant?.id||null);setQty(key,(state.cart[key]||0)+1);showAddToast(key);}));
   document.querySelectorAll(".add-to-cart-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.add;
