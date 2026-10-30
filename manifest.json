@@ -1,12 +1,12 @@
 {
-  "name": "Luz Mariana — Catálogo",
-  "short_name": "Luz Mariana",
+  "name": "Iluminart RN — Presentes e personalizados",
+  "short_name": "Iluminart RN",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#FAF8F1",
-  "theme_color": "#001868",
-  "description": "Catálogo da Luz Mariana — artigos religiosos e devoção.",
+  "theme_color": "#102d4b",
+  "description": "Iluminart RN: presentes, decoração e personalizados. Luz Mariana: artigos religiosos e devoção.",
   "icons": [
     {
       "src": "logo-symbol.png",
