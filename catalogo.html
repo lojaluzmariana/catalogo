@@ -793,7 +793,7 @@
 <link rel="stylesheet" href="catalogo.css?v=20261020-fotos-verticais">
 <style>
 .shop-offer{margin:10px 0 14px;color:#102d4b;line-height:1.45;min-height:112px}.offer-from{display:block;min-height:18px;font-size:11px;color:#647484;margin-bottom:4px}.offer-pix{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}.offer-pix>strong{font-size:26px;font-weight:750;letter-spacing:-.025em;line-height:1.25}.offer-pix>span{font-size:12px;color:#526a59}.offer-credit{margin-top:8px;font-size:13px;color:#536879}.offer-credit>strong{color:#102d4b;font-size:15px}.offer-credit>span{display:block;margin-top:2px;font-size:12px}.offer-credit b{font-weight:600;color:#354e66}.offer-consult{font-size:18px;font-weight:bold}.card-model{margin-bottom:10px;min-height:65px}.card-model label{display:block;font-size:11px;font-weight:600;color:#536879}.card-model select{display:block;width:100%;min-width:0;max-width:100%;margin-top:5px;min-height:44px;padding:9px 7px;border:1px solid #cbd2d9;border-radius:8px;background:#fff;color:#102d4b;font-size:14px}.single-model{display:block;padding-top:24px;font-size:12px;color:#687787}.card-details{display:block;width:100%;min-height:42px;margin-top:3px;padding:9px 5px;border:0;background:transparent!important;color:#536879!important;text-decoration:underline;text-underline-offset:3px;font-size:12px;font-weight:400;cursor:pointer}.card-error{font-size:12px!important;color:#9b2525!important;line-height:1.5;margin:0 0 8px}.card-error:empty{display:none}.product-bottom{margin-top:0;display:flex;flex-direction:column;flex:1;padding-top:0}.product-info h3{min-height:2.8em}.product-bottom>.card-model{margin-top:auto}.product .add,.lm-product-card .lm-product-action{width:100%;min-height:50px;border-radius:9px;background:#102d4b!important;color:white!important;font-size:14px!important;font-weight:700!important;padding:12px 8px!important;justify-content:center}.lm-product-info .shop-offer{margin-top:10px}.lm-product-info .lm-card-price{display:none}#detailPrice{font-size:14px!important}#detailPrice .offer-pix>strong{font-size:28px}@media(max-width:760px){.offer-pix>strong{font-size:23px}.offer-pix>span{font-size:11px}.offer-credit{font-size:12px}.offer-credit>strong{font-size:14px}.offer-credit>span{font-size:11px;line-height:1.5}.shop-offer{min-height:115px}.product .add,.lm-product-card .lm-product-action{font-size:12px!important;min-height:50px}.card-model select{font-size:16px}.card-details{font-size:12px;min-height:44px}}
-</style></head>
+</style><link rel="stylesheet" href="storefront-improvements.css?v=1"><script src="storefront-core.js?v=1"></script></head>
 <body class="lm-clean-shop bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -842,14 +842,12 @@ const STANDARD_DELIVERY_RATE_PER_KM = 1.80;
 // configurado no Painel Admin — quando não tem nada configurado (produto
 // antigo, de antes dessa opção existir), usa o padrão de 2 dias úteis.
 const DEFAULT_LEAD_TIME_DAYS = 2;
-function madeToOrderText(product) {
-  const days = product && product.lead_time_days != null ? Number(product.lead_time_days) : DEFAULT_LEAD_TIME_DAYS;
-  return `Produção em até ${days} ${days === 1 ? "dia útil" : "dias úteis"}, contados a partir da confirmação do pedido.`;
-}
+function madeToOrderText(product) { return LMStore.production(); }
 // Sinal exigido pra confirmar o pedido e iniciar a produção.
 const DEPOSIT_RATE = 0.5;
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+LMStore.configure({url:SUPABASE_URL,key:SUPABASE_ANON_KEY,kind:"checkout"});
 
 function formatBRL(v) {
   return Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -933,18 +931,7 @@ function toggleContrastPreference() {
 const CATALOG_ANALYTICS_SESSION_KEY = "lm_catalog_analytics_session_v1";
 let catalogSearchTrackTimer = null;
 let catalogLastTrackedSearch = "";
-function catalogAnalyticsSessionId() {
-  try {
-    let id = localStorage.getItem(CATALOG_ANALYTICS_SESSION_KEY);
-    if (!id) {
-      id = crypto.randomUUID ? crypto.randomUUID() : `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      localStorage.setItem(CATALOG_ANALYTICS_SESSION_KEY,id);
-    }
-    return id;
-  } catch (_err) {
-    return `volatile-${Date.now()}`;
-  }
-}
+function catalogAnalyticsSessionId() { return LMStore.visit(); }
 function compactAnalyticsMetadata(params = {}) {
   const blocked = new Set(["product_id","item_id","variant_id","search_term"]);
   const out = {};
@@ -957,23 +944,7 @@ function compactAnalyticsMetadata(params = {}) {
   out.screen = state?.screen || "catalog";
   return out;
 }
-function trackEvent(name, params = {}) {
-  try { if (typeof gtag === "function") gtag("event", name, params); } catch (_err) {}
-  try {
-    const productId = params.product_id || params.item_id || null;
-    const variantId = params.variant_id || null;
-    const searchTerm = params.search_term ? String(params.search_term).trim().slice(0,120) : null;
-    // Fire-and-forget: analytics nunca pode travar compra, navegação ou WhatsApp.
-    supabaseClient.from("catalog_events").insert({
-      event_name:String(name || "").slice(0,60),
-      product_id:productId ? String(productId) : null,
-      variant_id:variantId ? String(variantId) : null,
-      search_term:searchTerm || null,
-      session_id:catalogAnalyticsSessionId(),
-      metadata:compactAnalyticsMetadata(params)
-    }).then(({error})=>{ if(error && !String(error.message||"").toLowerCase().includes("catalog_events")) console.debug("analytics:",error.message); });
-  } catch (_err) {}
-}
+function trackEvent(name, params = {}) { LMStore.track(name, params); }
 function scheduleSearchTracking(query) {
   clearTimeout(catalogSearchTrackTimer);
   const clean=String(query||"").trim();
@@ -2808,7 +2779,7 @@ function renderFeaturedCarousel(products) {
 }
 
 function renderFooter() {
-  return `<footer class="lm-shop-footer"><div class="lm-container"><div class="lm-footer-grid"><div class="lm-footer-brand"><img src="logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" width="220" height="80" loading="lazy"><p>Fé, família e devoção em cada detalhe.</p><small>CNPJ ${STORE_CNPJ}</small></div><div class="lm-footer-links"><h2>Estamos por perto</h2><button type="button" data-open-help-guide>Como comprar</button><button type="button" data-open-track>Acompanhar pedido</button><button type="button" data-header-whatsapp>Falar pelo WhatsApp</button><button type="button" data-header-custom-order>Pedidos personalizados</button></div><div class="lm-footer-faq"><h2>Antes de pedir</h2><details><summary>Como funciona a compra?</summary><p>Escolha as peças, monte seu pedido e confirme tudo com a loja pelo WhatsApp. Não pedimos senha nem dados de cartão neste site.</p></details><details><summary>Qual o prazo de produção?</summary><p>O prazo aparece nos detalhes de cada produto e começa após a confirmação do pedido. Retirada e entrega são combinadas com a loja.</p></details><details><summary>Posso personalizar?</summary><p>Sim. Fale conosco sobre o santo, tamanho, modelo ou presente que procura e preparamos um orçamento.</p></details></div></div><div class="lm-footer-bottom"><span>© 2026 Luz Mariana</span><div><button type="button" data-open-policy="privacidade">Privacidade</button><span>·</span><button type="button" data-open-policy="termos">Termos de uso</button></div></div></div></footer>`;
+  return `<div class="footer-signatures" aria-label="Nossas marcas"><img src="loja-assets/9fe7abb22dd904ea.png" alt="Iluminart RN" loading="lazy"><img src="loja-assets/5f3d81aae6ac3a7e.png" alt="Luz Mariana — artigos religiosos" loading="lazy"></div><footer class="lm-shop-footer"><div class="lm-container"><div class="lm-footer-grid"><div class="lm-footer-brand"><strong>Iluminart · Luz Mariana</strong><p>Fé, família e devoção em cada detalhe.</p><small>CNPJ ${STORE_CNPJ}</small></div><div class="lm-footer-links"><h2>Estamos por perto</h2><button type="button" data-open-help-guide>Como comprar</button><button type="button" data-open-track>Acompanhar pedido</button><button type="button" data-header-whatsapp>Falar pelo WhatsApp</button><button type="button" data-header-custom-order>Pedidos personalizados</button></div><div class="lm-footer-faq"><h2>Antes de pedir</h2><details><summary>Como funciona a compra?</summary><p>Escolha as peças, monte seu pedido e confirme tudo com a loja pelo WhatsApp. Não pedimos senha nem dados de cartão neste site.</p></details><details><summary>Qual o prazo de produção?</summary><p>O prazo aparece nos detalhes de cada produto e começa após a confirmação do pedido. Retirada e entrega são combinadas com a loja.</p></details><details><summary>Posso personalizar?</summary><p>Sim. Fale conosco sobre o santo, tamanho, modelo ou presente que procura e preparamos um orçamento.</p></details></div></div><div class="lm-footer-bottom"><span>© 2026 Luz Mariana</span><div><button type="button" data-open-policy="privacidade">Privacidade</button><span>·</span><button type="button" data-open-policy="termos">Termos de uso</button></div></div></div></footer>`;
 }
 
 /* Política de Privacidade + Termos de Uso — uma única tela com duas
@@ -2843,7 +2814,7 @@ function renderPolicy() {
       <h3 class="text-base font-semibold text-navy-900">Pagamento</h3>
       <p>O pagamento é combinado diretamente pelo WhatsApp (Pix ou outro meio informado na conversa) e não é processado neste site.</p>
       <h3 class="text-base font-semibold text-navy-900">Prazos e produtos sob encomenda</h3>
-      <p>Produtos marcados como "pronta entrega" saem do estoque disponível; os demais são feitos sob encomenda. O prazo de produção começa a contar a partir da confirmação do pedido e, quando não houver prazo específico informado no produto, o padrão é de até 2 dias úteis. O prazo da entrega começa após a finalização do pedido.</p>
+      <p>Produtos marcados como "pronta entrega" saem do estoque disponível; os demais são feitos sob encomenda. O prazo de produção deve ser confirmado com a loja antes da compra e começa após a confirmação do pedido. O transporte começa após a produção; consulte o valor do frete e o prazo para seu destino.</p>
       <h3 class="text-base font-semibold text-navy-900">Trocas e devoluções</h3>
       <p>Havendo algum problema com o produto recebido (defeito, erro no pedido), entre em contato pelo WhatsApp para combinarmos a solução — troca, reparo ou reembolso, conforme o caso.</p>
       <h3 class="text-base font-semibold text-navy-900">Dúvidas</h3>
@@ -4057,8 +4028,8 @@ function renderCheckout() {
 
         <div class="rounded-xl border border-navy-100 bg-white p-3 text-sm text-navy-600">
           <p class="font-semibold text-navy-900">Prazos do pedido</p>
-          <p class="mt-1"><b>Produção:</b> até 2 dias úteis, contados a partir da confirmação do pedido, quando o item for sob encomenda.</p>
-          <p class="mt-1"><b>Entrega:</b> o prazo começa a partir da finalização do pedido. Motoboy tem horário combinado; PAC segue o prazo informado na cotação.</p>
+          <p class="mt-1">${escapeHtml(LMStore.production())}</p><p class="mt-1">${escapeHtml(LMStore.config.shipping_note)}</p>
+          <p class="mt-1"><b>Entrega:</b> o transporte começa após a produção. Motoboy tem horário combinado; PAC segue o prazo informado na cotação.</p>
         </div>
 
         <div>
@@ -4849,6 +4820,7 @@ async function onSubmitOrder(e) {
     // O pedido em si já foi criado — segue o fluxo mesmo assim, a loja
     // ainda recebe a mensagem completa no WhatsApp.
   } else {
+    trackEvent("order_recorded",{items_count:items.length});
     items.forEach((it)=>trackEvent("order_item_submitted",{
       product_id:String(it.product.id),
       variant_id:it.variant?.id ? String(it.variant.id) : null,
@@ -4906,6 +4878,7 @@ async function onSubmitOrder(e) {
     shippingComplement: state.checkoutDraft.shippingComplement
   });
   const waUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+  trackEvent("whatsapp_open");
   if (waWindow) waWindow.location.href = waUrl;
   else window.open(waUrl, "_blank");
 
@@ -5332,8 +5305,11 @@ window.addEventListener("beforeunload", (e) => {
 
 
 
-(window.lmMaintenanceReady || Promise.resolve(true)).then((canOpenCatalog) => {
+(window.lmMaintenanceReady || Promise.resolve(true)).then(async (canOpenCatalog) => {
   if (!canOpenCatalog) return;
+  await LMStore.ready;
+  trackEvent("store_visit");
+  if(location.hash==="#finalizar")trackEvent("begin_checkout");
   render();
   loadCatalog().catch((err) => {
     console.error("Erro inesperado ao carregar o catálogo:", err);
