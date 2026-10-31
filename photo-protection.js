@@ -42,8 +42,9 @@
     const scale = Math.min(innerWidth / img.naturalWidth, innerHeight / img.naturalHeight);
     const photoWidth = css.objectFit === 'contain' ? img.naturalWidth * scale : innerWidth;
     const photoHeight = css.objectFit === 'contain' ? img.naturalHeight * scale : innerHeight;
-    const width = photoWidth * (key === 'iluminart' ? .28 : key === 'combined' ? .44 : .38);
-    const height = Math.min(photoHeight * .24, width);
+    const width = photoWidth * .40;
+    const aspect = key === 'iluminart' ? 1434 / 1097 : key === 'luz_mariana' ? 2079 / 756 : 2048 / 500;
+    const height = width / aspect;
     const left = rect.left - box.left - parent.clientLeft + parent.scrollLeft + rect.width / 2 - width / 2;
     const top = rect.top - box.top - parent.clientTop + parent.scrollTop + rect.height / 2 - height / 2;
     const desired = `left:${left}px;top:${top}px;width:${width}px;height:${height}px;background-image:url("${logos[key]}")`;
