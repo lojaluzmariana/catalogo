@@ -2540,7 +2540,7 @@ html.dark .lm-production-item small,html.dark .lm-production-order-head small,ht
 @media(max-width:640px){.lm-production-focus{padding:14px}.lm-production-focus h2{font-size:19px}.lm-production-item{align-items:flex-start}.lm-production-buttons{width:100%}.lm-production-buttons button{flex:1}.lm-production-order{padding:12px}}
 
 </style>
-<link rel="stylesheet" href="brand-management.css?v=1"><script src="../production-whatsapp.js?v=1"></script><link rel="stylesheet" href="quote-sales.css?v=1"><script src="quote-sales.js?v=1"></script></head>
+<link rel="stylesheet" href="brand-management.css?v=1"><script src="../production-whatsapp.js?v=1"></script><link rel="stylesheet" href="quote-sales.css?v=1"><script src="quote-sales.js?v=1"></script><script src="../category-utils.js?v=1"></script></head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -6643,7 +6643,7 @@ const managementBrands={
  iluminart:{name:'Iluminart',subtitle:'Onde a criatividade ganha forma',instagram:'@iluminartrn',logo:'../loja-assets/9fe7abb22dd904ea.png'},
  luz_mariana:{name:'Luz Mariana',subtitle:'Artigos Religiosos e Devoção',instagram:'@lojaluzmariana',logo:'../loja-assets/5f3d81aae6ac3a7e.png'},
 };
-const brandAreaState={scope:'all',identities:new Map(),ready:false,error:null};
+const brandAreaState={scope:'all',identities:new Map(),classifications:new Map(),ready:false,error:null};
 const brandAreaLabels={all:'Todas as marcas',iluminart:'Iluminart',luz_mariana:'Luz Mariana',mixed:'Pedidos mistos',pending:'A classificar'};
 function productManagementBrand(id){const value=brandAreaState.identities.get(String(id));return value==='iluminart'||value==='luz_mariana'?value:'pending';}
 function itemsManagementBrand(items){const brands=new Set((items||[]).map(it=>productManagementBrand(it.product_id)));if(!brands.size||brands.has('pending'))return 'pending';return brands.size===1?[...brands][0]:'mixed';}
@@ -6653,7 +6653,10 @@ function orderManagementBrand(order){return itemsManagementBrand(order?.items);}
 function matchesBrandProduct(id,scope=brandAreaState.scope){return scope==='all'||productManagementBrand(id)===scope;}
 function matchesBrandOrder(order,scope=brandAreaState.scope){return scope==='all'||orderManagementBrand(order)===scope;}
 function managementOrderIdentity(order){const key=orderManagementBrand(order);return managementBrands[key]||{name:key==='mixed'?'Iluminart + Luz Mariana':'Iluminart',subtitle:key==='mixed'?'Presentes, personalizados e artigos religiosos':'Gestão de pedidos',instagram:'@iluminartrn'};}
-async function loadManagementBrands(){try{const rows=[];for(let offset=0;offset<100000;offset+=1000){const {data,error}=await supabaseClient.from('product_catalog_identity').select('product_id,brand').order('product_id').range(offset,offset+999);if(error)throw error;rows.push(...(data||[]));if((data||[]).length<1000){brandAreaState.identities=new Map(rows.map(r=>[String(r.product_id),r.brand]));brandAreaState.ready=true;brandAreaState.error=null;return;}}throw Error('Classificação incompleta');}catch{brandAreaState.error='Não foi possível atualizar as marcas. Confira a conexão e a instalação de Instalar_Catalogo_Iluminart.sql.';}}
+async function loadManagementBrands(){try{const rows=[];for(let offset=0;offset<100000;offset+=1000){const {data,error}=await supabaseClient.from('product_catalog_identity').select('*').order('product_id').range(offset,offset+999);if(error)throw error;rows.push(...(data||[]));if((data||[]).length<1000){brandAreaState.classifications=new Map(rows.map(r=>[String(r.product_id),r]));brandAreaState.identities=new Map(rows.map(r=>[String(r.product_id),r.brand]));brandAreaState.ready=true;brandAreaState.error=null;return;}}throw Error('Classificação incompleta');}catch{brandAreaState.error='Não foi possível atualizar as marcas. Confira a conexão e a instalação de Instalar_Catalogo_Iluminart.sql.';}}
+function productSubcategories(id){return LMCategory.subs(brandAreaState.classifications.get(String(id)));}
+async function saveProductSubcategories(id,values){try{const {error}=await supabaseClient.rpc('catalog_set_subcategories',{p_product:id,p_subcategories:values});if(error)throw error;brandAreaState.classifications.set(String(id),{...(brandAreaState.classifications.get(String(id))||{}),subcategories:values});return true;}catch{brandAreaState.error='Produto salvo, mas as subcategorias não foram salvas. Confira Instalar_Subcategorias.sql e revise o cadastro.';return false;}}
+
 function brandAreaStats(key){const month=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Fortaleza'}).slice(0,7);let gross=0;for(const order of state.orders){if(order.status==='cancelado'||order.payment_method==='brinde'||!order.paid_at||toLocalISODate(new Date(order.paid_at)).slice(0,7)!==month)continue;for(const item of order.items||[])if(productManagementBrand(item.product_id)===key)gross+=Math.max(0,Number(item.quantity)||0)*Math.max(0,Number(item.unit_price)||0);}
 const tasks=allProductionTasks().filter(t=>t.source==='own'&&(t.order.accepted_at||t.order.status==='em_andamento')&&productManagementBrand(t.item.product_id)===key);return {products:state.products.filter(p=>p.active&&productManagementBrand(p.id)===key).length,openOrders:state.orders.filter(o=>!['concluido','cancelado'].includes(o.status)&&orderManagementBrand(o)===key).length,remaining:tasks.reduce((n,t)=>n+t.remaining,0),gross};}
 function productionManagementScope(){return ['materials','suggestions','stockprod','filaments','replenishment','physical'].includes(professionalState.productionView)?'all':brandAreaState.scope;}
@@ -8509,15 +8512,17 @@ async function deleteProductPermanently(product) {
 
 function renderPrecificacaoBase(container) {
   const scopedProducts=state.products.filter(p=>matchesBrandProduct(p.id));
+  if(precifState.subcategory&&!LMCategory.subcategories(scopedProducts.map(p=>({...p,subcategories:productSubcategories(p.id)})),precifState.category||'').some(v=>LMCategory.key(v)===LMCategory.key(precifState.subcategory)))precifState.subcategory='';
   const baseVisible = scopedProducts.filter((p) => precifState.showInactive || p.active);
   const productSearch = normalizeSearchText(precifState.search || "");
   const searchableProductText = (p) => normalizeSearchText([
-    p.name, p.category, p.material_tag, p.suppliers?.name,
+    p.name, p.category, ...productSubcategories(p.id), p.material_tag, p.suppliers?.name,
     ...(p.product_variants || []).map((v) => v.name),
   ].filter(Boolean).join(" "));
   let visible = productSearch ? baseVisible.filter((p) => searchableProductText(p).includes(productSearch)) : [...baseVisible];
   const categories = [...new Set(scopedProducts.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   if (precifState.category) visible = visible.filter((p) => p.category === precifState.category);
+  if(precifState.subcategory)visible=visible.filter(p=>productSubcategories(p.id).some(v=>LMCategory.key(v)===LMCategory.key(precifState.subcategory)));
   if (precifState.stockFilter === "ready") visible = visible.filter((p) => productTotalStock(p) > 0);
   if (precifState.stockFilter === "order") visible = visible.filter((p) => productTotalStock(p) === 0);
   if (precifState.stockFilter === "low") visible = visible.filter((p) => {
@@ -8574,6 +8579,7 @@ function renderPrecificacaoBase(container) {
           <option value="">Todas as categorias</option>
           ${categories.map((c)=>`<option value="${escapeHtml(c)}" ${precifState.category===c?"selected":""}>${escapeHtml(c)}</option>`).join("")}
         </select>
+        <select id="product-subcategory-filter" aria-label="Filtrar subcategoria"><option value="">Todas as subcategorias</option>${LMCategory.subcategories(scopedProducts.map(p=>({...p,subcategories:productSubcategories(p.id)})),precifState.category||'').map(v=>`<option value="${escapeHtml(v)}" ${precifState.subcategory===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select>
         <select id="product-stock-filter" aria-label="Filtrar estoque">
           <option value="all" ${precifState.stockFilter==="all"?"selected":""}>Todo estoque</option>
           <option value="ready" ${precifState.stockFilter==="ready"?"selected":""}>Pronta entrega</option>
@@ -8581,7 +8587,7 @@ function renderPrecificacaoBase(container) {
           <option value="order" ${precifState.stockFilter==="order"?"selected":""}>Sob encomenda</option>
         </select>
         <span class="pricing-v10-result-count">${visible.length} produto${visible.length===1?"":"s"}</span>
-        ${(precifState.search || precifState.category || precifState.stockFilter!=="all") ? `<button id="product-search-clear" type="button" class="pricing-v10-clear">Limpar filtros</button>` : ""}
+        ${(precifState.search || precifState.category || precifState.subcategory || precifState.stockFilter!=="all") ? `<button id="product-search-clear" type="button" class="pricing-v10-clear">Limpar filtros</button>` : ""}
       </div>
 
       <div class="pricing-v10-rule">
@@ -8694,15 +8700,16 @@ function renderPrecificacaoBase(container) {
   }
   document.getElementById("product-search-clear")?.addEventListener("click", () => {
     precifState.search = "";
-    precifState.category = "";
+    precifState.category = "";precifState.subcategory="";
     precifState.stockFilter = "all";
     renderPrecificacao(container);
     requestAnimationFrame(() => document.getElementById("product-search-input")?.focus());
   });
   document.getElementById("product-category-filter")?.addEventListener("change", (e) => {
-    precifState.category = e.target.value;
+    precifState.category = e.target.value;precifState.subcategory="";
     renderPrecificacao(container);
   });
+  document.getElementById('product-subcategory-filter')?.addEventListener('change',e=>{precifState.subcategory=e.target.value;renderPrecificacao(container);});
   document.getElementById("product-stock-filter")?.addEventListener("change", (e) => {
     precifState.stockFilter = e.target.value;
     renderPrecificacao(container);
@@ -9138,14 +9145,18 @@ function renderProductForm() {
           <p id="pf-base-cost-help" class="mt-1 text-xs text-navy-400">Obrigatório para produto sem variações. Com tamanhos/modelos, pode ficar em branco e cada combinação ter seu próprio custo.</p>
         </div>
         <div class="w-full sm:w-56">
-          <label class="mb-1 block text-sm font-medium text-navy-800">Categoria (opcional)</label>
+          <label class="mb-1 block text-sm font-medium text-navy-800">Categoria principal (opcional)</label>
           <select id="pf-category-select" class="w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200">
             <option value="">— sem categoria —</option>
             ${[...new Set(state.products.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")).map((c) => `<option value="${escapeHtml(c)}" ${product?.category === c ? "selected" : ""}>${escapeHtml(c)}</option>`).join("")}
             <option value="__new__">+ Nova categoria...</option>
           </select>
           <input id="pf-category-new" class="mt-2 hidden w-full rounded-lg border border-navy-200 px-3 py-2 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Nome da nova categoria" />
-          <p class="mt-1 text-xs text-navy-400">Usada pra agrupar os produtos no Catálogo público.</p>
+          <p class="mt-1 text-xs text-navy-400">Ex.: Decoração, Imagens ou Lembranças.</p>
+          <label for="pf-subcategories" class="mt-3 mb-1 block text-sm font-medium text-navy-800">Subcategorias (opcional)</label>
+          <input id="pf-subcategories" value="${escapeHtml(productSubcategories(product?.id).join(', '))}" list="pf-subcategory-suggestions" class="w-full rounded-lg border border-navy-200 px-3 py-2" placeholder="Ex.: Política, Presentes" />
+          <datalist id="pf-subcategory-suggestions">${LMCategory.subcategories(state.products.map(p=>({...p,subcategories:productSubcategories(p.id)})),'').map(v=>`<option value="${escapeHtml(v)}">`).join('')}</datalist>
+          <p class="mt-1 text-xs text-navy-400">Pode informar mais de uma, separadas por vírgula. Ex.: Decoração → Política.</p>
         </div>
         <div class="w-full sm:w-56">
           <label class="mb-1 block text-sm font-medium text-navy-800">Tag de material (opcional)</label>
@@ -9973,6 +9984,9 @@ function renderProductForm() {
     const hasBaseCost = baseCostRaw !== "";
     const baseCost = hasBaseCost ? Number(baseCostRaw.replace(",", ".")) : 0;
     const errorEl = document.getElementById("pf-error");
+    let subcategories;try{subcategories=LMCategory.clean(document.getElementById('pf-subcategories').value);}catch(err){errorEl.textContent=err.message;return;}
+    const saveSubcategories=subcategories.length>0||productSubcategories(product?.id).length>0;
+    if(saveSubcategories){const {error}=await supabaseClient.from('product_catalog_identity').select('subcategories').limit(1);if(error){errorEl.textContent='Execute Instalar_Subcategorias.sql antes de salvar as subcategorias. O produto ainda não foi alterado.';return;}}
     if (!name) { errorEl.textContent = "Informe o nome do produto."; return; }
     if (formVariants.length === 0 && !hasBaseCost) { errorEl.textContent = "Informe o custo base do produto."; return; }
     if (hasBaseCost && (!Number.isFinite(baseCost) || baseCost < 0)) { errorEl.textContent = "Custo base inválido."; return; }
@@ -10226,6 +10240,7 @@ function renderProductForm() {
     }
 
     if(!product||productManagementBrand(product.id)!==(managementBrandValue||'pending'))await saveProductManagementBrand(productId,managementBrandValue);
+    if(saveSubcategories)await saveProductSubcategories(productId,subcategories);
     const returnY = Number(precifState.editorReturnScrollY || 0);
     precifState.formOpen = false;
     precifState.draftFromCalc3d = null;
