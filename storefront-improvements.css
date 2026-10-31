@@ -9,3 +9,24 @@
 .product-image,.lm-product-visual .lm-product-image{aspect-ratio:3/4!important;width:100%;height:auto!important;padding:0!important;display:block}
 .product-image img,.lm-product-image img{aspect-ratio:3/4!important;object-fit:contain!important;object-position:center!important;padding:0!important;border-radius:0!important}
 .lm-product-image .lm-image-placeholder{width:38%!important;height:38%!important;aspect-ratio:1!important;position:absolute;inset:0;margin:auto}
+
+/* Compra compacta: sem alturas reservadas entre nome, preço e modelo. */
+.product .product-info{padding-top:10px;gap:0}
+.product .product-info h3,.lm-product-card .lm-product-info h3{min-height:0;margin:4px 0 6px}
+.product .product-bottom{flex:0 0 auto;align-items:stretch;margin-top:0;padding-top:0;border-top:0;gap:0}
+.product .shop-offer,.lm-product-card .shop-offer{min-height:0;margin:0 0 8px;line-height:1.35;text-align:left}
+.product .offer-pix,.lm-product-card .offer-pix{gap:5px}
+.product .offer-pix>strong,.lm-product-card .offer-pix>strong{font-size:24px}
+.product .offer-credit,.lm-product-card .offer-credit{margin-top:3px;font-size:12px}
+.product .offer-credit>span,.lm-product-card .offer-credit>span{margin-top:0}
+.product .product-bottom>.card-model,.lm-product-card .card-model{min-height:0;width:100%;margin:0 0 8px}
+.product .card-model select,.lm-product-card .card-model select{margin-top:3px;min-height:44px;padding:8px 9px}
+.product .card-model:has(.single-model),.lm-product-card .card-model:has(.single-model){display:none}
+.lm-product-card .lm-product-info{gap:0;padding-top:9px}
+.lm-product-card .lm-product-meta{margin-bottom:3px}
+.lm-product-card .lm-product-info>.lm-product-action{margin-top:0;min-height:44px}
+.product .add{min-height:44px}
+.product .card-details,.lm-product-card .card-details{min-height:32px;padding:6px 3px;margin-top:2px}
+@media(max-width:700px){.product .offer-pix>strong,.lm-product-card .offer-pix>strong{font-size:21px}}
+
+.product .offer-credit>span,.lm-product-card .offer-credit>span{display:inline;margin-left:4px}
