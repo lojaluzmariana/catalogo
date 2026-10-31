@@ -42,8 +42,8 @@
     const scale = Math.min(innerWidth / img.naturalWidth, innerHeight / img.naturalHeight);
     const photoWidth = css.objectFit === 'contain' ? img.naturalWidth * scale : innerWidth;
     const photoHeight = css.objectFit === 'contain' ? img.naturalHeight * scale : innerHeight;
-    const width = photoWidth * .40;
     const aspect = key === 'iluminart' ? 1434 / 1097 : key === 'luz_mariana' ? 2079 / 756 : 2048 / 500;
+    const width = Math.min(photoWidth * .90, photoHeight * .90 * aspect);
     const height = width / aspect;
     const left = rect.left - box.left - parent.clientLeft + parent.scrollLeft + rect.width / 2 - width / 2;
     const top = rect.top - box.top - parent.clientTop + parent.scrollTop + rect.height / 2 - height / 2;
