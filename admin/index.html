@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Luz Mariana — Painel</title>
+<title>Iluminart - Gestão</title>
 <meta name="luz-mariana-admin-version" content="professional-v11.9-calculadora-fluxo-2026-10-22" />
-<meta name="description" content="Controle de caixa e precificação — Luz Mariana, Artigos Religiosos e Devoção" />
-<link rel="icon" type="image/png" href="../favicon.png" />
-<link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+<meta name="description" content="Iluminart - Gestão. Produtos, pedidos e produção separados entre Iluminart e Luz Mariana." />
+<link rel="icon" type="image/png" href="../loja-assets/9fe7abb22dd904ea.png" />
+<link rel="apple-touch-icon" href="../loja-assets/9fe7abb22dd904ea.png" />
 <meta name="theme-color" content="#001868" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="Luz Mariana Painel" />
+<meta name="apple-mobile-web-app-title" content="Iluminart - Gestão" />
 
 <!-- CSS do Tailwind PRÉ-COMPILADO (../tailwind-built.css, na raiz do
      site), no lugar do script da CDN (cdn.tailwindcss.com) — ver o
@@ -2540,7 +2540,7 @@ html.dark .lm-production-item small,html.dark .lm-production-order-head small,ht
 @media(max-width:640px){.lm-production-focus{padding:14px}.lm-production-focus h2{font-size:19px}.lm-production-item{align-items:flex-start}.lm-production-buttons{width:100%}.lm-production-buttons button{flex:1}.lm-production-order{padding:12px}}
 
 </style>
-</head>
+<link rel="stylesheet" href="brand-management.css?v=1"></head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -2559,10 +2559,10 @@ const USER_EMAILS = {
 };
 
 /* Dados da loja, usados no comprovante não fiscal dos pedidos. */
-const STORE_NAME = "Luz Mariana";
-const STORE_SUBTITLE = "Artigos Religiosos e Devoção";
+const STORE_NAME = "Iluminart";
+const STORE_SUBTITLE = "Onde a criatividade ganha forma";
 const STORE_CNPJ = "68.615.746/0001-43";
-const STORE_INSTAGRAM = "@luzmariana.art";
+const STORE_INSTAGRAM = "@iluminartrn";
 // Mesmo número de WhatsApp que o Catálogo público usa pra receber os
 // pedidos (ver STORE_WHATSAPP_NUMBER em index.html) — usado aqui só pro
 // aviso manual de "estoque baixo" (botão que abre o WhatsApp da loja
@@ -3076,7 +3076,7 @@ const state = {
   selectedName: null,
   currentUser: null, // { id, name }
   forgotPassword: { username: "", submitting: false, submitted: false, error: null },
-  tab: "inicio", // inicio | precificacao | materiais | fornecedores | clientes | cupons | orcamentos | pedidos | estoque | caixa
+  tab: "marcas", // marcas | inicio | precificacao | materiais | fornecedores | clientes | cupons | orcamentos | pedidos | estoque | caixa
   products: [],
   materials: [],
   suppliers: [],
@@ -3123,11 +3123,11 @@ function renderLogin() {
   app.innerHTML = `
     <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
       <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
-        <img src="../logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" class="max-w-[260px] sm:max-w-[300px]" />
+        <img src="../loja-assets/9fe7abb22dd904ea.png" alt="Iluminart - Gestão" class="management-login-logo" />
       </div>
       <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
         <h1 class="mb-1 text-center text-lg font-semibold text-navy-900">Entrar no painel</h1>
-        <p class="mb-6 text-center text-sm text-navy-500">Use seu usuário e senha da Luz Mariana.</p>
+        <p class="mb-6 text-center text-sm text-navy-500">Use seu usuário e senha da equipe.</p>
         <form id="login-form" class="flex flex-col gap-4">
           <label class="block">
             <span class="mb-1.5 block text-sm font-medium text-navy-800">Usuário</span>
@@ -3150,7 +3150,7 @@ function renderLogin() {
           </button>
         </form>
       </div>
-      <p class="mt-8 text-xs text-navy-400">Luz Mariana — Artigos Religiosos e Devoção</p>
+      <p class="mt-8 text-xs text-navy-400">Iluminart - Gestão · Iluminart e Luz Mariana</p>
     </main>
   `;
 
@@ -3214,7 +3214,7 @@ function renderTwoFactor() {
   app.innerHTML = `
     <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
       <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
-        <img src="../logo-horizontal.png" alt="Luz Mariana — Artigos Religiosos e Devoção" class="max-w-[260px] sm:max-w-[300px]" />
+        <img src="../loja-assets/9fe7abb22dd904ea.png" alt="Iluminart - Gestão" class="management-login-logo" />
       </div>
       <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
         <h1 class="mb-1 text-center text-lg font-semibold text-navy-900">Verificação em duas etapas</h1>
@@ -3236,7 +3236,7 @@ function renderTwoFactor() {
           </button>
         </form>
       </div>
-      <p class="mt-8 text-xs text-navy-400">Luz Mariana — Artigos Religiosos e Devoção</p>
+      <p class="mt-8 text-xs text-navy-400">Iluminart - Gestão · Iluminart e Luz Mariana</p>
     </main>
   `;
 
@@ -3268,7 +3268,7 @@ function renderSetPassword() {
   app.innerHTML = `
     <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
       <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
-        <img src="../logo-horizontal.png" alt="Luz Mariana" class="max-w-[260px] sm:max-w-[300px]" />
+        <img src="../loja-assets/9fe7abb22dd904ea.png" alt="Iluminart - Gestão" class="management-login-logo" />
       </div>
       <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
         <h1 class="mb-1 text-lg font-semibold text-navy-900">Primeiro acesso, ${escapeHtml(state.selectedName)}!</h1>
@@ -3335,7 +3335,7 @@ function renderForgotPassword() {
     app.innerHTML = `
       <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
         <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
-          <img src="../logo-horizontal.png" alt="Luz Mariana" class="max-w-[260px] sm:max-w-[300px]" />
+          <img src="../loja-assets/9fe7abb22dd904ea.png" alt="Iluminart - Gestão" class="management-login-logo" />
         </div>
         <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 text-center shadow-lg sm:p-8">
           <h1 class="mb-2 text-lg font-semibold text-navy-900">Verifique seu e-mail</h1>
@@ -3357,7 +3357,7 @@ function renderForgotPassword() {
   app.innerHTML = `
     <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
       <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
-        <img src="../logo-horizontal.png" alt="Luz Mariana" class="max-w-[260px] sm:max-w-[300px]" />
+        <img src="../loja-assets/9fe7abb22dd904ea.png" alt="Iluminart - Gestão" class="management-login-logo" />
       </div>
       <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
         <h1 class="mb-1 text-lg font-semibold text-navy-900">Esqueci minha senha</h1>
@@ -3426,7 +3426,7 @@ function renderResetPassword() {
   app.innerHTML = `
     <main class="flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-12">
       <div class="mb-6 flex flex-col items-center gap-2 sm:mb-8">
-        <img src="../logo-horizontal.png" alt="Luz Mariana" class="max-w-[260px] sm:max-w-[300px]" />
+        <img src="../loja-assets/9fe7abb22dd904ea.png" alt="Iluminart - Gestão" class="management-login-logo" />
       </div>
       <div class="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-6 shadow-lg sm:p-8">
         <h1 class="mb-1 text-lg font-semibold text-navy-900">Redefinir senha</h1>
@@ -3530,7 +3530,7 @@ async function finishAppEntry() {
 // Recarrega todos os dados do app de uma vez (usado ao entrar, no botão
 // "Atualizar" e na atualização automática em segundo plano).
 async function loadAllData() {
-  await Promise.all([loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCampaigns(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews(), loadCatalogEvents(), loadV11OpsData()]);
+  await Promise.all([loadManagementBrands(), loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCampaigns(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews(), loadCatalogEvents(), loadV11OpsData()]);
   const entryParams=new URLSearchParams(location.search);
   if(!window.__calculatorEntryHandled){
     const order=state.orders.find(o=>String(o.id)===entryParams.get('pedido'));
@@ -3627,7 +3627,7 @@ async function logout() {
   clearTwoFactorVerified();
   await supabaseClient.auth.signOut();
   Object.assign(state, {
-    screen: "login", selectedName: null, currentUser: null, tab: "inicio",
+    screen: "login", selectedName: null, currentUser: null, tab: "marcas",
     products: [], materials: [], customers: [], coupons: [], couponAllowedPhones: [], orcamentos: [], orders: [], cashEntries: [], catalogEvents: [], catalogAnalyticsAvailable:false, catalogAnalyticsError:null, error: null,
   });
   render();
@@ -3921,8 +3921,8 @@ function allProductionTasks({ includeCompleted = false } = {}) {
 function ownProductionTasks() {
   return allProductionTasks().filter((t) => t.source === "own" && (t.order.accepted_at || t.order.status === "em_andamento"));
 }
-function productionMetrics() {
-  const own = ownProductionTasks();
+function productionMetrics({brand="all"}={}) {
+  const own = ownProductionTasks().filter(t=>matchesBrandProduct(t.item.product_id,brand));
   const remainingUnits = own.reduce((s,t) => s + t.remaining, 0);
   const printing = own.filter((t) => t.stage === "printing").length;
   const finishing = own.filter((t) => t.stage === "finishing").length;
@@ -4987,9 +4987,9 @@ function renderDailyCloseOverlay(){
 function v11OpenExpense(){v11State.expenseOpen=true;renderQuickExpenseOverlay();}
 function v11OpenDailyClose(){v11State.dailyCloseOpen=true;renderDailyCloseOverlay();}
 
-function renderEstoqueProdutos(container){
+function renderEstoqueProdutosBase(container){
   const query=normalizeSearchText(v11State.stockSearch||""); const prodTasks=ownProductionTasks(); const prodSet=new Set(prodTasks.filter((t)=>t.remaining>0).map((t)=>`${t.product?.id||""}::${t.variantName||""}`)); let rows=[];
-  state.products.filter((p)=>p.active).forEach((p)=>{const vars=p.product_variants||[];if(vars.length)vars.forEach((v)=>{const q=v.stock_qty==null?0:Number(v.stock_qty||0);rows.push({p,v,q,key:`${p.id}::${v.name||""}`});});else rows.push({p,v:null,q:p.stock_qty==null?0:Number(p.stock_qty||0),key:`${p.id}::`});});
+  state.products.filter((p)=>p.active&&matchesBrandProduct(p.id)).forEach((p)=>{const vars=p.product_variants||[];if(vars.length)vars.forEach((v)=>{const q=v.stock_qty==null?0:Number(v.stock_qty||0);rows.push({p,v,q,key:`${p.id}::${v.name||""}`});});else rows.push({p,v:null,q:p.stock_qty==null?0:Number(p.stock_qty||0),key:`${p.id}::`});});
   rows=rows.filter((r)=>!query||normalizeSearchText(`${r.p.name} ${r.v?.name||""} ${r.p.category||""}`).includes(query)); if(v11State.stockFilter==="ready")rows=rows.filter((r)=>r.q>2);if(v11State.stockFilter==="low")rows=rows.filter((r)=>r.q>0&&r.q<=2);if(v11State.stockFilter==="zero")rows=rows.filter((r)=>r.q===0);if(v11State.stockFilter==="production")rows=rows.filter((r)=>prodSet.has(r.key));
   container.innerHTML=`<div class="lm-v11-stock-shell"><div class="pro-page-header"><div><span class="admin-kicker">Operação</span><h1>Estoque de produtos</h1><p>Veja o que está pronto, o que está acabando e ajuste quantidades sem abrir o cadastro completo.</p></div><button id="v11-stock-go-production" class="lm-v11-action primary">Abrir produção</button></div><div class="pricing-v10-filters"><div class="pricing-v10-search"><span>⌕</span><input id="v11-stock-search" value="${escapeHtml(v11State.stockSearch||"")}" placeholder="Buscar produto ou modelo..."></div><select id="v11-stock-filter"><option value="all">Todo estoque</option><option value="ready" ${v11State.stockFilter==="ready"?"selected":""}>Pronta entrega</option><option value="low" ${v11State.stockFilter==="low"?"selected":""}>Estoque baixo</option><option value="zero" ${v11State.stockFilter==="zero"?"selected":""}>Zerados / encomenda</option><option value="production" ${v11State.stockFilter==="production"?"selected":""}>Em produção</option></select><span class="pricing-v10-result-count">${rows.length} item(ns)</span></div><div class="lm-v11-stock-grid">${rows.map((r)=>{const status=r.q===0?"zero":r.q<=2?"low":"ready", forecast=v11StockForecast(r.p.id,r.v?.name||"",r.q);return `<article class="lm-v11-stock-card"><div class="lm-v11-stock-top">${r.v?.photo_url||r.p.photo_url?`<img src="${r.v?.photo_url||r.p.photo_url}" alt="">`:`<span class="lm-v11-stock-photo"></span>`}<div><strong>${escapeHtml(r.p.name)}</strong><small>${escapeHtml(r.v?.name||"Padrão")}</small></div><span class="lm-v11-stock-status ${status}">${r.q===0?"Zerado":r.q<=2?"Baixo":"Pronta entrega"}</span></div><div class="lm-v11-stock-controls"><button data-v11-center-minus="${r.p.id}" data-variant="${r.v?.id||""}">−</button><b>${r.q}</b><button data-v11-center-plus="${r.p.id}" data-variant="${r.v?.id||""}">+</button><span class="text-[9px] text-navy-400">${forecast?`nesse ritmo: ~${forecast} dias`:"sem previsão"}</span></div><div class="lm-v11-stock-card-actions"><button data-v11-center-view="${r.p.id}">Visão rápida</button><button data-v11-center-production="${r.p.id}">Produzir</button></div></article>`;}).join("")||`<div class="pricing-v10-empty">Nenhum item com esse filtro.</div>`}</div></div>`;
   document.getElementById("v11-stock-search")?.addEventListener("input",(e)=>{v11State.stockSearch=e.target.value;renderEstoqueProdutos(container);requestAnimationFrame(()=>{const n=document.getElementById("v11-stock-search");n?.focus();try{n?.setSelectionRange(n.value.length,n.value.length)}catch(_e){}});});document.getElementById("v11-stock-filter")?.addEventListener("change",(e)=>{v11State.stockFilter=e.target.value;renderEstoqueProdutos(container);});document.getElementById("v11-stock-go-production")?.addEventListener("click",()=>{state.tab="producao";renderApp();});container.querySelectorAll("[data-v11-center-minus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11CenterMinus,b.dataset.variant||null,-1,"Ajuste na Central de Estoque");renderEstoqueProdutos(container);});container.querySelectorAll("[data-v11-center-plus]").forEach((b)=>b.onclick=async()=>{await v11ChangeStock(b.dataset.v11CenterPlus,b.dataset.variant||null,1,"Ajuste na Central de Estoque");renderEstoqueProdutos(container);});container.querySelectorAll("[data-v11-center-view]").forEach((b)=>b.onclick=()=>v11OpenProductQuickView(b.dataset.v11CenterView));container.querySelectorAll("[data-v11-center-production]").forEach((b)=>b.onclick=()=>{state.tab="producao";renderApp();});
@@ -5028,10 +5028,10 @@ function productionQueueActions(t) {
   if (t.stage === "finishing") return `<button type="button" ${attrs} data-queue-action="one" ${t.done >= t.qty ? "disabled" : ""}>+1 pronta</button><button type="button" class="primary" ${attrs} data-queue-action="complete">Tudo pronto</button>`;
   return "";
 }
-function renderProductionQueue({ home = false } = {}) {
-  const pending = pendingProductionTasks();
+function renderProductionQueue({ home = false, brand="all" } = {}) {
+  const pending = pendingProductionTasks().filter(t=>matchesBrandProduct(t.item.product_id,brand));
   const groups = productionQueueGroups(pending);
-  const waiting = productionQueueGroups(allProductionTasks().filter((t) => t.source === "own" && t.order.status === "novo" && !t.order.accepted_at && !["ready","separated"].includes(t.stage)));
+  const waiting = productionQueueGroups(allProductionTasks().filter((t) => matchesBrandProduct(t.item.product_id,brand) && t.source === "own" && t.order.status === "novo" && !t.order.accepted_at && !["ready","separated"].includes(t.stage)));
   const late = groups.filter((g) => g.deadline.days != null && g.deadline.days < 0).length;
   const today = groups.filter((g) => g.deadline.days === 0).length;
   const units = pending.reduce((sum,t) => sum + t.remaining, 0);
@@ -5103,7 +5103,7 @@ function renderInicio(container) {
     <section class="lm-v11-hero"><div><span class="admin-kicker">Hoje</span><h1>Olá, ${escapeHtml(first)}.</h1><p>O painel mostra primeiro o que merece sua atenção. Você não precisa interpretar relatório: resolva as pendências e deixe os detalhes para quando precisar.</p></div><div class="lm-v11-actions"><button id="v11-home-sale" class="lm-v11-action primary">🧾 Nova venda</button><button id="v11-home-product" class="lm-v11-action">＋ Novo produto</button><button id="v11-home-expense" class="lm-v11-action">💸 Registrar gasto</button><button id="v11-home-close" class="lm-v11-action">✓ Fechar o dia</button><button type="button" data-home-tab="producao" class="lm-v11-action">⚙ Produção</button></div></section>
     ${renderProductionQueue({ home:true })}
     <div class="lm-v11-grid"><section class="lm-v11-card"><h2>O que precisa de você agora</h2><p class="caption">Comece pelos itens vermelhos; quando zerar essa lista, a operação está organizada.</p><div class="lm-v11-priority-list">${tasks.map((t)=>`<button type="button" data-home-tab="${t.tab}" class="lm-v11-priority ${t.tone}"><span class="dot"></span><span><strong>${escapeHtml(t.label)}</strong><small>${escapeHtml(t.detail)}</small></span><b>${t.n}</b></button>`).join("")}</div></section>
-      <section class="lm-v11-card"><h2>Saúde da Luz Mariana</h2><p class="caption">Quatro sinais simples. Toque nas áreas de gestão quando quiser entender os detalhes.</p><div class="lm-v11-health"><div class="${salesHealth.c}"><span>Vendas</span><strong>${salesHealth.t}</strong><small>${salesHealth.d}</small></div><div class="${profitHealth.c}"><span>Lucro</span><strong>${profitHealth.t}</strong><small>${profitHealth.d}</small></div><div class="${cashHealth.c}"><span>Caixa</span><strong>${cashHealth.t}</strong><small>${cashHealth.d}</small></div><div class="${stockHealth.c}"><span>Estoque</span><strong>${stockHealth.t}</strong><small>${stockHealth.d}</small></div></div><div class="mt-3 flex gap-2 flex-wrap"><button type="button" data-home-tab="fechamento" class="lm-v11-action">Fechamento mensal</button><button type="button" data-home-tab="rentabilidade" class="lm-v11-action">Ver rentabilidade</button></div></section></div>
+      <section class="lm-v11-card"><h2>Saúde do negócio · visão geral</h2><p class="caption">Quatro sinais simples. Toque nas áreas de gestão quando quiser entender os detalhes.</p><div class="lm-v11-health"><div class="${salesHealth.c}"><span>Vendas</span><strong>${salesHealth.t}</strong><small>${salesHealth.d}</small></div><div class="${profitHealth.c}"><span>Lucro</span><strong>${profitHealth.t}</strong><small>${profitHealth.d}</small></div><div class="${cashHealth.c}"><span>Caixa</span><strong>${cashHealth.t}</strong><small>${cashHealth.d}</small></div><div class="${stockHealth.c}"><span>Estoque</span><strong>${stockHealth.t}</strong><small>${stockHealth.d}</small></div></div><div class="mt-3 flex gap-2 flex-wrap"><button type="button" data-home-tab="fechamento" class="lm-v11-action">Fechamento mensal</button><button type="button" data-home-tab="rentabilidade" class="lm-v11-action">Ver rentabilidade</button></div></section></div>
     <section class="lm-v11-card"><h2>Dinheiro em português <span class="lm-v11-help" title="O painel separa o que entrou em custo, lucro, reinvestimento e sua retirada para evitar misturar dinheiro da loja com dinheiro pessoal.">?</span></h2><p class="caption">Resumo do mês atual. O detalhamento completo continua no Caixa e no Fechamento.</p><div class="lm-v11-money"><div><span>Vendeu</span><strong>${formatBRL(money.gross)}</strong></div><div><span>Guardar na loja</span><strong>${formatBRL(round2(money.cost + money.reinvestment))}</strong></div><div class="salary"><span>Sua parte para retirada</span><strong>${formatBRL(money.salary)}</strong></div></div><div class="lm-v11-plain-summary">Neste mês entraram <b>${formatBRL(money.gross)}</b> em pedidos pagos. Desse total, aproximadamente <b>${formatBRL(round2(money.cost + money.reinvestment))}</b> ficam guardados na loja, já incluindo custos e reserva. A sua parte para retirada é <b>${formatBRL(money.salary)}</b>. O Caixa operacional está em <b>${formatBRL(balance)}</b> e o painel indica <b>${formatBRL(plan.ownerAvailableNow)}</b> como retirada disponível agora.</div></section>
     <div class="lm-v11-grid"><section class="lm-v11-card"><h2>O que mudou desde ontem</h2><p class="caption">Uma leitura rápida para você não precisar comparar telas.</p><div class="lm-v11-changes"><div><span>Vendas hoje</span><strong>${formatBRL(today.sales)}</strong><small>ontem ${formatBRL(yesterday.sales)}</small></div><div><span>Pedidos criados hoje</span><strong>${today.orders}</strong><small>ontem ${yesterday.orders}</small></div><div><span>Ajustes de estoque hoje</span><strong>${today.moves}</strong><small>registrados pela edição rápida</small></div></div></section><section class="lm-v11-card"><h2>Checklist do mês</h2><p class="caption">O painel lembra as rotinas; você só marca quando concluir.</p><div class="lm-v11-checklist">${v11ChecklistDefaults().map(([k,l])=>`<label class="lm-v11-checkitem"><input type="checkbox" data-v11-check="${k}" ${checklist[k]?"checked":""}><span>${escapeHtml(l)}</span></label>`).join("")}</div></section></div>
     <section class="lm-v11-card"><div class="flex items-center justify-between gap-3"><div><h2>Pedidos recentes</h2><p class="caption">Abra, confira ou repita uma venda sem procurar o cliente novamente.</p></div><button type="button" data-home-tab="pedidos" class="lm-v11-link">Ver todos</button></div><div class="lm-v11-recent">${recent.length?recent.map((o)=>`<div class="lm-v11-recent-row"><div><strong>Pedido ${String(o.order_number??"").padStart(6,"0")} · ${escapeHtml(o.customer_name||"Cliente")}</strong><small>${formatDate(String(o.created_at).slice(0,10))} · ${escapeHtml(ORDER_STATUS_LABELS[o.status]||o.status)}</small></div><b>${formatBRL(o.total)}</b><div><button data-v11-open-order="${o.id}" class="lm-v11-link">Abrir</button><button data-v11-repeat-order="${o.id}" class="lm-v11-link">Repetir</button></div></div>`).join(""):`<p class="caption">Nenhum pedido registrado ainda.</p>`}</div></section>
@@ -5324,7 +5324,7 @@ function renderPosVenda(container) {
     const link = waLink(order.customer_whatsapp);
     if (!link) return;
     const first = String(order.customer_name || "").trim().split(/\s+/)[0] || "Olá";
-    const message = `Olá, ${first}! 💙 Passando para saber se deu tudo certo com o seu pedido da Luz Mariana e se você ficou feliz com ele. Seu retorno é muito importante para nós. ✨`;
+    const message = `Olá, ${first}! 💙 Passando para saber se deu tudo certo com o seu pedido da ${managementOrderIdentity(order).name} e se você ficou feliz com ele. Seu retorno é muito importante para nós. ✨`;
     window.open(`${link}?text=${encodeURIComponent(message)}`, "_blank");
   }));
 }
@@ -5413,9 +5413,9 @@ function renderProductionCard(t) {
   `;
 }
 
-function renderProducao(container) {
-  const metrics = productionMetrics();
-  const waitingAcceptance = allProductionTasks().filter((t) => t.source === "own" && t.order.status === "novo" && !t.order.accepted_at);
+function renderProducaoBase(container) {
+  const metrics = productionMetrics({brand:productionManagementScope()});
+  const waitingAcceptance = allProductionTasks().filter((t) => matchesBrandProduct(t.item.product_id) && t.source === "own" && t.order.status === "novo" && !t.order.accepted_at);
   const own = metrics.own
     .filter((t) => professionalState.productionFilter === "all" || t.stage === professionalState.productionFilter)
     .sort((a,b) => a.priority.rank - b.priority.rank || (a.deadline.days ?? 9999) - (b.deadline.days ?? 9999));
@@ -5439,7 +5439,7 @@ function renderProducao(container) {
   const groupedRows = [...grouped.values()].sort((a,b) => b.urgent - a.urgent || b.remaining - a.remaining);
 
   const supplierTasks = allProductionTasks().filter((t) =>
-    t.source === "supplier" && !["cancelado","concluido"].includes(t.order.status)
+    matchesBrandProduct(t.item.product_id) && t.source === "supplier" && !["cancelado","concluido"].includes(t.order.status)
   );
 
   const stages = [
@@ -5487,7 +5487,7 @@ function renderProducao(container) {
         ].map(([key,label]) => `<button class="pro-tab ${professionalState.productionView === key ? "active" : ""}" data-production-view="${key}">${label}</button>`).join("")}
       </div>
 
-      ${professionalState.productionView === "queue" ? renderProductionQueue() : ""}
+      ${professionalState.productionView === "queue" ? renderProductionQueue({brand:brandAreaState.scope}) : ""}
 
       ${professionalState.productionView === "board" ? `
         <div class="mb-3 flex flex-wrap gap-2">
@@ -5598,7 +5598,7 @@ function renderProducao(container) {
           <table class="rank-table">
             <thead><tr><th>Produto / tamanho/modelo</th><th>Físico</th><th>Reservado</th><th>Disponível</th><th>Status</th></tr></thead>
             <tbody>
-              ${state.products.filter((p) => p.active).flatMap((p) => {
+              ${state.products.filter((p) => p.active&&matchesBrandProduct(p.id)).flatMap((p) => {
                 const rows = (p.product_variants || []).length ? p.product_variants.map((v) => ({p,variant:v.name})) : [{p,variant:""}];
                 return rows.map(({p,variant}) => {
                   const s = stockAvailability(p,variant);
@@ -5635,7 +5635,7 @@ function renderProducao(container) {
     const groupKey = btn.dataset.createProductionLot;
     const tasks = productionMetrics().own.filter((t) => `${t.item.product_name}::${t.item.variant_name || ""}` === groupKey && t.remaining > 0);
     if (!tasks.length) return;
-    const lot = `LM-${todayISO().replace(/-/g,"")}-${String(Date.now()).slice(-4)}`;
+    const lot = `${brandAreaState.scope==='luz_mariana'?'LM':'IL'}-${todayISO().replace(/-/g,"")}-${String(Date.now()).slice(-4)}`;
     let machine = "";
     const machines = professionalState.config.machines || [];
     if (machines.length === 1) machine = machines[0].name || "";
@@ -6637,8 +6637,47 @@ function applyV8DesignSystem(container) {
   });
 }
 
+/* Identidade da gestão e separação operacional por marca, sem duplicar cadastros. */
+const managementBrands={
+ iluminart:{name:'Iluminart',subtitle:'Onde a criatividade ganha forma',instagram:'@iluminartrn',logo:'../loja-assets/9fe7abb22dd904ea.png'},
+ luz_mariana:{name:'Luz Mariana',subtitle:'Artigos Religiosos e Devoção',instagram:'@lojaluzmariana',logo:'../loja-assets/5f3d81aae6ac3a7e.png'},
+};
+const brandAreaState={scope:'all',identities:new Map(),ready:false,error:null};
+const brandAreaLabels={all:'Todas as marcas',iluminart:'Iluminart',luz_mariana:'Luz Mariana',mixed:'Pedidos mistos',pending:'A classificar'};
+function productManagementBrand(id){const value=brandAreaState.identities.get(String(id));return value==='iluminart'||value==='luz_mariana'?value:'pending';}
+function itemsManagementBrand(items){const brands=new Set((items||[]).map(it=>productManagementBrand(it.product_id)));if(!brands.size||brands.has('pending'))return 'pending';return brands.size===1?[...brands][0]:'mixed';}
+function quoteManagementBrand(row){const explicit=row?.itens?.[0]?.managementBrand;if(['iluminart','luz_mariana','mixed'].includes(explicit))return explicit;return itemsManagementBrand((row?.itens||[]).map(it=>({product_id:it.productId||it.product_id})));}
+function managementQuoteIdentity(d){const key=d.managementBrand||quoteManagementBrand({itens:d.itens});return managementBrands[key]||{name:key==='mixed'?'Iluminart + Luz Mariana':'Iluminart',subtitle:key==='mixed'?'Presentes, personalizados e artigos religiosos':'Onde a criatividade ganha forma',instagram:'@iluminartrn'};}
+function orderManagementBrand(order){return itemsManagementBrand(order?.items);}
+function matchesBrandProduct(id,scope=brandAreaState.scope){return scope==='all'||productManagementBrand(id)===scope;}
+function matchesBrandOrder(order,scope=brandAreaState.scope){return scope==='all'||orderManagementBrand(order)===scope;}
+function managementOrderIdentity(order){const key=orderManagementBrand(order);return managementBrands[key]||{name:key==='mixed'?'Iluminart + Luz Mariana':'Iluminart',subtitle:key==='mixed'?'Presentes, personalizados e artigos religiosos':'Gestão de pedidos',instagram:'@iluminartrn'};}
+async function loadManagementBrands(){try{const rows=[];for(let offset=0;offset<100000;offset+=1000){const {data,error}=await supabaseClient.from('product_catalog_identity').select('product_id,brand').order('product_id').range(offset,offset+999);if(error)throw error;rows.push(...(data||[]));if((data||[]).length<1000){brandAreaState.identities=new Map(rows.map(r=>[String(r.product_id),r.brand]));brandAreaState.ready=true;brandAreaState.error=null;return;}}throw Error('Classificação incompleta');}catch{brandAreaState.error='Não foi possível atualizar as marcas. Confira a conexão e a instalação de Instalar_Catalogo_Iluminart.sql.';}}
+function brandAreaStats(key){const month=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Fortaleza'}).slice(0,7);let gross=0;for(const order of state.orders){if(order.status==='cancelado'||order.payment_method==='brinde'||!order.paid_at||toLocalISODate(new Date(order.paid_at)).slice(0,7)!==month)continue;for(const item of order.items||[])if(productManagementBrand(item.product_id)===key)gross+=Math.max(0,Number(item.quantity)||0)*Math.max(0,Number(item.unit_price)||0);}
+const tasks=allProductionTasks().filter(t=>t.source==='own'&&(t.order.accepted_at||t.order.status==='em_andamento')&&productManagementBrand(t.item.product_id)===key);return {products:state.products.filter(p=>p.active&&productManagementBrand(p.id)===key).length,openOrders:state.orders.filter(o=>!['concluido','cancelado'].includes(o.status)&&orderManagementBrand(o)===key).length,remaining:tasks.reduce((n,t)=>n+t.remaining,0),gross};}
+function productionManagementScope(){return ['materials','suggestions','stockprod','filaments','replenishment','physical'].includes(professionalState.productionView)?'all':brandAreaState.scope;}
+function brandBarHtml(){const scoped=['precificacao','pedidos','producao','estoqueprodutos','avaliacoes','orcamentos'].includes(state.tab)&&!(state.tab==='producao'&&['materials','suggestions','stockprod','filaments','replenishment','physical'].includes(professionalState.productionView));return `<section class="brand-scope-bar" aria-label="Área de gestão"><div><strong>${scoped?'Organizar por marca':'Gestão geral · todas as marcas'}</strong><p>${scoped?(state.tab==='orcamentos'?'Orçamentos desta área. A marca pode ser escolhida no próprio orçamento; use Ver marcas para mudar a lista.':state.tab==='pedidos'?'Pedidos com marcas diferentes ficam em Pedidos mistos. Se houver item sem marca, o pedido fica A classificar.':'A marca é a classificação revisada do produto, compartilhada com a vitrine.'):'Caixa, despesas, materiais e relatórios gerais continuam compartilhados. Acompanhe as áreas separadas em Nossas marcas.'}</p>${brandAreaState.error?`<p class="brand-error" role="alert">${escapeHtml(brandAreaState.error)}</p>`:''}</div>${scoped&&state.tab!=='orcamentos'?`<label>Mostrar<select id="management-brand-scope" ${isAnyFormOpen()?'disabled':''}>${Object.entries(brandAreaLabels).filter(([k])=>k!=='mixed'||state.tab==='pedidos').map(([key,label])=>`<option value="${key}" ${brandAreaState.scope===key?'selected':''}>${label}</option>`).join('')}</select></label>`:''}${state.tab==='orcamentos'?`<strong>Área: ${escapeHtml(brandAreaLabels[brandAreaState.scope])}</strong>`:''}<button type="button" data-management-brands>Ver marcas</button></section>`;}
+function attachBrandBar(container){if(container.querySelector('.brand-scope-bar'))return;container.insertAdjacentHTML('afterbegin',brandBarHtml());container.querySelector('#management-brand-scope')?.addEventListener('change',e=>{setManagementScope(e.target.value);renderApp();});}
+function setManagementScope(scope){brandAreaState.scope=Object.hasOwn(brandAreaLabels,scope)?scope:'all';pedidosState.selected.clear();precifState.priceTableSelected.clear();precifState.category='';precifState.search='';pedidosState.expandedId=null;orcamentoState.editingId=null;const status=PEDIDOS_TABS.find(t=>state.orders.some(o=>matchesBrandOrder(o)&&o.status===t.key));if(status)pedidosState.tab=status.key;}
+async function saveProductManagementBrand(productId,brand){const wanted=['iluminart','luz_mariana'].includes(brand)?brand:null;const payload={product_id:productId,brand:wanted};if(!wanted)payload.collections=[];try{const {error}=await supabaseClient.from('product_catalog_identity').upsert(payload,{onConflict:'product_id'});if(error)throw error;brandAreaState.identities.set(String(productId),wanted);brandAreaState.error=null;return true;}catch{brandAreaState.error='Produto salvo, mas não foi possível salvar a marca. Abra Organizar marcas dos produtos para revisar. Confira a instalação de Instalar_Catalogo_Iluminart.sql.';return false;}}
+function renderManagementBrands(container){const pending=state.products.filter(p=>productManagementBrand(p.id)==='pending').length;const mixed=state.orders.filter(o=>orderManagementBrand(o)==='mixed'&&o.status!=='cancelado').length;const pendingOrders=state.orders.filter(o=>orderManagementBrand(o)==='pending'&&o.status!=='cancelado').length;
+container.innerHTML=`<div class="brand-workspace"><div class="brand-workspace-head"><div><p class="brand-eyebrow">ILUMINART - GESTÃO</p><h1>Duas marcas. Cada uma no seu lugar.</h1><p>Iluminart para presentes, decoração e personalizados. Luz Mariana para artigos religiosos e devoção.</p></div><button type="button" id="catalog-organizer-open">Organizar marcas dos produtos</button></div>${brandAreaState.error?`<p class="brand-error" role="alert">${escapeHtml(brandAreaState.error)}</p>`:''}<div class="brand-workspace-grid">${Object.entries(managementBrands).map(([key,brand])=>{const x=brandAreaStats(key);return `<article class="brand-workspace-card" data-management-card="${key}"><div class="brand-card-signature"><img src="${brand.logo}" alt="${brand.name}" decoding="async"><div><h2>${brand.name}</h2><p>${brand.subtitle}</p></div></div><div class="brand-workspace-stats"><div><strong>${x.products}</strong><span>produtos ativos</span></div><div><strong>${x.openOrders}</strong><span>pedidos exclusivos em aberto</span></div><div><strong>${x.remaining}</strong><span>peças a produzir</span></div></div><div class="brand-item-value"><span>Itens em pedidos pagos neste mês</span><strong>${formatBRL(x.gross)}</strong><small>Valor dos itens antes de descontos e frete. Não representa lucro ou valor disponível para retirada.</small></div><div class="brand-workspace-actions"><button data-management-area="precificacao" data-management-scope="${key}">Produtos</button><button data-management-area="pedidos" data-management-scope="${key}">Pedidos</button><button data-management-area="producao" data-management-scope="${key}">Produção</button><button data-management-area="orcamentos" data-management-scope="${key}">Orçamentos</button><button data-management-area="avaliacoes" data-management-scope="${key}">Avaliações</button></div></article>`;}).join('')}</div><div class="brand-pending-grid"><section><h2>A classificar</h2><p>${pending} produto(s) e ${pendingOrders} pedido(s) com marca ainda não definida ou item removido.</p><p>Os registros antigos não são atribuídos automaticamente a nenhuma marca.</p><button data-management-area="precificacao" data-management-scope="pending">Revisar produtos</button><button data-management-area="pedidos" data-management-scope="pending">Ver pedidos</button><button data-management-area="orcamentos" data-management-scope="pending">Ver orçamentos</button></section><section><h2>Pedidos mistos</h2><p>${mixed} pedido(s) com itens da Iluminart e da Luz Mariana.</p><p>Continuam sendo um único pedido. Na produção, cada peça aparece na sua marca.</p><button data-management-area="pedidos" data-management-scope="mixed">Ver pedidos mistos</button><button data-management-area="orcamentos" data-management-scope="mixed">Ver orçamentos mistos</button></section></div><p class="brand-shared-note">Caixa, despesas, equipamentos, materiais e clientes permanecem na gestão geral. A separação por marca organiza os produtos, os pedidos e as peças de produção sem duplicar lançamentos ou alterar as regras de retirada.</p><button data-management-area="inicio" data-management-scope="all">Abrir visão geral do negócio</button></div>`;
+}
+function renderPrecificacao(container){if(brandAreaState.scope==='mixed')brandAreaState.scope='all';renderPrecificacaoBase(container);attachBrandBar(container);}
+function renderPedidos(container){renderPedidosBase(container);attachBrandBar(container);}
+function renderProducao(container){if(brandAreaState.scope==='mixed')brandAreaState.scope='all';renderProducaoBase(container);attachBrandBar(container);}
+function renderEstoqueProdutos(container){if(brandAreaState.scope==='mixed')brandAreaState.scope='all';renderEstoqueProdutosBase(container);attachBrandBar(container);}
+function renderOrcamentos(container){renderOrcamentosBase(container);attachBrandBar(container);}
+function renderAvaliacoes(container){if(brandAreaState.scope==='mixed')brandAreaState.scope='all';renderAvaliacoesBase(container);attachBrandBar(container);}
+document.addEventListener('click',e=>{if(e.target.closest('[data-management-brands]')){state.tab='marcas';renderApp();}const b=e.target.closest('[data-management-area]');if(b){setManagementScope(b.dataset.managementScope||'all');state.tab=b.dataset.managementArea;renderApp();}});
+// Busca global e notificações que abrem um registro não ficam presas a outro filtro.
+document.addEventListener('click',e=>{if(e.target.closest('[data-command-id],[data-notification-tab],[data-v8-go-order],[data-postsale-order]'))brandAreaState.scope='all';},true);
+
+document.addEventListener('click',e=>{const b=e.target.closest('[data-queue-open],[data-queue-accept]');if(!b)return;const order=state.orders.find(o=>String(o.id)===String(b.dataset.queueOpen||b.dataset.queueAccept));if(order){brandAreaState.scope=orderManagementBrand(order);pedidosState.tab=order.status;}},true);
+
 function renderActiveSection(container) {
   const renderers = {
+    marcas: renderManagementBrands,
     inicio: renderInicio,
     producao: renderProducao,
     eventos: renderEventos,
@@ -6667,6 +6706,7 @@ function renderActiveSection(container) {
   try {
     renderer(container);
     applyV8DesignSystem(container);
+    if(!["marcas","precificacao","pedidos","producao","estoqueprodutos","avaliacoes","orcamentos"].includes(state.tab))attachBrandBar(container);
   } catch (err) {
     console.error(`Falha ao renderizar a seção ${state.tab}:`, err);
     container.innerHTML = `
@@ -6759,9 +6799,9 @@ function renderApp() {
   app.innerHTML = `
     <div class="admin-shell">
       <header class="admin-topbar">
-        <button type="button" data-tab="inicio" class="nav-btn admin-brand" aria-label="Ir para o início do painel">
-          <img src="../logo-symbol.png" alt="" />
-          <span><strong>Luz Mariana</strong><small>Painel de gestão</small></span>
+        <button type="button" data-tab="marcas" class="nav-btn admin-brand" aria-label="Ir para o início do painel">
+          <img src="../loja-assets/9fe7abb22dd904ea.png" alt="Iluminart" />
+          <span><strong>Iluminart</strong><small>Gestão</small></span>
         </button>
 
         <button id="header-calc3d-btn" type="button" class="admin-header-calc-btn" title="Abrir Calculadora 3D em lojaluzmariana.com.br/calculadora">
@@ -6812,7 +6852,8 @@ function renderApp() {
         <aside class="admin-sidebar" aria-label="Navegação principal">
           <div class="admin-nav-group">
             <span class="admin-nav-label">Hoje</span>
-            ${navBtn("inicio","⌂","Início", notificationCount)}
+            ${navBtn("marcas","✦","Nossas marcas")}
+            ${navBtn("inicio","⌂","Visão geral", notificationCount)}
           </div>
 
           <div class="admin-nav-group">
@@ -6900,7 +6941,7 @@ function renderApp() {
       <aside id="notification-panel" class="admin-notification-panel" aria-label="Notificações" aria-hidden="true">
         <div class="admin-notification-head">
           <div>
-            <h2>Notificações</h2>
+            <h2>Notificações gerais</h2>
             <p>${notificationCount > 0 ? `${notificationCount} pendência(s) ou aviso(s) pedindo atenção` : "Nenhuma pendência no momento"}</p>
           </div>
           <button id="notification-close-btn" type="button" class="admin-notification-close" aria-label="Fechar notificações">×</button>
@@ -7096,9 +7137,9 @@ function renderApp() {
     </aside>
     <div id="admin-mobile-more-backdrop" class="admin-mobile-more-backdrop"></div>
     <nav class="admin-mobile-nav" aria-label="Navegação rápida">
-      <button type="button" data-mobile-tab="inicio" class="${state.tab === "inicio" ? "active" : ""}"><span>⌂</span>Início</button>
+      <button type="button" data-mobile-tab="marcas" class="${state.tab === "marcas" ? "active" : ""}"><span>✦</span>Marcas</button>
       <button type="button" data-mobile-tab="pedidos" class="${state.tab === "pedidos" ? "active" : ""}"><span>🧾</span>Vendas</button>
-      <button type="button" data-mobile-tab="precificacao" class="primary-mobile ${state.tab === "precificacao" ? "active" : ""}"><span>🏷</span>Produtos</button>
+      <button type="button" data-mobile-tab="precificacao" class="${state.tab === "precificacao" ? "active" : ""}"><span>🏷</span>Produtos</button>
       <button type="button" data-mobile-tab="caixa" class="${state.tab === "caixa" ? "active" : ""}"><span>💰</span>Caixa</button>
       <button type="button" id="admin-mobile-more-btn"><span>☰</span>Mais</button>
     </nav>
@@ -7479,7 +7520,7 @@ function renderSecurityOverlay() {
   }
 
   if (securityState.step === "setup") {
-    const issuer = "Luz Mariana";
+    const issuer = "Iluminart - Gestão";
     const label = `${issuer}:${state.currentUser?.name ?? "admin"}`;
     const otpauthUrl = `otpauth://totp/${encodeURIComponent(label)}?secret=${securityState.newSecret}&issuer=${encodeURIComponent(issuer)}&digits=6&period=30`;
     let qrSvg = "";
@@ -7577,7 +7618,7 @@ async function openCatalogOrganizer(){
  const dialog=document.createElement('dialog');dialog.id='catalog-organizer';
  dialog.innerHTML=`<style>
  #catalog-organizer{width:min(1080px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #cbd5e1;border-radius:16px;color:#102d4b;background:#faf8f3;overflow:auto}#catalog-organizer::backdrop{background:#102d4bb3}#catalog-organizer *{box-sizing:border-box}#catalog-organizer .co-head{position:sticky;top:0;z-index:1;padding:22px;background:#102d4b;color:white;display:flex;align-items:start;justify-content:space-between;gap:20px}#catalog-organizer h2{font:30px Georgia;margin:0 0 10px}#catalog-organizer p{font-size:13px;line-height:1.6;margin:5px 0}#catalog-organizer .co-close{border:1px solid #91a4b8;color:white;background:transparent;border-radius:9px;min-width:44px;min-height:44px;font-size:23px}#catalog-organizer .co-body{padding:22px}#catalog-organizer .co-filters{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}#catalog-organizer input[type=search]{flex:1;min-width:150px}#catalog-organizer input[type=search],#catalog-organizer select{padding:12px;border:1px solid #cbd5e1;border-radius:8px;background:white;font-size:16px;color:#102d4b}#catalog-organizer label{display:block;font-size:12px;font-weight:600}#catalog-organizer .co-card{display:grid;grid-template-columns:1fr 1.2fr auto;gap:22px;background:white;border:1px solid #e6dfd1;border-radius:12px;padding:20px;margin:12px 0}#catalog-organizer .co-card h3{font-size:16px;margin:0 0 7px}#catalog-organizer .co-card small{font-size:12px;color:#64748b}#catalog-organizer .co-brand{width:100%;margin:7px 0 12px}#catalog-organizer fieldset{border:0;padding:0;margin:0}#catalog-organizer legend{font-size:12px;font-weight:600;margin-bottom:8px}#catalog-organizer .co-checks{display:flex;gap:8px 14px;flex-wrap:wrap}#catalog-organizer .co-checks label{display:flex;gap:6px;align-items:center;font-weight:400;min-height:30px}#catalog-organizer .co-save,#catalog-organizer .co-open{display:inline-block;padding:11px 15px;background:#c19a58;color:#102d4b;border:0;border-radius:8px;font-weight:700;min-height:44px;font-size:13px}#catalog-organizer .co-save:disabled{opacity:.55}#catalog-organizer .co-status{font-size:12px;max-width:190px}#catalog-organizer .co-error{color:#a12020}#catalog-organizer #co-summary{background:#ecefe8;padding:12px;border-radius:8px;font-size:13px}#catalog-organizer #co-list:empty::after{content:'Nenhum produto neste filtro.';display:block;padding:30px;text-align:center}#catalog-organizer .co-toplinks{display:flex;gap:10px;align-items:center;flex-wrap:wrap}@media(max-width:760px){#catalog-organizer .co-card{grid-template-columns:1fr;gap:16px}#catalog-organizer .co-head,#catalog-organizer .co-body{padding:18px}#catalog-organizer h2{font-size:26px}#catalog-organizer .co-filters>*{width:100%}#catalog-organizer .co-status{max-width:none}}
- </style><div class="co-head"><div><h2>Organizar novo catálogo</h2><p>Iluminart como marca principal. Luz Mariana com uma vitrine só de artigos religiosos.</p></div><button type="button" class="co-close" aria-label="Fechar organização">×</button></div><div class="co-body"><div class="co-toplinks"><a class="co-open" href="../" target="_blank" rel="noopener">Abrir nova vitrine ↗</a><p>As mudanças organizam os produtos da página principal da Iluminart. O catálogo de compras continua disponível.</p></div><p>Escolha uma marca e as coleções de cada peça. O nome da categoria atual permanece como está. Sem marca, a peça fica pendente e não aparece na nova vitrine.</p><p id="co-summary" role="status">Carregando organização…</p><div class="co-filters"><input type="search" id="co-search" aria-label="Buscar produto para organizar" placeholder="Buscar por nome ou categoria"><select id="co-filter" aria-label="Filtrar marca"><option value="all">Todas as marcas</option><option value="pending">Pendentes</option><option value="iluminart">Iluminart</option><option value="luz_mariana">Luz Mariana</option></select></div><p id="co-error" class="co-error" role="alert"></p><div id="co-list"></div></div>`;
+ </style><div class="co-head"><div><h2>Organizar novo catálogo</h2><p>Iluminart como marca principal. Luz Mariana com uma vitrine só de artigos religiosos.</p></div><button type="button" class="co-close" aria-label="Fechar organização">×</button></div><div class="co-body"><div class="co-toplinks"><a class="co-open" href="../" target="_blank" rel="noopener">Abrir nova vitrine ↗</a><p>As mudanças organizam os produtos da página principal da Iluminart. O catálogo de compras continua disponível.</p></div><p>Escolha uma marca e as coleções de cada peça. O nome da categoria atual permanece como está. Sem marca, a peça fica A classificar na gestão e como Peças da loja na vitrine geral.</p><p id="co-summary" role="status">Carregando organização…</p><div class="co-filters"><input type="search" id="co-search" aria-label="Buscar produto para organizar" placeholder="Buscar por nome ou categoria"><select id="co-filter" aria-label="Filtrar marca"><option value="all">Todas as marcas</option><option value="pending">Pendentes</option><option value="iluminart">Iluminart</option><option value="luz_mariana">Luz Mariana</option></select></div><p id="co-error" class="co-error" role="alert"></p><div id="co-list"></div></div>`;
  document.body.append(dialog);dialog.showModal();
  const q=s=>dialog.querySelector(s),labels=[['natal','Natal'],['decoracao','Decoração'],['personalizados','Personalizados'],['imagens','Imagens'],['tercos','Terços'],['lembrancas','Lembranças'],['conjuntos','Conjuntos']];
  let drafts=new Map(),saved=new Map(),ready=false;
@@ -7591,7 +7632,7 @@ async function openCatalogOrganizer(){
  const controls=document.createElement('div'),brandLabel=document.createElement('label');brandLabel.textContent='Marca / área';const select=document.createElement('select');select.className='co-brand';select.setAttribute('aria-label','Marca de '+p.name);select.append(new Option('Pendente — revisar antes de publicar',''),new Option('Iluminart','iluminart'),new Option('Luz Mariana · artigos religiosos','luz_mariana'));select.value=d.brand||'';brandLabel.append(select);controls.append(brandLabel);
  const fieldset=document.createElement('fieldset'),legend=document.createElement('legend'),checks=document.createElement('div');legend.textContent='Coleções (pode marcar mais de uma)';checks.className='co-checks';for(const [value,text] of labels){const l=document.createElement('label'),cb=document.createElement('input');cb.type='checkbox';cb.value=value;cb.checked=d.collections.includes(value);cb.disabled=!d.brand;l.append(cb,document.createTextNode(text));checks.append(l);cb.onchange=()=>{d.collections=[...checks.querySelectorAll('input:checked')].map(c=>c.value);status.textContent='Alterações não salvas.';};}fieldset.append(legend,checks);controls.append(fieldset);
  const action=document.createElement('div'),button=document.createElement('button'),status=document.createElement('p');button.type='button';button.className='co-save';button.textContent='Salvar organização';status.className='co-status';status.setAttribute('role','status');status.textContent=same(d,saved.get(p.id))?(d.brand?'Organização salva.':'Aguardando revisão.'):'Alterações não salvas.';action.append(button,status);select.onchange=()=>{d.brand=select.value||null;if(!d.brand)d.collections=[];checks.querySelectorAll('input').forEach(cb=>{cb.disabled=!d.brand;if(!d.brand)cb.checked=false;});status.textContent='Alterações não salvas.';};
- button.onclick=async()=>{button.disabled=true;select.disabled=true;checks.querySelectorAll('input').forEach(cb=>cb.disabled=true);status.textContent='Salvando…';const payload={product_id:p.id,brand:d.brand,collections:[...d.collections]};try{const {error}=await supabaseClient.from('product_catalog_identity').upsert(payload,{onConflict:'product_id'});if(error)throw error;saved.set(p.id,{brand:payload.brand,collections:[...payload.collections]});status.textContent=payload.brand?'Salvo. A nova vitrine foi atualizada.':'Salvo como pendente. Fora da nova vitrine.';summary();}catch{status.textContent='Não foi possível salvar. Confira a conexão, a instalação e seu acesso; tente novamente.';}finally{button.disabled=false;select.disabled=false;checks.querySelectorAll('input').forEach(cb=>cb.disabled=!d.brand);}};card.append(info,controls,action);q('#co-list').append(card);}}
+ button.onclick=async()=>{button.disabled=true;select.disabled=true;checks.querySelectorAll('input').forEach(cb=>cb.disabled=true);status.textContent='Salvando…';const payload={product_id:p.id,brand:d.brand,collections:[...d.collections]};try{const {error}=await supabaseClient.from('product_catalog_identity').upsert(payload,{onConflict:'product_id'});if(error)throw error;saved.set(p.id,{brand:payload.brand,collections:[...payload.collections]});brandAreaState.identities.set(String(p.id),payload.brand);status.textContent=payload.brand?'Salvo. A nova vitrine foi atualizada.':'Salvo como pendente. Revise a marca antes de separar por área.';summary();}catch{status.textContent='Não foi possível salvar. Confira a conexão, a instalação e seu acesso; tente novamente.';}finally{button.disabled=false;select.disabled=false;checks.querySelectorAll('input').forEach(cb=>cb.disabled=!d.brand);}};card.append(info,controls,action);q('#co-list').append(card);}}
  q('#co-search').oninput=render;q('#co-filter').onchange=render;
  try{let rows=[];for(let start=0;start<state.products.length+1000;start+=1000){const {data,error}=await supabaseClient.from('product_catalog_identity').select('product_id,brand,collections').order('product_id').range(start,start+999);if(error)throw error;rows.push(...(data||[]));if((data||[]).length<1000)break;}if(!dialog.isConnected)return;const map=new Map(rows.map(r=>[r.product_id,r]));for(const p of state.products){const r=map.get(p.id),d={brand:r?.brand||null,collections:(r?.collections||[]).filter(c=>labels.some(l=>l[0]===c))};drafts.set(p.id,d);saved.set(p.id,JSON.parse(JSON.stringify(d)));}ready=true;render();}catch{if(!dialog.isConnected)return;q('#co-summary').textContent='Organização ainda não carregada.';q('#co-error').textContent='Não foi possível carregar a organização. Execute Instalar_Catalogo_Iluminart.sql, confirme o login da equipe e tente novamente. Nenhum produto foi alterado.';}
 }
@@ -8404,15 +8445,16 @@ async function deleteProductPermanently(product) {
   return true;
 }
 
-function renderPrecificacao(container) {
-  const baseVisible = state.products.filter((p) => precifState.showInactive || p.active);
+function renderPrecificacaoBase(container) {
+  const scopedProducts=state.products.filter(p=>matchesBrandProduct(p.id));
+  const baseVisible = scopedProducts.filter((p) => precifState.showInactive || p.active);
   const productSearch = normalizeSearchText(precifState.search || "");
   const searchableProductText = (p) => normalizeSearchText([
     p.name, p.category, p.material_tag, p.suppliers?.name,
     ...(p.product_variants || []).map((v) => v.name),
   ].filter(Boolean).join(" "));
   let visible = productSearch ? baseVisible.filter((p) => searchableProductText(p).includes(productSearch)) : [...baseVisible];
-  const categories = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const categories = [...new Set(scopedProducts.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   if (precifState.category) visible = visible.filter((p) => p.category === precifState.category);
   if (precifState.stockFilter === "ready") visible = visible.filter((p) => productTotalStock(p) > 0);
   if (precifState.stockFilter === "order") visible = visible.filter((p) => productTotalStock(p) === 0);
@@ -8425,10 +8467,10 @@ function renderPrecificacao(container) {
   [...precifState.priceTableSelected].forEach((id) => { if (!baseVisible.some((p) => p.id === id)) precifState.priceTableSelected.delete(id); });
   const priceTableSelectedCount = precifState.priceTableSelected.size;
   const allVisibleSelectedForPriceTable = visible.length > 0 && visible.every((p) => precifState.priceTableSelected.has(p.id));
-  const activeCount = state.products.filter((p) => p.active).length;
-  const modelCount = state.products.reduce((sum, p) => sum + (p.product_variants?.length || 0), 0);
-  const lowStockCount = countLowStockProducts();
-  const belowMinimumCount = state.products.filter((p) => { const h = productProfitHealth(p); return p.active && !h.noCost && !h.compliant; }).length;
+  const activeCount = scopedProducts.filter((p) => p.active).length;
+  const modelCount = scopedProducts.reduce((sum, p) => sum + (p.product_variants?.length || 0), 0);
+  const lowStockCount = scopedProducts.filter(p=>p.active&&productTotalStock(p)>0&&productTotalStock(p)<=2).length;
+  const belowMinimumCount = scopedProducts.filter((p) => { const h = productProfitHealth(p); return p.active && !h.noCost && !h.compliant; }).length;
 
   container.innerHTML = `
     <div class="pricing-v10-shell">
@@ -8786,7 +8828,7 @@ function renderPrecificacao(container) {
       const percent = Number(document.getElementById("bulk-cost-percent").value.replace(",", "."));
       if (!Number.isFinite(percent) || percent === 0) { msgEl.textContent = "Informe um percentual diferente de zero."; msgEl.className = "mt-2 text-xs text-red-600"; return; }
       const category = document.getElementById("bulk-cost-category").value;
-      const targets = state.products.filter((p) => p.active && (!category || p.category === category));
+      const targets = state.products.filter((p) => matchesBrandProduct(p.id) && p.active && (!category || p.category === category));
       if (targets.length === 0) { msgEl.textContent = "Nenhum produto ativo encontrado com esse filtro."; msgEl.className = "mt-2 text-xs text-red-600"; return; }
       if (!confirm(`Reajustar o custo de ${targets.length} produto(s) ativo(s) em ${percent > 0 ? "+" : ""}${percent}%? Os preços de Crédito e Promo/Pix recalculam automaticamente a partir do novo custo.`)) return;
 
@@ -8823,7 +8865,7 @@ function renderPrecificacao(container) {
   }
 
   document.getElementById("pricing-fix-minimum")?.addEventListener("click", async () => {
-    const targets = state.products.filter((p) => { const h = productProfitHealth(p); return p.active && !h.noCost && !h.compliant; });
+    const targets = state.products.filter((p) => { const h = productProfitHealth(p); return matchesBrandProduct(p.id) && p.active && !h.noCost && !h.compliant; });
     if (!targets.length) return;
     if (!confirm(`Ajustar ${targets.length} produto(s) para a nova regra mínima de 60% sobre o custo? Preços manuais abaixo do mínimo serão elevados somente até o valor mínimo necessário.`)) return;
     const btn = document.getElementById("pricing-fix-minimum");
@@ -9019,7 +9061,7 @@ function renderProductForm() {
   </div>
 </section>
       ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
-      <div id="pf-section-dados" class="product-editor-v11-main-grid">
+      <div id="pf-section-dados" class="product-editor-v11-main-grid"><label class="block"><span class="mb-1 block text-xs font-medium text-navy-700">Marca do produto</span><select id="pf-management-brand" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm"><option value="">A classificar</option>${Object.entries(managementBrands).map(([key,brand])=>`<option value="${key}" ${(product?productManagementBrand(product.id):brandAreaState.scope)===key?'selected':''}>${brand.name}</option>`).join('')}</select><small class="block mt-1 text-xs text-navy-500">Define a área da gestão e da vitrine. Luz Mariana é destinada aos artigos religiosos.</small></label>
         <div class="min-w-[220px] flex-1">
           <label class="mb-1 block text-sm font-medium text-navy-800">Nome do produto</label>
           <input id="pf-name" value="${product ? escapeHtml(product.name) : escapeHtml(draft?.name ?? "")}" required
@@ -9864,6 +9906,7 @@ function renderProductForm() {
   document.getElementById("product-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = document.getElementById("pf-name").value.trim();
+    const managementBrandValue=document.getElementById("pf-management-brand").value;
     const baseCostRaw = baseCostField.value.trim();
     const hasBaseCost = baseCostRaw !== "";
     const baseCost = hasBaseCost ? Number(baseCostRaw.replace(",", ".")) : 0;
@@ -10120,6 +10163,7 @@ function renderProductForm() {
       if (oldPath) await supabaseClient.storage.from("product-photos").remove([oldPath]);
     }
 
+    if(!product||productManagementBrand(product.id)!==(managementBrandValue||'pending'))await saveProductManagementBrand(productId,managementBrandValue);
     const returnY = Number(precifState.editorReturnScrollY || 0);
     precifState.formOpen = false;
     precifState.draftFromCalc3d = null;
@@ -11501,7 +11545,7 @@ function renderClientes(container) {
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-xl font-semibold text-navy-900">Clientes</h1>
-          <p class="text-sm text-navy-500">CRM da Luz Mariana: histórico, recorrência, valor comprado e relacionamento com cada cliente.</p>
+          <p class="text-sm text-navy-500">Clientes da Iluminart e Luz Mariana: histórico, recorrência, valor comprado e relacionamento com cada cliente.</p>
         </div>
         <div class="flex items-center gap-3">
           <label class="flex items-center gap-2 text-sm text-navy-600">
@@ -12296,6 +12340,7 @@ function orderItemPhotoPreviewUrl(item, order) {
 // o cliente pagou), e não inclui as embalagens de presente (isso a loja
 // resolve por conta própria, não é o fabricante que produz).
 function buildManufacturerMessage(order, pendingItems) {
+  const issuer=managementOrderIdentity(order),STORE_NAME=issuer.name,STORE_SUBTITLE=issuer.subtitle,STORE_INSTAGRAM=issuer.instagram;
   const items = pendingItems ?? orderSupplierPendingItems(order);
   const lines = [];
   lines.push(`${STORE_NAME} - ${STORE_SUBTITLE}`);
@@ -12321,6 +12366,7 @@ function buildManufacturerMessage(order, pendingItems) {
 // sempre dá pra revisar/ajustar antes de mandar, já que o wa.me só
 // preenche o campo de texto, nunca envia sozinho).
 function buildCustomerStatusMessage(order) {
+  const issuer=managementOrderIdentity(order),STORE_NAME=issuer.name,STORE_SUBTITLE=issuer.subtitle,STORE_INSTAGRAM=issuer.instagram;
   const firstName = String(order.customer_name ?? "").trim().split(/\s+/)[0] || order.customer_name;
   const numero = `Nº ${String(order.order_number ?? "").padStart(6, "0")}`;
   const deadline = orderDeliveryDeadline(order);
@@ -12349,9 +12395,9 @@ function buildCustomerStatusMessage(order) {
       "",
       "Esperamos que você goste do seu pedido e que ele leve até você todo o carinho com que foi preparado.",
       "",
-      "Obrigada pela compreensão e por confiar em nosso trabalho. Que Nossa Senhora abençoe você e sua família! 🙏🏻",
+      orderManagementBrand(order)==="luz_mariana"?"Obrigada pela compreensão e por confiar em nosso trabalho. Que Nossa Senhora abençoe você e sua família! 🙏🏻":"Obrigado pela compreensão e por confiar em nosso trabalho!",
       "",
-      "*Luz Mariana — Artigos Religiosos e Devoção*",
+      `*${STORE_NAME} — ${STORE_SUBTITLE}*`,
     ].join("\n");
   }
 
@@ -12460,6 +12506,7 @@ const RECEIPT_PAGE_WIDTH_MM = 57;
 const RECEIPT_MARGIN_MM = 3;
 
 function buildReceiptLinePlan(order) {
+  const issuer=managementOrderIdentity(order),STORE_NAME=issuer.name,STORE_SUBTITLE=issuer.subtitle,STORE_INSTAGRAM=issuer.instagram;
   const lines = [];
   // "wrap: true" por padrão pra NENHUMA linha correr o risco de ficar
   // cortada pela borda do papel — numa bobina estreita (57mm) até texto
@@ -12579,7 +12626,7 @@ function buildOrdersReceiptPdf(orders) {
    separado e em quais pedidos aquilo entra, pra rastreabilidade.
    ===================================================================== */
 function buildPickingListRows() {
-  const inProgress = state.orders.filter((o) => o.status === "em_andamento");
+  const inProgress = state.orders.filter((o) => matchesBrandOrder(o)&&o.status === "em_andamento");
   const byKey = new Map();
   inProgress.forEach((o) => {
     (o.items ?? []).forEach((it) => {
@@ -12705,6 +12752,7 @@ function buildPickingListPdf(rows) {
    trava nem corta produto no meio).
    ===================================================================== */
 function buildPriceTablePdf(products) {
+  const issuer=managementOrderIdentity({items:products.map(p=>({product_id:p.id}))}),STORE_NAME=issuer.name;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageWidth = 210;
@@ -13528,7 +13576,7 @@ async function iniciarVenda(order) {
   renderPedidos(document.getElementById("main-content"));
 }
 
-function renderPedidos(container) {
+function renderPedidosBase(container) {
   // Filtro por data do PEDIDO (created_at). O Caixa, por outro lado,
   // usa paid_at para competência financeira — são visões diferentes e
   // isso fica explícito na interface.
@@ -13539,6 +13587,7 @@ function renderPedidos(container) {
   )].sort().reverse();
 
   const dateFilteredOrders = state.orders.filter((o) => {
+    if(!matchesBrandOrder(o))return false;
     const d = orderDateISO(o);
     if (pedidosState.month && d.slice(0, 7) !== pedidosState.month) return false;
     if (pedidosState.startDate && d < pedidosState.startDate) return false;
@@ -15675,9 +15724,9 @@ function starDisplay(rating) {
   return "★".repeat(n) + "☆".repeat(5 - n);
 }
 
-function renderAvaliacoes(container) {
-  const pending = state.reviews.filter((r) => !r.approved).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  const approved = state.reviews.filter((r) => r.approved).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+function renderAvaliacoesBase(container) {
+  const pending = state.reviews.filter((r) => matchesBrandProduct(r.product_id)&&!r.approved).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const approved = state.reviews.filter((r) => matchesBrandProduct(r.product_id)&&r.approved).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   const productName = (id) => state.products.find((p) => p.id === id)?.name ?? "(produto removido)";
 
   const reviewCard = (r, { pendingActions }) => `
@@ -17191,6 +17240,7 @@ function orcRowToData(row) {
     id: row.id,
     numero: orcNumeroFormatado(row.numero),
     observacoes: row.itens?.[0]?.calculatorQuoteSettings?.observations || "",
+    managementBrand:quoteManagementBrand(row),
     nome: row.cliente_nome || "",
     telefone: row.telefone || "",
     dataOrcamento: row.data_orcamento || todayISO(),
@@ -17208,10 +17258,11 @@ function orcRowToData(row) {
   };
 }
 
-function renderOrcamentos(container) {
+function renderOrcamentosBase(container) {
+  const scopedBudgets=state.orcamentos.filter(row=>brandAreaState.scope==='all'||quoteManagementBrand(row)===brandAreaState.scope);
   const phoneKey = (v) => String(v || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
   const nowIso = todayISO();
-  const budgetStatusRows = state.orcamentos.map((row) => {
+  const budgetStatusRows = scopedBudgets.map((row) => {
     const phone = phoneKey(row.cliente_telefone);
     const name = String(row.cliente_nome || "").trim().toLowerCase();
     const convertedOrder = state.orders.find((o) => {
@@ -17227,8 +17278,8 @@ function renderOrcamentos(container) {
   const convertedBudgets = budgetStatusRows.filter((x) => x.convertedOrder).length;
   const openBudgets = budgetStatusRows.filter((x) => !x.convertedOrder && !x.expired).length;
   const expiredBudgets = budgetStatusRows.filter((x) => !x.convertedOrder && x.expired).length;
-  const quotedValue = round2(state.orcamentos.reduce((s,o) => s + Number(o.total_final || 0), 0));
-  const conversionRate = state.orcamentos.length ? Math.round(convertedBudgets / state.orcamentos.length * 100) : 0;
+  const quotedValue = round2(scopedBudgets.reduce((s,o) => s + Number(o.total_final || 0), 0));
+  const conversionRate = scopedBudgets.length ? Math.round(convertedBudgets / scopedBudgets.length * 100) : 0;
 
   const editingRow = orcamentoState.editingId
     ? state.orcamentos.find((o) => o.id === orcamentoState.editingId)
@@ -17248,7 +17299,7 @@ function renderOrcamentos(container) {
   container.innerHTML = `
     <section class="flex flex-col gap-6">
       <div class="pro-kpi-grid">
-        <div class="pro-kpi"><div class="label">Orçamentos salvos</div><div class="value">${state.orcamentos.length}</div><div class="hint">${formatBRL(quotedValue)} em valores orçados.</div></div>
+        <div class="pro-kpi"><div class="label">Orçamentos salvos</div><div class="value">${scopedBudgets.length}</div><div class="hint">${formatBRL(quotedValue)} em valores orçados.</div></div>
         <div class="pro-kpi"><div class="label">Conversão estimada</div><div class="value">${conversionRate}%</div><div class="hint">${convertedBudgets} orçamento(s) com pedido correspondente.</div></div>
         <div class="pro-kpi"><div class="label">Em aberto</div><div class="value">${openBudgets}</div><div class="hint">Ainda dentro da validade e sem pedido localizado.</div></div>
         <div class="pro-kpi"><div class="label">Expirados sem pedido</div><div class="value">${expiredBudgets}</div><div class="hint">Boa fila para follow-up comercial.</div></div>
@@ -17268,7 +17319,7 @@ function renderOrcamentos(container) {
         </div>
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div class="relative">
+          <label class="block"><span class="mb-1.5 block text-sm font-medium text-navy-800">Marca do orçamento</span><select id="orc-management-brand" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900"><option value="">A classificar</option>${Object.entries({...managementBrands,mixed:{name:'Iluminart + Luz Mariana'}}).map(([key,brand])=>`<option value="${key}" ${(editingRow?quoteManagementBrand(editingRow):brandAreaState.scope)===key?'selected':''}>${brand.name}</option>`).join('')}</select></label><div class="relative">
             <label class="block">
               <span class="mb-1.5 block text-sm font-medium text-navy-800">Nome do cliente</span>
               <input id="orc-nome" autocomplete="off" value="${escapeHtml(d.nome)}" class="w-full rounded-lg border border-navy-100 bg-white px-4 py-3 text-base text-navy-900 shadow-sm outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-200" placeholder="Comece a digitar o nome" />
@@ -17352,7 +17403,7 @@ function renderOrcamentos(container) {
             <h2 class="text-lg font-semibold text-navy-900">Histórico de orçamentos</h2>
             <p class="text-sm text-navy-500">Salvo no Supabase e disponível para os administradores do painel.</p>
           </div>
-          <span class="rounded-full bg-navy-50 px-3 py-1 text-xs font-medium text-navy-700">${state.orcamentos.length} salvo(s)</span>
+          <span class="rounded-full bg-navy-50 px-3 py-1 text-xs font-medium text-navy-700">${scopedBudgets.length} salvo(s)</span>
         </div>
         <div id="orc-historico" class="flex flex-col gap-3">
           ${renderOrcamentoHistoricoHtml()}
@@ -17404,10 +17455,11 @@ function renderOrcamentos(container) {
 }
 
 function renderOrcamentoHistoricoHtml() {
-  if (!state.orcamentos.length) {
-    return `<div class="rounded-xl border border-navy-100 bg-cream-50 p-4 text-sm text-navy-500">Nenhum orçamento salvo ainda. O primeiro receberá o nº 001.</div>`;
+  const scopedBudgets=state.orcamentos.filter(row=>brandAreaState.scope==='all'||quoteManagementBrand(row)===brandAreaState.scope);
+  if (!scopedBudgets.length) {
+    return `<div class="rounded-xl border border-navy-100 bg-cream-50 p-4 text-sm text-navy-500">Nenhum orçamento salvo nesta área.</div>`;
   }
-  return state.orcamentos.map((row) => {
+  return scopedBudgets.map((row) => {
     const itens = Array.isArray(row.itens) ? row.itens : [];
     const quem = adminName(row.criado_por);
     return `
@@ -17885,6 +17937,7 @@ function obterDadosOrcamento() {
   return {
     id: orcamentoState.editingId,
     numero: document.getElementById("orc-numero").value.trim(),
+    managementBrand:document.getElementById("orc-management-brand")?.value||null,
     nome: document.getElementById("orc-nome").value.trim(),
     telefone: document.getElementById("orc-telefone").value.trim(),
     dataOrcamento: document.getElementById("orc-data").value,
@@ -17899,6 +17952,7 @@ function obterDadosOrcamento() {
 }
 
 function gerarTextoOrcamento(d) {
+  const issuer=managementQuoteIdentity(d);
   const credito = d.pagamento === "credito";
   const pagamento = credito ? "Cartão de crédito em até 3x" : "Pix / Espécie";
   const itens = d.itens.map((i) => {
@@ -17911,7 +17965,7 @@ function gerarTextoOrcamento(d) {
     : "";
   const prazoTexto = `${d.prazoDias || 0} ${d.prazoDias === 1 ? "dia útil" : "dias úteis"}`;
   const previsaoTexto = d.previsaoEntrega ? ` (previsão: ${orcDataISOParaBR(d.previsaoEntrega)})` : "";
-  return `*LUZ MARIANA — ORÇAMENTO Nº ${d.numero || "—"}*\n\n` +
+  return `*${issuer.name.toUpperCase()} — ORÇAMENTO Nº ${d.numero || "—"}*\n\n` +
     `*Data do orçamento:* ${orcDataISOParaBR(d.dataOrcamento)}\n` +
     `*Validade do orçamento:* ${orcDataISOParaBR(d.validadeOrcamento)}\n\n` +
     `*Cliente:* ${d.nome || "—"}\n` +
@@ -17925,9 +17979,9 @@ function gerarTextoOrcamento(d) {
     `*Prazo de entrega:* ${prazoTexto}${previsaoTexto}\n` +
     `*Forma de pagamento:* ${pagamento}\n` +
     `Pix / Espécie possui valor promocional. No crédito, valor calculado para pagamento em até 3x.\n\n` +
-    `*Luz Mariana — Artigos Religiosos e Devoção*\n` +
-    `Siga nossa loja no Instagram https://instagram.com/luzmariana.art\n` +
-    `_Uma empresa da marca Iluminart RN_`;
+    `*${issuer.name} — ${issuer.subtitle}*\n` +
+    `Siga nossa loja no Instagram https://instagram.com/${issuer.instagram.replace('@','')}\n` +
+    `_Iluminart RN · Onde a criatividade ganha forma_`;
 }
 
 function payloadOrcamento(d) {
@@ -17939,7 +17993,7 @@ function payloadOrcamento(d) {
     prazo_dias: Number(d.prazoDias || 0),
     previsao_entrega: d.previsaoEntrega || null,
     pagamento: d.pagamento,
-    itens: d.itens.map(item=>({...item,calculatorQuoteSettings:{...(item.calculatorQuoteSettings||{}),observations:d.observacoes||''}})),
+    itens: d.itens.map(item=>({...item,managementBrand:d.managementBrand||null,calculatorQuoteSettings:{...(item.calculatorQuoteSettings||{}),observations:d.observacoes||''}})),
     subtotal: round2(d.subtotal),
     total_pix: round2(d.totalPix),
     total_credito: round2(d.totalCredito),
@@ -18483,7 +18537,7 @@ function renderCaixa(container) {
             <h2 id="cash-reserve-title" class="mt-0.5 text-lg font-semibold text-navy-900">Quanto guardar e quanto retirar</h2>
             <p class="mt-1 max-w-3xl text-xs leading-relaxed text-navy-500">
               ${reservePlan.settings.startupReinvestment
-                ? "<b>Setembro/2026 é o mês de implantação:</b> além de preservar 100% do custo, todo o lucro disponível permanece na Luz Mariana para reinvestimento em equipamentos, ferramentas, estoque e estrutura. A divisão entre reinvestimento e retirada começa em outubro/2026."
+                ? "<b>Setembro/2026 é o mês de implantação:</b> além de preservar 100% do custo, todo o lucro disponível permanece no negócio para reinvestimento em equipamentos, ferramentas, estoque e estrutura. A divisão entre reinvestimento e retirada começa em outubro/2026."
                 : "A regra é simples: <b>o custo fica 100% guardado</b>. Compromissos da loja, como as parcelas da Bambu Lab A1 Combo, são deduzidos antes da divisão do lucro. Só o que sobra depois disso é dividido entre reinvestimento e sua retirada."}
             </p>
           </div>
@@ -18574,7 +18628,7 @@ function renderCaixa(container) {
           </div>
 
           <div class="rounded-xl border border-navy-100 bg-white px-4 py-3">
-            <p class="text-xs uppercase tracking-wide text-navy-400">Fica na Luz Mariana</p>
+            <p class="text-xs uppercase tracking-wide text-navy-400">Fica no negócio</p>
             <p class="mt-1 text-xl font-semibold text-navy-900">${formatBRL(reservePlan.storeKeepTarget)}</p>
             <p class="mt-1 text-[11px] text-navy-400">${reservePlan.settings.startupReinvestment ? "Em setembro: custo + taxas + 100% do lucro reinvestido permanecem na operação." : "Custo + taxas de cartão + reinvestimento + parcelas ainda não pagas da loja."}</p>
           </div>
