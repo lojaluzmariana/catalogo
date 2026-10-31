@@ -30,3 +30,13 @@
 @media(max-width:700px){.product .offer-pix>strong,.lm-product-card .offer-pix>strong{font-size:21px}}
 
 .product .offer-credit>span,.lm-product-card .offer-credit>span{display:inline;margin-left:4px}
+
+/* Controles sobre a foto, sem aumentar o espaço do cartão. */
+.model-visual{position:relative;min-width:0}
+.model-carousel-controls{position:absolute;left:8px;right:8px;bottom:8px;display:flex;align-items:center;justify-content:center;gap:5px;z-index:3;pointer-events:none}
+.model-carousel-controls button,.model-carousel-controls span{pointer-events:auto;background:#fffffff0;color:#102d4b;border:1px solid #d8d3c7;box-shadow:0 2px 6px #102d4b18;border-radius:8px}
+.model-carousel-controls button{min-width:44px;min-height:44px;padding:4px;font-size:24px;line-height:1;cursor:pointer}
+.model-carousel-controls span{padding:7px;font-size:11px;white-space:nowrap}
+.model-carousel-controls .model-carousel-toggle{font-size:14px}
+.lm-photo-controls:has(.model-carousel-toggle){gap:5px}
+.lm-photo-controls .model-carousel-toggle{font-size:14px;min-width:44px;min-height:44px}

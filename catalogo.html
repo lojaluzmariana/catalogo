@@ -793,7 +793,7 @@
 <link rel="stylesheet" href="catalogo.css?v=20261020-fotos-verticais">
 <style>
 .shop-offer{margin:10px 0 14px;color:#102d4b;line-height:1.45;min-height:112px}.offer-from{display:block;min-height:18px;font-size:11px;color:#647484;margin-bottom:4px}.offer-pix{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}.offer-pix>strong{font-size:26px;font-weight:750;letter-spacing:-.025em;line-height:1.25}.offer-pix>span{font-size:12px;color:#526a59}.offer-credit{margin-top:8px;font-size:13px;color:#536879}.offer-credit>strong{color:#102d4b;font-size:15px}.offer-credit>span{display:block;margin-top:2px;font-size:12px}.offer-credit b{font-weight:600;color:#354e66}.offer-consult{font-size:18px;font-weight:bold}.card-model{margin-bottom:10px;min-height:65px}.card-model label{display:block;font-size:11px;font-weight:600;color:#536879}.card-model select{display:block;width:100%;min-width:0;max-width:100%;margin-top:5px;min-height:44px;padding:9px 7px;border:1px solid #cbd2d9;border-radius:8px;background:#fff;color:#102d4b;font-size:14px}.single-model{display:block;padding-top:24px;font-size:12px;color:#687787}.card-details{display:block;width:100%;min-height:42px;margin-top:3px;padding:9px 5px;border:0;background:transparent!important;color:#536879!important;text-decoration:underline;text-underline-offset:3px;font-size:12px;font-weight:400;cursor:pointer}.card-error{font-size:12px!important;color:#9b2525!important;line-height:1.5;margin:0 0 8px}.card-error:empty{display:none}.product-bottom{margin-top:0;display:flex;flex-direction:column;flex:1;padding-top:0}.product-info h3{min-height:2.8em}.product-bottom>.card-model{margin-top:auto}.product .add,.lm-product-card .lm-product-action{width:100%;min-height:50px;border-radius:9px;background:#102d4b!important;color:white!important;font-size:14px!important;font-weight:700!important;padding:12px 8px!important;justify-content:center}.lm-product-info .shop-offer{margin-top:10px}.lm-product-info .lm-card-price{display:none}#detailPrice{font-size:14px!important}#detailPrice .offer-pix>strong{font-size:28px}@media(max-width:760px){.offer-pix>strong{font-size:23px}.offer-pix>span{font-size:11px}.offer-credit{font-size:12px}.offer-credit>strong{font-size:14px}.offer-credit>span{font-size:11px;line-height:1.5}.shop-offer{min-height:115px}.product .add,.lm-product-card .lm-product-action{font-size:12px!important;min-height:50px}.card-model select{font-size:16px}.card-details{font-size:12px;min-height:44px}}
-</style><link rel="stylesheet" href="storefront-improvements.css?v=3"><script src="storefront-core.js?v=1"></script></head>
+</style><link rel="stylesheet" href="storefront-improvements.css?v=4"><script src="storefront-core.js?v=1"></script><script src="model-carousel.js?v=1" defer></script></head>
 <body class="lm-clean-shop bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -2921,11 +2921,13 @@ function renderCatalog() {
 
 const lmCardChoices=new Map();
 // Os dois preços exibidos pertencem sempre à mesma peça/modelo.
+function modelSales(v){return Math.max(0,Number(v?.units_sold??v?.unitsSold??v?.sales_count??v?.sold_count??v?.total_sold??0)||0);}
 function cardOffer(p,variants,selectedId){
  const chosen=variants.find(v=>v.id===selectedId)||(variants.length===1?variants[0]:null);
  const rows=(variants.length?variants:[null]).map(variant=>({variant,pricing:displayPricing(p,variant)}));
  const valid=rows.filter(r=>Number.isFinite(r.pricing.promoPrice)&&r.pricing.promoPrice>0).sort((a,b)=>a.pricing.promoPrice-b.pricing.promoPrice||a.pricing.creditPrice-b.pricing.creditPrice);
- const row=chosen?rows.find(r=>r.variant?.id===chosen.id):valid[0]||rows[0];
+ const selling=rows.filter(r=>modelSales(r.variant)>0&&(r.variant?.photo||r.variant?.photo_url)).sort((a,b)=>modelSales(b.variant)-modelSales(a.variant));
+ const row=chosen?rows.find(r=>r.variant?.id===chosen.id):selling[0]||valid[0]||rows[0];
  return {variant:row?.variant||null,pricing:row?.pricing||{},from:false};
 }
 function cardPriceHtml(offer){
@@ -2956,7 +2958,7 @@ function renderProductCard(p,opts={}) {
     <div class="lm-product-info"><div class="lm-product-meta"><button type="button" data-tag-category="${escapeHtml(p.category?.trim()||'Outros')}" class="category-tag-btn">${escapeHtml(p.category?.trim()||'Outros')}</button><span class="${availability.ready?'lm-ready':'lm-order'}">${availability.ready?'Pronta entrega':'Sob encomenda'}</span></div>
       <h3><button type="button" data-view-product="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button></h3>
       <div class="shop-offer" data-lm-prices>${cardPriceHtml(offer)}</div>
-      <div class="card-model">${variants.length?`<label>Modelo / tamanho<select data-lm-card-variant="${escapeHtml(p.id)}" aria-label="Modelo de ${escapeHtml(p.name)}">${variants.map(v=>`<option value="${escapeHtml(v.id)}" ${offer.variant?.id===v.id?'selected':''}>${escapeHtml(v.name)}</option>`).join('')}</select></label>`:'<span class="single-model">Modelo único</span>'}</div>
+      <div class="card-model">${variants.length?`<label>Modelo / tamanho<select data-lm-card-variant="${escapeHtml(p.id)}" aria-label="Modelo de ${escapeHtml(p.name)}">${variants.map(v=>`<option value="${escapeHtml(v.id)}" data-model-sales="${modelSales(v)}" data-model-photo="${v.photo_url?1:0}" ${offer.variant?.id===v.id?'selected':''}>${escapeHtml(v.name)}</option>`).join('')}</select></label>`:'<span class="single-model">Modelo único</span>'}</div>
       <p class="card-error" role="alert" data-lm-error></p>
       <button type="button" data-lm-card-buy="${escapeHtml(p.id)}" class="large-touch-action lm-product-action">${summary.promoPrice>0?'Adicionar ao carrinho':'Consultar valor'}</button>
       <button type="button" data-view-product="${escapeHtml(p.id)}" class="card-details">Ver detalhes</button>
