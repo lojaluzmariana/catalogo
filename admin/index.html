@@ -6654,6 +6654,8 @@ function matchesBrandProduct(id,scope=brandAreaState.scope){return scope==='all'
 function matchesBrandOrder(order,scope=brandAreaState.scope){return scope==='all'||orderManagementBrand(order)===scope;}
 function managementOrderIdentity(order){const key=orderManagementBrand(order);return managementBrands[key]||{name:key==='mixed'?'Iluminart + Luz Mariana':'Iluminart',subtitle:key==='mixed'?'Presentes, personalizados e artigos religiosos':'Gestão de pedidos',instagram:'@iluminartrn'};}
 async function loadManagementBrands(){try{const rows=[];for(let offset=0;offset<100000;offset+=1000){const {data,error}=await supabaseClient.from('product_catalog_identity').select('*').order('product_id').range(offset,offset+999);if(error)throw error;rows.push(...(data||[]));if((data||[]).length<1000){brandAreaState.classifications=new Map(rows.map(r=>[String(r.product_id),r]));brandAreaState.identities=new Map(rows.map(r=>[String(r.product_id),r.brand]));brandAreaState.ready=true;brandAreaState.error=null;return;}}throw Error('Classificação incompleta');}catch{brandAreaState.error='Não foi possível atualizar as marcas. Confira a conexão e a instalação de Instalar_Catalogo_Iluminart.sql.';}}
+function productWatermark(id){return brandAreaState.classifications.get(String(id))?.watermark_brand||'';}
+async function saveProductWatermark(id,value){try{const {error}=await supabaseClient.rpc('catalog_set_watermark',{p_product:id,p_watermark:value||null});if(error)throw error;brandAreaState.classifications.set(String(id),{...(brandAreaState.classifications.get(String(id))||{}),watermark_brand:value||null});return true;}catch{brandAreaState.error='Produto salvo, mas a marca-d’água não foi salva. Confira Instalar_Marca_Dagua.sql e revise o cadastro.';return false;}}
 function productSubcategories(id){return LMCategory.subs(brandAreaState.classifications.get(String(id)));}
 async function saveProductSubcategories(id,values){try{const {error}=await supabaseClient.rpc('catalog_set_subcategories',{p_product:id,p_subcategories:values});if(error)throw error;brandAreaState.classifications.set(String(id),{...(brandAreaState.classifications.get(String(id))||{}),subcategories:values});return true;}catch{brandAreaState.error='Produto salvo, mas as subcategorias não foram salvas. Confira Instalar_Subcategorias.sql e revise o cadastro.';return false;}}
 
@@ -9131,6 +9133,7 @@ function renderProductForm() {
 </section>
       ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
       <div id="pf-section-dados" class="product-editor-v11-main-grid"><label class="block"><span class="mb-1 block text-xs font-medium text-navy-700">Marca do produto</span><select id="pf-management-brand" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm"><option value="">A classificar</option>${Object.entries(managementBrands).map(([key,brand])=>`<option value="${key}" ${(product?productManagementBrand(product.id):brandAreaState.scope)===key?'selected':''}>${brand.name}</option>`).join('')}</select><small class="block mt-1 text-xs text-navy-500">Define a área da gestão e da vitrine. Luz Mariana é destinada aos artigos religiosos.</small></label>
+        <label class="block"><span class="mb-1 block text-xs font-medium text-navy-700">Marca-d’água das fotos</span><select id="pf-watermark-brand" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm">${[['','Automática — marca do produto'],['iluminart','Iluminart'],['luz_mariana','Luz Mariana'],['combined','Iluminart + Luz Mariana (projeto conjunto)']].map(([key,label])=>`<option value="${key}" ${productWatermark(product?.id)===key?'selected':''}>${label}</option>`).join('')}</select><small class="block mt-1 text-xs text-navy-500">Centralizada e discreta, com 18% de opacidade. Projetos conjuntos usam as duas logos. Não muda a marca na gestão.</small></label>
         <div class="min-w-[220px] flex-1">
           <label class="mb-1 block text-sm font-medium text-navy-800">Nome do produto</label>
           <input id="pf-name" value="${product ? escapeHtml(product.name) : escapeHtml(draft?.name ?? "")}" required
@@ -9985,6 +9988,9 @@ function renderProductForm() {
     const baseCost = hasBaseCost ? Number(baseCostRaw.replace(",", ".")) : 0;
     const errorEl = document.getElementById("pf-error");
     let subcategories;try{subcategories=LMCategory.clean(document.getElementById('pf-subcategories').value);}catch(err){errorEl.textContent=err.message;return;}
+    const watermarkValue=document.getElementById('pf-watermark-brand').value;
+    const saveWatermark=watermarkValue!==productWatermark(product?.id);
+    if(saveWatermark){const {error}=await supabaseClient.from('product_catalog_identity').select('watermark_brand').limit(1);if(error){errorEl.textContent='Execute Instalar_Marca_Dagua.sql antes de escolher a marca-d’água. O produto ainda não foi alterado.';return;}}
     const saveSubcategories=subcategories.length>0||productSubcategories(product?.id).length>0;
     if(saveSubcategories){const {error}=await supabaseClient.from('product_catalog_identity').select('subcategories').limit(1);if(error){errorEl.textContent='Execute Instalar_Subcategorias.sql antes de salvar as subcategorias. O produto ainda não foi alterado.';return;}}
     if (!name) { errorEl.textContent = "Informe o nome do produto."; return; }
@@ -10241,6 +10247,7 @@ function renderProductForm() {
 
     if(!product||productManagementBrand(product.id)!==(managementBrandValue||'pending'))await saveProductManagementBrand(productId,managementBrandValue);
     if(saveSubcategories)await saveProductSubcategories(productId,subcategories);
+    if(saveWatermark)await saveProductWatermark(productId,watermarkValue);
     const returnY = Number(precifState.editorReturnScrollY || 0);
     precifState.formOpen = false;
     precifState.draftFromCalc3d = null;

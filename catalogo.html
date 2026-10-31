@@ -793,7 +793,7 @@
 <link rel="stylesheet" href="catalogo.css?v=20261020-fotos-verticais">
 <style>
 .shop-offer{margin:10px 0 14px;color:#102d4b;line-height:1.45;min-height:112px}.offer-from{display:block;min-height:18px;font-size:11px;color:#647484;margin-bottom:4px}.offer-pix{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}.offer-pix>strong{font-size:26px;font-weight:750;letter-spacing:-.025em;line-height:1.25}.offer-pix>span{font-size:12px;color:#526a59}.offer-credit{margin-top:8px;font-size:13px;color:#536879}.offer-credit>strong{color:#102d4b;font-size:15px}.offer-credit>span{display:block;margin-top:2px;font-size:12px}.offer-credit b{font-weight:600;color:#354e66}.offer-consult{font-size:18px;font-weight:bold}.card-model{margin-bottom:10px;min-height:65px}.card-model label{display:block;font-size:11px;font-weight:600;color:#536879}.card-model select{display:block;width:100%;min-width:0;max-width:100%;margin-top:5px;min-height:44px;padding:9px 7px;border:1px solid #cbd2d9;border-radius:8px;background:#fff;color:#102d4b;font-size:14px}.single-model{display:block;padding-top:24px;font-size:12px;color:#687787}.card-details{display:block;width:100%;min-height:42px;margin-top:3px;padding:9px 5px;border:0;background:transparent!important;color:#536879!important;text-decoration:underline;text-underline-offset:3px;font-size:12px;font-weight:400;cursor:pointer}.card-error{font-size:12px!important;color:#9b2525!important;line-height:1.5;margin:0 0 8px}.card-error:empty{display:none}.product-bottom{margin-top:0;display:flex;flex-direction:column;flex:1;padding-top:0}.product-info h3{min-height:2.8em}.product-bottom>.card-model{margin-top:auto}.product .add,.lm-product-card .lm-product-action{width:100%;min-height:50px;border-radius:9px;background:#102d4b!important;color:white!important;font-size:14px!important;font-weight:700!important;padding:12px 8px!important;justify-content:center}.lm-product-info .shop-offer{margin-top:10px}.lm-product-info .lm-card-price{display:none}#detailPrice{font-size:14px!important}#detailPrice .offer-pix>strong{font-size:28px}@media(max-width:760px){.offer-pix>strong{font-size:23px}.offer-pix>span{font-size:11px}.offer-credit{font-size:12px}.offer-credit>strong{font-size:14px}.offer-credit>span{font-size:11px;line-height:1.5}.shop-offer{min-height:115px}.product .add,.lm-product-card .lm-product-action{font-size:12px!important;min-height:50px}.card-model select{font-size:16px}.card-details{font-size:12px;min-height:44px}}
-</style><link rel="stylesheet" href="storefront-improvements.css?v=5"><script src="storefront-core.js?v=2"></script><script src="model-carousel.js?v=1" defer></script><script src="category-utils.js?v=1"></script></head>
+</style><link rel="stylesheet" href="storefront-improvements.css?v=5"><script src="storefront-core.js?v=2"></script><script src="model-carousel.js?v=1" defer></script><script src="category-utils.js?v=1"></script><script src="photo-protection.js?v=1"></script></head>
 <body class="lm-clean-shop bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -1342,7 +1342,7 @@ async function loadCatalog() {
   await LMStore.applySales(products,variants||[]);
   const {data:classifications,error:classificationError}=await supabaseClient.from('product_catalog_identity').select('*');
   const classMap=new Map((classificationError?[]:classifications||[]).map(r=>[r.product_id,r]));
-  for(const p of products)p.subcategories=LMCategory.subs(classMap.get(p.id));
+  for(const p of products){const identity=classMap.get(p.id);p.subcategories=LMCategory.subs(identity);p.brand=identity?.brand||null;p.watermark_brand=identity?.watermark_brand||null;}
   state.products = products;
   state.variantsByProduct = {};
   (variants || []).forEach((v) => {
@@ -2728,7 +2728,7 @@ function renderHero() {
   return `<section class="lm-hero"><div class="lm-container lm-hero-inner"><div class="lm-hero-copy"><span class="lm-eyebrow">Artigos religiosos e devoção</span><h1>Fé que inspira.<br><span>Presentes com significado.</span></h1><p>Peças para o seu cantinho de oração, para a família e para presentear com carinho.</p><button type="button" data-browse-products class="lm-primary-link">Conhecer os produtos <span aria-hidden="true">↗</span></button></div>
   ${products.length?`<section class="lm-hero-carousel" data-hero-carousel aria-roledescription="carrossel" aria-label="${hasSales?'Itens mais vendidos':'Peças em destaque'}"><div class="lm-hero-carousel-head">${hasSales?'Mais vendidos':'Peças em destaque'}</div><div class="lm-hero-slides">${products.map((p,i)=>{
     const v=bestSellingVariant(p.id),photo=v?.photo_url||p.photo_url||variantsFor(p.id).find(v=>v.photo_url)?.photo_url;
-    return `<div class="lm-hero-slide" data-hero-slide data-hero-product="${escapeHtml(p.id)}" aria-roledescription="slide" aria-label="${i+1} de ${products.length}" aria-hidden="${i!==active}" ${i===active?'':'hidden'}><button type="button" data-view-product="${escapeHtml(p.id)}" class="lm-hero-image" aria-label="Conhecer ${escapeHtml(p.name)}"><img src="${escapeHtml(photo||'logo-symbol.png')}" alt="${escapeHtml(p.name)}" fetchpriority="${i===active?'high':'auto'}" loading="${i===active?'eager':'lazy'}" decoding="async" width="480" height="360"><span>${escapeHtml(p.name)}</span></button></div>`;
+    return `<div class="lm-hero-slide" data-hero-slide data-hero-product="${escapeHtml(p.id)}" aria-roledescription="slide" aria-label="${i+1} de ${products.length}" aria-hidden="${i!==active}" ${i===active?'':'hidden'}><button type="button" data-view-product="${escapeHtml(p.id)}" class="lm-hero-image" aria-label="Conhecer ${escapeHtml(p.name)}"><img ${LMPhoto.attrs(p)} src="${escapeHtml(photo||'logo-symbol.png')}" alt="${escapeHtml(p.name)}" fetchpriority="${i===active?'high':'auto'}" loading="${i===active?'eager':'lazy'}" decoding="async" width="480" height="360"><span>${escapeHtml(p.name)}</span></button></div>`;
   }).join('')}</div>${products.length>1?`<div class="lm-hero-carousel-controls"><button type="button" data-hero-prev aria-label="Produto mais vendido anterior">‹</button><span data-hero-position>${active+1} / ${products.length}</span><button type="button" data-hero-next aria-label="Próximo produto mais vendido">›</button></div><div class="lm-hero-carousel-status"><div class="lm-hero-dots" aria-label="Escolher produto do carrossel">${products.map((p,i)=>`<button type="button" data-hero-dot="${i}" aria-label="Mostrar ${escapeHtml(p.name)}" aria-pressed="${i===active}" class="${i===active?'is-active':''}"></button>`).join('')}</div><button type="button" data-hero-toggle>Pausar</button></div>`:''}</section>`:''}</div></section><div class="lm-service-strip"><span>Produção sob encomenda</span><span>Presentes personalizados</span><span>Pedido pelo WhatsApp</span></div>`;
 }
 
@@ -2957,7 +2957,7 @@ function renderProductCard(p,opts={}) {
   const key=cartKey(p.id,null),qty=state.cart[key]??0;
   return `<article data-product-card="${escapeHtml(p.id)}" class="lm-product-card">
     <div class="lm-product-visual" ${variants.length>1?`data-carousel="${escapeHtml(p.id)}"`:''}>
-      <button type="button" class="product-image-btn lm-product-image" data-view-product="${escapeHtml(p.id)}" aria-label="Ver ${escapeHtml(p.name)}">${photo?`<img ${variants.length>1?`data-carousel-img="${escapeHtml(p.id)}"`:''} src="${escapeHtml(photo)}" alt="${escapeHtml(p.name+(offer.variant?' · '+offer.variant.name:''))}" loading="lazy" decoding="async" width="1080" height="1440">`:'<img class="lm-image-placeholder" src="logo-symbol.png" alt="" width="90" height="90">'}</button>
+      <button type="button" class="product-image-btn lm-product-image" data-view-product="${escapeHtml(p.id)}" aria-label="Ver ${escapeHtml(p.name)}">${photo?`<img ${LMPhoto.attrs(p)} ${variants.length>1?`data-carousel-img="${escapeHtml(p.id)}"`:''} src="${escapeHtml(photo)}" alt="${escapeHtml(p.name+(offer.variant?' · '+offer.variant.name:''))}" loading="lazy" decoding="async" width="1080" height="1440">`:'<img class="lm-image-placeholder" src="logo-symbol.png" alt="" width="90" height="90">'}</button>
       <button type="button" data-toggle-favorite="${escapeHtml(p.id)}" aria-label="${isFav?'Remover dos favoritos':'Adicionar aos favoritos'}" aria-pressed="${isFav}" class="lm-favorite ${isFav?'is-favorite':''}">${heart}</button>
       ${sale?'<span class="lm-sale-tag">Condição especial</span>':p.featured?'<span class="lm-featured-tag">Destaque</span>':isNewProduct(p)?'<span class="lm-featured-tag">Novidade</span>':''}
       ${variants.length>1?`<div class="lm-photo-controls"><button type="button" data-carousel-prev="${escapeHtml(p.id)}" aria-label="Foto anterior de ${escapeHtml(p.name)}">‹</button><span>${idx+1} / ${variants.length}</span><button type="button" data-carousel-next="${escapeHtml(p.id)}" aria-label="Próxima foto de ${escapeHtml(p.name)}">›</button></div>`:''}
@@ -3001,7 +3001,7 @@ function renderCartDrawer() {
           ${items.length === 0 ? `<p class="py-8 text-center text-navy-400">Seu carrinho está vazio.</p>` : items.map((it) => `
             <div class="lm-cart-item flex items-center gap-3 border-b border-navy-50 py-3 last:border-0">
               <div class="lm-cart-photo h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-cream-100">
-                ${(it.variant?.photo_url || it.product.photo_url) ? `<img src="${it.variant?.photo_url || it.product.photo_url}" alt="${escapeHtml(it.product.name)}" class="h-full w-full object-contain" />` : ""}
+                ${(it.variant?.photo_url || it.product.photo_url) ? `<img ${LMPhoto.attrs(it.product)} src="${it.variant?.photo_url || it.product.photo_url}" alt="${escapeHtml(it.product.name)}" class="h-full w-full object-contain" />` : ""}
               </div>
               <div class="lm-cart-description min-w-0 flex-1">
                 <p class="text-sm font-semibold text-navy-900">${escapeHtml(it.product.name)}</p>
@@ -3112,7 +3112,7 @@ function renderProductDetail() {
         <div class="product-media-column">
           <div id="product-main-image-box" class="product-main-image-box relative aspect-square w-full overflow-hidden rounded-xl bg-cream-100">
             ${photoUrl
-              ? `<img src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-contain" />`
+              ? `<img ${LMPhoto.attrs(product)} src="${photoUrl}" alt="${escapeHtml(product.name)}" class="h-full w-full object-contain" />`
               : `<div class="flex h-full w-full items-center justify-center text-navy-200"><img src="logo-symbol.png" alt="" class="h-16 w-16 opacity-40" /></div>`}
             ${showingBestSellerPreview ? `<span class="best-seller-badge image-badge">Mais vendido</span>` : ""}
             <button type="button" data-toggle-favorite="${product.id}" aria-label="${isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}" class="favorite-btn absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-lg shadow transition hover:bg-white"><svg viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.5" aria-hidden="true" style="width:18px;height:18px"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0l-1 1-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg></button>
@@ -3128,7 +3128,7 @@ function renderProductDetail() {
             <div class="mt-2 flex flex-wrap gap-1.5">
               ${galleryPhotos.map((url, idx) => `
                 <button type="button" data-gallery-index="${idx}" aria-label="Ver foto ${idx + 1}" class="gallery-thumb-btn h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg ring-2 transition ${idx === galleryIndex ? "ring-gold-500" : "ring-transparent hover:ring-navy-200"}">
-                  <img src="${url}" alt="" class="h-full w-full object-contain" loading="lazy" decoding="async" />
+                  <img ${LMPhoto.attrs(product)} src="${url}" alt="" class="h-full w-full object-contain" loading="lazy" decoding="async" />
                 </button>
               `).join("")}
             </div>
@@ -3172,7 +3172,7 @@ function renderProductDetail() {
                       const ready = group.some((r) => r.v.in_stock && (stockQuantity(r.v) == null || stockQuantity(r.v) > 0));
                       return `
                         <button type="button" data-model-select="${product.id}" data-model="${escapeHtml(model)}" aria-pressed="${selectedModel === model ? "true" : "false"}" class="variant-thumb-btn ${selectedModel === model ? "is-selected" : ""}">
-                          ${representative?.photo_url ? `<img src="${representative.photo_url}" alt="${escapeHtml(model)}" class="variant-thumb-photo" />` : `<span class="variant-thumb-photo flex items-center justify-center text-lg">◻</span>`}
+                          ${representative?.photo_url ? `<img ${LMPhoto.attrs(product)} src="${representative.photo_url}" alt="${escapeHtml(model)}" class="variant-thumb-photo" />` : `<span class="variant-thumb-photo flex items-center justify-center text-lg">◻</span>`}
                           <span class="variant-thumb-name">${escapeHtml(model)}</span>
                           ${representative && isBestSellingVariant(product.id, representative.id) ? `<span class="best-seller-badge" style="margin-top:4px;" title="Modelo mais escolhido pelos clientes">Mais vendido</span>` : ""}
                           <span class="variant-thumb-price">${escapeHtml(priceLabelForVariantGroup(product, group.map((r) => r.v)))}</span>
@@ -3419,7 +3419,7 @@ function openShareMenu(product) {
   overlay.querySelector(".share-menu-card")?.focus();
 }
 
-function openPhotoZoom(src, alt) {
+function openPhotoZoom(src, alt, product) {
   if (!src) return;
   document.getElementById("photo-zoom-overlay")?.remove();
   const overlay = document.createElement("div");
@@ -3431,7 +3431,7 @@ function openPhotoZoom(src, alt) {
   overlay.innerHTML = `
     <div class="photo-zoom-dialog" tabindex="-1">
       <button type="button" class="photo-zoom-close" aria-label="Fechar foto ampliada">×</button>
-      <img src="${src}" alt="${escapeHtml(alt)}" />
+      <img ${LMPhoto.attrs(product)} src="${src}" alt="${escapeHtml(alt)}" />
     </div>`;
   document.body.appendChild(overlay);
   const dialog = overlay.querySelector(".photo-zoom-dialog");
@@ -3728,7 +3728,7 @@ function wireCatalogEvents() {
     openShareMenu(product);
   });
   document.querySelectorAll("[data-zoom-image]").forEach((btn) => {
-    btn.addEventListener("click", () => openPhotoZoom(btn.dataset.zoomImage, btn.dataset.zoomAlt || "Foto do produto"));
+    btn.addEventListener("click", () => openPhotoZoom(btn.dataset.zoomImage, btn.dataset.zoomAlt || "Foto do produto",state.products.find(p=>String(p.id)===String(state.detailProductId))));
   });
   document.querySelectorAll("[data-model-help]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -3850,7 +3850,7 @@ function renderCheckout() {
         ${items.map((it) => {
           const photo = it.variant?.photo_url || it.product.photo_url || "";
           return `<div class="checkout-review-item">
-            ${photo ? `<img src="${photo}" alt="" class="checkout-review-photo" />` : `<div class="checkout-review-photo flex items-center justify-center">✦</div>`}
+            ${photo ? `<img ${LMPhoto.attrs(it.product)} src="${photo}" alt="" class="checkout-review-photo" />` : `<div class="checkout-review-photo flex items-center justify-center">✦</div>`}
             <div class="min-w-0">
               <p class="text-sm font-semibold text-navy-900">${escapeHtml(it.product.name)}</p>
               ${it.variant ? `<p class="mt-0.5 text-xs font-medium text-gold-700">${escapeHtml(catalogVariantChoiceLabel(it.variant))}</p>` : ""}
