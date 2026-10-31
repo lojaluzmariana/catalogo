@@ -616,6 +616,7 @@ $('downloadThermal').addEventListener('click',()=>{
 });
 
 // Este trecho é incorporado ao escopo da calculadora no arquivo app.js.
+let approvalProductionData=null;
 let approvalMode='product',approvalRecord=null,approvalBusy=false;
 function approvalError(error){
   const message=error?.message||'Confira a conexão e tente novamente.';
@@ -639,7 +640,7 @@ function openApproval(mode){
   $('approvalProductFields').hidden=mode!=='product';$('approvalOrderFields').hidden=mode!=='order';
   $('approvalTitle').textContent=mode==='product'?'Aprovar cálculo e cadastrar produto':'Aprovar orçamento para produção';
   $('approvalConfirm').textContent=mode==='product'?'Aprovar e cadastrar produto':'Aprovar e criar pedido';
-  $('approvalStatus').textContent='';$('approvalResult').hidden=true;$('approvalConfirm').disabled=false;
+  $('approvalStatus').textContent='';$('approvalResult').hidden=true;$('approvalProduction').hidden=true;$('approvalProductionHint').hidden=true;approvalProductionData=null;$('approvalConfirm').disabled=false;
   $('approvalDialog').showModal();
 }
 async function approvalPhotoBlob(file){
@@ -675,6 +676,7 @@ async function confirmApproval(){
       rpcStarted=true;result=await supabaseClient.rpc('calculadora_aprovar_orcamento',{p_orcamento:quoteId,p_entrega:deadline||null});
       if(result.error)throw result.error;committed=true;
       const row=savedQuotes.find(q=>q.id===quoteId);if(row)row.calculadora_pedido_id=result.data.order_id;
+      approvalProductionData={order:{id:result.data.order_id,custom_deadline_date:deadline||null},quote:savedQuotes.find(q=>q.id===quoteId)||{},products:catalogRows};$('approvalProduction').hidden=false;$('approvalProductionHint').hidden=false;
       $('approvalResult').href='../admin/?pedido='+encodeURIComponent(result.data.order_id);$('approvalResult').textContent='Abrir pedido no painel';
       $('approvalStatus').textContent=result.data.existing?'Este orçamento já tem pedido. Nenhum pedido foi duplicado.':'Pedido aprovado. A fabricação própria já está na fila de produção. Registre o pagamento e acompanhe a entrega pelo painel.';
       renderSavedQuotes();
@@ -699,3 +701,5 @@ $('approvalCancel').addEventListener('click',()=>{if(!approvalBusy)$('approvalDi
 
 }
 
+
+$('approvalProduction').addEventListener('click',()=>{if(approvalProductionData)LMProductionWhatsApp.show(approvalProductionData);});

@@ -2540,7 +2540,7 @@ html.dark .lm-production-item small,html.dark .lm-production-order-head small,ht
 @media(max-width:640px){.lm-production-focus{padding:14px}.lm-production-focus h2{font-size:19px}.lm-production-item{align-items:flex-start}.lm-production-buttons{width:100%}.lm-production-buttons button{flex:1}.lm-production-order{padding:12px}}
 
 </style>
-<link rel="stylesheet" href="brand-management.css?v=1"></head>
+<link rel="stylesheet" href="brand-management.css?v=1"><script src="../production-whatsapp.js?v=1"></script></head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -3532,7 +3532,7 @@ async function finishAppEntry() {
 async function loadAllData() {
   await Promise.all([loadManagementBrands(), loadMaterials(), loadSuppliers(), loadProducts(), loadCustomers(), loadCoupons(), loadCampaigns(), loadCouponAllowedPhones(), loadOrcamentos(), loadProximoNumeroOrcamento(), loadOrders(), loadCashEntries(), loadAdminUsers(), loadReviews(), loadCatalogEvents(), loadV11OpsData()]);
   const entryParams=new URLSearchParams(location.search);
-  if(!window.__calculatorEntryHandled){
+  if(!window.__calculatorEntryHandled&&!parseManagementRoute(location.hash)){
     const order=state.orders.find(o=>String(o.id)===entryParams.get('pedido'));
     const product=state.products.find(p=>String(p.id)===entryParams.get('produto'));
     if(order){state.tab='pedidos';pedidosState.tab=order.status;pedidosState.expandedId=order.id;window.__calculatorEntryHandled=true;}
@@ -3624,6 +3624,7 @@ function adminName(id) {
 }
 
 async function logout() {
+  managementRoutingReady=false;
   clearTwoFactorVerified();
   await supabaseClient.auth.signOut();
   Object.assign(state, {
@@ -6657,7 +6658,7 @@ function brandAreaStats(key){const month=new Date().toLocaleDateString('sv-SE',{
 const tasks=allProductionTasks().filter(t=>t.source==='own'&&(t.order.accepted_at||t.order.status==='em_andamento')&&productManagementBrand(t.item.product_id)===key);return {products:state.products.filter(p=>p.active&&productManagementBrand(p.id)===key).length,openOrders:state.orders.filter(o=>!['concluido','cancelado'].includes(o.status)&&orderManagementBrand(o)===key).length,remaining:tasks.reduce((n,t)=>n+t.remaining,0),gross};}
 function productionManagementScope(){return ['materials','suggestions','stockprod','filaments','replenishment','physical'].includes(professionalState.productionView)?'all':brandAreaState.scope;}
 function brandBarHtml(){const scoped=['precificacao','pedidos','producao','estoqueprodutos','avaliacoes','orcamentos'].includes(state.tab)&&!(state.tab==='producao'&&['materials','suggestions','stockprod','filaments','replenishment','physical'].includes(professionalState.productionView));return `<section class="brand-scope-bar" aria-label="Área de gestão"><div><strong>${scoped?'Organizar por marca':'Gestão geral · todas as marcas'}</strong><p>${scoped?(state.tab==='orcamentos'?'Orçamentos desta área. A marca pode ser escolhida no próprio orçamento; use Ver marcas para mudar a lista.':state.tab==='pedidos'?'Pedidos com marcas diferentes ficam em Pedidos mistos. Se houver item sem marca, o pedido fica A classificar.':'A marca é a classificação revisada do produto, compartilhada com a vitrine.'):'Caixa, despesas, materiais e relatórios gerais continuam compartilhados. Acompanhe as áreas separadas em Nossas marcas.'}</p>${brandAreaState.error?`<p class="brand-error" role="alert">${escapeHtml(brandAreaState.error)}</p>`:''}</div>${scoped&&state.tab!=='orcamentos'?`<label>Mostrar<select id="management-brand-scope" ${isAnyFormOpen()?'disabled':''}>${Object.entries(brandAreaLabels).filter(([k])=>k!=='mixed'||state.tab==='pedidos').map(([key,label])=>`<option value="${key}" ${brandAreaState.scope===key?'selected':''}>${label}</option>`).join('')}</select></label>`:''}${state.tab==='orcamentos'?`<strong>Área: ${escapeHtml(brandAreaLabels[brandAreaState.scope])}</strong>`:''}<button type="button" data-management-brands>Ver marcas</button></section>`;}
-function attachBrandBar(container){if(container.querySelector('.brand-scope-bar'))return;container.insertAdjacentHTML('afterbegin',brandBarHtml());container.querySelector('#management-brand-scope')?.addEventListener('change',e=>{setManagementScope(e.target.value);renderApp();});}
+function attachBrandBar(container){syncManagementRoute();if(container.querySelector('.brand-scope-bar'))return;container.insertAdjacentHTML('afterbegin',brandBarHtml());container.querySelector('#management-brand-scope')?.addEventListener('change',e=>{setManagementScope(e.target.value);renderApp();});}
 function setManagementScope(scope){brandAreaState.scope=Object.hasOwn(brandAreaLabels,scope)?scope:'all';pedidosState.selected.clear();precifState.priceTableSelected.clear();precifState.category='';precifState.search='';pedidosState.expandedId=null;orcamentoState.editingId=null;const status=PEDIDOS_TABS.find(t=>state.orders.some(o=>matchesBrandOrder(o)&&o.status===t.key));if(status)pedidosState.tab=status.key;}
 async function saveProductManagementBrand(productId,brand){const wanted=['iluminart','luz_mariana'].includes(brand)?brand:null;const payload={product_id:productId,brand:wanted};if(!wanted)payload.collections=[];try{const {error}=await supabaseClient.from('product_catalog_identity').upsert(payload,{onConflict:'product_id'});if(error)throw error;brandAreaState.identities.set(String(productId),wanted);brandAreaState.error=null;return true;}catch{brandAreaState.error='Produto salvo, mas não foi possível salvar a marca. Abra Organizar marcas dos produtos para revisar. Confira a instalação de Instalar_Catalogo_Iluminart.sql.';return false;}}
 function renderManagementBrands(container){const pending=state.products.filter(p=>productManagementBrand(p.id)==='pending').length;const mixed=state.orders.filter(o=>orderManagementBrand(o)==='mixed'&&o.status!=='cancelado').length;const pendingOrders=state.orders.filter(o=>orderManagementBrand(o)==='pending'&&o.status!=='cancelado').length;
@@ -6766,7 +6767,68 @@ function openGlobalVendaAssistida(mode = "full") {
   renderVendaManualOverlay();
 }
 
+/* Rotas internas compatíveis com GitHub Pages: sessão e permissões continuam iguais. */
+const MANAGEMENT_SECTIONS=new Set(['marcas','inicio','producao','eventos','posvenda','ocorrencias','contas','fechamento','rentabilidade','atividade','configuracoes','precificacao','estoqueprodutos','materiais','fornecedores','clientes','campanhas','cupons','orcamentos','pedidos','estoque','relatorios','avaliacoes','caixa']);
+const MANAGEMENT_BRAND_SECTIONS=new Set(['precificacao','estoqueprodutos','avaliacoes','producao','pedidos','orcamentos']);
+const MANAGEMENT_PRODUCTION_VIEWS=new Set(['queue','board','batch','supplier','materials','inventory','suggestions','stockprod','filaments','replenishment','physical']);
+let managementRoutingReady=false,managementRouteApplying=false;
+function parseManagementRoute(hash){
+ const raw=String(hash||'').replace(/^#\/?/,'');if(!raw)return null;
+ const split=raw.indexOf('?'),tab=split<0?raw:raw.slice(0,split);if(!MANAGEMENT_SECTIONS.has(tab))return null;
+ const params=new URLSearchParams(split<0?'':raw.slice(split+1));const wanted=params.get('marca');
+ const brand=MANAGEMENT_BRAND_SECTIONS.has(tab)&&['all','iluminart','luz_mariana','pending','mixed'].includes(wanted)?wanted:'all';
+ const validId=name=>/^[a-zA-Z0-9_-]{1,80}$/.test(params.get(name)||'')?params.get(name):null;
+ return {order:tab==='pedidos'?validId('pedido'):null,product:tab==='precificacao'?validId('produto'):null,tab,brand:brand==='mixed'&&!['pedidos','orcamentos'].includes(tab)?'all':brand,status:['novo','em_andamento','concluido','cancelado'].includes(params.get('status'))?params.get('status'):null,view:MANAGEMENT_PRODUCTION_VIEWS.has(params.get('visao'))?params.get('visao'):null,quote:tab==='orcamentos'&&/^[a-zA-Z0-9_-]{1,80}$/.test(params.get('orcamento')||'')?params.get('orcamento'):null};
+}
+function managementRouteHash(){
+ const tab=MANAGEMENT_SECTIONS.has(state.tab)?state.tab:'marcas',params=new URLSearchParams();
+ if(MANAGEMENT_BRAND_SECTIONS.has(tab)&&['iluminart','luz_mariana','pending','mixed'].includes(brandAreaState.scope))params.set('marca',brandAreaState.scope);
+ if(tab==='pedidos'&&['novo','em_andamento','concluido','cancelado'].includes(pedidosState.tab))params.set('status',pedidosState.tab);
+ if(tab==='producao'&&MANAGEMENT_PRODUCTION_VIEWS.has(professionalState.productionView)&&professionalState.productionView!=='queue')params.set('visao',professionalState.productionView);
+ if(tab==='pedidos'&&pedidosState.expandedId&&state.orders.some(o=>String(o.id)===String(pedidosState.expandedId)))params.set('pedido',pedidosState.expandedId);
+ if(tab==='precificacao'&&precifState.formOpen&&precifState.editingId&&state.products.some(p=>String(p.id)===String(precifState.editingId)))params.set('produto',precifState.editingId);
+ if(tab==='orcamentos'&&orcamentoState.editingId&&state.orcamentos.some(o=>String(o.id)===String(orcamentoState.editingId)))params.set('orcamento',orcamentoState.editingId);
+ return '#'+tab+(params.size?'?'+params.toString():'');
+}
+function applyManagementRoute(route){
+ state.tab=route?.tab||'marcas';brandAreaState.scope=route?.brand||'all';
+ pedidosState.selected.clear();precifState.priceTableSelected.clear();precifState.category='';precifState.search='';pedidosState.expandedId=null;
+ precifState.formOpen=false;precifState.editingId=null;document.body.classList.remove('product-editor-modal-open');
+ if(state.tab==='pedidos'){pedidosState.tab=route.status||'novo';const order=state.orders.find(o=>String(o.id)===route.order);if(order){pedidosState.expandedId=order.id;pedidosState.tab=order.status;if(!matchesBrandOrder(order))brandAreaState.scope='all';}}
+ if(state.tab==='precificacao'&&route.product&&state.products.some(p=>String(p.id)===route.product)){precifState.formOpen=true;precifState.editingId=route.product;if(!matchesBrandProduct(route.product))brandAreaState.scope='all';}
+ if(state.tab==='producao')professionalState.productionView=route.view||'queue';
+ orcamentoState.editingId=route?.quote&&state.orcamentos.some(o=>String(o.id)===route.quote)?route.quote:null;
+}
+function syncManagementRoute(replace=false){
+ if(state.screen!=='app'||managementRouteApplying)return;
+ const hash=managementRouteHash();if(location.hash===hash)return;
+ const next=new URL(location.href);next.hash=hash;
+ // Os links antigos da calculadora continuam aceitos na entrada, sem prender as próximas navegações.
+ next.searchParams.delete('pedido');next.searchParams.delete('produto');
+ history[replace?'replaceState':'pushState'](null,'',next.pathname+next.search+next.hash);
+}
+function initializeManagementRoute(){
+ if(managementRoutingReady)return;
+ managementRoutingReady=true;const route=parseManagementRoute(location.hash);
+ if(route)applyManagementRoute(route);
+ syncManagementRoute(true);
+}
+function onManagementHistoryNavigation(){
+ if(state.screen!=='app'||!managementRoutingReady)return;
+ const route=parseManagementRoute(location.hash);
+ // popstate e hashchange podem representar a mesma navegação; só renderiza uma vez.
+ if(route&&managementRouteHash()===location.hash)return;
+ managementRouteApplying=true;
+ try{applyManagementRoute(route);renderApp();}finally{managementRouteApplying=false;}
+ syncManagementRoute(true);
+}
+window.addEventListener('popstate',onManagementHistoryNavigation);
+window.addEventListener('hashchange',onManagementHistoryNavigation);
+
+document.addEventListener('click',e=>{const b=e.target.closest('[data-production-whatsapp]');if(!b)return;const order=state.orders.find(o=>String(o.id)===String(b.dataset.productionWhatsapp));if(order)LMProductionWhatsApp.show({order,quote:state.orcamentos.find(q=>String(q.calculadora_pedido_id)===String(order.id))||{},products:state.products});});
 function renderApp() {
+  initializeManagementRoute();
+  syncManagementRoute();
   const newOrdersCount = state.orders.filter((o) => o.status === "novo").length;
   const lowStockProductsCount = countLowStockProducts();
   const lowStockMaterialsCount = countLowStockMaterials();
@@ -13939,6 +14001,7 @@ function renderPedidosBase(container) {
                 <span class="rounded-lg px-2 py-1.5 text-xs font-bold ${o.payment_method === "brinde" ? "bg-gold-100 text-gold-800" : o.paid_at ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}">${o.payment_method === "brinde" ? "🎁 Brinde" : o.paid_at ? "✓ Pago" : "❗ Não pago"}</span>
                 <span class="rounded-lg px-2 py-1.5 text-xs font-medium ${ORDER_STATUS_CLASSES[o.status]}">${ORDER_STATUS_LABELS[o.status]}</span>
                 <button data-toggle-items="${o.id}" class="toggle-order-items-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">${pedidosState.expandedId === o.id ? "Ocultar itens" : "Ver itens"}</button>
+                ${state.orcamentos.some(q=>String(q.calculadora_pedido_id)===String(o.id))?`<button type="button" data-production-whatsapp="${o.id}" class="rounded-lg border border-navy-200 px-3 py-2 text-xs font-semibold text-navy-700">Enviar detalhes à produção</button>`:''}
                 ${o.status !== "cancelado" ? `<button data-edit-order="${o.id}" title="Editar dados do cliente e itens deste pedido" class="edit-order-btn rounded px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-100">✎ Editar</button>` : ""}
                 ${waLink(o.customer_whatsapp) ? `<button data-msg-cliente="${o.id}" title="Monta uma mensagem de atualização (o texto muda de acordo com o status do pedido) e abre no WhatsApp do cliente — você sempre revisa antes de mandar" class="msg-cliente-btn rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">💬 Mensagem</button>` : ""}
                 ${o.payment_method === "brinde"
@@ -18135,6 +18198,7 @@ async function lancarPedidoDoOrcamentoAberto() {
     await Promise.all([loadOrders(),loadOrcamentos()]);
     const order=state.orders.find(o=>String(o.id)===String(result.data.order_id));
     state.tab='pedidos';pedidosState.tab=order?.status||'em_andamento';pedidosState.expandedId=result.data.order_id;renderApp();
+    if(!result.data.existing&&!row.calculadora_pedido_id)LMProductionWhatsApp.show({order:order||{id:result.data.order_id},quote:row,products:state.products});
   }catch(error){alert('Não foi possível aprovar: '+(/schema cache|does not exist|PGRST202/i.test(error.message||'')?'Instale o arquivo Instalar_Fluxo_Integrado.sql no Supabase.':error.message||'Confira sua conexão.'));}
   finally{calculatorPanelApprovalBusy=false;}
 }
