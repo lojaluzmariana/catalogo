@@ -793,7 +793,7 @@
 <link rel="stylesheet" href="catalogo.css?v=20261020-fotos-verticais">
 <style>
 .shop-offer{margin:10px 0 14px;color:#102d4b;line-height:1.45;min-height:112px}.offer-from{display:block;min-height:18px;font-size:11px;color:#647484;margin-bottom:4px}.offer-pix{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}.offer-pix>strong{font-size:26px;font-weight:750;letter-spacing:-.025em;line-height:1.25}.offer-pix>span{font-size:12px;color:#526a59}.offer-credit{margin-top:8px;font-size:13px;color:#536879}.offer-credit>strong{color:#102d4b;font-size:15px}.offer-credit>span{display:block;margin-top:2px;font-size:12px}.offer-credit b{font-weight:600;color:#354e66}.offer-consult{font-size:18px;font-weight:bold}.card-model{margin-bottom:10px;min-height:65px}.card-model label{display:block;font-size:11px;font-weight:600;color:#536879}.card-model select{display:block;width:100%;min-width:0;max-width:100%;margin-top:5px;min-height:44px;padding:9px 7px;border:1px solid #cbd2d9;border-radius:8px;background:#fff;color:#102d4b;font-size:14px}.single-model{display:block;padding-top:24px;font-size:12px;color:#687787}.card-details{display:block;width:100%;min-height:42px;margin-top:3px;padding:9px 5px;border:0;background:transparent!important;color:#536879!important;text-decoration:underline;text-underline-offset:3px;font-size:12px;font-weight:400;cursor:pointer}.card-error{font-size:12px!important;color:#9b2525!important;line-height:1.5;margin:0 0 8px}.card-error:empty{display:none}.product-bottom{margin-top:0;display:flex;flex-direction:column;flex:1;padding-top:0}.product-info h3{min-height:2.8em}.product-bottom>.card-model{margin-top:auto}.product .add,.lm-product-card .lm-product-action{width:100%;min-height:50px;border-radius:9px;background:#102d4b!important;color:white!important;font-size:14px!important;font-weight:700!important;padding:12px 8px!important;justify-content:center}.lm-product-info .shop-offer{margin-top:10px}.lm-product-info .lm-card-price{display:none}#detailPrice{font-size:14px!important}#detailPrice .offer-pix>strong{font-size:28px}@media(max-width:760px){.offer-pix>strong{font-size:23px}.offer-pix>span{font-size:11px}.offer-credit{font-size:12px}.offer-credit>strong{font-size:14px}.offer-credit>span{font-size:11px;line-height:1.5}.shop-offer{min-height:115px}.product .add,.lm-product-card .lm-product-action{font-size:12px!important;min-height:50px}.card-model select{font-size:16px}.card-details{font-size:12px;min-height:44px}}
-</style><link rel="stylesheet" href="storefront-improvements.css?v=4"><script src="storefront-core.js?v=1"></script><script src="model-carousel.js?v=1" defer></script></head>
+</style><link rel="stylesheet" href="storefront-improvements.css?v=4"><script src="storefront-core.js?v=2"></script><script src="model-carousel.js?v=1" defer></script></head>
 <body class="lm-clean-shop bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -1338,6 +1338,7 @@ async function loadCatalog() {
     supabaseClient.from("campaign_products").select("campaign_id, product_id"),
   ]);
   if (prodError) { state.loadError = prodError.message; state.loading = false; render(); return; }
+  await LMStore.applySales(products,variants||[]);
   state.products = products;
   state.variantsByProduct = {};
   (variants || []).forEach((v) => {
