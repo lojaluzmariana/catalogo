@@ -6654,6 +6654,8 @@ function matchesBrandProduct(id,scope=brandAreaState.scope){return scope==='all'
 function matchesBrandOrder(order,scope=brandAreaState.scope){return scope==='all'||orderManagementBrand(order)===scope;}
 function managementOrderIdentity(order){const key=orderManagementBrand(order);return managementBrands[key]||{name:key==='mixed'?'Iluminart + Luz Mariana':'Iluminart',subtitle:key==='mixed'?'Presentes, personalizados e artigos religiosos':'Gestão de pedidos',instagram:'@iluminartrn'};}
 async function loadManagementBrands(){try{const rows=[];for(let offset=0;offset<100000;offset+=1000){const {data,error}=await supabaseClient.from('product_catalog_identity').select('*').order('product_id').range(offset,offset+999);if(error)throw error;rows.push(...(data||[]));if((data||[]).length<1000){brandAreaState.classifications=new Map(rows.map(r=>[String(r.product_id),r]));brandAreaState.identities=new Map(rows.map(r=>[String(r.product_id),r.brand]));brandAreaState.ready=true;brandAreaState.error=null;return;}}throw Error('Classificação incompleta');}catch{brandAreaState.error='Não foi possível atualizar as marcas. Confira a conexão e a instalação de Instalar_Catalogo_Iluminart.sql.';}}
+function productKitMode(id){const value=brandAreaState.classifications.get(String(id))?.kit_mode;return ['catalog','kit_only'].includes(value)?value:'off';}
+async function saveProductKitMode(id,value,publish){try{const {error}=await supabaseClient.rpc('catalog_set_kit_mode',{p_product:id,p_mode:value,p_publish:publish});if(error)throw error;brandAreaState.classifications.set(String(id),{...(brandAreaState.classifications.get(String(id))||{}),kit_mode:value});return true;}catch{brandAreaState.error='Produto salvo internamente, mas a opção de kits não foi confirmada. A peça foi mantida fora da loja. Confira Instalar_Kits_Natal.sql e salve novamente.';return false;}}
 function productWatermark(id){return brandAreaState.classifications.get(String(id))?.watermark_brand||'';}
 async function saveProductWatermark(id,value){try{const {error}=await supabaseClient.rpc('catalog_set_watermark',{p_product:id,p_watermark:value||null});if(error)throw error;brandAreaState.classifications.set(String(id),{...(brandAreaState.classifications.get(String(id))||{}),watermark_brand:value||null});return true;}catch{brandAreaState.error='Produto salvo, mas a marca-d’água não foi salva. Confira Instalar_Marca_Dagua.sql e revise o cadastro.';return false;}}
 function productSubcategories(id){return LMCategory.subs(brandAreaState.classifications.get(String(id)));}
@@ -8661,9 +8663,9 @@ function renderPrecificacaoBase(container) {
 
             <div class="pricing-v10-stock-summary">
               <div><span>Estoque</span><strong>${stock > 0 ? `${stock} un.` : "Sob encomenda"}</strong></div>
-              <div><span>Catálogo</span><strong>${p.show_in_catalog ? "Visível" : "Oculto"}</strong></div>
+              <div><span>Catálogo</span><strong>${p.show_in_catalog ? (productKitMode(p.id)==='kit_only'?"Somente kits":"Visível") : "Oculto"}</strong></div>
               <div class="pricing-v10-quick-toggles">
-                <label title="Visível no catálogo"><input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb" /> Visível</label>
+                <label title="Disponibilizar na loja, respeitando a opção de kits"><input type="checkbox" data-visible-toggle="${p.id}" ${p.show_in_catalog ? "checked" : ""} class="visible-toggle-cb" /> Na loja</label>
                 <label title="Forçar em destaque"><input type="checkbox" data-featured-toggle="${p.id}" ${p.featured ? "checked" : ""} class="featured-toggle-cb" /> Destaque</label>
               </div>
             </div>
@@ -9133,6 +9135,7 @@ function renderProductForm() {
 </section>
       ${draft ? `<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>Produto vindo da Calculadora 3D.</strong> O custo por peça e o preço Pix sugerido já foram preenchidos. O fornecedor ficará como <strong>Fabricação própria</strong>. Revise os outros dados e clique em Salvar.</div>` : ""}
       <div id="pf-section-dados" class="product-editor-v11-main-grid"><label class="block"><span class="mb-1 block text-xs font-medium text-navy-700">Marca do produto</span><select id="pf-management-brand" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm"><option value="">A classificar</option>${Object.entries(managementBrands).map(([key,brand])=>`<option value="${key}" ${(product?productManagementBrand(product.id):brandAreaState.scope)===key?'selected':''}>${brand.name}</option>`).join('')}</select><small class="block mt-1 text-xs text-navy-500">Define a área da gestão e da vitrine. Luz Mariana é destinada aos artigos religiosos.</small></label>
+        <label class="block"><span class="mb-1 block text-xs font-medium text-navy-700">Onde oferecer esta peça</span><select id="pf-kit-mode" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm">${[['off','Catálogo — venda avulsa'],['catalog','Catálogo + kits de Natal'],['kit_only','Somente nos kits de Natal']].map(([key,label])=>`<option value="${key}" ${productKitMode(product?.id)===key?'selected':''}>${label}</option>`).join('')}</select><small class="block mt-1 text-xs text-navy-500">Bandejas e outros complementos podem ficar somente no montador. Para aparecer na loja, marque também “Disponibilizar na loja” e escolha a marca do produto.</small></label>
         <label class="block"><span class="mb-1 block text-xs font-medium text-navy-700">Marca-d’água das fotos</span><select id="pf-watermark-brand" class="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm">${[['','Automática — marca do produto'],['iluminart','Iluminart'],['luz_mariana','Luz Mariana'],['combined','Iluminart + Luz Mariana (projeto conjunto)']].map(([key,label])=>`<option value="${key}" ${productWatermark(product?.id)===key?'selected':''}>${label}</option>`).join('')}</select><small class="block mt-1 text-xs text-navy-500">Centralizada e discreta, com 18% de opacidade. Projetos conjuntos usam as duas logos. Não muda a marca na gestão.</small></label>
         <div class="min-w-[220px] flex-1">
           <label class="mb-1 block text-sm font-medium text-navy-800">Nome do produto</label>
@@ -9208,7 +9211,7 @@ function renderProductForm() {
         </div>
         <label class="mt-3 flex items-center gap-2 text-sm text-navy-700">
           <input type="checkbox" id="pf-show-catalog" ${product?.show_in_catalog ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
-          Mostrar este produto no Catálogo público
+          Disponibilizar na loja (catálogo ou montador de kits)
         </label>
         <label class="mt-2 flex items-center gap-2 text-sm text-navy-700">
           <input type="checkbox" id="pf-featured" ${product?.featured ? "checked" : ""} class="rounded border-navy-300 text-gold-500 focus:ring-gold-400" />
@@ -9989,6 +9992,10 @@ function renderProductForm() {
     const errorEl = document.getElementById("pf-error");
     let subcategories;try{subcategories=LMCategory.clean(document.getElementById('pf-subcategories').value);}catch(err){errorEl.textContent=err.message;return;}
     const watermarkValue=document.getElementById('pf-watermark-brand').value;
+    const kitModeValue=document.getElementById('pf-kit-mode').value;
+    const saveKitMode=kitModeValue!==productKitMode(product?.id);
+    if(kitModeValue!=='off'&&!managementBrandValue){errorEl.textContent='Escolha a marca da peça para oferecê-la nos kits.';return;}
+    if(saveKitMode){const {error}=await supabaseClient.from('product_catalog_identity').select('kit_mode').limit(1);if(error){errorEl.textContent='Execute Instalar_Kits_Natal.sql antes de escolher a opção de kits. O produto ainda não foi alterado.';return;}}
     const saveWatermark=watermarkValue!==productWatermark(product?.id);
     if(saveWatermark){const {error}=await supabaseClient.from('product_catalog_identity').select('watermark_brand').limit(1);if(error){errorEl.textContent='Execute Instalar_Marca_Dagua.sql antes de escolher a marca-d’água. O produto ainda não foi alterado.';return;}}
     const saveSubcategories=subcategories.length>0||productSubcategories(product?.id).length>0;
@@ -10164,7 +10171,7 @@ function renderProductForm() {
       credit_markup: pricing.creditMarkup, credit_margin: pricing.creditMargin,
       promo_price: pricing.promoPrice, promo_profit: pricing.promoProfit, promo_margin: pricing.promoMargin,
       promo_manual_price: promoManual,
-      photo_url: newPhotoUrl, show_in_catalog: showInCatalog, category: category || null, featured,
+      photo_url: newPhotoUrl, show_in_catalog: saveKitMode?false:showInCatalog, category: category || null, featured,
       in_stock: inStock, esgotado, stock_qty: stockQty, lead_time_days: DEFAULT_LEAD_TIME_DAYS,
       description: description || null, material_tag: materialTag || null, supplier_id: supplierId,
       updated_by: state.currentUser.id, updated_at: new Date().toISOString(),
@@ -10248,6 +10255,7 @@ function renderProductForm() {
     if(!product||productManagementBrand(product.id)!==(managementBrandValue||'pending'))await saveProductManagementBrand(productId,managementBrandValue);
     if(saveSubcategories)await saveProductSubcategories(productId,subcategories);
     if(saveWatermark)await saveProductWatermark(productId,watermarkValue);
+    if(saveKitMode)await saveProductKitMode(productId,kitModeValue,showInCatalog);
     const returnY = Number(precifState.editorReturnScrollY || 0);
     precifState.formOpen = false;
     precifState.draftFromCalc3d = null;
