@@ -2540,7 +2540,7 @@ html.dark .lm-production-item small,html.dark .lm-production-order-head small,ht
 @media(max-width:640px){.lm-production-focus{padding:14px}.lm-production-focus h2{font-size:19px}.lm-production-item{align-items:flex-start}.lm-production-buttons{width:100%}.lm-production-buttons button{flex:1}.lm-production-order{padding:12px}}
 
 </style>
-<link rel="stylesheet" href="brand-management.css?v=1"><script src="../production-whatsapp.js?v=2"></script><link rel="stylesheet" href="quote-sales.css?v=1"><script src="quote-sales.js?v=1"></script><script src="../category-utils.js?v=1"></script></head>
+<link rel="stylesheet" href="brand-management.css?v=1"><script src="../production-whatsapp.js?v=2"></script><link rel="stylesheet" href="quote-sales.css?v=1"><script src="quote-sales.js?v=1"></script><script src="../category-utils.js?v=1"></script><script src="../uuid.js?v=1"></script></head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -10145,7 +10145,7 @@ function renderProductForm() {
     if (pendingPhoto === "remove") {
       newPhotoUrl = null;
     } else if (pendingPhoto instanceof Blob) {
-      const path = `${crypto.randomUUID()}.jpg`;
+      const path = `${LMUUID()}.jpg`;
       const { error: uploadError } = await supabaseClient.storage.from("product-photos").upload(path, pendingPhoto, { contentType: "image/jpeg", upsert: false });
       if (uploadError) { errorEl.textContent = "Não foi possível enviar a foto: " + uploadError.message; return; }
       newPhotoUrl = supabaseClient.storage.from("product-photos").getPublicUrl(path).data.publicUrl;
@@ -10156,7 +10156,7 @@ function renderProductForm() {
       if (v.pendingPhoto === "remove") {
         v.finalPhotoUrl = null;
       } else if (v.pendingPhoto instanceof Blob) {
-        const path = `variante-${crypto.randomUUID()}.jpg`;
+        const path = `variante-${LMUUID()}.jpg`;
         const { error: variantUploadError } = await supabaseClient.storage.from("product-photos").upload(path, v.pendingPhoto, { contentType: "image/jpeg", upsert: false });
         if (variantUploadError) { errorEl.textContent = `Não foi possível enviar a foto do modelo "${v.name}": ` + variantUploadError.message; return; }
         v.finalPhotoUrl = supabaseClient.storage.from("product-photos").getPublicUrl(path).data.publicUrl;
@@ -10171,7 +10171,7 @@ function renderProductForm() {
     // Envia as fotos novas da galeria (se houver) antes de salvar o produto.
     for (const g of formGalleryPhotos) {
       if (g.pendingPhoto instanceof Blob) {
-        const path = `galeria-${crypto.randomUUID()}.jpg`;
+        const path = `galeria-${LMUUID()}.jpg`;
         const { error: galleryUploadError } = await supabaseClient.storage.from("product-photos").upload(path, g.pendingPhoto, { contentType: "image/jpeg", upsert: false });
         if (galleryUploadError) { errorEl.textContent = "Não foi possível enviar uma foto da galeria: " + galleryUploadError.message; return; }
         g.finalUrl = supabaseClient.storage.from("product-photos").getPublicUrl(path).data.publicUrl;
@@ -17117,7 +17117,7 @@ async function submeterVendaManual(e) {
   const totals=vendaManualTotals();
   const coupon=vendaManualState.appliedCoupon;
   const veioDoOrcamento=!!vendaManualState.sourceOrcamentoId;
-  const orderId=crypto.randomUUID();
+  const orderId=LMUUID();
   const now=new Date().toISOString();
   const fulfillmentMeta = {};
   const productionMeta = {};
@@ -20224,7 +20224,7 @@ async function submeterBrinde(e) {
   submitBtn.disabled = true;
   submitBtn.textContent = "Registrando...";
 
-  const orderId = crypto.randomUUID();
+  const orderId = LMUUID();
   const { error: orderError } = await supabaseClient.from("orders").insert({
     id: orderId,
     customer_name: name,
@@ -20576,7 +20576,7 @@ async function submeterCompraEstoque(e) {
   // Caixa). Todas as linhas dessa mesma compra compartilham um
   // "purchase_batch_id" — é isso que deixa juntar tudo de novo depois
   // (ex: pra somar/mostrar a dívida "por compra" quando não foi paga).
-  const purchaseBatchId = crypto.randomUUID();
+  const purchaseBatchId = LMUUID();
   const rows = stockPurchaseState.items.map((it) => ({
     entry_type: "saida",
     entry_date: date,

@@ -661,7 +661,7 @@ async function confirmApproval(){
       const name=$('approvalName').value.trim();if(!name||name.length>200)throw Error('Informe o nome do produto, com até 200 caracteres.');
       const record={...approvalRecord,cardFeeRate:cardRateFor('credito',3),unitCredit:customerCardPriceFromPix(round2(approvalRecord.results.unitPrice),3)};
       const blob=await approvalPhotoBlob($('approvalPhoto').files[0]);let photo=null;
-      if(blob){uploadedPath='calculadora-'+crypto.randomUUID()+'.jpg';const upload=await supabaseClient.storage.from('product-photos').upload(uploadedPath,blob,{contentType:'image/jpeg',upsert:false});if(upload.error)throw upload.error;photo=supabaseClient.storage.from('product-photos').getPublicUrl(uploadedPath).data.publicUrl;}
+      if(blob){uploadedPath='calculadora-'+LMUUID()+'.jpg';const upload=await supabaseClient.storage.from('product-photos').upload(uploadedPath,blob,{contentType:'image/jpeg',upsert:false});if(upload.error)throw upload.error;photo=supabaseClient.storage.from('product-photos').getPublicUrl(uploadedPath).data.publicUrl;}
       if(epoch!==sessionEpoch)throw Error('Seu acesso mudou. Entre novamente antes de aprovar.');
       rpcStarted=true;result=await supabaseClient.rpc('calculadora_aprovar_produto',{p_calculo:record,p_nome:name,p_foto:photo,p_publicar:$('approvalPublish').checked});
       if(result.error)throw result.error;committed=true;
