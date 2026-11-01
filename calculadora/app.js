@@ -639,7 +639,7 @@ function openApproval(mode){
   }
   $('approvalProductFields').hidden=mode!=='product';$('approvalOrderFields').hidden=mode!=='order';
   $('approvalTitle').textContent=mode==='product'?'Aprovar cálculo e cadastrar produto':'Aprovar orçamento para produção';
-  $('approvalConfirm').textContent=mode==='product'?'Aprovar e cadastrar produto':'Aprovar e criar pedido';
+  $('approvalConfirm').textContent=mode==='product'?'Aprovar e cadastrar produto':'Abrir WhatsApp e lançar no painel';
   $('approvalStatus').textContent='';$('approvalResult').hidden=true;$('approvalProduction').hidden=true;$('approvalProductionHint').hidden=true;approvalProductionData=null;$('approvalConfirm').disabled=false;
   $('approvalDialog').showModal();
 }
@@ -652,7 +652,7 @@ async function approvalPhotoBlob(file){
 async function confirmApproval(){
   if(approvalBusy)return;
   if(!currentSession){$('approvalStatus').textContent='Entre novamente para aprovar.';return;}
-  const epoch=sessionEpoch;let uploadedPath=null,committed=false,rpcStarted=false;
+  const epoch=sessionEpoch;let uploadedPath=null,committed=false,rpcStarted=false,whatsappOpened=false;
   approvalBusy=true;$('approvalConfirm').disabled=true;$('approvalCancel').disabled=true;
   $('approvalStatus').textContent='Salvando aprovação…';
   try{
@@ -671,6 +671,16 @@ async function confirmApproval(){
     }else{
       const deadline=$('approvalDeadline').value;
       if(deadline&&deadline<dayISO())throw Error('Escolha uma entrega a partir de hoje.');
+      const validated=validateQuote();
+      const existingQuote=savedQuotes.find(q=>q.id===quoteId);
+      if(existingQuote?.calculadora_pedido_id&&quoteDirty)throw Error('Este orçamento já tem pedido. Faça os ajustes pelo painel.');
+      approvalProductionData={order:{custom_deadline_date:deadline||null},quote:{...quotePayload(validated.f,validated.t),numero:quoteNumber||undefined},products:catalogRows};
+      $('approvalProduction').hidden=false;$('approvalProductionHint').hidden=false;
+      if(!existingQuote?.calculadora_pedido_id){
+        const opened=LMProductionWhatsApp.open(approvalProductionData);
+        if(!opened.opened){LMProductionWhatsApp.show(approvalProductionData);throw Error('O navegador bloqueou a abertura do WhatsApp. Permita pop-ups para este site e tente novamente. O pedido ainda não foi criado.');}
+        whatsappOpened=true;$('approvalStatus').textContent='WhatsApp aberto com os detalhes. Registrando o pedido no painel…';
+      }
       if(!quoteId||quoteDirty){await saveQuote();if(!quoteId||quoteDirty)throw Error($('quoteStatus').textContent||'Salve o orçamento antes de aprovar.');}
       if(epoch!==sessionEpoch)throw Error('Seu acesso mudou. Entre novamente antes de aprovar.');
       rpcStarted=true;result=await supabaseClient.rpc('calculadora_aprovar_orcamento',{p_orcamento:quoteId,p_entrega:deadline||null});
@@ -688,7 +698,7 @@ async function confirmApproval(){
     // Uma falha de rede após iniciar a RPC pode esconder uma aprovação concluída.
     // Nesse caso, preserva a foto; repetir a aprovação consulta o vínculo existente.
     if(uploadedPath&&!committed&&!rpcStarted)await supabaseClient.storage.from('product-photos').remove([uploadedPath]).catch(()=>{});
-    $('approvalStatus').textContent='Não foi possível confirmar: '+approvalError(error);
+    $('approvalStatus').textContent=(whatsappOpened?'O WhatsApp foi aberto, mas não foi possível confirmar o pedido no painel. Tente novamente; a aprovação mantém o mesmo pedido. ':'Não foi possível confirmar: ')+approvalError(error);
   }finally{
     approvalBusy=false;$('approvalConfirm').disabled=committed;$('approvalCancel').disabled=false;updateQuoteSummary(false);
   }
@@ -698,8 +708,7 @@ $('approveQuote').addEventListener('click',()=>openApproval('order'));
 $('approvalConfirm').addEventListener('click',confirmApproval);
 $('approvalDialog').addEventListener('cancel',event=>{if(approvalBusy)event.preventDefault();});
 $('approvalCancel').addEventListener('click',()=>{if(!approvalBusy)$('approvalDialog').close();});
+$('approvalProduction').addEventListener('click',()=>{if(approvalProductionData){const result=LMProductionWhatsApp.open(approvalProductionData);if(!result.opened)LMProductionWhatsApp.show(approvalProductionData);}});
 
 }
 
-
-$('approvalProduction').addEventListener('click',()=>{if(approvalProductionData)LMProductionWhatsApp.show(approvalProductionData);});

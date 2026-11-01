@@ -2540,7 +2540,7 @@ html.dark .lm-production-item small,html.dark .lm-production-order-head small,ht
 @media(max-width:640px){.lm-production-focus{padding:14px}.lm-production-focus h2{font-size:19px}.lm-production-item{align-items:flex-start}.lm-production-buttons{width:100%}.lm-production-buttons button{flex:1}.lm-production-order{padding:12px}}
 
 </style>
-<link rel="stylesheet" href="brand-management.css?v=1"><script src="../production-whatsapp.js?v=1"></script><link rel="stylesheet" href="quote-sales.css?v=1"><script src="quote-sales.js?v=1"></script><script src="../category-utils.js?v=1"></script></head>
+<link rel="stylesheet" href="brand-management.css?v=1"><script src="../production-whatsapp.js?v=2"></script><link rel="stylesheet" href="quote-sales.css?v=1"><script src="quote-sales.js?v=1"></script><script src="../category-utils.js?v=1"></script></head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -6833,7 +6833,7 @@ function onManagementHistoryNavigation(){
 window.addEventListener('popstate',onManagementHistoryNavigation);
 window.addEventListener('hashchange',onManagementHistoryNavigation);
 
-document.addEventListener('click',e=>{const b=e.target.closest('[data-production-whatsapp]');if(!b)return;const order=state.orders.find(o=>String(o.id)===String(b.dataset.productionWhatsapp));if(order)LMProductionWhatsApp.show({order,quote:state.orcamentos.find(q=>String(q.calculadora_pedido_id)===String(order.id))||{},products:state.products});});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-production-whatsapp]');if(!b)return;const order=state.orders.find(o=>String(o.id)===String(b.dataset.productionWhatsapp));if(order){const data={order,quote:state.orcamentos.find(q=>String(q.calculadora_pedido_id)===String(order.id))||{},products:state.products};if(!LMProductionWhatsApp.open(data).opened)LMProductionWhatsApp.show(data);}});
 function renderApp() {
   initializeManagementRoute();
   syncManagementRoute();
@@ -6874,7 +6874,7 @@ function renderApp() {
           <span><strong>Iluminart</strong><small>Gestão</small></span>
         </button>
 
-        <button id="header-calc3d-btn" type="button" class="admin-header-calc-btn" title="Abrir Calculadora 3D em lojaluzmariana.com.br/calculadora">
+        <button id="header-calc3d-btn" type="button" class="admin-header-calc-btn" title="Abrir Calculadora 3D em iluminartrn.com.br/calculadora">
           <span class="admin-header-calc-icon">🖨️</span><span class="admin-header-calc-label">Calculadora 3D</span>
         </button>
 
@@ -7260,7 +7260,7 @@ function renderApp() {
   };
   document.getElementById("global-search-btn")?.addEventListener("click", openCommandSearch);
   document.getElementById("header-calc3d-btn")?.addEventListener("click", () => {
-    window.location.href = "https://lojaluzmariana.com.br/calculadora/";
+    window.location.href = "https://iluminartrn.com.br/calculadora/";
   });
   document.getElementById("desktop-venda-manual-btn")?.addEventListener("click", () => openGlobalVendaAssistida("full"));
   document.getElementById("desktop-expense-btn")?.addEventListener("click", v11OpenExpense);
@@ -8725,7 +8725,7 @@ function renderPrecificacaoBase(container) {
     renderPrecificacao(container);
   });
   document.getElementById("calc3d-open-btn").addEventListener("click", () => {
-    window.location.href = "https://lojaluzmariana.com.br/calculadora/";
+    window.location.href = "https://iluminartrn.com.br/calculadora/";
   });
   document.getElementById("new-product-btn").addEventListener("click", () => {
     precifState.editorReturnScrollY = window.scrollY || 0;
@@ -18236,16 +18236,22 @@ async function lancarPedidoDoOrcamentoAberto() {
   if(calculatorPanelApprovalBusy)return;
   const row=state.orcamentos.find(o=>String(o.id)===String(orcamentoState.editingId));
   if(!row){alert('Salve o orçamento antes de aprovar.');return;}
-  if(!row.calculadora_pedido_id&&!confirm('Aprovar os dados SALVOS deste orçamento e criar o pedido para produção? Se alterou preços ou itens, salve antes de continuar. O pagamento ficará pendente.'))return;
-  calculatorPanelApprovalBusy=true;
+  if(!row.calculadora_pedido_id&&!confirm('Abrir o WhatsApp com os dados SALVOS deste orçamento e depois criar o pedido no painel? Se alterou preços ou itens, salve antes de continuar. Você confirma o envio no WhatsApp. O pagamento ficará pendente.'))return;
+  calculatorPanelApprovalBusy=true;let whatsappOpened=false,committed=false;
   try{
+    if(!row.calculadora_pedido_id){
+      const data={quote:row,order:{custom_deadline_date:row.previsao_entrega||null},products:state.products};
+      if(!LMProductionWhatsApp.open(data).opened){LMProductionWhatsApp.show(data);throw Error('O navegador bloqueou a abertura do WhatsApp. Permita pop-ups para este site e tente novamente. O pedido ainda não foi criado.');}
+      whatsappOpened=true;
+    }
     const result=row.calculadora_pedido_id?{data:{order_id:row.calculadora_pedido_id}}:await supabaseClient.rpc('calculadora_aprovar_orcamento',{p_orcamento:row.id,p_entrega:row.previsao_entrega||null});
     if(result.error)throw result.error;
+    committed=true;row.calculadora_pedido_id=result.data.order_id;
     await Promise.all([loadOrders(),loadOrcamentos()]);
     const order=state.orders.find(o=>String(o.id)===String(result.data.order_id));
     state.tab='pedidos';pedidosState.tab=order?.status||'em_andamento';pedidosState.expandedId=result.data.order_id;renderApp();
-    if(!result.data.existing&&!row.calculadora_pedido_id)LMProductionWhatsApp.show({order:order||{id:result.data.order_id},quote:row,products:state.products});
-  }catch(error){alert('Não foi possível aprovar: '+(/schema cache|does not exist|PGRST202/i.test(error.message||'')?'Instale o arquivo Instalar_Fluxo_Integrado.sql no Supabase.':error.message||'Confira sua conexão.'));}
+
+  }catch(error){alert((committed?'Pedido registrado. Não foi possível atualizar a tela; recarregue o painel. ':whatsappOpened?'O WhatsApp foi aberto, mas não foi possível confirmar o pedido no painel. Tente novamente; a aprovação mantém o mesmo pedido. ':'Não foi possível aprovar: ')+(/schema cache|does not exist|PGRST202/i.test(error.message||'')?'Instale o arquivo Instalar_Fluxo_Integrado.sql no Supabase.':error.message||'Confira sua conexão.'));}
   finally{calculatorPanelApprovalBusy=false;}
 }
 

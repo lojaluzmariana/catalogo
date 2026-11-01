@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 
-Sitemap: https://lojaluzmariana.github.io/catalogo/sitemap.xml
+Sitemap: https://iluminartrn.com.br/sitemap.xml

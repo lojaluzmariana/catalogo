@@ -4,7 +4,7 @@ import sharp from "sharp";
 
 const SUPABASE_URL = "https://xgcsdpqaqxstcfwgwaxw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnY3NkcHFhcXhzdGNmd2d3YXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4MDE3MTQsImV4cCI6MjEwMjM3NzcxNH0.WFYm2q4ljkQMRiaQzhJ-yf01wj80xsO0ykmH7jhtUoo";
-const BASE_URL = "https://lojaluzmariana.github.io/catalogo/";
+const BASE_URL = "https://iluminartrn.com.br/";
 const ROOT = process.cwd();
 const SHARE_DIR = path.join(ROOT, "share");
 const IMAGE_DIR = path.join(ROOT, "og-modelos");
