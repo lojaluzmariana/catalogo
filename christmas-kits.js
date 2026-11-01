@@ -6,7 +6,7 @@
   const norm=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const money=value=>(Number(value)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   const cents=value=>Math.round(Number(value)*100);
-  const mode=p=>['catalog','kit_only'].includes(p?.kit_mode)?p.kit_mode:'off';
+  const mode=p=>norm(p?.category).trim()==='natal'?'catalog':['catalog','kit_only'].includes(p?.kit_mode)?p.kit_mode:'off';
   const visible=p=>!!p&&mode(p)!=='kit_only';
   const eligible=p=>!!p&&mode(p)!=='off'&&['iluminart','luz_mariana'].includes(p.brand);
   const group=key=>String(key).split('::')[2]?.match(/^kit_[a-z0-9-]{8,60}$/i)?.[0]||'';
