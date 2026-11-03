@@ -2550,7 +2550,7 @@ html.dark .lm-production-item small,html.dark .lm-production-order-head small,ht
  .admin-sidebar::-webkit-scrollbar{display:block;width:6px}
  .admin-sidebar::-webkit-scrollbar-thumb{background:#7284c5;border-radius:6px}
 }
-</style></head>
+</style><script src="../delivery-rules.js?v=1"></script></head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -6932,7 +6932,7 @@ function renderApp() {
         <aside class="admin-sidebar" aria-label="Navegação principal">
           <div class="admin-nav-group">
             <span class="admin-nav-label">Hoje</span>
-            ${navBtn("marcas","✦","Nossas marcas")}
+            <a class="admin-nav-btn" href="../app/" target="_blank" rel="noopener"><span class="admin-nav-icon">▣</span><span>App · Pedidos e entregas ↗</span></a>${navBtn("marcas","✦","Nossas marcas")}
             ${navBtn("inicio","⌂","Visão geral", notificationCount)}
           </div>
 
@@ -12166,7 +12166,8 @@ function orderCost(order) {
   const materialsCost = giftWrapCost + essentialsCost;
 
   return {
-    productCost, materialsCost, cost: productCost + materialsCost,
+    deliveryCost:order.delivery_details?.method==='delivery'?Number(order.delivery_details.fee||0):0,
+    productCost, materialsCost, cost: productCost + materialsCost + (order.delivery_details?.method==='delivery'?Number(order.delivery_details.fee||0):0),
     supplierProductCost, isSupplierProductApprox,
     // Custo "sem essenciais" — usado no lançamento de saída do Caixa ao
     // Iniciar venda. O custo do material Essencial já vira uma saída no
@@ -15372,7 +15373,7 @@ function newVendaManualState(overrides = {}) {
     payment: "pix", paymentStatus: "pending", installments: 1,
     couponCode: "", appliedCoupon: null,
     manualDiscount: "", manualDiscountReason: "",
-    deliveryMethod: "retirada", deliveryFee: "", deliveryDeadline: "",
+    deliveryMethod: "retirada", deliveryFee: "", deliveryDeadline: "",deliveryDetails:{method:"pickup"},
     origin: "whatsapp",
     sourceOrcamentoId: null, sourceOrcamentoNumero: null,
     _selectedProductId: null, _selectedVariantId: null, _selectedSize: "", _qty: "1",
@@ -16584,13 +16585,14 @@ function vendaManualTotals() {
     couponDiscount = Math.max(0, Math.min(couponDiscount, couponBase));
   }
   const manualDiscount = Math.max(0, Math.min(Number(String(vendaManualState.manualDiscount || "0").replace(",",".")) || 0, Math.max(0, subtotal - campaignDiscount - couponDiscount)));
-  const deliveryFee = vendaManualState.payment === "brinde" ? 0 : Math.max(0, Number(String(vendaManualState.deliveryFee || "0").replace(",",".")) || 0);
-  const baseTotal = vendaManualState.payment === "brinde" ? 0 : round2(Math.max(0, subtotal - campaignDiscount - couponDiscount - manualDiscount + deliveryFee));
+  const deliveryDetails=LMDelivery.normalize(vendaManualState.mode==='full'?vendaManualState.deliveryDetails||{method:'pickup'}:{method:'pickup'});
+  const deliveryFee = Number(deliveryDetails?.fee||0);
+  const baseTotal = vendaManualState.payment === "brinde" ? deliveryFee : round2(Math.max(0, subtotal - campaignDiscount - couponDiscount - manualDiscount + deliveryFee));
   const installments = vendaManualState.payment === "credito" ? Math.max(1, Math.min(12, Number(vendaManualState.installments || 1))) : 1;
-  const total = vendaManualState.payment === "brinde" ? 0 : paymentGrossFromBase(baseTotal, vendaManualState.payment, installments);
+  const total = vendaManualState.payment === "brinde" ? deliveryFee : round2(paymentGrossFromBase(baseTotal-deliveryFee, vendaManualState.payment, installments)+deliveryFee);
   const paymentAdjustment = round2(total - baseTotal);
   const pseudoOrder = {
-    total,
+    total,delivery_details:deliveryDetails,
     payment_method:vendaManualState.payment,
     notes:composeOrderNotes("", {sale:{installments}}),
     items: resolved.map((it) => ({ product_id:it.product_id, product_name:it.product_name, variant_name:it.variant_name, quantity:it.quantity, unit_price:it.unitPrice })),
@@ -16598,7 +16600,7 @@ function vendaManualTotals() {
   };
   const cost = orderCost(pseudoOrder);
   const split = orderMoneySplit(pseudoOrder, cost);
-  return { resolved, itemSubtotal, giftWrapTotal, subtotal, campaignSummary, campaignDiscount:round2(campaignDiscount), couponDiscount:round2(couponDiscount), manualDiscount:round2(manualDiscount), deliveryFee:round2(deliveryFee), baseTotal, paymentAdjustment, installments, total, cost, split };
+  return { deliveryDetails,resolved, itemSubtotal, giftWrapTotal, subtotal, campaignSummary, campaignDiscount:round2(campaignDiscount), couponDiscount:round2(couponDiscount), manualDiscount:round2(manualDiscount), deliveryFee:round2(deliveryFee), baseTotal, paymentAdjustment, installments, total, cost, split };
 }
 function vendaManualInventoryWarnings() {
   const warnings = [];
@@ -16879,7 +16881,8 @@ function renderVendaManualOverlay() {
                   <div class="vm-payment-grid">${[["pix","Pix"],["dinheiro","Dinheiro"],["debito","Débito"],["credito","Crédito"],["brinde","Brinde"]].map(([v,l])=>`<button type="button" data-vm-payment="${v}" class="vm-choice ${vendaManualState.payment===v?"active":""}">${l}</button>`).join("")}</div>
                   ${vendaManualState.payment==="credito" ? `<div class="mt-3 vm-field"><label>Parcelas no crédito</label><select id="vm-installments">${Array.from({length:12},(_,i)=>i+1).map((n)=>`<option value="${n}" ${Number(vendaManualState.installments||1)===n?"selected":""}>${n}x · taxa Ton ${(cardRateFor("credito",n)*100).toFixed(2).replace(".",",")}%${n<=3?" · cliente +5%":" · gross-up"}</option>`).join("")}</select><p class="mt-1 text-[9px] text-navy-400">1x a 3x: +5% ao cliente. A partir de 4x: valor calculado para preservar o líquido à vista.</p></div>` : ""}
                   ${vendaManualState.payment!=="brinde" ? `<div class="mt-3 grid grid-cols-2 gap-2"><button type="button" data-vm-paystatus="pending" class="vm-choice ${vendaManualState.paymentStatus==="pending"?"active":""}">Pagamento pendente</button><button type="button" data-vm-paystatus="paid" class="vm-choice ${vendaManualState.paymentStatus==="paid"?"active":""}">✓ Pago agora</button></div>` : ""}
-                  ${full ? `<div class="mt-3 vm-field-grid"><div class="vm-field"><label>Entrega</label><select id="vm-delivery-method">${[["retirada","Retirada"],["entrega_local","Entrega local"],["envio","Envio / Correios"]].map(([v,l])=>`<option value="${v}" ${vendaManualState.deliveryMethod===v?"selected":""}>${l}</option>`).join("")}</select></div><div class="vm-field"><label>Taxa de entrega</label><input id="vm-delivery-fee" value="${escapeHtml(vendaManualState.deliveryFee)}" inputmode="decimal" placeholder="0,00" /></div><div class="vm-field" style="grid-column:1/-1"><label>Prazo/data combinada</label><input id="vm-delivery-deadline" type="date" value="${escapeHtml(vendaManualState.deliveryDeadline)}" /></div></div>` : `<input id="vm-delivery-method" type="hidden" value="retirada"/><input id="vm-delivery-fee" type="hidden" value="0"/><input id="vm-delivery-deadline" type="hidden" value=""/>`}
+                  ${full?LMDelivery.form('manualSaleDelivery',vendaManualState.deliveryDetails||{method:'pickup'})+`<label>Prazo/data combinada<input id="vm-delivery-deadline" type="date" value="${escapeHtml(vendaManualState.deliveryDeadline||'')}"></label>`:''}
+
                 </section>
 
                 <section class="vm-summary">
@@ -16889,15 +16892,15 @@ function renderVendaManualOverlay() {
                   ${totals.campaignDiscount?`<div class="vm-money-line"><span>Campanha ${escapeHtml(totals.campaignSummary.applications.map(c=>c.name).join(" + "))}</span><strong>− ${formatBRL(totals.campaignDiscount)}</strong></div>`:""}
                   ${totals.couponDiscount?`<div class="vm-money-line"><span>Cupom</span><strong>− ${formatBRL(totals.couponDiscount)}</strong></div>`:""}
                   ${totals.manualDiscount?`<div class="vm-money-line"><span>Desconto manual</span><strong>− ${formatBRL(totals.manualDiscount)}</strong></div>`:""}
-                  ${totals.deliveryFee?`<div class="vm-money-line"><span>Entrega</span><strong>+ ${formatBRL(totals.deliveryFee)}</strong></div>`:""}
+                  <div class="vm-money-line"><span>Frete</span><strong id="vm-freight">${formatBRL(totals.deliveryFee)}</strong></div>
                   ${totals.paymentAdjustment>0?`<div class="vm-money-line"><span>${vendaManualState.payment==="credito" && totals.installments<=3?"Acréscimo cartão (+5%)":`Ajuste para taxa ${vendaManualState.payment==="credito"?totals.installments+"x":paymentMethodLabel(vendaManualState.payment)}`}</span><strong>+ ${formatBRL(totals.paymentAdjustment)}</strong></div>`:""}
-                  <div class="vm-money-line total"><span>Total cliente</span><strong>${formatBRL(totals.total)}</strong></div>
+                  <div class="vm-money-line total"><span>Total cliente</span><strong class="vm-customer-total">${formatBRL(totals.total)}</strong></div>
                   <div class="vm-finance-grid">
-                    <div class="vm-finance-chip"><span>Taxa operadora ${totals.split.feeRate?`(${(totals.split.feeRate*100).toFixed(2).replace(".",",")}%)`:""}</span><b>${formatBRL(totals.split.cardFee)}</b></div>
-                    <div class="vm-finance-chip"><span>Receita líquida</span><b>${formatBRL(totals.split.netRevenue)}</b></div>
-                    <div class="vm-finance-chip"><span>Guardar na loja (custos + reserva)</span><b>${formatBRL(totals.split.storeTotalToKeep)}</b></div>
-                    <div class="vm-finance-chip"><span>Lucro real</span><b>${formatBRL(totals.split.profit)}</b></div>
-                    <div class="vm-finance-chip"><span>Retirada ${totals.split.ownerPercent}%</span><b>${vendaManualState.paymentStatus==="paid"?formatBRL(totals.split.ownerShare):"R$ 0,00"}</b></div>
+                    <div class="vm-finance-chip"><span>Taxa operadora ${totals.split.feeRate?`(${(totals.split.feeRate*100).toFixed(2).replace(".",",")}%)`:""}</span><b id="vm-delivery-fee">${formatBRL(totals.split.cardFee)}</b></div>
+                    <div class="vm-finance-chip"><span>Receita líquida</span><b id="vm-delivery-net">${formatBRL(totals.split.netRevenue)}</b></div>
+                    <div class="vm-finance-chip"><span>Guardar na loja (custos + reserva)</span><b id="vm-delivery-keep">${formatBRL(totals.split.storeTotalToKeep)}</b></div>
+                    <div class="vm-finance-chip"><span>Lucro real</span><b id="vm-delivery-profit">${formatBRL(totals.split.profit)}</b></div>
+                    <div class="vm-finance-chip"><span>Retirada ${totals.split.ownerPercent}%</span><b id="vm-delivery-owner">${vendaManualState.paymentStatus==="paid"?formatBRL(totals.split.ownerShare):"R$ 0,00"}</b></div>
                   </div>
                   <div class="mt-3 text-[9px] text-blue-100">
                     ${productionUnits>0?`🏭 Fabricação própria: <b>${productionUnits} un.</b> pendente(s) de produção.`:"✓ Nenhuma unidade pendente de fabricação própria."}
@@ -16911,12 +16914,13 @@ function renderVendaManualOverlay() {
           </form>
         </div>
         <div class="vm-footer">
-          <div class="vm-footer-total"><small>${paymentMethodLabel(vendaManualState.payment)} · ${vendaManualState.paymentStatus==="paid"?"pago":"pendente"}</small><strong>${formatBRL(totals.total)}</strong></div>
+          <div class="vm-footer-total"><small>${paymentMethodLabel(vendaManualState.payment)} · ${vendaManualState.paymentStatus==="paid"?"pago":"pendente"}</small><strong class="vm-customer-total">${formatBRL(totals.total)}</strong></div>
           <div class="vm-footer-actions flex gap-2"><button type="button" id="vm-cancel" class="rounded-lg border border-navy-200 px-4 py-2 text-sm font-bold text-navy-700">Cancelar</button><button type="submit" form="venda-manual-form" id="vm-submit" class="rounded-lg bg-gold-500 px-5 py-2 text-sm font-extrabold text-navy-900">Registrar pedido</button></div>
         </div>
       </div>
     </div>`;
 
+  LMDelivery.sync('manualSaleDelivery');
   const bindValue=(id,key,event="input")=>{ const el=document.getElementById(id); if(el) el.addEventListener(event,e=>{vendaManualState[key]=e.target.value; if(["manualDiscount","deliveryFee"].includes(key)) renderVendaManualOverlay();}); };
   document.getElementById("vm-close-btn").onclick=closeVendaManualOverlay;
   document.getElementById("vm-cancel").onclick=closeVendaManualOverlay;
@@ -17119,6 +17123,7 @@ async function submeterVendaManual(e) {
   const md=Number(String(vendaManualState.manualDiscount||"0").replace(",","."))||0;
   if (md>0 && !String(vendaManualState.manualDiscountReason||"").trim()) { errorEl.textContent="Informe o motivo do desconto manual."; return; }
   if (vendaManualState.paymentStatus==="paid" && vendaManualState.payment!=="brinde" && !confirm("Confirmar que este pedido já está PAGO? O valor será considerado recebido para as regras de retirada.")) return;
+  if(!LMDelivery.normalize(full?vendaManualState.deliveryDetails||{method:'pickup'}:{method:'pickup'})){errorEl.textContent='Confira os dados e a distância da entrega.';return;}
   const warnings=vendaManualInventoryWarnings();
   if (warnings.length && !confirm(`Há alertas de estoque/produção:\n\n${warnings.map(w=>"• "+w).join("\n")}\n\nDeseja registrar mesmo assim?`)) return;
 
@@ -17153,7 +17158,7 @@ async function submeterVendaManual(e) {
       mode:vendaManualState.mode, origin:vendaManualState.origin,
       paymentMethod:vendaManualState.payment, installments:vendaManualState.payment === "credito" ? totals.installments : 1,
       baseCashPrice:totals.baseTotal, paymentAdjustment:totals.paymentAdjustment, operatorFeeRate:totals.split.feeRate,
-      deliveryMethod:vendaManualState.deliveryMethod, deliveryFee:totals.deliveryFee,
+      deliveryMethod:totals.deliveryDetails?.method==='delivery'?'entrega_local':'retirada', deliveryFee:totals.deliveryFee,
       manualDiscount:totals.manualDiscount, manualDiscountReason:String(vendaManualState.manualDiscountReason||"").trim()||null,
       internalNotes:String(vendaManualState.internalNotes||"").trim()||null,
       giftWrap:true,
@@ -17161,7 +17166,7 @@ async function submeterVendaManual(e) {
     },
   };
   const orderPayload={
-    id:orderId,
+    id:orderId,delivery_details:totals.deliveryDetails,
     customer_name:name || "Venda balcão",
     customer_whatsapp:whatsapp || "",
     customer_instagram:instagram || null,
@@ -17174,9 +17179,9 @@ async function submeterVendaManual(e) {
     campaign_ids:totals.campaignSummary.applications.length?totals.campaignSummary.applications.map((c)=>c.id):null,
     campaign_names:totals.campaignSummary.applications.length?totals.campaignSummary.applications.map((c)=>c.name):null,
     campaign_discount_amount:totals.campaignDiscount>0?totals.campaignDiscount:null,
-    paid_at:(vendaManualState.paymentStatus==="paid" || vendaManualState.payment==="brinde")?now:null,
+    paid_at:(vendaManualState.paymentStatus==="paid" || vendaManualState.payment==="brinde"&&totals.deliveryFee===0)?now:null,
     custom_deadline_date:vendaManualState.deliveryDeadline||null,
-    status:vendaManualState.payment==="brinde"?"concluido":"novo",
+    status:vendaManualState.payment==="brinde"&&totals.deliveryFee===0?"concluido":"novo",
   };
   const {error:orderError}=await supabaseClient.from("orders").insert(orderPayload);
   if(orderError){errorEl.textContent="Não foi possível registrar o pedido: "+orderError.message;submitBtn.disabled=false;submitBtn.textContent="Registrar pedido";return;}
@@ -17356,6 +17361,7 @@ function orcAdicionarDiasUteis(dataISO, diasUteis) {
 
 function orcRowToData(row) {
   return {
+    delivery_details:row.delivery_details||null,
     id: row.id,
     numero: orcNumeroFormatado(row.numero),
     observacoes: row.itens?.[0]?.calculatorQuoteSettings?.observations || "",
@@ -17500,7 +17506,7 @@ function renderOrcamentosBase(container) {
         </div>
         <p class="mt-2 text-xs text-navy-400">O valor no crédito é calculado automaticamente a partir do preço Pix, usando a regra comercial atual do painel.</p>
 
-        <div class="orc-no-print mt-6 flex flex-wrap gap-2">
+        ${LMDelivery.form('adminQuoteDelivery',d.delivery_details)}<div class="orc-no-print mt-6 flex flex-wrap gap-2">
           <button id="orc-save-btn" type="button" class="rounded-lg bg-navy-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-navy-800 disabled:opacity-50">${editingRow ? "Salvar alterações" : "Gerar e salvar orçamento"}</button>
           ${editingRow ? `<button id="orc-launch-order-btn" type="button" class="rounded-lg bg-gold-500 px-4 py-3 text-sm font-semibold text-navy-900 transition hover:bg-gold-400">${editingRow.calculadora_pedido_id?'Abrir pedido aprovado':'Aprovar e enviar para produção'}</button>` : ""}
           <button id="orc-new-btn" type="button" class="rounded-lg border border-navy-300 bg-white px-4 py-3 text-sm font-medium text-navy-700 transition hover:bg-navy-50">Novo</button>
@@ -17533,6 +17539,7 @@ function renderOrcamentosBase(container) {
 
   const itens = d.itens && d.itens.length ? d.itens : [{ pedido: "", quantidade: 1, unitarioPix: "" }];
   itens.forEach((item) => adicionarItemOrcamento(item));
+  LMDelivery.sync('adminQuoteDelivery');
   calcularOrcamento();
   atualizarDatasOrcamento(false);
   orcInicializarClienteOrcamento(d);
@@ -18008,6 +18015,7 @@ function calcularOrcamento() {
     totalCredito += itemCredito;
     linha.querySelector(".orc-item-total").value = formatBRL(pagamento === "credito" ? itemCredito : itemPix);
   });
+  const subtotal=totalPix,delivery_details=LMDelivery.read('adminQuoteDelivery'),freight=Number(delivery_details?.fee||0);totalPix+=freight;totalCredito+=freight;
   const total = pagamento === "credito" ? totalCredito : totalPix;
   const pixEl = document.getElementById("orc-total-pix");
   const credEl = document.getElementById("orc-total-credito");
@@ -18015,7 +18023,7 @@ function calcularOrcamento() {
   if (pixEl) pixEl.textContent = formatBRL(totalPix);
   if (credEl) credEl.textContent = formatBRL(totalCredito);
   if (finalEl) finalEl.textContent = formatBRL(total);
-  return { subtotal: totalPix, totalPix, totalCredito, total, acrescimo: totalCredito - totalPix };
+  return { subtotal, delivery_details, totalPix, totalCredito, total, acrescimo: totalCredito - totalPix };
 }
 
 function atualizarDatasOrcamento(recalcular = true) {
@@ -18092,7 +18100,8 @@ function gerarTextoOrcamento(d) {
     `*Detalhamento do pedido:*\n${itens || "—"}\n` +
     (d.observacoes ? `\n*Observações:*\n${d.observacoes}\n\n` : "") +
     `------------------------------\n` +
-    `Subtotal: ${formatBRL(d.total)}${valorUnitario}\n` +
+    `Subtotal: ${formatBRL(d.total-Number(d.delivery_details?.fee||0))}${valorUnitario}\n` +
+    `Frete: ${formatBRL(d.delivery_details?.fee||0)}\n${LMDelivery.text(d.delivery_details)}\n` +
     `*Valor total: ${formatBRL(d.total)}*\n` +
     `------------------------------\n` +
     `*Prazo de entrega:* ${prazoTexto}${previsaoTexto}\n` +
@@ -18105,6 +18114,7 @@ function gerarTextoOrcamento(d) {
 
 function payloadOrcamento(d) {
   return {
+    delivery_details:d.delivery_details,
     cliente_nome: d.nome,
     telefone: d.telefone || null,
     data_orcamento: d.dataOrcamento,
@@ -18124,6 +18134,7 @@ function payloadOrcamento(d) {
 async function salvarOrcamentoSupabase() {
   if (orcamentoState.saving) return;
   const d = obterDadosOrcamento();
+  if(!d.delivery_details){alert('Confira o endereço e a distância da entrega.');return;}
   if (!d.nome) { alert("Informe o nome do cliente."); return; }
   if (!d.itens.length) { alert("Adicione pelo menos um item ao pedido."); return; }
   if (d.itens.some((i) => !i.pedido)) { alert("Informe o nome de todos os itens do pedido."); return; }
@@ -20795,6 +20806,20 @@ setInterval(async () => {
   await loadAllData();
   render();
 }, 60000);
+
+document.addEventListener('delivery:change',e=>{
+ if(e.detail.prefix==='adminQuoteDelivery')calcularOrcamento();
+ if(e.detail.prefix==='manualSaleDelivery'){
+  vendaManualState.deliveryDetails=LMDelivery.raw('manualSaleDelivery');
+  const t=vendaManualTotals();
+  const put=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
+  put('vm-freight',t.deliveryDetails?formatBRL(t.deliveryFee):'Confira a entrega');
+  document.querySelectorAll('.vm-customer-total').forEach(el=>el.textContent=t.deliveryDetails?formatBRL(t.total):'Confira a entrega');
+  for(const [id,key]of [['fee','cardFee'],['net','netRevenue'],['keep','storeTotalToKeep'],['profit','profit']])put('vm-delivery-'+id,t.deliveryDetails?formatBRL(t.split[key]):'—');
+  put('vm-delivery-owner',t.deliveryDetails?formatBRL(vendaManualState.paymentStatus==='paid'?t.split.ownerShare:0):'—');
+  const submit=document.getElementById('vm-submit');if(submit)submit.disabled=!t.deliveryDetails;
+ }
+});
 </script>
 </body>
 </html>

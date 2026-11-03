@@ -793,7 +793,7 @@
 <link rel="stylesheet" href="catalogo.css?v=20261020-fotos-verticais">
 <style>
 .shop-offer{margin:10px 0 14px;color:#102d4b;line-height:1.45;min-height:112px}.offer-from{display:block;min-height:18px;font-size:11px;color:#647484;margin-bottom:4px}.offer-pix{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}.offer-pix>strong{font-size:26px;font-weight:750;letter-spacing:-.025em;line-height:1.25}.offer-pix>span{font-size:12px;color:#526a59}.offer-credit{margin-top:8px;font-size:13px;color:#536879}.offer-credit>strong{color:#102d4b;font-size:15px}.offer-credit>span{display:block;margin-top:2px;font-size:12px}.offer-credit b{font-weight:600;color:#354e66}.offer-consult{font-size:18px;font-weight:bold}.card-model{margin-bottom:10px;min-height:65px}.card-model label{display:block;font-size:11px;font-weight:600;color:#536879}.card-model select{display:block;width:100%;min-width:0;max-width:100%;margin-top:5px;min-height:44px;padding:9px 7px;border:1px solid #cbd2d9;border-radius:8px;background:#fff;color:#102d4b;font-size:14px}.single-model{display:block;padding-top:24px;font-size:12px;color:#687787}.card-details{display:block;width:100%;min-height:42px;margin-top:3px;padding:9px 5px;border:0;background:transparent!important;color:#536879!important;text-decoration:underline;text-underline-offset:3px;font-size:12px;font-weight:400;cursor:pointer}.card-error{font-size:12px!important;color:#9b2525!important;line-height:1.5;margin:0 0 8px}.card-error:empty{display:none}.product-bottom{margin-top:0;display:flex;flex-direction:column;flex:1;padding-top:0}.product-info h3{min-height:2.8em}.product-bottom>.card-model{margin-top:auto}.product .add,.lm-product-card .lm-product-action{width:100%;min-height:50px;border-radius:9px;background:#102d4b!important;color:white!important;font-size:14px!important;font-weight:700!important;padding:12px 8px!important;justify-content:center}.lm-product-info .shop-offer{margin-top:10px}.lm-product-info .lm-card-price{display:none}#detailPrice{font-size:14px!important}#detailPrice .offer-pix>strong{font-size:28px}@media(max-width:760px){.offer-pix>strong{font-size:23px}.offer-pix>span{font-size:11px}.offer-credit{font-size:12px}.offer-credit>strong{font-size:14px}.offer-credit>span{font-size:11px;line-height:1.5}.shop-offer{min-height:115px}.product .add,.lm-product-card .lm-product-action{font-size:12px!important;min-height:50px}.card-model select{font-size:16px}.card-details{font-size:12px;min-height:44px}}
-</style><link rel="stylesheet" href="storefront-improvements.css?v=7"><script src="storefront-core.js?v=2"></script><script src="model-carousel.js?v=1" defer></script><script src="category-utils.js?v=1"></script><link rel="stylesheet" href="christmas-kits.css?v=1"><script src="christmas-kits.js?v=2"></script><script src="photo-protection.js?v=3"></script><script src="uuid.js?v=1"></script><script src="natal-promotion.js?v=1"></script></head>
+</style><link rel="stylesheet" href="storefront-improvements.css?v=7"><script src="storefront-core.js?v=2"></script><script src="model-carousel.js?v=1" defer></script><script src="category-utils.js?v=1"></script><link rel="stylesheet" href="christmas-kits.css?v=1"><script src="christmas-kits.js?v=2"></script><script src="photo-protection.js?v=3"></script><script src="uuid.js?v=1"></script><script src="natal-promotion.js?v=1"></script><script src="delivery-rules.js?v=1"></script></head>
 <body class="lm-clean-shop bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
@@ -831,7 +831,7 @@ const STORE_WHATSAPP_NUMBER = "5584991263907";
 const STORE_CNPJ = "68.615.746/0001-43";
 const STORE_ORIGIN_CEP = "59280670";
 const STORE_ORIGIN_ADDRESS = "Rua Alice Medeiros, São José, Macaíba-RN";
-const LOCAL_DELIVERY_RADIUS_KM = 15;
+const LOCAL_DELIVERY_MAX_DISTANCE_KM = 1000;
 const REDUCED_DELIVERY_RADIUS_KM = 5;
 const REDUCED_DELIVERY_RATE_PER_KM = 1.50;
 const STANDARD_DELIVERY_RATE_PER_KM = 1.80;
@@ -2051,6 +2051,11 @@ function haversineDistanceKm(lat1, lon1, lat2, lon2) {
     Math.sin(dLon/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
+function checkoutDeliveryDetails(){
+ if(state.shippingMethod==='pickup')return LMDelivery.normalize({method:'pickup'});
+ if(state.shippingQuote?.type!=='motoboy')return null;
+ const f=getShippingAddressFields();return LMDelivery.normalize({method:'delivery',distance_km:Math.round(state.shippingQuote.distanceKm*100)/100,address:state.shippingQuote.address,region:[f.neighborhood,f.city].filter(Boolean).join(', '),reference:state.checkoutDraft.shippingComplement||''});
+}
 function shippingFeeAmount() {
   return state.shippingMethod === "delivery" && state.shippingQuote?.type === "motoboy"
     ? Number(state.shippingQuote.fee || 0) : 0;
@@ -2059,7 +2064,7 @@ function shippingSummaryText() {
   if (state.shippingMethod === "pickup") return "Retirada a combinar";
   if (!state.shippingQuote) return "Entrega ainda não calculada";
   if (state.shippingQuote.type === "motoboy") {
-    return `Motoboy · ${state.shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km`;
+    return `Motoboy · ${state.shippingQuote.distanceKm.toFixed(2).replace(".", ",")} km`;
   }
   if (state.shippingQuote.type === "pac") return "Correios PAC";
   return "Entrega a confirmar";
@@ -2493,16 +2498,16 @@ async function calculateShippingQuote() {
       state.shippingQuoteStale = false;
       quoteBox.className = "shipping-quote-box is-error";
       quoteBox.innerHTML = `<b>Não conseguimos calcular a distância automaticamente.</b><br>
-        Você pode continuar normalmente; a Luz Mariana confirma a forma e o valor da entrega pelo WhatsApp antes da confirmação final do pedido.
+        Confira o endereço e tente novamente. Para finalizar com entrega, o frete precisa estar calculado; retirada no local não tem taxa.
         ${address ? `<div class="shipping-address-summary">${escapeHtml(address)}</div>` : ""}
-        <button type="button" id="ck-continue-manual-shipping" class="mt-3 large-touch-action w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">Continuar e confirmar entrega pelo WhatsApp</button>`;
+        <button type="button" id="ck-continue-manual-shipping" class="mt-3 large-touch-action w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">Tentar calcular o frete novamente</button>`;
       updateCheckoutTotals();
       return;
     }
 
     const roadDistance = await drivingDistanceKm(originCoords, destinationCoords);
     const straightDistance = haversineDistanceKm(originCoords.lat, originCoords.lon, destinationCoords.lat, destinationCoords.lon);
-    let distanceKm = roadDistance ?? straightDistance;
+    let distanceKm = roadDistance;
 
     if (!Number.isFinite(distanceKm) || distanceKm < 0.05) {
       const retryOrigin = await geocodeWithPhoton(`${STORE_ORIGIN_ADDRESS}, Macaíba, RN, Brasil`);
@@ -2517,7 +2522,7 @@ async function calculateShippingQuote() {
           retryOrigin.lat, retryOrigin.lon,
           retryDestination.lat, retryDestination.lon
         );
-        const retryDistance = retryRoad ?? retryStraight;
+        const retryDistance = retryRoad;
         if (Number.isFinite(retryDistance) && retryDistance >= 0.05) {
           distanceKm = retryDistance;
         }
@@ -2534,19 +2539,16 @@ async function calculateShippingQuote() {
       state.shippingQuoteStale = false;
       quoteBox.className = "shipping-quote-box is-error";
       quoteBox.innerHTML = `<b>Não conseguimos calcular a distância com segurança.</b><br>
-        Você pode continuar normalmente; a Luz Mariana confirma a entrega pelo WhatsApp antes da confirmação final do pedido.
+        Confira o endereço e tente novamente. Para finalizar com entrega, o frete precisa estar calculado; retirada no local não tem taxa.
         <div class="shipping-address-summary">${escapeHtml(address)}</div>
-        <button type="button" id="ck-continue-manual-shipping" class="mt-3 large-touch-action w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">Continuar e confirmar entrega pelo WhatsApp</button>`;
+        <button type="button" id="ck-continue-manual-shipping" class="mt-3 large-touch-action w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">Tentar calcular o frete novamente</button>`;
       updateCheckoutTotals();
       return;
     }
 
-    if (distanceKm <= LOCAL_DELIVERY_RADIUS_KM) {
-      const rate = distanceKm <= REDUCED_DELIVERY_RADIUS_KM
-        ? REDUCED_DELIVERY_RATE_PER_KM : STANDARD_DELIVERY_RATE_PER_KM;
-      const calculatedFee = Math.round(distanceKm * rate * 100) / 100;
-      const fee = calculatedFee <= 5 ? 0 : calculatedFee;
-      const isFreeDelivery = fee === 0;
+    if (distanceKm <= LOCAL_DELIVERY_MAX_DISTANCE_KM) {
+      distanceKm=Math.round(distanceKm*100)/100;
+      const fee=LMDelivery.fee(distanceKm),calculatedFee=fee,rate=1,isFreeDelivery=false;
 
       state.shippingQuote = {
         type:"motoboy",
@@ -2562,18 +2564,18 @@ async function calculateShippingQuote() {
       state.shippingQuoteStale = false;
       quoteBox.className = "shipping-quote-box is-ready";
       quoteBox.innerHTML = `<b>Entrega por motoboy disponível</b><br>
-        Distância estimada do trajeto: <b>${distanceKm.toFixed(1).replace(".", ",")} km</b><br>
+        Distância estimada do trajeto: <b>${distanceKm.toFixed(2).replace(".", ",")} km</b><br>
         ${isFreeDelivery ? `<span class="shipping-free-badge mt-2">Entrega grátis</span>` : `<b>Valor da entrega: ${formatBRL(fee)}</b>`}
         <div class="shipping-address-summary">${escapeHtml(address)}</div>
         <p class="mt-2 text-xs text-navy-600"><b>Prazo da entrega:</b> horário combinado após a finalização do pedido.</p>
         <p class="mt-1 text-[11px] text-navy-500">Estimativa baseada na localização do endereço. A loja confirma os dados antes do envio.</p>`;
     } else {
-      state.shippingQuote = { type:"pac", fee:0, distanceKm, cep:formatCep(fields.cep), address };
+      state.shippingQuote = { type:"manual", fee:0, distanceKm, cep:formatCep(fields.cep), address };
       state.shippingQuoteStale = false;
       quoteBox.className = "shipping-quote-box is-pac";
-      quoteBox.innerHTML = `<b>Envio pelos Correios — PAC</b><br>
-        O endereço fica fora do raio de ${LOCAL_DELIVERY_RADIUS_KM} km para motoboy.
-        <b>Frete e prazo do PAC serão informados antes da confirmação final do pedido.</b>
+      quoteBox.innerHTML = `<b>Confira o endereço</b><br>
+        Não foi possível confirmar uma rota para entrega local.
+        <b>Fale com a loja para combinar o frete antes de concluir o pedido.</b>
         <div class="shipping-address-summary">${escapeHtml(address)}</div>
         <p class="mt-2 text-xs text-navy-600"><b>Prazo da entrega:</b> contado a partir da finalização do pedido, conforme a cotação dos Correios.</p>`;
     }
@@ -2587,9 +2589,9 @@ async function calculateShippingQuote() {
     state.shippingQuoteStale = false;
     quoteBox.className = "shipping-quote-box is-error";
     quoteBox.innerHTML = `<b>O serviço de mapa não respondeu agora.</b><br>
-      Você pode continuar normalmente; a entrega será confirmada pelo WhatsApp antes da confirmação final do pedido.
+      Confira o endereço e tente novamente. Para finalizar com entrega, o frete precisa estar calculado; retirada no local não tem taxa.
       ${address ? `<div class="shipping-address-summary">${escapeHtml(address)}</div>` : ""}
-      <button type="button" id="ck-continue-manual-shipping" class="mt-3 large-touch-action w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">Continuar e confirmar entrega pelo WhatsApp</button>`;
+      <button type="button" id="ck-continue-manual-shipping" class="mt-3 large-touch-action w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">Tentar calcular o frete novamente</button>`;
     updateCheckoutTotals();
   }
 }
@@ -3933,7 +3935,7 @@ function renderCheckout() {
 
           <div id="ck-shipping-fields" class="mt-3 ${state.shippingMethod === "delivery" ? "" : "hidden"}">
             <p class="mb-2 rounded-lg bg-white px-3 py-2 text-xs text-navy-600">
-              Até 15 km: <b>entregador/motoboy</b> · acima de 15 km: <b>Correios PAC</b>.
+              <b>Entrega: R$ 5 até 5 km + R$ 1 por km excedente.</b> Retirada no local sem taxa.
             </p>
 
             <button type="button" id="ck-use-location" class="large-touch-action mb-2 w-full rounded-lg border border-navy-200 bg-white px-3 py-2 font-semibold text-navy-700">
@@ -4042,7 +4044,7 @@ function renderCheckout() {
             <div id="ck-shipping-quote" class="shipping-quote-box mt-3 ${state.shippingQuote?.type === "motoboy" ? "is-ready" : state.shippingQuote?.type === "pac" ? "is-pac" : ""}">
               ${state.shippingQuote
                 ? state.shippingQuote.type === "motoboy"
-                  ? `<b>Motoboy disponível</b><br>${state.shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km · ${state.shippingQuote.free ? `<span class="shipping-free-badge">Entrega grátis</span>` : `<b>Valor da entrega: ${formatBRL(state.shippingQuote.fee)}</b>`}${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}<p class="mt-2 text-xs text-navy-600"><b>Prazo:</b> horário combinado após a finalização do pedido.</p>`
+                  ? `<b>Motoboy disponível</b><br>${state.shippingQuote.distanceKm.toFixed(2).replace(".", ",")} km · ${state.shippingQuote.free ? `<span class="shipping-free-badge">Entrega grátis</span>` : `<b>Valor da entrega: ${formatBRL(state.shippingQuote.fee)}</b>`}${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}<p class="mt-2 text-xs text-navy-600"><b>Prazo:</b> horário combinado após a finalização do pedido.</p>`
                   : state.shippingQuote.type === "pac"
                     ? `<b>Correios PAC</b><br><b>Frete e prazo serão informados antes da confirmação final do pedido.</b>${state.shippingQuote.address ? `<div class="shipping-address-summary">${escapeHtml(state.shippingQuote.address)}</div>` : ""}<p class="mt-2 text-xs text-navy-600"><b>Prazo:</b> contado a partir da finalização do pedido, conforme a cotação dos Correios.</p>`
                     : `Entrega a confirmar pelo WhatsApp.`
@@ -4321,8 +4323,7 @@ function renderCheckout() {
   document.addEventListener("click", (e) => {
     if (e.target?.id === "ck-continue-manual-shipping") {
       setCheckoutStage("shipping");
-      e.target.textContent = "Entrega será confirmada pelo WhatsApp";
-      e.target.disabled = true;
+      calculateShippingQuote();
     }
   });
 
@@ -4751,6 +4752,10 @@ async function onSubmitOrder(e) {
     }
   }
 
+  if(!checkoutDeliveryDetails()){
+    errorEl.textContent='Calcule a entrega antes de concluir o pedido. Confira o endereço e tente novamente, ou escolha retirada sem taxa.';
+    setCheckoutStage('shipping');return;
+  }
   errorEl.textContent = "";
   state.checkoutSubmitted = true;
   setCheckoutStage("whatsapp");
@@ -4780,7 +4785,7 @@ async function onSubmitOrder(e) {
   const shippingNote = state.shippingMethod === "pickup"
     ? "Retirada a combinar"
     : state.shippingQuote?.type === "motoboy"
-      ? `Entrega por motoboy: ${state.shippingQuote.distanceKm.toFixed(1)} km, valor ${state.shippingQuote.free ? "Grátis" : formatBRL(state.shippingQuote.fee)}. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
+      ? `Entrega por motoboy: ${state.shippingQuote.distanceKm.toFixed(2)} km, valor ${state.shippingQuote.free ? "Grátis" : formatBRL(state.shippingQuote.fee)}. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
       : state.shippingQuote?.type === "pac"
         ? `Envio Correios PAC, valor a calcular. Endereço: ${state.shippingQuote.address || ""}${state.checkoutDraft.shippingComplement ? `, complemento: ${state.checkoutDraft.shippingComplement}` : ""}`
         : `Entrega a confirmar. Endereço: ${[
@@ -4795,6 +4800,7 @@ async function onSubmitOrder(e) {
 
   const { error: orderError } = await supabaseClient.from("orders").insert({
     id: orderId,
+    delivery_details:checkoutDeliveryDetails(),
     customer_name: name,
     customer_whatsapp: whatsapp,
     customer_instagram: instagram || null,
@@ -4957,7 +4963,7 @@ function buildWhatsAppMessage({
   if (shippingMethod === "pickup") {
     lines.push(`Entrega/retirada: Retirada a combinar`);
   } else if (shippingQuote?.type === "motoboy") {
-    lines.push(`Entrega: Motoboy — ${shippingQuote.distanceKm.toFixed(1).replace(".", ",")} km — ${shippingQuote.free ? "Grátis" : formatBRL(shippingQuote.fee)}`);
+    lines.push(`Entrega: Motoboy — ${shippingQuote.distanceKm.toFixed(2).replace(".", ",")} km — ${shippingQuote.free ? "Grátis" : formatBRL(shippingQuote.fee)}`);
     lines.push(`Endereço: ${shippingQuote.address}${shippingComplement ? `, ${shippingComplement}` : ""}`);
   } else if (shippingQuote?.type === "pac") {
     lines.push(`Entrega: Correios PAC — frete a calcular`);
