@@ -2540,7 +2540,17 @@ html.dark .lm-production-item small,html.dark .lm-production-order-head small,ht
 @media(max-width:640px){.lm-production-focus{padding:14px}.lm-production-focus h2{font-size:19px}.lm-production-item{align-items:flex-start}.lm-production-buttons{width:100%}.lm-production-buttons button{flex:1}.lm-production-order{padding:12px}}
 
 </style>
-<link rel="stylesheet" href="brand-management.css?v=1"><script src="../production-whatsapp.js?v=2"></script><link rel="stylesheet" href="quote-sales.css?v=1"><script src="quote-sales.js?v=1"></script><script src="../category-utils.js?v=1"></script><script src="../uuid.js?v=1"></script></head>
+<link rel="stylesheet" href="brand-management.css?v=1"><script src="../production-whatsapp.js?v=3"></script><link rel="stylesheet" href="quote-sales.css?v=1"><script src="quote-sales.js?v=1"></script><script src="../category-utils.js?v=1"></script><script src="../uuid.js?v=1"></script><style>
+/* Mantém cabeçalho e menu presos à janela, sem ancestral com overflow:hidden. */
+@media(min-width:901px){
+ html,body{overflow-x:clip!important;overflow-y:visible}
+ .admin-shell{overflow:visible!important}
+ .admin-topbar{position:sticky!important;top:0!important}
+ .admin-sidebar{position:sticky!important;top:68px!important;align-self:start;height:calc(100dvh - 68px)!important;max-height:calc(100dvh - 68px);overflow-y:auto!important;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin}
+ .admin-sidebar::-webkit-scrollbar{display:block;width:6px}
+ .admin-sidebar::-webkit-scrollbar-thumb{background:#7284c5;border-radius:6px}
+}
+</style></head>
 <body class="bg-cream-50 text-navy-900 min-h-screen">
 <div id="app"></div>
 
