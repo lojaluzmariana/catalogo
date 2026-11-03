@@ -10,10 +10,10 @@ self.addEventListener('push',event=>{
   body:String(data.body||'Há uma atualização nas entregas. Abra o aplicativo para conferir.').slice(0,250),
   icon:'../calculadora/icon-192.png',badge:'../calculadora/icon-192.png',
   tag:id?'iluminart-entrega-'+id:'iluminart-push-teste',renotify:true,
-  data:{url:new URL('./#entregas',self.registration.scope).href}
+  data:{url:new URL('./'+(id?'?corrida='+id:'')+(['#entregas','#entregas/historico'].includes(data.path)?data.path:'#entregas'),self.registration.scope).href}
  }));
 });
 self.addEventListener('notificationclick',event=>{
- event.notification.close();const url=new URL('./#entregas',self.registration.scope).href;
+ event.notification.close();let url=new URL('./#entregas',self.registration.scope).href;try{const candidate=new URL(event.notification.data?.url||url);if(candidate.href.startsWith(self.registration.scope)&&['#entregas','#entregas/historico'].includes(candidate.hash))url=candidate.href;}catch{}
  event.waitUntil((async()=>{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});for(const client of windows){if(client.url.startsWith(self.registration.scope)&&'focus'in client){await client.navigate(url);return client.focus();}}return self.clients.openWindow(url);})());
 });

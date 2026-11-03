@@ -3893,7 +3893,8 @@ function productionSourceForItem(item, order = null) {
 function productionTaskFor(order, item) {
   const key = productionItemKey(item);
   const meta = normalizedOrderOpsMeta(order);
-  const saved = meta.production?.[key] || {};
+  const individual=meta.productionItems?.[item.id],legacy=meta.production?.[key]||{};
+  const saved=individual&&(Date.parse(individual.updatedAt)||0)>=(Date.parse(legacy.updatedAt)||0)?individual:legacy;
   const qty = Math.max(0, Number(item.quantity || 0));
   const fulfillment = orderItemFulfillmentInfo(order, item);
   const preProduced = fulfillment.source === "own" && fulfillment.alreadyProduced;
@@ -4680,7 +4681,7 @@ function monthManagementData(month) {
     profitBeforeOps += split.profit;
     if (c.isApprox) approx = true;
   });
-  const excludedExpenseCategories = new Set(["Custo do pedido","Custo do evento","Custo do brinde","Material essencial","Compra de estoque","Retirada do proprietário"]);
+  const excludedExpenseCategories = new Set(["Custo do pedido","Custo do evento","Custo do brinde","Material essencial","Compra de estoque","Retirada do proprietário","Taxa da maquininha"]);
   const operatingExpenses = state.cashEntries.filter((e) =>
     e.entry_type === "saida" &&
     !!e.paid_at &&
@@ -4707,7 +4708,7 @@ function monthManagementData(month) {
 
   const receivable = state.orders.filter((o) =>
     o.status !== "cancelado" && o.payment_method !== "brinde" && !o.paid_at
-  ).reduce((s,o) => s + Number(o.total || 0), 0);
+  ).reduce((s,o) => s + orderRemainingAmount(o), 0);
 
   const supplierPayable = state.orders.filter((o) => o.status !== "cancelado")
     .reduce((sum,o) => sum + orderSupplierUnpaidItems(o).reduce((ss,it) => {
@@ -5972,7 +5973,7 @@ function renderContas(container) {
     .filter((o) => o.status !== "cancelado" && o.payment_method !== "brinde" && !o.paid_at)
     .map((o) => ({
       order:o,
-      amount:Number(o.total || 0),
+      amount:orderRemainingAmount(o),
       age:Math.max(0, daysBetweenISO(String(o.created_at).slice(0,10), todayISO())),
     }))
     .sort((a,b) => b.age-a.age || b.amount-a.amount);
@@ -12208,6 +12209,8 @@ function profitSplitForMonth(month) {
 // No crédito, desconta a taxa de cartão já adotada na regra de precificação.
 // Depois o lucro é dividido pela regra da competência: setembro/2026 fica
 // 100% na loja; a divisão configurada no Caixa vale a partir de outubro.
+function orderReceivedAmount(o){return o?.mobile_payments_enabled?Number(o.mobile_received_amount||0):o?.paid_at?Number(o.total||0):0;}
+function orderRemainingAmount(o){return Math.max(0,round2(Number(o?.total||0)-orderReceivedAmount(o)));}
 function orderMoneySplit(order, costInfo = null) {
   const c = costInfo || orderCost(order);
   const gross = Number(order?.total || 0);
@@ -12216,7 +12219,7 @@ function orderMoneySplit(order, costInfo = null) {
   const feeRate = order?.payment_method === "credito"
     ? (isLegacyCredit ? CARD_FEE : cardRateFor("credito", installments))
     : order?.payment_method === "debito" ? cardRateFor("debito", 1) : 0;
-  const cardFee = round2(gross * feeRate);
+  const cardFee = order?.mobile_payments_enabled?Number(order.mobile_card_fees||0):round2(gross * feeRate);
   const netRevenue = round2(gross - cardFee);
   const costToKeep = round2(Number(c.cost || 0));
   const profit = round2(netRevenue - costToKeep);
@@ -12250,7 +12253,7 @@ function orderMoneySplit(order, costInfo = null) {
 // o faturamento bruto visível como entrada e, ao mesmo tempo, deixa o saldo
 // bancário/financeiro líquido correto. A função é idempotente por pedido.
 async function ensureOrderCardFeeCashEntry(order, entryDate = todayISO(), customerId = null) {
-  if (!order || !order.paid_at || !["credito","debito"].includes(order.payment_method)) return { skipped:true };
+  if (!order || order.mobile_payments_enabled || !order.paid_at || !["credito","debito"].includes(order.payment_method)) return { skipped:true };
   if (state.cashEntries.some((e) => e.order_id === order.id && e.category === "Taxa da maquininha")) return { skipped:true };
   const split = orderMoneySplit(order);
   if (!(split.cardFee > 0)) return { skipped:true };
@@ -12265,7 +12268,7 @@ async function ensureOrderCardFeeCashEntry(order, entryDate = todayISO(), custom
 }
 
 async function reconcileExistingCardFees() {
-  const candidates = state.orders.filter((o) => o.status !== "cancelado" && !!o.paid_at && ["credito","debito"].includes(o.payment_method));
+  const candidates = state.orders.filter((o) => !o.mobile_payments_enabled && o.status !== "cancelado" && !!o.paid_at && ["credito","debito"].includes(o.payment_method));
   const missing = candidates.filter((o) => state.cashEntries.some((e)=>e.order_id===o.id && e.entry_type==="entrada") && !state.cashEntries.some((e)=>e.order_id===o.id && e.category==="Taxa da maquininha"));
   if (!missing.length) { alert("Nenhuma taxa de cartão pendente de conciliação."); return; }
   const legacy = missing.filter((o)=>o.payment_method==="credito" && !orderInstallments(o)).length;
@@ -13813,12 +13816,13 @@ function renderPedidosBase(container) {
     // não faz sentido entrar aqui nem aparecer como "a receber".
     if (o.payment_method === "brinde") return;
     if (o.paid_at) {
-      valoresRecebidos += Number(o.total);
+      valoresRecebidos += orderReceivedAmount(o);
       const split = orderMoneySplit(o, c);
       lucroReal += split.profit;
       if (c.isApprox) lucroRealHasApprox = true;
     } else {
-      valoresAReceber += Number(o.total);
+      valoresRecebidos += orderReceivedAmount(o);
+      valoresAReceber += orderRemainingAmount(o);
     }
   });
 
@@ -13826,7 +13830,7 @@ function renderPedidosBase(container) {
   // cliente tem mais de um pedido não pago), do maior valor pro menor.
   const receivablesByCustomer = new Map();
   statsOrders.forEach((o) => {
-    if (!o.paid_at && o.payment_method !== "brinde") receivablesByCustomer.set(o.customer_name, (receivablesByCustomer.get(o.customer_name) || 0) + Number(o.total));
+    if (!o.paid_at && o.payment_method !== "brinde") receivablesByCustomer.set(o.customer_name, (receivablesByCustomer.get(o.customer_name) || 0) + orderRemainingAmount(o));
   });
   const receivablesList = [...receivablesByCustomer.entries()].sort((a, b) => b[1] - a[1]);
 
@@ -14121,8 +14125,8 @@ function renderPedidosBase(container) {
                 ? `<button data-cancelar-pedido="${o.id}" class="cancelar-pedido-btn text-xs text-red-600 hover:underline">Cancelar pedido</button>`
                 : ""}
               <label class="flex items-center gap-1.5 text-xs font-medium text-navy-700">
-                <input type="checkbox" data-paid-toggle="${o.id}" ${o.paid_at ? "checked" : ""} class="paid-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
-                Pago${o.paid_at ? ` <span class="text-navy-400">(${formatDate(o.paid_at.slice(0, 10))})</span>` : ""}
+                <input type="checkbox" data-paid-toggle="${o.id}" ${o.mobile_payments_enabled?'disabled title="Recebimentos controlados pelo aplicativo"':''} ${o.paid_at ? "checked" : ""} class="paid-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
+                ${o.mobile_payments_enabled && !o.paid_at ? `Parcial: ${formatBRL(orderReceivedAmount(o))} · falta ${formatBRL(orderRemainingAmount(o))}` : "Pago"}${o.paid_at ? ` <span class="text-navy-400">(${formatDate(o.paid_at.slice(0, 10))})</span>` : ""}
               </label>
               <label class="flex items-center gap-1.5 text-xs font-medium text-navy-700" title="Se a loja já pagou o fornecedor/fabricante pelos itens deste pedido (item atendido com o estoque da loja não conta aqui — ver 'Ver itens' pra marcar item por item). Independe de o cliente já ter pago ou não.">
                 <input type="checkbox" data-fornecedor-pago-toggle="${o.id}" ${orderSupplierUnpaidItems(o).length === 0 ? "checked" : ""} class="fornecedor-pago-toggle-cb h-3.5 w-3.5 rounded border-navy-300 text-emerald-600 focus:ring-emerald-400" />
